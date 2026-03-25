@@ -13,6 +13,9 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
 
@@ -23,7 +26,6 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
-import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -66,14 +68,13 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
 
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(keyShape),
-                    cryptoCreate(PAYER).key(PAYER_KEY).balance(HapiSuite.ONE_HUNDRED_HBARS),
-                    cryptoTransfer(movingHbar(HapiSuite.ONE_HBAR).between(HapiSuite.GENESIS, "4")),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
                     cryptoCreate(TEST_ACCOUNT)
                             .key(PAYER_KEY)
                             .sigControl(ControlForKey.forKey(PAYER_KEY, invalidSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(HapiSuite.ONE_HBAR)
                             .setNode(4)
                             .via(CRYPTO_CREATE_TXN_INNER_ID)
                             .hasKnownStatus(ResponseCodeEnum.INVALID_PAYER_SIGNATURE),
@@ -95,14 +96,14 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
 
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(keyShape),
-                    cryptoCreate(PAYER).key(PAYER_KEY).balance(HapiSuite.ONE_HUNDRED_HBARS),
-                    cryptoTransfer(movingHbar(HapiSuite.ONE_HBAR).between(HapiSuite.GENESIS, "4")),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
                     cryptoCreate(TEST_ACCOUNT)
                             .key(PAYER_KEY)
                             .sigControl(ControlForKey.forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(HapiSuite.ONE_HBAR / 100000)
+                            .fee(ONE_HBAR / 100000)
                             .setNode(4)
                             .via(CRYPTO_CREATE_TXN_INNER_ID)
                             .hasKnownStatus(ResponseCodeEnum.INSUFFICIENT_TX_FEE),
@@ -124,14 +125,13 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
 
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(keyShape),
-                    cryptoCreate(PAYER).key(PAYER_KEY).balance(HapiSuite.ONE_HBAR / 100000),
-                    cryptoTransfer(movingHbar(HapiSuite.ONE_HBAR).between(HapiSuite.GENESIS, "4")),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HBAR / 100000),
+                    cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
                     cryptoCreate(TEST_ACCOUNT)
                             .key(PAYER_KEY)
                             .sigControl(ControlForKey.forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(HapiSuite.ONE_HBAR)
                             .setNode(4)
                             .via(CRYPTO_CREATE_TXN_INNER_ID)
                             .hasKnownStatus(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE),
@@ -154,16 +154,15 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
 
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(keyShape),
-                    cryptoCreate(PAYER).key(PAYER_KEY).balance(HapiSuite.ONE_HUNDRED_HBARS),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     usableTxnIdNamed(CRYPTO_CREATE_TXN_INNER_ID).payerId(PAYER),
-                    cryptoTransfer(movingHbar(HapiSuite.ONE_HBAR).between(HapiSuite.GENESIS, "4")),
+                    cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
                     cryptoCreate(TEST_ACCOUNT)
                             .memo(LONG_MEMO)
                             .key(PAYER_KEY)
                             .sigControl(ControlForKey.forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(HapiSuite.ONE_HBAR)
                             .setNode(4)
                             .via(CRYPTO_CREATE_TXN_INNER_ID)
                             .hasKnownStatus(ResponseCodeEnum.MEMO_TOO_LONG),
@@ -186,17 +185,16 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
 
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(keyShape),
-                    cryptoCreate(PAYER).key(PAYER_KEY).balance(HapiSuite.ONE_HUNDRED_HBARS),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     usableTxnIdNamed(CRYPTO_CREATE_TXN_INNER_ID)
                             .modifyValidStart(oneHourBefore)
                             .payerId(PAYER),
-                    cryptoTransfer(movingHbar(HapiSuite.ONE_HBAR).between(HapiSuite.GENESIS, "4")),
+                    cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
                     cryptoCreate(TEST_ACCOUNT)
                             .key(PAYER_KEY)
                             .sigControl(ControlForKey.forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(HapiSuite.ONE_HBAR)
                             .setNode(4)
                             .txnId(CRYPTO_CREATE_TXN_INNER_ID)
                             .via(CRYPTO_CREATE_TXN_INNER_ID)
@@ -220,17 +218,16 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
 
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(keyShape),
-                    cryptoCreate(PAYER).key(PAYER_KEY).balance(HapiSuite.ONE_HUNDRED_HBARS),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     usableTxnIdNamed(CRYPTO_CREATE_TXN_INNER_ID)
                             .modifyValidStart(oneHourPast)
                             .payerId(PAYER),
-                    cryptoTransfer(movingHbar(HapiSuite.ONE_HBAR).between(HapiSuite.GENESIS, "4")),
+                    cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
                     cryptoCreate(TEST_ACCOUNT)
                             .key(PAYER_KEY)
                             .sigControl(ControlForKey.forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(HapiSuite.ONE_HBAR)
                             .setNode(4)
                             .txnId(CRYPTO_CREATE_TXN_INNER_ID)
                             .via(CRYPTO_CREATE_TXN_INNER_ID)
@@ -253,15 +250,14 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
 
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(keyShape),
-                    cryptoCreate(PAYER).key(PAYER_KEY).balance(HapiSuite.ONE_HUNDRED_HBARS),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     usableTxnIdNamed(CRYPTO_CREATE_TXN_INNER_ID).payerId(PAYER),
-                    cryptoTransfer(movingHbar(HapiSuite.ONE_HBAR).between(HapiSuite.GENESIS, "4")),
+                    cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
                     cryptoCreate(TEST_ACCOUNT)
                             .key(PAYER_KEY)
                             .sigControl(ControlForKey.forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(HapiSuite.ONE_HBAR)
                             .validDurationSecs(0)
                             .setNode(4)
                             .txnId(CRYPTO_CREATE_TXN_INNER_ID)

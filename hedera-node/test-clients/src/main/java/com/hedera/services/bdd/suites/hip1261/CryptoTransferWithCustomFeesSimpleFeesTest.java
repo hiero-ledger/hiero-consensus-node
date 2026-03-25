@@ -120,7 +120,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(moving(10L, FT_WITH_HBAR_FIXED_FEE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -152,7 +151,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(moving(20L, FT_WITH_HBAR_FIXED_FEE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("transferFromTreasuryTxn"),
                     cryptoTransfer(
                                     moving(10L, FT_WITH_HBAR_FIXED_FEE)
@@ -161,7 +159,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -216,7 +213,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     moving(10L, FT_WITH_HBAR_FIXED_FEE_THIRD).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("transferFromTreasuryTxn"),
                     cryptoTransfer(
                                     moving(1L, FT_WITH_HBAR_FIXED_FEE)
@@ -237,7 +233,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     RECEIVER_ASSOCIATED_FIRST,
                                     RECEIVER_ASSOCIATED_SECOND,
                                     RECEIVER_ASSOCIATED_THIRD)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -289,7 +284,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(movingUnique(NFT_WITH_HTS_FEE, 1L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -344,7 +338,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(movingUnique(NFT_WITH_HTS_FEE, 1L, 2L, 3L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("transferFromTreasuryTxn"),
                     cryptoTransfer(
                                     movingUnique(NFT_WITH_HTS_FEE, 1L)
@@ -353,7 +346,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -420,7 +412,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     movingUnique(NFT_WITH_HTS_FEE, 4L).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("transferFromTreasuryTxn"),
                     cryptoTransfer(
                                     movingUnique(NFT_WITH_HTS_FEE, 1L)
@@ -429,7 +420,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_SECOND, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_SECOND)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -500,7 +490,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_SECOND, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_SECOND)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -542,7 +531,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(moving(10L, FT_WITH_FRACTIONAL_FEE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -575,7 +563,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(moving(30L, FT_WITH_FRACTIONAL_FEE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     cryptoTransfer(
                                     moving(10L, FT_WITH_FRACTIONAL_FEE)
@@ -584,7 +571,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -640,7 +626,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     moving(30L, FT_FIXED_AND_FRACTIONAL_FEE).between(OWNER, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     cryptoTransfer(
                                     moving(10L, FT_WITH_FRACTIONAL_FEE)
@@ -655,7 +640,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     RECEIVER_ASSOCIATED_FIRST,
                                     RECEIVER_ASSOCIATED_SECOND,
                                     RECEIVER_ASSOCIATED_THIRD)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -704,7 +688,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -738,7 +721,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     cryptoTransfer(
                                     movingUnique(NFT_WITH_ROYALTY_FEE_NO_FALLBACK, 1L, 2L)
@@ -753,7 +735,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     RECEIVER_ASSOCIATED_FIRST,
                                     RECEIVER_ASSOCIATED_SECOND,
                                     RECEIVER_ASSOCIATED_THIRD)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -788,7 +769,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -822,7 +802,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     .between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     cryptoTransfer(
                                     movingUnique(NFT_WITH_ROYALTY_FEE_WITH_FALLBACK, 1L, 2L)
@@ -835,7 +814,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     RECEIVER_ASSOCIATED_FIRST,
                                     RECEIVER_ASSOCIATED_SECOND,
                                     RECEIVER_ASSOCIATED_THIRD)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -881,7 +859,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                     moving(30L, FT_WITH_FRACTIONAL_FEE).between(OWNER, RECEIVER_ASSOCIATED_SECOND))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     cryptoTransfer(
                                     moving(10L, FT_FIXED_AND_FRACTIONAL_FEE)
@@ -890,7 +867,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_SECOND, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_SECOND)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -931,7 +907,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .supplyKey(supplyKey)
                             .tokenType(NON_FUNGIBLE_UNIQUE)
                             .withCustom(fixedHtsFee(HTS_FEE, DENOM_TOKEN, DENOM_COLLECTOR))
-                            .fee(ONE_HUNDRED_HBARS)
                             .payingWith(OWNER),
                     mintNFT(NFT_WITH_HTS_FEE, 0, 10),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_WITH_HTS_FEE),
@@ -940,7 +915,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(movingUnique(NFT_WITH_HTS_FEE, 1L, 2L, 3L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("transferFromTreasuryTxn"),
                     cryptoTransfer(
                                     movingUnique(NFT_WITH_HTS_FEE, 1L)
@@ -949,7 +923,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -992,7 +965,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(moving(20L, FT_WITH_HBAR_FIXED_FEE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("transferFromTreasuryTxn"),
                     cryptoTransfer(
                                     moving(10L, FT_WITH_HBAR_FIXED_FEE)
@@ -1001,7 +973,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_FREE_AUTO_ASSOCIATIONS))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             ftTransferTxn,
@@ -1079,7 +1050,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .withNftSenderPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000L, "")
                             .payingWith(PAYER_WITH_TWO_HOOKS)
                             .signedBy(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD)
-                            .fee(ONE_HUNDRED_HBARS)
                             .via(tokenTransferTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenTransferTxn,
@@ -1149,7 +1119,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(movingUnique(NFT_WITH_HTS_FEE, 1L, 2L, 3L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("transferFromTreasuryTxn"),
                     cryptoTransfer(
                                     movingUnique(NFT_WITH_HTS_FEE, 1L)
@@ -1158,7 +1127,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn)
                             .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
                     validateChargedUsdWithinWithTxnSize(
@@ -1217,7 +1185,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(movingUnique(NFT_WITH_HTS_FEE, 1L, 2L, 3L).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("transferFromTreasuryTxn"),
                     cryptoTransfer(
                                     movingUnique(NFT_WITH_HTS_FEE, 1L)
@@ -1226,7 +1193,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn)
                             .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
                     validateChargedUsdWithinWithTxnSize(
@@ -1271,14 +1237,12 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                     cryptoTransfer(moving(1L, DUMMY_TOKEN).between(OWNER, RECEIVER_FREE_AUTO_ASSOCIATIONS))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("consumeAutoAssociationsSlot"),
 
                     // transfer tokens
                     cryptoTransfer(moving(20L, FT_WITH_HBAR_FIXED_FEE).between(OWNER, RECEIVER_ASSOCIATED_FIRST))
                             .payingWith(OWNER)
                             .signedBy(OWNER)
-                            .fee(ONE_HBAR)
                             .via("transferFromTreasuryTxn"),
                     cryptoTransfer(
                                     moving(10L, FT_WITH_HBAR_FIXED_FEE)
@@ -1287,7 +1251,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_FREE_AUTO_ASSOCIATIONS))
                             .payingWith(OWNER)
                             .signedBy(OWNER, RECEIVER_ASSOCIATED_FIRST)
-                            .fee(ONE_HBAR)
                             .via(ftTransferTxn)
                             .hasKnownStatus(NO_REMAINING_AUTOMATIC_ASSOCIATIONS),
                     validateChargedUsdWithinWithTxnSize(
@@ -1363,7 +1326,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                             .withNftSenderPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 10L, "")
                             .payingWith(PAYER_WITH_TWO_HOOKS)
                             .signedBy(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_THIRD)
-                            .fee(ONE_HUNDRED_HBARS)
                             .via(tokenTransferTxn)
                             .hasKnownStatus(INSUFFICIENT_GAS),
                     validateChargedUsdWithinWithTxnSize(
@@ -1428,7 +1390,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                 .adminKey(adminKey)
                 .feeScheduleKey(feeScheduleKey)
                 .tokenType(FUNGIBLE_COMMON)
-                .fee(ONE_HUNDRED_HBARS)
                 .withCustom(fractionalFeeNetOfTransfers(1L, 10L, 1L, OptionalLong.empty(), fractionalFeeCollector))
                 .payingWith(treasury)
                 .signedBy(treasury, adminKey, fractionalFeeCollector);
@@ -1448,7 +1409,6 @@ public class CryptoTransferWithCustomFeesSimpleFeesTest {
                 .adminKey(adminKey)
                 .feeScheduleKey(feeScheduleKey)
                 .tokenType(FUNGIBLE_COMMON)
-                .fee(ONE_HUNDRED_HBARS)
                 .withCustom(fixedHbarFee(hbarFee, fixedFeeCollector))
                 .withCustom(fractionalFeeNetOfTransfers(1L, 10L, 1L, OptionalLong.empty(), fractionalFeeCollector))
                 .payingWith(treasury)

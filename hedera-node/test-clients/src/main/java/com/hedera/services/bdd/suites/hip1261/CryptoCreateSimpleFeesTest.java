@@ -114,7 +114,6 @@ public class CryptoCreateSimpleFeesTest {
                     cryptoCreate("testAccount")
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
                             .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoCreatetxn,
@@ -136,7 +135,6 @@ public class CryptoCreateSimpleFeesTest {
                             .payingWith(PAYER)
                             .key(ADMIN_KEY)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
                             .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoCreatetxn,
@@ -164,7 +162,6 @@ public class CryptoCreateSimpleFeesTest {
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
                             .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoCreatetxn,
@@ -196,7 +193,6 @@ public class CryptoCreateSimpleFeesTest {
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
                             .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoCreatetxn,
@@ -220,7 +216,6 @@ public class CryptoCreateSimpleFeesTest {
                             .key(PAYER_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
                             .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoCreatetxn,
@@ -243,7 +238,6 @@ public class CryptoCreateSimpleFeesTest {
                             .withHooks(accountAllowanceHook(1L, HOOK_CONTRACT))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoCreatetxn,
@@ -268,7 +262,6 @@ public class CryptoCreateSimpleFeesTest {
                             .key(ADMIN_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoCreatetxn,
@@ -304,7 +297,6 @@ public class CryptoCreateSimpleFeesTest {
                             .withHooks(accountAllowanceHook(2L, HOOK_CONTRACT), accountAllowanceHook(3L, HOOK_CONTRACT))
                             .payingWith(PAYER)
                             .signedBy(PAYER_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
                             .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoCreatetxn,
@@ -357,7 +349,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .alias(alias)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn);
                         allRunFor(spec, txn);
                     }),
@@ -464,7 +455,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
 
@@ -493,7 +483,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
 
@@ -513,7 +502,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .key(PAYER_KEY)
                                 .payingWith(PAYER)
                                 .signedBy("firstKey")
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
 
@@ -536,7 +524,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .key(NEW_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(KEY_REQUIRED),
 
@@ -559,7 +546,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .key(NEW_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(KEY_REQUIRED),
 
@@ -609,7 +595,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
 
@@ -636,7 +621,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(MEMO_TOO_LONG),
 
@@ -666,7 +650,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(expiredTxnId)
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(TRANSACTION_EXPIRED),
@@ -697,7 +680,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(expiredTxnId)
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_TRANSACTION_START),
@@ -723,7 +705,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .validDurationSecs(0) // invalid duration
                                 .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_TRANSACTION_DURATION),
@@ -745,14 +726,13 @@ public class CryptoCreateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         // Successful first transaction
-                        cryptoCreate("testAccount").fee(ONE_HBAR).via(cryptoCreatetxn),
+                        cryptoCreate("testAccount").via(cryptoCreatetxn),
                         // Duplicate transaction
                         cryptoCreate("testAccountDuplicate")
                                 .key(PAYER_KEY)
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(cryptoCreatetxn)
                                 .via("cryptoCreateDuplicateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION));
@@ -771,7 +751,6 @@ public class CryptoCreateSimpleFeesTest {
                                     .alias(ed25519Key.getEd25519())
                                     .payingWith(PAYER)
                                     .signedBy(PAYER, VALID_ALIAS_ED25519_KEY)
-                                    .fee(ONE_HBAR)
                                     .via(cryptoCreatetxn)
                                     .hasPrecheck(INVALID_ALIAS_KEY);
                             allRunFor(spec, txn);
@@ -793,7 +772,6 @@ public class CryptoCreateSimpleFeesTest {
                                     .alias(ed25519Key.getEd25519())
                                     .payingWith(PAYER)
                                     .signedBy(PAYER, VALID_ALIAS_ED25519_KEY)
-                                    .fee(ONE_HBAR)
                                     .via(cryptoCreatetxn)
                                     .hasPrecheck(INVALID_ALIAS_KEY);
                             allRunFor(spec, txn);
@@ -880,7 +858,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .key(ADMIN_KEY)
                                 .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn),
                         validateChargedUsdWithinWithTxnSize(
                                 cryptoCreatetxn,
@@ -905,7 +882,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .key(ADMIN_KEY)
                                 .signedBy(PAYER, ADMIN_KEY, "extraKey1", "extraKey2")
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn),
                         validateChargedUsdWithinWithTxnSize(
                                 cryptoCreatetxn,
@@ -939,7 +915,6 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER_KEY, "extraKey1", "extraKey2")
-                                .fee(ONE_HBAR)
                                 .via(cryptoCreatetxn),
                         validateChargedUsdWithinWithTxnSize(
                                 cryptoCreatetxn,

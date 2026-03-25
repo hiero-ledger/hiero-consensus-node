@@ -130,7 +130,6 @@ public class CryptoUpdateSimpleFeesTest {
                             .key(NEW_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, adminKey, NEW_KEY)
-                            .fee(ONE_HBAR)
                             .via(cryptoUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoUpdateTxn,
@@ -156,7 +155,6 @@ public class CryptoUpdateSimpleFeesTest {
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(adminKey, PAYER_KEY)
-                            .fee(ONE_HBAR)
                             .via(cryptoUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoUpdateTxn,
@@ -183,7 +181,6 @@ public class CryptoUpdateSimpleFeesTest {
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(adminKey, PAYER_KEY)
-                            .fee(ONE_HBAR)
                             .via(cryptoUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoUpdateTxn,
@@ -209,7 +206,6 @@ public class CryptoUpdateSimpleFeesTest {
                             .key(PAYER_KEY)
                             .payingWith(PAYER)
                             .signedBy(adminKey, PAYER_KEY)
-                            .fee(ONE_HBAR)
                             .via(cryptoUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoUpdateTxn,
@@ -261,7 +257,6 @@ public class CryptoUpdateSimpleFeesTest {
                             .withHooks(accountAllowanceHook(1L, HOOK_CONTRACT), accountAllowanceHook(2L, HOOK_CONTRACT))
                             .payingWith(PAYER)
                             .signedBy(PAYER_KEY, adminKey)
-                            .fee(ONE_HUNDRED_HBARS)
                             .via(cryptoUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             cryptoUpdateTxn,
@@ -363,7 +358,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoUpdateTxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
 
@@ -387,7 +381,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoUpdateTxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
 
@@ -407,7 +400,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .entityMemo("update")
                                 .payingWith(PAYER)
                                 .signedBy("firstKey")
-                                .fee(ONE_HBAR)
                                 .via(cryptoUpdateTxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
 
@@ -449,7 +441,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoUpdateTxn)
                                 .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
 
@@ -475,7 +466,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(expiredTxnId)
                                 .via(cryptoUpdateTxn)
                                 .hasPrecheck(TRANSACTION_EXPIRED),
@@ -502,7 +492,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(futureTxnId)
                                 .via(cryptoUpdateTxn)
                                 .hasPrecheck(INVALID_TRANSACTION_START),
@@ -524,7 +513,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .validDurationSecs(0)
                                 .via(cryptoUpdateTxn)
                                 .hasPrecheck(INVALID_TRANSACTION_DURATION),
@@ -542,17 +530,13 @@ public class CryptoUpdateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         // successful first transaction
-                        cryptoUpdate(PAYER)
-                                .entityMemo("first update")
-                                .fee(ONE_HBAR)
-                                .via(cryptoUpdateTxn),
+                        cryptoUpdate(PAYER).entityMemo("first update").via(cryptoUpdateTxn),
                         // duplicate transaction reusing the same txnId
                         cryptoUpdate(PAYER)
                                 .entityMemo("second update")
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(cryptoUpdateTxn)
                                 .via("cryptoUpdateDuplicateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION));
@@ -617,7 +601,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .entityMemo("update non-existent")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoUpdateTxn)
                                 .hasKnownStatus(INVALID_ACCOUNT_ID),
                         validateChargedUsdWithinWithTxnSize(
@@ -662,7 +645,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .key(NEW_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER_KEY, NEW_KEY)
-                                .fee(ONE_HBAR)
                                 .via(cryptoUpdateTxn)
                                 .hasKnownStatus(INVALID_ADMIN_KEY),
                         validateChargedUsdWithinWithTxnSize(
@@ -687,7 +669,6 @@ public class CryptoUpdateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoUpdateTxn)
                                 .hasKnownStatus(MEMO_TOO_LONG),
                         validateChargedUsdWithinWithTxnSize(

@@ -555,7 +555,6 @@ public class CryptoApproveAllowanceSimpleFeesTest {
                                 .addCryptoAllowance(OWNER, SPENDER, ONE_HUNDRED_HBARS)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, "ownerKey")
-                                .fee(ONE_HBAR)
                                 .via(approveAllowanceTxn)
                                 .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID),
                         validateChargedUsdWithinWithTxnSize(

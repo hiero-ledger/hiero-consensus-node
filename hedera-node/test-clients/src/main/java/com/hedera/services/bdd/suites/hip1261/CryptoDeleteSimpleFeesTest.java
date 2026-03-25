@@ -447,10 +447,7 @@ public class CryptoDeleteSimpleFeesTest {
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
                         // successful first delete
-                        cryptoDelete(ACCOUNT)
-                                .transfer(BENEFICIARY)
-                                .fee(ONE_HBAR)
-                                .via(cryptoDeleteTxn),
+                        cryptoDelete(ACCOUNT).transfer(BENEFICIARY).via(cryptoDeleteTxn),
                         // duplicate reusing same txnId
                         cryptoCreate("anotherAccount")
                                 .sigControl(forKey(PAYER_KEY, validSig))
@@ -532,7 +529,6 @@ public class CryptoDeleteSimpleFeesTest {
                                 .transfer(BENEFICIARY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .via(cryptoDeleteTxn)
                                 .hasKnownStatus(INVALID_ACCOUNT_ID),
                         validateChargedUsdWithinWithTxnSize(
