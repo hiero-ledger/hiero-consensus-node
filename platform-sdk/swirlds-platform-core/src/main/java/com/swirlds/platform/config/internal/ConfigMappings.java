@@ -41,7 +41,7 @@ public final class ConfigMappings {
             new ConfigMapping("metrics.csvWriteFrequency", "csvWriteFrequency"),
             new ConfigMapping("metrics.csvOutputFolder", "csvOutputFolder"),
             new ConfigMapping("metrics.csvFileName", "csvFileName"),
-            new ConfigMapping("metrics.csvAppend", "csvAppend"),
+            new ConfigMapping("metrics.csvAppend", "csvOverwrite"),
             new ConfigMapping("metrics.disableMetricsOutput", "disableMetricsOutput"),
             new ConfigMapping("prometheus.endpointEnabled", "prometheusEndpointEnabled"),
             new ConfigMapping("prometheus.endpointPortNumber", "prometheusEndpointPortNumber"),

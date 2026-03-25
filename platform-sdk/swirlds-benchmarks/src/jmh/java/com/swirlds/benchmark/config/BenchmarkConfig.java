@@ -29,7 +29,7 @@ import com.swirlds.config.api.ConfigProperty;
  * 		CSV file name that the platform will write all metric names to.
  * @param csvWriteFrequency
  * 		The frequency, in milliseconds, at which values are written to the statistics CSV file.
- * @param csvAppend
+ * @param csvOverwrite
  * 		Indicates whether statistics should be appended to the CSV file.
  */
 @ConfigData("benchmark")
@@ -40,10 +40,15 @@ public record BenchmarkConfig(
         @ConfigProperty(defaultValue = "false") boolean enableSnapshots,
         @ConfigProperty(defaultValue = "false") boolean printHistogram,
         @ConfigProperty(defaultValue = "") String csvOutputFolder,
-        @ConfigProperty(defaultValue = "BenchmarkMetrics.csv") String csvMetricsFileName,
-        @ConfigProperty(defaultValue = "BenchmarkMetricNames.csv") String csvMetricNamesFileName,
+
+        @ConfigProperty(defaultValue = "BenchmarkMetrics.csv")
+        String csvMetricsFileName,
+
+        @ConfigProperty(defaultValue = "BenchmarkMetricNames.csv")
+        String csvMetricNamesFileName,
+
         @ConfigProperty(defaultValue = "0") int csvWriteFrequency,
-        @ConfigProperty(defaultValue = "false") boolean csvAppend,
+        @ConfigProperty(defaultValue = "true") boolean csvOverwrite,
         @ConfigProperty(defaultValue = "sda") String deviceName) {
     public String toString() {
         return new ToStringBuilder(this)
@@ -56,7 +61,7 @@ public record BenchmarkConfig(
                 .append("csvMetricsFileName", csvMetricsFileName)
                 .append("csvMetricNamesFileName", csvMetricNamesFileName)
                 .append("csvWriteFrequency", csvWriteFrequency)
-                .append("csvAppend", csvAppend)
+                .append("csvOverwrite", csvOverwrite)
                 .append("deviceName", deviceName)
                 .toString();
     }
