@@ -39,6 +39,18 @@ class HistoryLibraryImplTest {
     }
 
     @Test
+    void zeroSeedGeneratedPublicKeyProducesNonNullAddressBookHash() {
+        final var libraryImpl = new HistoryLibraryImpl();
+        final var availableKey = libraryImpl.newSchnorrKeyPair().publicKey();
+        // Ensure we can still hash an address book when a node fails to gossip its Schnorr key in time
+        final var hash = HistoryLibraryImpl.WRAPS.hashAddressBook(
+                new byte[][] {HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray(), availableKey},
+                new long[] {1L, 1L},
+                new long[] {1L, 2L});
+        assertNotNull(hash);
+    }
+
+    @Test
     void computeHashBuildsCanonicalAddressBookAndWrapsResult() {
         final var nodeIds = Set.of(3L, 1L, 2L);
         final var expectedHash = new byte[] {42};
@@ -76,7 +88,7 @@ class HistoryLibraryImplTest {
         assertArrayEquals(new long[] {1L, 2L}, addressBook.nodeIds());
         assertArrayEquals(new byte[] {0x01}, addressBook.publicKeys()[0]);
         assertArrayEquals(
-                HistoryLibrary.EMPTY_PUBLIC_KEY.toByteArray(), addressBook.publicKeys()[1]);
+                HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray(), addressBook.publicKeys()[1]);
     }
 
     @Test
@@ -121,6 +133,13 @@ class HistoryLibraryImplTest {
     void newSchnorrKeyPairReturnsNonNull() {
         final var keys = subject.newSchnorrKeyPair();
         assertNotNull(keys);
+    }
+
+    @Test
+    void emptyPublicKeyMatchesGeneratedSchnorrKeyLength() {
+        final var generatedPublicKey = subject.newSchnorrKeyPair().publicKey();
+
+        assertEquals(generatedPublicKey.length, HistoryLibrary.MISSING_SCHNORR_KEY.length());
     }
 
     @Test

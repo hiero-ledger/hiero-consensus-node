@@ -8,7 +8,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
+import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MPC_PHASES;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
@@ -252,9 +252,10 @@ public class WrapsHistoryProver implements HistoryProver {
         } else {
             if (wrapsMessage == null) {
                 // Avoid caching a partial derived state if one of these computations throws.
-                final var computedTargetAddressBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
-                        .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
-                        .toByteArray());
+                final var computedTargetAddressBook =
+                        AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
+                                .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
+                                .toByteArray());
                 final var computedWrapsMessage =
                         historyLibrary.computeWrapsMessage(computedTargetAddressBook, targetMetadata.toByteArray());
                 final var computedTargetAddressBookHash = historyLibrary.hashAddressBook(computedTargetAddressBook);
@@ -360,6 +361,11 @@ public class WrapsHistoryProver implements HistoryProver {
             final long constructionId,
             @NonNull final WrapsMessagePublication publication,
             @Nullable final WritableHistoryStore writableHistoryStore) {
+        if (MISSING_SCHNORR_KEY.equals(proofKeys.getOrDefault(publication.nodeId(), MISSING_SCHNORR_KEY))) {
+            // If a node did not publish its Schnorr key in time to make it into the source roster,
+            // we ignore any WRAPS message it publishes later after coming online
+            return false;
+        }
         final var transition = machine.onNext(publication, wrapsPhase, weights, wrapsMessageGracePeriod, phaseMessages);
         log.info(
                 "Received {} message from node{} for construction #{} in phase={}) -> {} (new phase={})",
@@ -405,9 +411,9 @@ public class WrapsHistoryProver implements HistoryProver {
             } else {
                 log.info("Considering publication of WRAPS {} output on construction #{}", phase, constructionId);
             }
-            final var sourceBook = AddressBook.from(
-                    weights.sourceNodeWeights(),
-                    nodeId -> proofKeys.getOrDefault(nodeId, EMPTY_PUBLIC_KEY).toByteArray());
+            final var sourceBook = AddressBook.from(weights.sourceNodeWeights(), nodeId -> proofKeys
+                    .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
+                    .toByteArray());
             final var targetBook = requireNonNull(targetAddressBook);
             final var targetBookHash = requireNonNull(targetAddressBookHash);
             final var proofKeyList = proofKeyListFrom(targetProofKeys);

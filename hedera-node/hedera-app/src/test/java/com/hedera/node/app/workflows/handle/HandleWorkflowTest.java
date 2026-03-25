@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -41,6 +42,7 @@ import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.state.HederaRecordCache;
@@ -66,6 +68,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -196,14 +199,16 @@ class HandleWorkflowTest {
     void setUp() {
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
-        given(singletonState.get())
-                .willReturn(PlatformState.newBuilder()
+        lenient()
+                .when(singletonState.get())
+                .thenReturn(PlatformState.newBuilder()
                         .creationSoftwareVersion(
                                 SemanticVersion.newBuilder().minor(1).build())
                         .build());
-        given(state.getReadableStates(NAME)).willReturn(readableStates);
-        given(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
-                .willReturn(singletonState);
+        lenient().when(state.getReadableStates(NAME)).thenReturn(readableStates);
+        lenient()
+                .when(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .thenReturn(singletonState);
     }
 
     @Test
@@ -497,7 +502,7 @@ class HandleWorkflowTest {
                 .withValue("tss.historyEnabled", "false")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
-        given(round.getConsensusTimestamp()).willReturn(NOW);
+        lenient().when(round.getConsensusTimestamp()).thenReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,
@@ -556,8 +561,72 @@ class HandleWorkflowTest {
         verify(blockBufferService).ensureNewBlocksPermitted();
     }
 
+    @Test
+    void suppressesDuplicateTssReconcileErrorsUntilReset() {
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
+        final var logCaptor = new LogCaptor(LogManager.getLogger(HandleWorkflow.class));
+
+        try {
+            invokeLogTssReconcileFailure(duplicateTssReconcileFailure());
+            invokeLogTssReconcileFailure(duplicateTssReconcileFailure());
+
+            assertEquals(1, logCaptor.errorLogs().size());
+            assertTrue(logCaptor.errorLogs().get(0).contains("trying to reconcile TSS state"));
+
+            invokeResetTssReconcileFailureSuppression();
+            invokeLogTssReconcileFailure(duplicateTssReconcileFailure());
+
+            assertEquals(2, logCaptor.errorLogs().size());
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
+    @Test
+    void logsDifferentTssReconcileErrorsIndependently() {
+        givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
+        final var logCaptor = new LogCaptor(LogManager.getLogger(HandleWorkflow.class));
+
+        try {
+            invokeLogTssReconcileFailure(duplicateTssReconcileFailure());
+            invokeLogTssReconcileFailure(differentTssReconcileFailure());
+
+            assertEquals(2, logCaptor.errorLogs().size());
+        } finally {
+            logCaptor.stopCapture();
+        }
+    }
+
     private void givenPositiveFreezeRound() {
         given(platformStateReadableSingletonState.get()).willReturn(platformState);
         given(platformState.latestFreezeRound()).willReturn(10L);
+    }
+
+    private void invokeLogTssReconcileFailure(@NonNull final Exception e) {
+        try {
+            final var method = HandleWorkflow.class.getDeclaredMethod("logTssReconcileFailure", Exception.class);
+            method.setAccessible(true);
+            method.invoke(subject, e);
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    private void invokeResetTssReconcileFailureSuppression() {
+        try {
+            final var method = HandleWorkflow.class.getDeclaredMethod("resetTssReconcileFailureSuppression");
+            method.setAccessible(true);
+            method.invoke(subject);
+        } catch (Exception ex) {
+            throw new AssertionError(ex);
+        }
+    }
+
+    private static NullPointerException duplicateTssReconcileFailure() {
+        return new NullPointerException("boom");
+    }
+
+    private static IllegalStateException differentTssReconcileFailure() {
+        return new IllegalStateException("boom");
     }
 }

@@ -23,7 +23,8 @@ public interface HistoryLibrary {
     /**
      * The empty public key to use when a node fails to publish its proof key within the grace period.
      */
-    Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[192]);
+    Bytes MISSING_SCHNORR_KEY = Bytes.fromHex(
+            "8b3288d58331049d2703cf9e1fba5de9565d26eeb97233452d286000d6ce101bbdeeb9632479bd393126759069765e655f2c4bbde7fe7cb98fe9e7a3deaa3129cb0480f74201ff0f3c38f20a73871dc3e7f4e5e2cce872c8f3bf28210ca027244e747258ba0ac3e203576a2152c7f43b9fc885c3afca026dcd5bd933b0ec382146b25b4409f4539f05efc85e6306e9b5b659a7016b63ed0e47303a4bb5e6c8034700ceb44c2242a28e4046d36630fde788785bd06023364ef9bec1c333ad7602");
 
     /**
      * An address book for use in the history library.
@@ -51,8 +52,8 @@ public interface HistoryLibrary {
                 @NonNull final SortedMap<Long, Long> weights, @NonNull final SortedMap<Long, byte[]> publicKeys) {
             requireNonNull(weights);
             requireNonNull(publicKeys);
-            final var emptyPublicKey = EMPTY_PUBLIC_KEY.toByteArray();
-            return from(weights, nodeId -> publicKeys.getOrDefault(nodeId, emptyPublicKey));
+            final var missingKey = MISSING_SCHNORR_KEY.toByteArray();
+            return from(weights, nodeId -> publicKeys.getOrDefault(nodeId, missingKey));
         }
 
         /**

@@ -181,6 +181,9 @@ public class HandleWorkflow {
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
 
+    @Nullable
+    private TssReconcileFailureFingerprint lastTssReconcileFailureFingerprint;
+
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
             @NonNull List<ProofKey> proofKeys,
@@ -349,8 +352,9 @@ public class HandleWorkflow {
             configureTssCallbacks(state, setLedgerIdContext);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());
+                resetTssReconcileFailureSuppression();
             } catch (Exception e) {
-                logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+                logTssReconcileFailure(e);
             }
         }
         final var lastUsedConsTime = blockHashSigner.isReady()
@@ -1202,6 +1206,32 @@ public class HandleWorkflow {
         }
     }
 
+    private void logTssReconcileFailure(@NonNull final Exception e) {
+        requireNonNull(e);
+        final var fingerprint = tssReconcileFailureFingerprintOf(e);
+        if (fingerprint.equals(lastTssReconcileFailureFingerprint)) {
+            return;
+        }
+        lastTssReconcileFailureFingerprint = fingerprint;
+        logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+    }
+
+    private void resetTssReconcileFailureSuppression() {
+        lastTssReconcileFailureFingerprint = null;
+    }
+
+    private static TssReconcileFailureFingerprint tssReconcileFailureFingerprintOf(@NonNull final Throwable t) {
+        requireNonNull(t);
+        final var stackTrace = t.getStackTrace();
+        final StackTraceElement topFrame = stackTrace.length > 0 ? stackTrace[0] : null;
+        final var cause = t.getCause();
+        return new TssReconcileFailureFingerprint(
+                t.getClass().getName(),
+                t.getMessage(),
+                topFrame,
+                cause == null ? null : tssReconcileFailureFingerprintOf(cause));
+    }
+
     /**
      * Returns the type of transaction encountering the given state at a block boundary.
      *
@@ -1213,5 +1243,15 @@ public class HandleWorkflow {
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
         return !requireNonNull(blockInfo).migrationRecordsStreamed() ? POST_UPGRADE_TRANSACTION : ORDINARY_TRANSACTION;
+    }
+
+    private record TssReconcileFailureFingerprint(
+            @NonNull String exceptionType,
+            @Nullable String message,
+            @Nullable StackTraceElement topFrame,
+            @Nullable TssReconcileFailureFingerprint cause) {
+        private TssReconcileFailureFingerprint {
+            requireNonNull(exceptionType);
+        }
     }
 }

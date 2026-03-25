@@ -234,7 +234,13 @@ class WrapsHistoryProverTest {
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> subject.advance(EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID));
+                () -> subject.advance(
+                        EPOCH,
+                        constructionWithPhase(R1, null),
+                        TARGET_METADATA,
+                        targetProofKeys,
+                        tssConfig,
+                        LEDGER_ID));
 
         assertNull(getField("targetAddressBook"));
         assertNull(getField("wrapsMessage"));
