@@ -941,6 +941,11 @@ public class HandleWorkflow {
         }
     }
 
+    /**
+     * Helper method to get the current block number from the appropriate manager based on the stream mode.
+     *
+     * @return the current block number
+     */
     private long currentBlockNumber() {
         return streamMode == RECORDS ? blockRecordManager.blockNo() : blockStreamManager.blockNo();
     }

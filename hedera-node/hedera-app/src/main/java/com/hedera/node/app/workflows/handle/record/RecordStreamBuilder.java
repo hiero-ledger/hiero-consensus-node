@@ -465,10 +465,6 @@ public class RecordStreamBuilder
         return this;
     }
 
-    public void blockNumber(final long blockNumber) {
-        this.blockNumber = blockNumber;
-    }
-
     /**
      * Gets the {@link TransactionID} that is currently set.
      *

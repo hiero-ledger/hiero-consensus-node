@@ -647,7 +647,7 @@ public class SystemTransactions {
             return;
         }
         final var systemContext =
-                newSystemContext(now, state, t -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+                newSystemContext(now, state, _ -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                         .transfers(transfers)

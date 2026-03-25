@@ -1216,6 +1216,7 @@ public class BlockStreamBuilder
     @NonNull
     @Override
     public BlockStreamBuilder blockNumber(final Long blockNumber) {
+        // No-op for block stream, but we need to capture the block number for the translation context
         return this;
     }
 

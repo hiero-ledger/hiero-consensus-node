@@ -75,7 +75,6 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.services.bdd.junit.support.translators.impl.AtomicBatchTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ContractCallTranslator;
@@ -201,6 +200,7 @@ public class BlockTransactionalUnitTranslator {
 
     /**
      * Constructs a new {@link BlockTransactionalUnitTranslator}.
+     *
      * @param shard the shard number
      * @param realm the realm number
      */
@@ -214,6 +214,7 @@ public class BlockTransactionalUnitTranslator {
 
     /**
      * Scans a block for genesis information and returns true if found.
+     *
      * @param block the block to scan
      * @return true if genesis information was found
      */
@@ -223,6 +224,7 @@ public class BlockTransactionalUnitTranslator {
 
     /**
      * Translates the given {@link BlockTransactionalUnit} into a list of {@link SingleTransactionRecord}s.
+     *
      * @param unit the unit to translate
      * @return the translated records
      */
@@ -269,7 +271,7 @@ public class BlockTransactionalUnitTranslator {
                 if (blockTransactionParts.functionality() != STATE_SIGNATURE_TRANSACTION
                         && blockTransactionParts.hasResult()
                         && blockTransactionParts.transactionParts() != null) {
-                    final var translation = translator.translate(
+                    var translation = translator.translate(
                             blockTransactionParts,
                             baseTranslator,
                             remainingStateChanges,
@@ -277,33 +279,29 @@ public class BlockTransactionalUnitTranslator {
                             followingTraces,
                             executingHookId,
                             hookMetadata);
-                    translatedRecords.add(withBlockNumber(translation, blockNumber));
+
+                    if (blockNumber != null) {
+                        final var record = translation.transactionRecord();
+                        final var receipt = record.receipt();
+                        if (receipt != null && blockNumber.equals(receipt.blockNumber())) {
+                            translation = new SingleTransactionRecord(
+                                    translation.transaction(),
+                                    record.copyBuilder()
+                                            .receipt(receipt.copyBuilder()
+                                                    .blockNumber(blockNumber)
+                                                    .build())
+                                            .build(),
+                                    translation.transactionSidecarRecords(),
+                                    translation.transactionOutputs());
+                        }
+                    }
+
+                    translatedRecords.add(translation);
                 }
             }
         }
         baseTranslator.finishLastUnit();
         baseTranslator.updateNoncesAfter(unit);
         return translatedRecords;
-    }
-
-    private static @NonNull SingleTransactionRecord withBlockNumber(
-            @NonNull final SingleTransactionRecord record, @Nullable final Long blockNumber) {
-        requireNonNull(record);
-        if (blockNumber == null) {
-            return record;
-        }
-        final TransactionRecord transactionRecord = record.transactionRecord();
-        final var receipt = transactionRecord.receipt();
-        if (receipt == null || blockNumber.equals(receipt.blockNumber())) {
-            return record;
-        }
-        return new SingleTransactionRecord(
-                record.transaction(),
-                transactionRecord
-                        .copyBuilder()
-                        .receipt(receipt.copyBuilder().blockNumber(blockNumber).build())
-                        .build(),
-                record.transactionSidecarRecords(),
-                record.transactionOutputs());
     }
 }
