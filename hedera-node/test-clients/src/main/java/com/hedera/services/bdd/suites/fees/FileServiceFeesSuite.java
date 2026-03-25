@@ -17,6 +17,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_CONTENTS_QUERY_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.FILE_GET_INFO_QUERY_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -134,7 +137,7 @@ public class FileServiceFeesSuite {
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!").memo(MEMO),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
                 sleepFor(1000),
-                validateChargedUsd("getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT));
+                validateFees("getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT, FILE_GET_CONTENTS_QUERY_BASE_FEE_USD));
     }
 
     @HapiTest
@@ -146,6 +149,6 @@ public class FileServiceFeesSuite {
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!").memo(MEMO),
                 getFileInfo("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileInfoBasic"),
                 sleepFor(1000),
-                validateChargedUsd("getFileInfoBasic", BASE_FEE_FILE_GET_FILE));
+                validateFees("getFileInfoBasic", BASE_FEE_FILE_GET_FILE, FILE_GET_INFO_QUERY_BASE_FEE_USD));
     }
 }
