@@ -43,7 +43,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2039,7 +2038,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         final List<CacheInfo> caches = createCaches();
         final List<CacheInfo> snapshots = caches.stream()
                 .map(original ->
-                        new CacheInfo(original.cache.snapshot(null), original.firstLeafPath, original.lastLeafPath))
+                        new CacheInfo(original.cache.snapshot(), original.firstLeafPath, original.lastLeafPath))
                 .collect(Collectors.toList());
 
         // Release the older caches
@@ -2065,7 +2064,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache.putLeaf(appleLeaf(1));
         cache.putLeaf(bananaLeaf(2));
         cache.copy();
-        final VirtualNodeCache snapshot = cache.snapshot(null).snapshot(null).snapshot(null);
+        final VirtualNodeCache snapshot = cache.snapshot().snapshot().snapshot();
         assertEquals(appleLeaf(1), snapshot.lookupLeafByKey(A_KEY), "value should match expected");
         assertEquals(appleLeaf(1), snapshot.lookupLeafByPath(1), "value should match expected");
         assertEquals(bananaLeaf(2), snapshot.lookupLeafByKey(B_KEY), "value should match expected");
@@ -2080,7 +2079,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache.copy();
         VirtualNodeCache snapshot;
         for (int i = 0; i < 10; i++) {
-            snapshot = cache.snapshot(null);
+            snapshot = cache.snapshot();
             assertEquals(appleLeaf(1), snapshot.lookupLeafByKey(A_KEY), "value should match expected");
             assertEquals(appleLeaf(1), snapshot.lookupLeafByPath(1), "value should match expected");
             assertEquals(bananaLeaf(2), snapshot.lookupLeafByKey(B_KEY), "value should match expected");
@@ -2845,24 +2844,35 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("createCleaningPool has allowCoreThreadTimeOut enabled")
-    void createCleaningPoolAllowsCoreThreadTimeout() {
-        final VirtualMapConfig config = CONFIGURATION.getConfigData(VirtualMapConfig.class);
-        final ExecutorService pool = VirtualNodeCache.createCleaningPool(config);
-        try {
-            assertInstanceOf(ThreadPoolExecutor.class, pool);
-            assertTrue(((ThreadPoolExecutor) pool).allowsCoreThreadTimeOut(), "Core thread timeout should be enabled");
-        } finally {
-            pool.shutdown();
-        }
+    @DisplayName("Chained snapshots all share the same cleaning pool")
+    void chainedSnapshotsSharePool() {
+        cache.putLeaf(appleLeaf(1));
+        cache.copy();
+
+        final VirtualNodeCache snapshot1 = cache.snapshot();
+        final VirtualNodeCache snapshot2 = snapshot1.snapshot();
+        final VirtualNodeCache snapshot3 = snapshot2.snapshot();
+
+        assertSame(cache.getCleaningPool(), snapshot1.getCleaningPool());
+        assertSame(cache.getCleaningPool(), snapshot2.getCleaningPool());
+        assertSame(cache.getCleaningPool(), snapshot3.getCleaningPool());
     }
 
-    /**
-     * No thread leak from snapshots of real-pool caches
-     */
     @Test
-    @DisplayName("Snapshots do not leak threads when pools are properly shut down")
-    void snapshotsDoNotLeakThreads() {
+    @DisplayName("copy() and snapshot() both share the same cleaning pool")
+    void copyAndSnapshotSharePool() {
+        cache.putLeaf(appleLeaf(1));
+
+        final VirtualNodeCache copy = cache.copy();
+        final VirtualNodeCache snapshot = cache.snapshot();
+
+        assertSame(cache.getCleaningPool(), copy.getCleaningPool(), "copy() should share the cleaning pool");
+        assertSame(cache.getCleaningPool(), snapshot.getCleaningPool(), "snapshot() should share the cleaning pool");
+    }
+
+    @Test
+    @DisplayName("Snapshots do not spawn additional cache-cleaner threads")
+    void snapshotsDoNotSpawnCleanerThreads() {
         final String original = System.getProperty("syncCleaningPool");
         try {
             System.clearProperty("syncCleaningPool");
@@ -2876,24 +2886,16 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
                 final long cleanerThreadsBefore = countCacheCleanerThreads();
 
-                // snapshot(null) — no pool at all
-                for (int i = 0; i < 10; i++) {
-                    final VirtualNodeCache snapshot = realPoolCache.snapshot(null);
-                    assertNull(snapshot.getCleaningPool());
-                }
-
-                // snapshot with caller-owned pool, shut down after each use
-                for (int i = 0; i < 10; i++) {
-                    final ExecutorService pool = VirtualNodeCache.createCleaningPool(config);
-                    realPoolCache.snapshot(pool);
-                    pool.shutdown();
+                for (int i = 0; i < 20; i++) {
+                    final VirtualNodeCache snapshot = realPoolCache.snapshot();
+                    assertSame(realPoolCache.getCleaningPool(), snapshot.getCleaningPool());
                 }
 
                 final long cleanerThreadsAfter = countCacheCleanerThreads();
                 assertEquals(
                         cleanerThreadsBefore,
                         cleanerThreadsAfter,
-                        "No additional cache-cleaner threads should persist after shutdown");
+                        "No additional cache-cleaner threads should be created by snapshots");
             } finally {
                 realPoolCache.shutdown();
             }
@@ -2907,85 +2909,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("copy() shares the cleaning pool, snapshot receives what caller passes")
-    void copySharesPoolSnapshotUsesCallerPool() {
-        cache.putLeaf(appleLeaf(1));
-
-        final VirtualNodeCache copy = cache.copy();
-        final VirtualNodeCache snapshotNoPool = cache.snapshot(null);
-        final Executor myExecutor = Runnable::run;
-        final VirtualNodeCache snapshotWithPool = cache.snapshot(myExecutor);
-
-        assertSame(
-                cache.getCleaningPool(),
-                copy.getCleaningPool(),
-                "copy() should share the cleaning pool with its source");
-        assertNull(snapshotNoPool.getCleaningPool(), "snapshot(null) should have null cleaning pool");
-        assertSame(
-                myExecutor, snapshotWithPool.getCleaningPool(), "snapshot(executor) should use the provided executor");
-    }
-
-    @Test
-    @DisplayName("snapshot's dirtyLeavesForFlush works with provided executor")
-    void snapshotDirtyLeavesForFlushWorks() {
-        cache.putLeaf(appleLeaf(1));
-        cache.putLeaf(bananaLeaf(2));
-
-        final VirtualNodeCache cache1 = cache.copy();
-        cache1.putLeaf(cherryLeaf(3));
-
-        cache.prepareForHashing();
-        cache.seal();
-        cache1.prepareForHashing();
-        cache1.seal();
-        cache.merge();
-        cache1.copy();
-
-        final VirtualNodeCache snapshot = cache1.snapshot(Runnable::run);
-
-        final List<VirtualLeafBytes> dirtyLeaves =
-                snapshot.dirtyLeavesForFlush(1, 3).toList();
-        assertFalse(dirtyLeaves.isEmpty(), "Snapshot should have dirty leaves for flush");
-    }
-
-    @Test
-    @DisplayName("snapshot(null) creates a cache with no cleaning pool")
-    void snapshotWithoutCleaningPool() {
-        cache.putLeaf(appleLeaf(1));
-        cache.putLeaf(bananaLeaf(2));
-        cache.copy();
-
-        final VirtualNodeCache snapshot = cache.snapshot(null);
-        assertNull(snapshot.getCleaningPool(), "snapshot(false) should have a null cleaning pool");
-    }
-
-    @Test
-    @DisplayName("snapshot(null) fails fast on deletedLeaves()")
-    void snapshotWithoutPoolFailsOnDeletedLeaves() {
-        cache.putLeaf(appleLeaf(1));
-        cache.copy();
-
-        final VirtualNodeCache snapshot = cache.snapshot(null);
-        assertThrows(
-                AssertionError.class,
-                snapshot::deletedLeaves,
-                "deletedLeaves() should fail on a snapshot with no cleaning pool");
-    }
-
-    @Test
-    @DisplayName("snapshot(executor) uses the provided executor")
-    void snapshotWithExplicitExecutor() {
-        cache.putLeaf(appleLeaf(1));
-        cache.copy();
-
-        final Executor myExecutor = Runnable::run;
-        final VirtualNodeCache snapshot = cache.snapshot(myExecutor);
-        assertSame(myExecutor, snapshot.getCleaningPool(), "snapshot should use the executor that was passed in");
-    }
-
-    @Test
-    @DisplayName("Caller-owned pool can be used for snapshot flush and shut down independently")
-    void callerOwnedPoolLifecycle() {
+    @DisplayName("Snapshot's deletedLeaves works correctly with inherited pool")
+    void snapshotDeletedLeavesWorks() {
         cache.putLeaf(appleLeaf(1));
         cache.putLeaf(bananaLeaf(2));
         cache.putLeaf(cherryLeaf(3));
@@ -3000,33 +2925,34 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         cache1.seal();
         cache.merge();
 
-        final VirtualMapConfig config = CONFIGURATION.getConfigData(VirtualMapConfig.class);
-        final ExecutorService snapshotPool = VirtualNodeCache.createCleaningPool(config);
-        try {
-            final VirtualNodeCache snapshot = cache1.snapshot(snapshotPool);
+        final VirtualNodeCache snapshot = cache1.snapshot();
 
-            // deletedLeaves() uses parallelTraverse(cleaningPool, ...) — should work
-            final List<VirtualLeafBytes> deleted = snapshot.deletedLeaves().toList();
-            assertEquals(1, deleted.size(), "Should report one deleted leaf");
-            assertEquals(A_KEY, deleted.get(0).keyBytes(), "Deleted leaf should be apple");
-        } finally {
-            snapshotPool.shutdown();
-        }
-
-        // Pool is shut down — snapshot is no longer usable for flush operations,
-        // but that's fine because the caller is done with it
-        assertTrue(snapshotPool.isShutdown(), "Pool should be shut down after use");
+        final List<VirtualLeafBytes> deleted = snapshot.deletedLeaves().toList();
+        assertEquals(1, deleted.size(), "Snapshot should report exactly one deleted leaf");
+        assertEquals(A_KEY, deleted.get(0).keyBytes(), "The deleted leaf should be apple");
     }
 
     @Test
-    @DisplayName("Calling shutdown on a snapshot with no pool does not throw")
-    void shutdownOnNullPoolIsSafe() {
+    @DisplayName("Snapshot's dirtyLeavesForFlush works correctly with inherited pool")
+    void snapshotDirtyLeavesForFlushWorks() {
         cache.putLeaf(appleLeaf(1));
-        cache.copy();
+        cache.putLeaf(bananaLeaf(2));
 
-        final VirtualNodeCache snapshot = cache.snapshot(null);
-        assertDoesNotThrow(snapshot::shutdown, "shutdown() on a null-pool snapshot should not throw");
-        assertDoesNotThrow(snapshot::shutdown, "shutdown() should be idempotent");
+        final VirtualNodeCache cache1 = cache.copy();
+        cache1.putLeaf(cherryLeaf(3));
+
+        cache.prepareForHashing();
+        cache.seal();
+        cache1.prepareForHashing();
+        cache1.seal();
+        cache.merge();
+        cache1.copy();
+
+        final VirtualNodeCache snapshot = cache1.snapshot();
+
+        final List<VirtualLeafBytes> dirtyLeaves =
+                snapshot.dirtyLeavesForFlush(1, 3).toList();
+        assertFalse(dirtyLeaves.isEmpty(), "Snapshot should have dirty leaves for flush");
     }
 
     @AfterEach

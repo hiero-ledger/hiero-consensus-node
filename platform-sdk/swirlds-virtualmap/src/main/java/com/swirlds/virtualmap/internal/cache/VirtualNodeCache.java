@@ -112,7 +112,6 @@ public final class VirtualNodeCache implements FastCopyable {
      * Thread pool used to asynchronously clean up the indexes on cache release.
      * May be null for snapshot caches that are used for lookups only.
      */
-    @Nullable
     private final Executor cleaningPool;
 
     /**
@@ -316,7 +315,21 @@ public final class VirtualNodeCache implements FastCopyable {
         if (Boolean.getBoolean("syncCleaningPool")) {
             cleaningPool = Runnable::run;
         } else {
-            cleaningPool = createCleaningPool(virtualMapConfig);
+            final ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                    virtualMapConfig.getNumCleanerThreads(),
+                    virtualMapConfig.getNumCleanerThreads(),
+                    60L,
+                    TimeUnit.SECONDS,
+                    new LinkedBlockingQueue<>(),
+                    new ThreadConfiguration(getStaticThreadManager())
+                            .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
+                            .setComponent("virtual-map")
+                            .setThreadName("cache-cleaner")
+                            .setExceptionHandler((t, ex) -> logger.error(
+                                    EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
+                            .buildFactory());
+            pool.allowCoreThreadTimeOut(true);
+            cleaningPool = pool;
         }
     }
 
@@ -355,23 +368,16 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * Create a new VirtualNodeCache with a provided executor for cleaning.
-     * Used by {@link #snapshot(boolean)} to create lightweight cache instances
-     * that reuse the parent's pool or have no pool at all.
-     *
-     * @param virtualMapConfig platform configuration for VirtualMap
-     * @param hashChunkHeight virtual hash chunk height
-     * @param hashChunkLoader virtual hash chunk loader, must not be null
-     * @param fastCopyVersion the version of this cache
-     * @param cleaningPool the executor to use for cleaning operations, or null
-     *                     if no cleaning operations are expected
+     * Create a new VirtualNodeCache with a provided cleaning pool.
+     * Used by {@link #snapshot()} to create snapshot caches that inherit
+     * the parent's pool instead of creating a new one.
      */
     private VirtualNodeCache(
             final @NonNull VirtualMapConfig virtualMapConfig,
             final int hashChunkHeight,
             final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
             final long fastCopyVersion,
-            final @Nullable Executor cleaningPool) {
+            final @NonNull Executor cleaningPool) {
         this.hashChunkHeight = hashChunkHeight;
         this.hashChunkLoader = requireNonNull(hashChunkLoader);
         this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
@@ -381,7 +387,7 @@ public final class VirtualNodeCache implements FastCopyable {
         this.lastReleased = new AtomicLong(-1L);
         this.fastCopyVersion.set(fastCopyVersion);
         this.virtualMapConfig = requireNonNull(virtualMapConfig);
-        this.cleaningPool = cleaningPool;
+        this.cleaningPool = requireNonNull(cleaningPool);
     }
 
     /**
@@ -955,14 +961,9 @@ public final class VirtualNodeCache implements FastCopyable {
     /**
      * Creates a new immutable snapshot of this cache.
      *
-     * @param cleaningPool the executor for parallel cleanup operations such as
-     *                     {@link #deletedLeaves()} and {@link #dirtyLeavesForFlush}.
-     *                     Pass a non-null executor if the snapshot will be flushed.
-     *                     Pass null if the snapshot is used for lookups only — calling
-     *                     methods that require an executor will trigger an assertion error.
      * @return snapshot of the current {@link VirtualNodeCache}
      */
-    public VirtualNodeCache snapshot(final @Nullable Executor cleaningPool) {
+    public VirtualNodeCache snapshot() {
         synchronized (lastReleased) {
             final VirtualNodeCache newSnapshot = new VirtualNodeCache(
                     virtualMapConfig, hashChunkHeight, hashChunkLoader, fastCopyVersion.get(), cleaningPool);
@@ -1387,31 +1388,6 @@ public final class VirtualNodeCache implements FastCopyable {
         void setFiltered() {
             setFlag(FLAG_BIT_FILTERED, true);
         }
-    }
-
-    /**
-     * Creates a new cleaning thread pool with the configured number of threads.
-     * The caller owns the returned pool and is responsible for shutting it down.
-     *
-     * @param virtualMapConfig the configuration to read thread count from
-     * @return a new {@link ExecutorService} for cleaning operations
-     */
-    public static ExecutorService createCleaningPool(final @NonNull VirtualMapConfig virtualMapConfig) {
-        final ThreadPoolExecutor pool = new ThreadPoolExecutor(
-                virtualMapConfig.getNumCleanerThreads(),
-                virtualMapConfig.getNumCleanerThreads(),
-                60L,
-                TimeUnit.SECONDS,
-                new LinkedBlockingQueue<>(),
-                new ThreadConfiguration(getStaticThreadManager())
-                        .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
-                        .setComponent("virtual-map")
-                        .setThreadName("cache-cleaner")
-                        .setExceptionHandler(
-                                (t, ex) -> logger.error(EXCEPTION.getMarker(), "Failed to clean snapshot cache", ex))
-                        .buildFactory());
-        pool.allowCoreThreadTimeOut(true);
-        return pool;
     }
 
     /**
