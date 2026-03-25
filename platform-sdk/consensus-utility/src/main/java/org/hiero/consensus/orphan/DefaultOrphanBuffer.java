@@ -8,15 +8,15 @@ import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignN
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.concurrent.atomic.AtomicLong;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -227,7 +227,8 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
             eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
             assignNGen(nonOrphan, eventsWithParents);
 
-            if (nonOrphan.getNGen() == FIRST_GENERATION && !nonOrphan.getAllParents().isEmpty()) {
+            if (nonOrphan.getNGen() == FIRST_GENERATION
+                    && !nonOrphan.getAllParents().isEmpty()) {
                 final long count = ngenResetCount.incrementAndGet();
                 if (count == 1 || count % NGEN_RESET_LOG_INTERVAL == 0) {
                     logger.info(
