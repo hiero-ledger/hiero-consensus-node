@@ -1,5 +1,9 @@
 FROM eclipse-temurin:25
 
+# Install libsodium for Ed25519 signature operations (Panama FFM binding)
+RUN apt-get update && apt-get install -y --no-install-recommends libsodium23 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user and group
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 

@@ -162,8 +162,10 @@ public final class LibSodiumEd25519 {
         final String[] fallbackPaths = {
             "/opt/homebrew/lib/libsodium.dylib", // macOS ARM (Homebrew)
             "/usr/local/lib/libsodium.dylib", // macOS x86 (Homebrew)
-            "/usr/lib/x86_64-linux-gnu/libsodium.so", // Debian/Ubuntu x86_64
-            "/usr/lib/aarch64-linux-gnu/libsodium.so", // Debian/Ubuntu ARM64
+            "/usr/lib/x86_64-linux-gnu/libsodium.so", // Debian/Ubuntu x86_64 (with -dev)
+            "/usr/lib/aarch64-linux-gnu/libsodium.so", // Debian/Ubuntu ARM64 (with -dev)
+            "/usr/lib/x86_64-linux-gnu/libsodium.so.23", // Debian/Ubuntu x86_64 (runtime only)
+            "/usr/lib/aarch64-linux-gnu/libsodium.so.23", // Debian/Ubuntu ARM64 (runtime only)
             "/usr/lib/libsodium.so", // Generic Linux
         };
 
