@@ -86,6 +86,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -318,6 +319,12 @@ public class HandleWorkflow {
             }
             logger.info(SYSTEM_ENTITIES_CREATED_MSG);
             requireNonNull(systemEntitiesCreatedFlag).set(true);
+        } else {
+            try {
+                systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
+            } catch (Exception e) {
+                logger.error("Failed to submit startup migration root-hash vote", e);
+            }
         }
 
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
@@ -410,8 +417,19 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
-                // Persist live wrapped record block hashes to state before the freeze
-                blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashes(state);
+                // Persist live wrapped record block hashes to state before the freeze.
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .liveWritePrevWrappedRecordHashes()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+                }
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .writeWrappedRecordFileBlockHashesToDisk()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
