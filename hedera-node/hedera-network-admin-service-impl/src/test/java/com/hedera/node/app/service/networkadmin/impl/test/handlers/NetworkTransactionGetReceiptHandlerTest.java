@@ -287,7 +287,7 @@ class NetworkTransactionGetReceiptHandlerTest extends NetworkAdminHandlerTestBas
                 0L,
                 queriedTxnId,
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(recordWithBlockNumber), 1L));
+                new PartialRecordSource(List.of(recordWithBlockNumber), blockNumber));
 
         final var query = createGetTransactionReceiptQuery(queriedTxnId, false, false);
         when(context.query()).thenReturn(query);

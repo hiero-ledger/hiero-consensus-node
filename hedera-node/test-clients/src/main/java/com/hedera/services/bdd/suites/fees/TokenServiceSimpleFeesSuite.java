@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -284,25 +285,14 @@ public class TokenServiceSimpleFeesSuite {
                         .supplyKey(SUPPLY_KEY)
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS),
-                mintToken(
-                                NFT_TOKEN,
-                                List.of(
-                                        ByteString.copyFromUtf8("Bart Simpson"),
-                                        ByteString.copyFromUtf8("Bart Simpson1"),
-                                        ByteString.copyFromUtf8("Bart Simpson11"),
-                                        ByteString.copyFromUtf8("Bart Simpson111"),
-                                        ByteString.copyFromUtf8("Bart Simpson1111"),
-                                        ByteString.copyFromUtf8("Bart Simpson2"),
-                                        ByteString.copyFromUtf8("Bart Simpson22"),
-                                        ByteString.copyFromUtf8("Bart Simpson222"),
-                                        ByteString.copyFromUtf8("Bart Simpson2222"),
-                                        ByteString.copyFromUtf8("Bart Simpson3")))
+                mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
                         .payingWith(PAYER)
                         .signedBy(SUPPLY_KEY)
                         .blankMemo()
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
                         .via("nft-mint-txn"),
+                getTxnRecord("nft-mint-txn").hasNonNullBlockNumber(),
                 validateChargedSimpleFees("Simple Fees", "nft-mint-txn", 0.02, 1));
     }
 

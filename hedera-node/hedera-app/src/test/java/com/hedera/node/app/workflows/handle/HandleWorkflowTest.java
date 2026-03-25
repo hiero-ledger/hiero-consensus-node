@@ -588,7 +588,7 @@ class HandleWorkflowTest {
         configOverrides.forEach(config::withValue);
         final var hederaConfig = config.getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(hederaConfig, 1L));
-        given(round.getConsensusTimestamp()).willReturn(NOW);
+        lenient().when(round.getConsensusTimestamp()).thenReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,

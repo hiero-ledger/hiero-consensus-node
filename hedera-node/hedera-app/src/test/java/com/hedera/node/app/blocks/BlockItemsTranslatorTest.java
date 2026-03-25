@@ -78,6 +78,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class BlockItemsTranslatorTest {
+    private static final long BLOCK_NUMBER = 1L;
     private static final long FEE = 12324567890L;
     private static final String MEMO = "MEMO";
     private static final Timestamp CONSENSUS_TIME = new Timestamp(1_234_567, 890);
@@ -143,8 +144,11 @@ class BlockItemsTranslatorTest {
             .paidStakingRewards(PAID_STAKING_REWARDS)
             .status(SUCCESS)
             .build();
-    private static final TransactionReceipt EXPECTED_BASE_RECEIPT =
-            TransactionReceipt.newBuilder().exchangeRate(RATES).status(SUCCESS).build();
+    private static final TransactionReceipt EXPECTED_BASE_RECEIPT = TransactionReceipt.newBuilder()
+            .exchangeRate(RATES)
+            .status(SUCCESS)
+            .blockNumber(BLOCK_NUMBER)
+            .build();
     private static final TransactionRecord EXPECTED_BASE_RECORD = TransactionRecord.newBuilder()
             .transactionID(TXN_ID)
             .memo(MEMO)
