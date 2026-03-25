@@ -77,7 +77,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.queries.meta.AccountCreationDetails;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.math.BigInteger;
