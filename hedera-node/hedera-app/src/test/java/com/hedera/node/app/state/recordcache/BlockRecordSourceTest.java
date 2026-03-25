@@ -41,15 +41,27 @@ class BlockRecordSourceTest {
             .transactionID(TransactionID.newBuilder().nonce(1).build())
             .memo("FIRST")
             .build();
-    private static final TransactionRecord FIRST_BLOCK_NUMBERED_RECORD =
-            RecordSourceBlockNumberUtils.withBlockNumber(FIRST_RECORD, BLOCK_NUMBER);
+    private static final TransactionRecord FIRST_BLOCK_NUMBERED_RECORD = TransactionRecord.newBuilder()
+            .receipt(TransactionReceipt.newBuilder()
+                    .status(SCHEDULE_ALREADY_DELETED)
+                    .blockNumber(BLOCK_NUMBER)
+                    .build())
+            .transactionID(TransactionID.newBuilder().nonce(1).build())
+            .memo("FIRST")
+            .build();
     private static final TransactionRecord SECOND_RECORD = TransactionRecord.newBuilder()
             .receipt(TransactionReceipt.newBuilder().status(SUCCESS).build())
             .transactionID(TransactionID.newBuilder().nonce(2).build())
             .memo("SECOND")
             .build();
-    private static final TransactionRecord SECOND_BLOCK_NUMBERED_RECORD =
-            RecordSourceBlockNumberUtils.withBlockNumber(SECOND_RECORD, BLOCK_NUMBER);
+    private static final TransactionRecord SECOND_BLOCK_NUMBERED_RECORD = TransactionRecord.newBuilder()
+            .receipt(TransactionReceipt.newBuilder()
+                    .status(SUCCESS)
+                    .blockNumber(BLOCK_NUMBER)
+                    .build())
+            .transactionID(TransactionID.newBuilder().nonce(2).build())
+            .memo("SECOND")
+            .build();
     private static final AccountID ACCOUNT_ID =
             AccountID.newBuilder().accountNum(1L).build();
     private static final BlockItem FIRST_OUTPUT = BlockItem.newBuilder()
@@ -98,9 +110,11 @@ class BlockRecordSourceTest {
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
                         null,
+                        1L,
                         FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD);
-        given(recordTranslator.translateRecord(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null))
+        given(recordTranslator.translateRecord(
+                        translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null, 1L))
                 .willReturn(SECOND_RECORD);
         subjectWith(List.of(
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext),
@@ -122,9 +136,10 @@ class BlockRecordSourceTest {
         given(recordTranslator.translateReceipt(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
+                        1L,
                         FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD.receiptOrThrow());
-        given(recordTranslator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
+        given(recordTranslator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), 1L))
                 .willReturn(SECOND_RECORD.receiptOrThrow());
         subjectWith(List.of(
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext),
@@ -148,9 +163,10 @@ class BlockRecordSourceTest {
         given(recordTranslator.translateReceipt(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
+                        1L,
                         FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD.receiptOrThrow());
-        given(recordTranslator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
+        given(recordTranslator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), 1L))
                 .willReturn(SECOND_RECORD.receiptOrThrow());
         subjectWith(List.of(
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext),
@@ -173,9 +189,10 @@ class BlockRecordSourceTest {
         given(recordTranslator.translateReceipt(
                         translationContext,
                         TRANSACTION_RESULT.transactionResultOrThrow(),
+                        1L,
                         FIRST_OUTPUT.transactionOutputOrThrow()))
                 .willReturn(FIRST_RECORD.receiptOrThrow());
-        given(recordTranslator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow()))
+        given(recordTranslator.translateReceipt(translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), 1L))
                 .willReturn(SECOND_RECORD.receiptOrThrow());
         subjectWith(List.of(
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext),

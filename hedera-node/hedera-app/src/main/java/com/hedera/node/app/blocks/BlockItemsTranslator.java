@@ -65,6 +65,7 @@ public class BlockItemsTranslator {
     public TransactionReceipt translateReceipt(
             @NonNull final TranslationContext context,
             @NonNull final TransactionResult result,
+            @Nullable final Long blockNumber,
             @NonNull final TransactionOutput... outputs) {
         requireNonNull(context);
         requireNonNull(result);
@@ -111,7 +112,7 @@ public class BlockItemsTranslator {
             case TOKEN_CREATE -> receiptBuilder.tokenID(((TokenOpContext) context).tokenId());
             case CONSENSUS_CREATE_TOPIC -> receiptBuilder.topicID(((TopicOpContext) context).topicId());
         }
-        return receiptBuilder.build();
+        return receiptBuilder.blockNumber(blockNumber).build();
     }
 
     /**
@@ -128,6 +129,7 @@ public class BlockItemsTranslator {
             @NonNull final TranslationContext context,
             @NonNull final TransactionResult result,
             @Nullable final List<EvmTransactionLog> logs,
+            @Nullable final Long blockNumber,
             @NonNull final TransactionOutput... outputs) {
         requireNonNull(context);
         requireNonNull(result);
@@ -208,7 +210,9 @@ public class BlockItemsTranslator {
                 }
             }
         }
-        return recordBuilder.receipt(translateReceipt(context, result, outputs)).build();
+        return recordBuilder
+                .receipt(translateReceipt(context, result, blockNumber, outputs))
+                .build();
     }
 
     private Function<TransactionOutput, ContractFunctionResult> translatingExtractor(

@@ -496,22 +496,28 @@ public class BlockStreamBuilder
 
         /**
          * Translates the block items into a transaction record.
+         *
          * @param translator the translator to use
+         * @param blockNumber the block number to include in the record, if known; may be null if the block number is not known at the time of translation
          * @return the transaction record
          */
-        public TransactionRecord toRecord(@NonNull final BlockItemsTranslator translator) {
+        public TransactionRecord toRecord(@NonNull final BlockItemsTranslator translator, final Long blockNumber) {
             requireNonNull(translator);
-            return toView(translator, View.RECORD);
+            return toView(translator, blockNumber, View.RECORD);
         }
 
         /**
          * Translates the block items into a transaction receipt.
+         *
          * @param translator the translator to use
+         * @param blockNumber the block number to include in the receipt, if known; may be null if the block number
+         * is not known at the time of translation
          * @return the transaction record
          */
-        public RecordSource.IdentifiedReceipt toIdentifiedReceipt(@NonNull final BlockItemsTranslator translator) {
+        public RecordSource.IdentifiedReceipt toIdentifiedReceipt(
+                @NonNull final BlockItemsTranslator translator, final Long blockNumber) {
             requireNonNull(translator);
-            return toView(translator, View.RECEIPT);
+            return toView(translator, blockNumber, View.RECEIPT);
         }
 
         /**
@@ -535,7 +541,8 @@ public class BlockStreamBuilder
          * @param <T> the Java type of the view
          */
         @SuppressWarnings("unchecked")
-        private <T> T toView(@NonNull final BlockItemsTranslator translator, @NonNull final View view) {
+        private <T> T toView(
+                @NonNull final BlockItemsTranslator translator, @Nullable Long blockNumber, @NonNull final View view) {
             int i = 0;
             final var n = blockItems.size();
             TransactionResult result = null;
@@ -569,8 +576,9 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result, outputs));
-                            case RECORD -> translator.translateRecord(translationContext, result, logs, outputs);
+                                        translator.translateReceipt(translationContext, result, blockNumber, outputs));
+                            case RECORD ->
+                                translator.translateRecord(translationContext, result, logs, blockNumber, outputs);
                         };
             } else {
                 return (T)
@@ -578,8 +586,8 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result));
-                            case RECORD -> translator.translateRecord(translationContext, result, null);
+                                        translator.translateReceipt(translationContext, result, blockNumber));
+                            case RECORD -> translator.translateRecord(translationContext, result, null, blockNumber);
                         };
             }
         }

@@ -115,8 +115,7 @@ public class BlockRecordSource implements RecordSource {
             // Mutate the list of outputs before making it visible to another traversing thread
             final List<IdentifiedReceipt> computation = new ArrayList<>();
             for (final var output : outputs) {
-                computation.add(RecordSourceBlockNumberUtils.withBlockNumber(
-                        output.toIdentifiedReceipt(blockItemsTranslator), blockNumber));
+                computation.add(output.toIdentifiedReceipt(blockItemsTranslator, blockNumber));
             }
             computedReceipts = computation;
         }
@@ -128,8 +127,7 @@ public class BlockRecordSource implements RecordSource {
             // Mutate the list of outputs before making it visible to another traversing thread
             final List<TransactionRecord> computation = new ArrayList<>();
             for (final var output : outputs) {
-                computation.add(RecordSourceBlockNumberUtils.withBlockNumber(
-                        output.toRecord(blockItemsTranslator), blockNumber));
+                computation.add(output.toRecord(blockItemsTranslator, blockNumber));
             }
             computedRecords = computation;
         }

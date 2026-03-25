@@ -30,12 +30,6 @@ public record LegacyListRecordSource(
     public LegacyListRecordSource {
         requireNonNull(precomputedRecords);
         requireNonNull(identifiedReceipts);
-        precomputedRecords = precomputedRecords.stream()
-                .map(record -> RecordSourceBlockNumberUtils.withBlockNumber(record, blockNumber))
-                .toList();
-        identifiedReceipts = identifiedReceipts.stream()
-                .map(identifiedReceipt -> RecordSourceBlockNumberUtils.withBlockNumber(identifiedReceipt, blockNumber))
-                .toList();
     }
 
     @Override

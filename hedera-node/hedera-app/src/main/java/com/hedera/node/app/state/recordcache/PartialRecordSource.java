@@ -15,6 +15,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -56,7 +57,17 @@ public class PartialRecordSource implements RecordSource {
 
     public void incorporate(@NonNull final TransactionRecord precomputedRecord) {
         requireNonNull(precomputedRecord);
-        final var blockNumberedRecord = RecordSourceBlockNumberUtils.withBlockNumber(precomputedRecord, blockNumber);
+
+        var precomputedReceipt = precomputedRecord.receipt();
+        if (blockNumber != null
+                && precomputedReceipt != null
+                && !Objects.equals(precomputedReceipt.blockNumber(), blockNumber)) {
+            precomputedReceipt =
+                    precomputedReceipt.copyBuilder().blockNumber(blockNumber).build();
+        }
+        final var blockNumberedRecord = precomputedReceipt == null
+                ? precomputedRecord
+                : precomputedRecord.copyBuilder().receipt(precomputedReceipt).build();
         precomputedRecords.add(blockNumberedRecord);
         identifiedReceipts.add(new IdentifiedReceipt(
                 blockNumberedRecord.transactionIDOrThrow(), blockNumberedRecord.receiptOrThrow()));
