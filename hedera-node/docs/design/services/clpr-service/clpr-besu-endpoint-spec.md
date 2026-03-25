@@ -10,6 +10,10 @@ submits transactions. For the cross-platform protocol specification, see
 [clpr-service-spec.md](clpr-service-spec.md). For the architectural rationale and design overview, see
 [clpr-service.md](clpr-service.md).
 
+**Prerequisite reading:** [Cross-platform CLPR Protocol Specification](clpr-service-spec.md). This document assumes
+familiarity with the protocol-level definitions (protobuf wire formats, state model, verification interfaces,
+algorithms, and security model) and covers only Besu/Ethereum-specific implementation details.
+
 **Target:** An upstream-mergeable patch to Hyperledger Besu, structured so that CLPR functionality is entirely
 optional and imposes zero overhead when disabled.
 
@@ -263,16 +267,8 @@ cannot starve Besu's RPC or consensus-layer communication.
 
 ## 3.2 Service Definition
 
-The server hosts the `ClprEndpointService` gRPC service as defined in the cross-platform specification:
-
-```protobuf
-service ClprEndpointService {
-    rpc sync(ClprSyncPayload) returns (ClprSyncPayload);
-}
-```
-
-This is a unary RPC. The initiator sends a `ClprSyncPayload` and receives one in response. The exchange is
-symmetric: each side provides its proof bytes for the other's ledger.
+The server hosts the `ClprEndpointService` gRPC service (cross-platform spec §1.5). On Besu, the generated Java
+stubs from `clpr_endpoint.proto` are used directly — no additional RPC methods are added.
 
 ## 3.3 TLS Configuration
 
@@ -312,11 +308,11 @@ range as Besu's RPC ports but clearly distinct.
 
 ## 3.5 Message Size Limits
 
-The gRPC server MUST configure `maxInboundMessageSize` to accommodate `max_sync_payload_bytes` from the ledger's
+The gRPC server MUST configure `maxInboundMessageSize` to accommodate `max_sync_bytes` from the ledger's
 CLPR configuration. The default gRPC limit (4 MB) may be insufficient for bundles containing many messages. The
-plugin reads `max_sync_payload_bytes` from the on-chain configuration and configures the gRPC server accordingly.
+plugin reads `max_sync_bytes` from the on-chain configuration and configures the gRPC server accordingly.
 
-If a `max_sync_payload_bytes` value is not yet available (e.g., the CLPR contract has not been configured), a
+If a `max_sync_bytes` value is not yet available (e.g., the CLPR contract has not been configured), a
 conservative default of 16 MB is used, with a log warning that the operator should verify the on-chain configuration.
 
 ---
@@ -325,38 +321,30 @@ conservative default of 16 MB is used, with a log warning that the operator shou
 
 ## 4.1 Sync Loop Design
 
-The sync engine is a scheduled task that runs independently for each Connection the endpoint is registered on. The
-design uses a single-threaded scheduler per Connection with a configurable period:
+The sync engine initiates outbound sync calls **only when there are pending outbound messages**. Inbound messages
+are received passively — the remote peer dials this node when it has messages to deliver. The engine uses a
+single-threaded scheduler per Connection.
+
+Per cross-platform spec §2.1.1, Connection status determines behavior: SEVERED/HALTED Connections are skipped
+entirely, PAUSED Connections skip outbound initiation but remain available as responders, and ACTIVE Connections
+proceed normally. On Besu, the sync loop implementation is:
 
 ```
 For each Connection C where this node is a registered endpoint:
-    Every connectionFrequency milliseconds:
-        0. Read C's Connection status from contract state (or cached state).
-             - If SEVERED or HALTED: skip this Connection entirely. Do not attempt sync.
-               HALTED does not automatically recover — admin must intervene.
-             - If PAUSED: the endpoint can still receive bundles (as responder) and send
-               acks, but there are no new outbound messages to push. Skip outbound sync
-               initiation but remain available as a responder.
-             - If ACTIVE: proceed with normal sync below.
-           Before syncing, the endpoint MUST verify it is still registered on each
-           Connection's endpoint roster. If this endpoint's account is no longer in the
-           roster (due to external deregistration, bond slashing to zero, or admin removal),
-           skip the Connection. The endpoint SHOULD check this by reading the on-chain
-           endpoint roster periodically (e.g., every N sync rounds) or by monitoring
-           `EndpointDeregistered` events.
+    Monitor C's outbound queue for pending messages:
+        0. Read C's status via eth_call. Skip per status rules above.
+           Periodically verify this endpoint is still in the on-chain roster
+           (e.g., every N sync rounds) — external deregistration or bond slashing
+           may have removed it.
         1. Read C's outbound queue metadata from contract state.
         2. If there are unacked messages (next_message_id > peer's received_message_id):
-             a. Construct proof_bytes from local state.
-             b. Select a peer endpoint from C's peer roster.
-             c. Open gRPC connection to peer, exchange payloads.
-             d. Pre-validate received proof_bytes locally (call verifier via eth_call).
-             e. If valid, construct and submit a submitBundle() transaction.
-        3. If there are NO unacked messages:
-             a. Still sync (to exchange acks and receive peer's messages).
-               A submitBundle() transaction is still needed if the ack updates
-               acked_message_id — this allows the contract to delete acknowledged
-               messages from the outbound queue.
-             b. Construct a minimal proof_bytes covering only queue metadata.
+             a. Compute sync interval per §4.5. Wait until interval has elapsed.
+             b. Construct proof_bytes from local Ethereum state (see §5).
+             c. Select a peer endpoint from C's peer roster (see §4.2).
+             d. Open gRPC connection to peer, exchange payloads.
+             e. Pre-validate received proof_bytes locally (call verifier via eth_call).
+             f. If valid, construct and submit a submitBundle() transaction (see §7).
+        3. If there are NO unacked messages: remain available as responder only.
 ```
 
 ## 4.2 Peer Selection
@@ -399,22 +387,17 @@ independently:
 
 ## 4.5 Sync Frequency Governance
 
-The sync frequency is configurable per the `connectionFrequency` parameter (default: 5000 ms). The endpoint MUST
-respect the peer ledger's `max_syncs_per_sec` advisory limit. If the configured frequency would exceed the peer's
-limit, the endpoint MUST throttle down to comply. Persistent violation is reportable misbehavior (spec Section 8.4).
+Per cross-platform spec §7 (`maxSyncsPerSec`), the outbound sync interval is derived as
+`sync_interval_ms = 1000 * num_local_endpoints / max_syncs_per_sec`. On Besu, the `SyncOrchestrator` applies this
+formula per Connection using the `ScheduledExecutorService` delay.
 
-The endpoint tracks its own sync frequency per Connection per peer and ensures it stays within bounds. When multiple
-endpoints from the same ledger are syncing with the same peer, the per-endpoint frequency is what matters — the
-`max_syncs_per_sec` is an aggregate limit, so individual endpoints should divide it by the estimated number of active
-local endpoints on the Connection.
+If `max_syncs_per_sec` is not yet known (newly registered Connection, no `ConfigUpdate` received yet), the
+endpoint uses a conservative default of 1 sync per second per endpoint (configurable via `clpr.default-syncs-per-sec`).
 
-**Lazy config propagation awareness.** The endpoint uses the **last known** peer config values from Connection state
-when enforcing throttle limits. Peer configuration updates propagate lazily — a `ConfigUpdate` is enqueued on the
-next interaction, not pushed immediately. This means the peer's `max_syncs_per_sec` value visible in on-chain state
-may lag the peer's actual current configuration. This lag is acceptable: the cross-platform spec defines a tolerance
-band for throttle enforcement, and the endpoint reads peer throttle values from Connection state on each sync tick,
-so lazy config updates are automatically reflected once the `ConfigUpdate` control message has been processed by the
-contract.
+**Lazy config propagation awareness.** The endpoint reads peer throttle values from Connection state (via `eth_call`)
+on each sync cycle. Because `ConfigUpdate` messages propagate lazily (spec §1.3), the visible `max_syncs_per_sec`
+may lag the peer's actual configuration. This lag is acceptable given the spec's tolerance band for throttle
+enforcement.
 
 ---
 
@@ -429,15 +412,9 @@ construct `proof_bytes` that the peer ledger's verifier contract can interpret a
 > The proof is always about Ethereum's own state (CLPR Service contract storage on the EVM chain). It is produced
 > by this Besu endpoint and consumed by the peer ledger's verifier contract.
 
-The proof must establish, with cryptographic assurance rooted in Ethereum's consensus, the following facts about the
-CLPR Service contract's state at a specific block:
-
-1. **Queue metadata** — The Connection's `next_message_id`, `sent_running_hash`, `received_message_id`, and
-   `received_running_hash` values.
-2. **Message payloads** — The serialized `ClprMessagePayload` for each unacked message in the outbound queue (from
-   `acked_message_id + 1` through `next_message_id - 1`, capped at `max_messages_per_bundle`).
-3. **Running hash per message** — The `running_hash_after_processing` for each message, enabling hash chain
-   verification.
+The proof must establish, with cryptographic assurance rooted in Ethereum's consensus, the Connection's queue
+metadata and message payloads (spec §1.5 `ClprQueueMetadata`, §1.4 `ClprMessageValue`) at a specific block. This
+includes queue state fields, unacked message payloads, and per-message running hashes for hash chain verification.
 
 ## 5.2 Proof Construction Pipeline
 
@@ -768,22 +745,21 @@ public record LightClientUpdate(
 
 ## 7.1 Receiving a Peer's Proof
 
-When the endpoint receives a `ClprSyncPayload` from a peer (either as initiator receiving the response, or as
-responder receiving the initial payload):
+Per cross-platform spec §4.2, the on-chain CLPR Service performs full bundle verification (verifier call, replay
+defense, running hash check, message dispatch). On Besu, the endpoint **pre-validates** before paying gas:
 
-1. **Deserialize** the `ClprSyncPayload`.
-2. **Extract** `connection_id`, `proof_bytes`, `endpoint_signature`.
-3. **Pre-validate** the proof locally by simulating a call to the verifier contract:
+1. **Deserialize** the `ClprSyncPayload` and extract `connection_id`, `proof_bytes`, `endpoint_signature`.
+2. **Pre-validate** by simulating the verifier contract call via `eth_call` (no on-chain execution, no gas cost):
    ```
-   verifierContract.verifyBundle(proof_bytes)  // via eth_call, no on-chain execution
+   verifierContract.verifyBundle(proof_bytes)  // eth_call simulation
    ```
    If the verifier rejects the proof, discard the payload and log a warning. Do NOT submit a transaction — the
    endpoint would pay gas for a guaranteed revert.
-4. If valid, proceed to transaction construction.
+3. If valid, proceed to transaction construction.
 
 ## 7.2 Transaction Construction
 
-The endpoint constructs an Ethereum transaction calling `submitBundle()` on the CLPR Service contract:
+Per spec §6.4, `submitBundle` is the on-chain entry point. On Ethereum, the Solidity function signature is:
 
 ```solidity
 function submitBundle(
@@ -830,16 +806,10 @@ long gasLimit = (long)(estimatedGas * GAS_BUFFER_MULTIPLIER);  // e.g., 1.2x
 The `GAS_BUFFER_MULTIPLIER` (default: 1.2) accounts for minor state changes between estimation and inclusion. If
 estimation fails (e.g., the verifier contract reverts during simulation), the transaction is NOT submitted.
 
-**Gas budget considerations.** `submitBundle()` gas cost scales with:
-- Verifier contract execution (BLS signature verification is ~100K-200K gas; MPT proof verification is ~5K-20K gas
-  per proof node).
-- Number of messages in the bundle (each message requires hash computation, Connector lookup, and application
-  dispatch).
-- Application callback gas (bounded by `max_gas_per_message`).
-
-A rough estimate for a bundle of 10 messages: 500K-2M gas for verification + 10 * `max_gas_per_message` for
-dispatch. At `max_gas_per_message` = 200K, total is ~2.5M-4M gas. This is well within Ethereum's 30M block gas
-limit but represents significant cost at high gas prices.
+**Gas budget considerations.** On Ethereum, `submitBundle()` gas cost scales with BLS signature verification
+(~100K-200K gas), MPT proof verification (~5K-20K gas per node), per-message processing (hash computation,
+Connector lookup, application dispatch), and application callbacks (bounded by `max_gas_per_message`). A rough
+estimate for a 10-message bundle: ~2.5M-4M gas total. See §16.3 for detailed cost analysis.
 
 ## 7.4 Gas Price Strategy
 
@@ -861,14 +831,10 @@ public class GasPriceStrategy {
 }
 ```
 
-**Profitability check.** Before submitting, the endpoint SHOULD check whether the expected reimbursement (Connector
-margin) exceeds the gas cost. If not, the endpoint MAY defer submission to a later block when gas is cheaper,
-provided the messages are not time-sensitive. This is a configurable behavior (`clpr.skip-unprofitable-bundles`).
-
-The profitability check SHOULD also consider whether the Connectors on the Connection have sufficient funds to
-reimburse the endpoint for gas costs. If a Connector's balance is too low to cover the expected reimbursement, the
-endpoint may end up paying gas for message delivery without being compensated. The endpoint can read Connector
-balances from the contract state and factor this into its submission decision.
+**Profitability check.** Before submitting, the endpoint SHOULD check whether the expected Connector margin
+reimbursement (spec §4.6) exceeds the gas cost. If not, the endpoint MAY defer submission to a later block when
+gas is cheaper (`clpr.skip-unprofitable-bundles`). The endpoint can also read Connector balances via `eth_call`
+to avoid submitting bundles for underfunded Connectors.
 
 ## 7.5 Nonce Management
 
@@ -906,24 +872,14 @@ After submission:
    block added). It checks receipts for the transaction hash.
 2. **Handle revert.** If the transaction is included but reverted (status = 0), log the revert reason. Common
    reasons:
-   - Replay: another endpoint already submitted a bundle covering the same messages. This is expected and benign.
-   - Verification failure: the proof was invalid (should not happen if pre-validation passed, but possible if the
-     block was reorged between pre-validation and inclusion).
-   - Connection paused/severed: state changed between estimation and inclusion.
-   - Connection HALTED: the Connection has been permanently halted due to a response ordering violation. No
-     automatic recovery is possible — admin must intervene. The endpoint MUST stop syncing for this Connection.
+   - Replay: another endpoint already submitted a bundle covering the same messages. Expected and benign.
+   - Verification failure: possible if the block was reorged between pre-validation and inclusion.
+   - Connection status changed: paused, severed, or HALTED (spec §2.1.1, §4.5) between estimation and inclusion.
 
-   **Important distinction — bundle verification failure vs. HALTED:**
-   - **Bundle verification failures** (bad hash chain, replay, oversized payload) result in a simple revert with
-     no state change. The Connection remains ACTIVE. The endpoint should retry with fresh data on the next sync
-     cycle.
-   - **Response ordering violation** causes the contract to transition the Connection to HALTED. This is
-     permanent until an administrator intervenes. The endpoint MUST detect the HALTED status and stop all sync
-     activity for the affected Connection.
-
-   The endpoint SHOULD perform a pre-submission contract read to check the Connection status before submitting.
-   Detecting HALTED or SEVERED status via a cheap `eth_call` read is preferable to paying gas for a guaranteed
-   revert.
+   Per spec §4.2, bundle verification failures (bad hash chain, replay, oversized payload) cause a simple revert
+   with no state change. Response ordering violations (spec §4.5) transition the Connection to HALTED permanently.
+   On Besu, the endpoint SHOULD perform a pre-submission `eth_call` read of Connection status to avoid paying gas
+   for a guaranteed revert against a HALTED or SEVERED Connection.
 3. **Handle timeout.** If the transaction is not included within a configurable number of blocks (default: 20), the
    plugin may:
    - **Speed up:** Resubmit with higher gas price (same nonce — this replaces the pending transaction).
@@ -951,16 +907,13 @@ also provides the benefit of deterministic gas costs by eliminating cold/warm ac
 
 # 8. Endpoint Registration and Bond Management
 
-**Prerequisite: Connection registration.** Before any endpoint can register, the Connection itself must exist
-on-chain. Connection registration (including its deposit requirement) is an **administrative operation** performed
-separately from endpoint registration — typically by the Connection administrator or governance process. The
-endpoint plugin handles only endpoint registration; it assumes the Connection already exists and is properly
-configured.
+Per cross-platform spec §6.5, endpoint registration is permissionless on Ethereum — any account can register by
+posting a bond. The Connection itself must already exist on-chain (Connection registration is an administrative
+operation, not handled by the endpoint plugin).
 
 ## 8.1 Registration
 
-On Ethereum, endpoints are permissionless — any account can register by posting a bond. The plugin provides both a
-CLI command and an automated registration flow.
+The plugin provides both a CLI command and an automated registration flow.
 
 ### CLI Registration
 
@@ -989,13 +942,8 @@ function registerEndpoint(
 ) external payable;
 ```
 
-The bond is sent as `msg.value` in the transaction. The contract validates that `msg.value` meets or exceeds the
-minimum bond requirement.
-
-> **Cross-platform spec note:** The cross-platform spec defines a `bond` parameter in `registerEndpoint`. On EVM,
-> this maps to `msg.value` per the cross-platform spec's platform-specific delivery note (§6.5). No separate `bond`
-> parameter is needed in the Solidity ABI — `msg.value` is the authoritative bond amount, avoiding the ambiguity of
-> having two sources of truth.
+The bond is sent as `msg.value` in the transaction (per spec §6.5, the `bond` pseudo-parameter maps to `msg.value`
+on EVM). The contract validates that `msg.value` meets or exceeds the minimum bond requirement.
 
 ### Auto-Registration
 
@@ -1045,12 +993,9 @@ The plugin provides a CLI command:
 besu --clpr-deregister-endpoint --clpr-connection-id=0x...
 ```
 
-Per the spec, deregistration MUST NOT proceed if the endpoint has in-flight sync submissions. The contract enforces
-this, but the plugin also checks locally before submitting the deregistration transaction, to avoid wasting gas on a
-guaranteed revert.
-
-Bond withdrawal may be subject to a cooldown period (defined by the contract) to prevent endpoints from registering,
-misbehaving, and immediately withdrawing before the report can be processed.
+Per spec §6.5, deregistration MUST NOT proceed if the endpoint has in-flight sync submissions. The contract
+enforces this, but the plugin also checks locally before submitting the deregistration transaction, to avoid
+wasting gas on a guaranteed revert.
 
 ## 8.4 Bond Status Monitoring
 
@@ -1184,17 +1129,10 @@ Mitigations:
 
 ### Endpoint Exclusivity
 
-The CLPR protocol does NOT provide exclusive submission rights. Any registered endpoint can submit any bundle. This
-is by design — it ensures liveness (a single unresponsive endpoint does not block the Connection). However, it means
-gas waste from competing submissions is an inherent cost of permissionless endpoint participation.
-
-Future protocol iterations might introduce:
-- **Round-robin submission rights** (per-block or per-slot assignment to specific endpoints).
-- **Commit-reveal schemes** (endpoints commit to a bundle hash, then reveal).
-- **Priority fee sharing** (the contract splits the Connector margin among all endpoints that submitted valid
-  bundles in the same block, reimbursing them for gas).
-
-These are out of scope for this specification but should be considered for the contract design.
+The CLPR protocol does NOT provide exclusive submission rights — any registered endpoint can submit any bundle
+(spec §6.4, `submitBundle`). On Ethereum, this means gas waste from competing submissions is an inherent cost.
+Future protocol iterations might introduce round-robin assignment, commit-reveal schemes, or priority fee sharing
+to mitigate this.
 
 ---
 
@@ -1212,7 +1150,7 @@ These are out of scope for this specification but should be considered for the c
 | gRPC Host | `--clpr-grpc-host` | `clpr.grpc-host` | `0.0.0.0` | Interface for the CLPR gRPC server. |
 | TLS Key | `--clpr-tls-key` | `clpr.tls.key-file` | (required) | RSA private key for the gRPC TLS server. Corresponds to `--clpr-tls-certificate`. |
 | Client Auth | `--clpr-tls-client-auth` | `clpr.tls.client-auth` | `OPTIONAL` | TLS client authentication mode: `NONE`, `OPTIONAL`, `REQUIRE`. |
-| Sync Frequency | `--clpr-sync-frequency` | `clpr.sync-frequency-ms` | `5000` | Milliseconds between sync attempts per Connection. |
+| Default Syncs/Sec | `--clpr-default-syncs-per-sec` | `clpr.default-syncs-per-sec` | `1` | Conservative default sync rate per endpoint when peer's `max_syncs_per_sec` is not yet known. |
 | Beacon API URL | `--clpr-beacon-api-url` | `clpr.beacon-api-url` | `http://localhost:5052` | Beacon chain API endpoint for sync committee data. |
 | Commitment Level | `--clpr-commitment-level` | `clpr.commitment-level` | `finalized` | Block commitment level for proof construction: `finalized`, `safe`, `latest`. |
 | Max Gas Price | `--clpr-max-gas-price` | `clpr.max-gas-price-gwei` | `100` | Maximum gas price (gwei). Transactions above this are deferred. |
@@ -1242,12 +1180,13 @@ Some parameters may be overridden per Connection:
 ```toml
 [clpr.connection-overrides."0xabc123..."]
 commitment-level = "safe"
-sync-frequency-ms = 2000
 max-gas-price-gwei = 50
 ```
 
-This allows operators to use different commitment levels or sync frequencies for different Connections (e.g., lower
+This allows operators to use different commitment levels or gas tolerances for different Connections (e.g., lower
 latency for a `safe`-level Connection to a high-throughput peer, higher gas tolerance for a critical Connection).
+The sync frequency is NOT overridable per Connection — it is always derived from the peer's `max_syncs_per_sec`
+and the local endpoint count.
 
 ---
 
@@ -1314,8 +1253,8 @@ When Besu processes a chain reorganization:
    confirmed. The plugin re-checks inclusion after the reorg settles.
 3. **State re-read.** All cached contract state is invalidated after a reorg. The next sync cycle reads fresh state
    from the canonical chain.
-4. **Commitment level protection.** Using `finalized` commitment level for proof construction eliminates reorg
-   concerns — finalized blocks are never reorged (by definition). This is the recommended default.
+4. **Commitment level protection.** Per spec §8.3, using `finalized` commitment level eliminates reorg concerns.
+   This is the recommended default for Besu.
 
 ## 12.6 Behavior on Minority Fork
 
@@ -1331,38 +1270,29 @@ minority-fork data.
 
 ## 12.7 Misbehavior Detection and Reporting
 
-The endpoint is responsible for detecting and reporting peer misbehavior as defined in the cross-platform spec
-(Section 8.4). The primary misbehavior type relevant to the endpoint is EXCESS_FREQUENCY:
+Per cross-platform spec §1.6 and §6.6, the primary misbehavior type is `EXCESS_FREQUENCY`. On Besu, the endpoint
+implements detection and reporting as follows:
 
 ### EXCESS_FREQUENCY Detection
 
-The endpoint tracks the rate of remotely initiated inbound syncs per peer. If a peer exceeds the local ledger's
-`max_syncs_per_sec` limit, the endpoint records the timestamps as evidence.
+The endpoint tracks the rate of remotely initiated inbound syncs per `(connection_id, remote_endpoint_account_id)`
+pair. If a peer exceeds the local ledger's `max_syncs_per_sec` limit, the endpoint records the sync timestamps as
+evidence.
 
 ### reportMisbehavior Transaction
 
-When the endpoint detects EXCESS_FREQUENCY, it constructs a `reportMisbehavior()` transaction
-and submits it to the CLPR Service contract:
+The Solidity function signature on Ethereum:
 
 ```solidity
 function reportMisbehavior(
     bytes32 connectionId,
-    uint8 misbehaviorType,       // EXCESS_FREQUENCY
-    bytes calldata evidence       // Encoded evidence (see below)
+    uint8 misbehaviorType,       // EXCESS_FREQUENCY = 1
+    bytes calldata evidence       // ABI-encoded array of timestamps
 ) external;
 ```
 
-Evidence format for EXCESS_FREQUENCY: ABI-encoded array of timestamps showing the rate of inbound syncs from the
-reported peer exceeding the configured limit.
-
-The transaction is submitted through the same `TransactionSubmitter` pipeline as `submitBundle()`, using the same
-nonce management and gas estimation strategies.
-
-### DUPLICATE_BROADCAST (Dropped)
-
-DUPLICATE_BROADCAST was considered but dropped -- on-chain evidence cannot cryptographically prove sync direction
-(who initiated), and the economic harm (duplicate gas spend) is mitigated by natural endpoint deduplication
-strategies.
+The transaction is submitted through the same `TransactionSubmitter` pipeline as `submitBundle()`, sharing the
+`NonceTracker` and gas estimation strategies.
 
 ---
 
@@ -1474,19 +1404,9 @@ authentication.
 
 ## 14.3 Signing Key Management
 
-The endpoint requires **two distinct key types** for different purposes:
-
-- **RSA private key (mTLS only)** — Provides the TLS server certificate for gRPC transport authentication.
-  The corresponding RSA public certificate is registered on-chain as `ClprEndpoint.tls_certificate`. NOT used
-  for `endpoint_signature` or any on-chain verification.
-- **ECDSA secp256k1 private key (signing + transactions)** — Used for TWO purposes: (a) signing
-  `ClprSyncPayload.endpoint_signature` over `keccak256(connection_id || proof_bytes)`, and (b) signing
-  Ethereum transactions (`submitBundle()`, `registerEndpoint()`, etc.). On EVM, these are the same key
-  (the endpoint operator's EOA key). Registered on-chain as `ClprEndpoint.ecdsa_signing_key`.
-
-> **Post-quantum note:** ECDSA secp256k1 is not quantum-safe. The protocol anticipates migrating
-> `endpoint_signature` to a post-quantum scheme (e.g., Falcon, CRYSTALS-Dilithium) once mainline
-> ledgers add native support.
+Per spec §1.2, endpoints use two key types: RSA (mTLS only) and ECDSA secp256k1 (payload signing + misbehavior
+evidence). On Ethereum, the ECDSA signing key is the same key as the endpoint operator's EOA — it signs both
+`endpoint_signature` payloads and Ethereum transactions (`submitBundle()`, `registerEndpoint()`, etc.).
 
 Key management options (apply to both keys — each key may use a different storage mechanism):
 
@@ -1523,12 +1443,9 @@ Key management options (apply to both keys — each key may use a different stor
 
 ## 14.4 Protection Against Oversized Payloads
 
-Beyond gRPC message size limits:
-
-- The plugin validates `proof_bytes` size against `max_sync_payload_bytes` before processing.
-- The plugin validates the number of messages in a received payload against `max_messages_per_bundle`.
-- Deserialization is performed in a bounded-memory context — malformed protobuf that attempts memory amplification
-  (e.g., extremely deep nesting) is rejected by the protobuf library's recursion limit.
+Per spec §8.1, all limits are published in the configuration and enforced by receivers. On Besu, the plugin
+additionally enforces protobuf recursion limits during deserialization to prevent memory amplification attacks
+from malformed messages with extremely deep nesting.
 
 ## 14.5 Node Isolation
 
@@ -1543,11 +1460,10 @@ The CLPR plugin MUST NOT become an attack vector against the Besu node itself:
 - **No filesystem writes.** The plugin does not write to the filesystem (except logs via Besu's logging framework).
   No persistent state is maintained outside the Ethereum chain.
 
-## 14.6 Rate Limiting on Outbound Syncs
+## 14.6 Rate Limiting
 
-The plugin enforces the peer's `max_syncs_per_sec` to avoid being reported for `EXCESS_FREQUENCY` misbehavior. The
-rate limiter is per (Connection, peer endpoint) pair. If the configured `sync-frequency-ms` would violate the limit,
-the plugin adjusts automatically and logs a warning.
+Outbound rate limiting is implemented via the sync interval in §4.5. Inbound rate limiting is implemented via
+per-peer tracking in §12.7 (misbehavior detection).
 
 ---
 
@@ -1637,14 +1553,9 @@ specification, after cross-referencing with the source documents.
 
 ### 16.1.1 Signing Key Type Mismatch (Resolved)
 
-The cross-platform spec (Section 1.2) defines `ClprEndpoint.tls_certificate` (RSA, mTLS only) and
-`ClprEndpoint.ecdsa_signing_key` (ECDSA secp256k1, for `endpoint_signature` and misbehavior evidence).
-On Ethereum, the ECDSA signing key is the same key as the endpoint operator's EOA (both use secp256k1).
-
-This dual-key requirement is addressed in Section 14.3. The `signing-key-file` configuration refers to the ECDSA
-key (for both Ethereum transactions AND `endpoint_signature`), while `tls-certificate` refers to the RSA
-certificate (for mTLS only). The signer's identity is recovered from `endpoint_signature` via ecrecover and
-matched against registered `ecdsa_signing_key` entries in the endpoint roster.
+The dual-key model (RSA for mTLS, ECDSA secp256k1 for signing) is addressed in §14.3. On Ethereum, the ECDSA
+key is the operator's EOA key. The `signing-key-file` config refers to the ECDSA key; `tls-certificate` refers
+to the RSA certificate.
 
 ### 16.1.2 Sidecar vs. Plugin Discrepancy
 

@@ -49,19 +49,16 @@ message ClprLedgerConfiguration {
   // the caller during connection registration.
   bytes service_address = 3;
 
-  // Map from verifier type label to implementation fingerprint (code hash).
-  // The label is a human-readable identifier for a platform-specific verifier
-  // implementation (e.g., "HederaProofs-EVM", "HederaProofs-Solana").
-  // The fingerprint is the hash of the deployed verifier code on the target
-  // platform (e.g., EXTCODEHASH on EVM chains).
-  map<string, bytes> approved_verifiers = 4;
+  // Note: ApprovedVerifiers (map<string, bytes>) is maintained as local-only
+  // state on each ledger, NOT as part of the wire-format configuration.
+  // See §6.1 for the ApprovedVerifiers management API.
 
   // Consensus timestamp of the transaction that last modified this configuration.
   // Monotonically increasing. Used to determine configuration freshness.
-  Timestamp timestamp = 5;
+  Timestamp timestamp = 4;
 
   // Capacity limits advertised by this ledger.
-  ClprThrottles throttles = 6;
+  ClprThrottles throttles = 5;
 }
 
 // Consensus timestamp. Defined here rather than importing google.protobuf.Timestamp
@@ -96,9 +93,9 @@ message ClprThrottles {
   // When the queue is full, new messages are rejected until the peer catches up.
   uint32 max_queue_depth = 5;
 
-  // Maximum total size of a sync payload (proof bytes + metadata + bundle).
-  // Endpoints MAY terminate streams exceeding this limit.
-  uint64 max_sync_payload_bytes = 6;
+  // Maximum total size of a serialized ClprSyncPayload (the gRPC message).
+  // Endpoints MUST reject messages exceeding this limit.
+  uint64 max_sync_bytes = 6;
 }
 ```
 
@@ -376,7 +373,7 @@ message ClprQueueMetadata {
 ### gRPC Endpoint Service
 
 Every CLPR endpoint exposes this gRPC service. It is the endpoint-to-endpoint protocol — separate from the on-ledger
-CLPR Service API. Implementations MUST configure gRPC max message sizes to accommodate `max_sync_payload_bytes`.
+CLPR Service API. Implementations MUST configure gRPC max message sizes to accommodate `max_sync_bytes`.
 
 ```protobuf
 service ClprEndpointService {
@@ -458,7 +455,7 @@ Connection {
 
   // --- Verifier ---
   verifier_contract       : bytes       // address of the locally deployed verifier for this Connection
-  verifier_fingerprint    : bytes       // implementation fingerprint (code hash) endorsed by peer
+  verifier_fingerprint    : bytes       // implementation fingerprint (code hash) matched against local ApprovedVerifiers at registration
 
   // --- Status ---
   status                 : enum { ACTIVE, PAUSED, SEVERED, HALTED }
@@ -569,14 +566,14 @@ read-only with respect to CLPR Service state, but MAY read from the verifier's o
 interface IClprVerifier {
 
   // Verify a configuration proof. Returns the verified ledger configuration
-  // (including chain_id, service_address, approved_verifiers, timestamp, throttles).
+  // (including chain_id, service_address, timestamp, throttles).
   //
   // Used during:
-  //   - registerConnection (initial bootstrap)
-  //   - updateConnectionVerifier with ZK proof path (recovery)
+  //   - The first sync to verify and extract the peer's configuration
+  //   - recoverEndpointRoster to verify the peer's endpoint list context
   //
   // The proof_bytes contain whatever the source ledger's proof system produces
-  // to attest to its configuration state (state roots, Merkle paths, ZK proofs, etc.).
+  // to attest to its configuration state (state roots, Merkle paths, etc.).
   //
   // MUST revert if verification fails.
   function verifyConfig(bytes proof_bytes) returns (ClprLedgerConfiguration)
@@ -640,16 +637,6 @@ interface IClprConnectorAuth {
   ) returns (bool authorized)
 }
 ```
-
-## 3.3 Built-in ZK Verifier
-
-Every CLPR Service implementation includes a **built-in ZK verifier** that is hardcoded into the service itself (not
-a separate contract). This verifier is used exclusively during Connection registration and the ZK recovery path of
-`updateConnectionVerifier`. It verifies a zero-knowledge proof attesting to a peer ledger's configuration state.
-
-The built-in ZK verifier is the bootstrap trust anchor — it cannot rely on a Connection-specific verifier whose
-legitimacy has not yet been established. Upgrading the built-in ZK verifier requires a platform upgrade (software
-update on Hiero, contract upgrade on Ethereum).
 
 ---
 
@@ -835,7 +822,8 @@ amount. The registrant:
 1. Generates an **ECDSA_secp256k1 keypair** and computes the Connection ID as `keccak256(uncompressed_public_key)`
    (64-byte x||y coordinates, without the `0x04` prefix).
 2. Deploys a **verifier contract** on the local ledger.
-3. Obtains a **ZK proof** attesting to the peer ledger's current configuration.
+3. Discovers the peer ledger's CLPR Service address and endpoint roster through **off-chain** means (documentation,
+   registries, direct coordination). Verifier discovery is off-chain — there is no on-chain bootstrap proof.
 4. Calls `registerConnection` on the local CLPR Service.
 
 The CLPR Service:
@@ -845,44 +833,36 @@ The CLPR Service:
    on the Connection.
 2. Verifies the **ECDSA signature** over the registration data (proves caller controls the Connection ID).
    The exact signed payload format is defined in platform-specific specifications.
-3. Verifies the **ZK proof** using the built-in ZK verifier, extracting the peer's configuration (including
-   `chain_id`, `service_address`, `approved_verifiers`).
-4. Checks the deployed verifier contract's code hash against the peer's `approved_verifiers`. Rejects if no match.
-5. Creates the Connection: stores the Connection ID, peer's `chain_id` and `service_address`, peer configuration
-   timestamp, verifier address and fingerprint, and seed endpoints.
+3. Checks the deployed verifier contract's code hash against the **local `ApprovedVerifiers`** (see §6.1).
+   Rejects if no matching fingerprint is found.
+4. Creates the Connection: stores the Connection ID, peer's `chain_id` and `service_address`, verifier address
+   and fingerprint, and seed endpoints. The peer's configuration is not yet known at registration time — it
+   will be obtained and verified during the first sync.
 
 This process is repeated independently on the peer ledger for bidirectional communication. No pairing ceremony is
 needed — the deterministic Connection ID from the shared keypair links the two registrations.
 
 ## 5.2 Verifier Migration
 
-For a given Connection, there is exactly one active verifier. If the source ledger upgrades its proof format, the
-migration is fully automated through the existing ack mechanism:
+For a given connection, there is exactly one active verifier. If the source ledger upgrades its proof format, the
+migration is locally paced — each receiving ledger migrates independently:
 
-1. **Deploy** new verifier implementations (supporting the new proof format) on all target platforms.
-2. **Update `approved_verifiers`** — remove old fingerprints and add new ones. This increments the global config
-   version. ConfigUpdate Control Messages are lazily enqueued on each Connection at the next interaction.
-3. **Continue proving with the old format.** The bundle carrying the ConfigUpdate is verified by the old verifier
-   on each destination. After the destination processes the ConfigUpdate, it knows the new `approved_verifiers` and
-   can `updateConnectionVerifier` locally.
-4. **Per Connection, switch to the new proof format once the ConfigUpdate is acked.** The source ledger tracks
-   acks per Connection — once a Connection's ack covers the ConfigUpdate message, the source knows that Connection
-   has processed the change and begins generating proofs in the new format.
+1. **Source ledger** changes its proof format and publishes new verifier implementations (supporting the new proof
+   format) on all target platforms.
+2. **Each receiving ledger's admin** adds the new verifier's fingerprint to its local `ApprovedVerifiers` (see §6.1).
+3. **Users deploy** the new verifier contract and call `updateConnectionVerifier` (§5.3) on each affected connection.
+4. **Source ledger continues** producing old-format proofs until peers have migrated. The source MAY begin producing
+   new-format proofs on a per-connection basis once it observes (via successful syncs) that a connection has switched
+   to the new verifier.
 
-No dual-format verifiers are needed. No unobservable "wait" step exists.
+This approach requires no protocol-level coordination — each receiving ledger migrates at its own pace. The source
+ledger SHOULD maintain backward compatibility for a reasonable migration window.
 
 ## 5.3 Updating the Connection Verifier
 
-Any user can update the verifier on an existing Connection. Two verification paths:
-
-**Local check (normal case).** The CLPR Service checks the new verifier's code hash against the `approved_verifiers`
-already stored on the Connection (delivered via ConfigUpdate Control Messages). If the fingerprint matches, the
-verifier is replaced. No ZK proof needed.
-
-**ZK proof (recovery case).** If the sync channel is broken and the stored `approved_verifiers` is stale (peer
-changed its proof format and old verifier cannot read new proofs), the caller supplies a ZK proof. The built-in ZK
-verifier extracts the peer's current config, the CLPR Service checks the new verifier's code hash against the
-freshly proven `approved_verifiers`, and the Connection's stored config is updated. Queue state is preserved.
+Any user can update the verifier on an existing connection. The CLPR Service checks the new verifier contract's code
+hash against the **local `ApprovedVerifiers`** (see §6.1). If the fingerprint matches an approved entry, the verifier
+is replaced. Queue state is preserved — the new verifier takes over from the current position in the message stream.
 
 ## 5.4 Endpoint Roster Recovery
 
@@ -897,8 +877,11 @@ The CLPR Service admin can:
 - **Sever** a Connection — permanently close it, immediately stopping all message processing.
 - **Pause** a Connection — temporarily halt processing without closing it.
 - **Resume** a paused Connection — return it to `ACTIVE` status.
-- **Update the local configuration** — change `chain_id`, `approved_verifiers`, throttles. Changes are propagated
-  to peers via ConfigUpdate Control Messages, lazily enqueued on each Connection at its next interaction (see §1.3).
+- **Update the local configuration** — change `chain_id`, throttles. Changes are propagated to peers via ConfigUpdate
+  Control Messages, lazily enqueued on each Connection at its next interaction (see §1.3).
+- **Manage local ApprovedVerifiers** — add or remove verifier fingerprints (see §6.1). These changes are local-only
+  and do NOT propagate via ConfigUpdate. They control which verifier contracts may be used on this ledger to verify
+  peer proofs.
 
 ---
 
@@ -927,12 +910,46 @@ setLedgerConfiguration(
 getLedgerConfiguration() → ClprLedgerConfiguration
 ```
 
+### Local ApprovedVerifiers Management
+
+`ApprovedVerifiers` is a local-only map from verifier type label to implementation fingerprint (code hash). It
+controls which verifier contracts are permitted on this ledger to verify peer chains' proofs. Unlike the wire-format
+configuration, `ApprovedVerifiers` is never propagated to peers via ConfigUpdate — each ledger manages its own set
+independently.
+
+```
+// Add a verifier fingerprint to the local ApprovedVerifiers.
+// Authority: CLPR Service admin only.
+// The label is a human-readable identifier for a platform-specific verifier
+// implementation (e.g., "HederaProofs-EVM", "EthereumProofs-Hiero").
+// The fingerprint is the hash of the deployed verifier code on the local
+// platform (e.g., EXTCODEHASH on EVM chains).
+addApprovedVerifier(
+  [auth] admin,
+  label: string,
+  fingerprint: bytes
+) → success | error
+
+// Remove a verifier fingerprint from the local ApprovedVerifiers.
+// Authority: CLPR Service admin only.
+// Existing Connections using a removed fingerprint continue to operate — the
+// removal only prevents NEW registrations and verifier updates from using it.
+removeApprovedVerifier(
+  [auth] admin,
+  label: string
+) → success | error
+
+// Query the local ApprovedVerifiers.
+// Authority: any caller.
+getApprovedVerifiers() → map<string, bytes>
+```
+
 ## 6.2 Connection Management
 
 ```
 // Register a new Connection to a peer ledger.
 // Authority: any caller (permissionless; deposit required).
-// Preconditions: verifier_contract is deployed; zk_proof is valid.
+// Preconditions: verifier_contract is deployed; its code hash matches a local ApprovedVerifier.
 // The deposit is held for the Connection's lifetime and returned on sever.
 // Platform specs MUST define the minimum deposit amount.
 registerConnection(
@@ -949,18 +966,19 @@ registerConnection(
                                   // to prevent cross-Connection replay. Exact payload format is
                                   // defined in platform-specific specifications.
   verifier_contract: bytes,       // address of locally deployed verifier
-  zk_proof: bytes,                // ZK proof of peer's configuration
+  chain_id: string,               // CAIP-2 identifier of the peer chain
+  service_address: bytes,         // on-ledger address of the peer's CLPR Service
   seed_endpoints: ClprEndpoint[], // at least one peer endpoint
   deposit: uint                   // anti-griefing deposit (native tokens); returned on sever
 ) → success | error
 
 // Update the verifier contract on an existing Connection.
 // Authority: any caller (permissionless).
+// The new verifier's code hash MUST match a local ApprovedVerifier (see §6.1).
 updateConnectionVerifier(
   [auth] caller,
   connection_id: bytes(32),
-  verifier_contract: bytes,       // new verifier contract address
-  zk_proof: bytes (optional)      // omit for local check; include for recovery path
+  verifier_contract: bytes        // new verifier contract address
 ) → success | error
 
 // Recover a Connection's peer endpoint roster from a state proof.
@@ -1165,14 +1183,13 @@ reportMisbehavior(
 | **Parameter**               | **Default** | **Scope**                  | **Description**                                                                                          |
 |-----------------------------|-------------|----------------------------|----------------------------------------------------------------------------------------------------------|
 | `clprEnabled`               | `false`     | Global                     | Master enable switch. When disabled, all pseudo-API calls MUST return an error.                           |
-| `connectionFrequency`       | `5000` ms   | Global                     | How frequently endpoints initiate sync calls to peers.                                                   |
 | `publicizeNetworkAddresses` | `true`      | Global                     | Whether to include service endpoint addresses in the endpoint roster.                                    |
 | `maxQueueDepth`             | TBD         | Per-Ledger (per-Connection) | Maximum unacknowledged messages in the outbound queue before new messages are rejected.                   |
 | `maxMessagePayloadBytes`    | TBD         | Per-Ledger (per-Connection) | Maximum payload size for a single message. Enforced by source (enqueue) and destination (bundle).        |
 | `maxMessagesPerBundle`      | TBD         | Per-Ledger (per-Connection) | Maximum messages a single bundle may contain. Platform specs MUST set this to ensure bundles fit within the platform's transaction size and execution budget limits. |
 | `maxGasPerMessage`          | TBD         | Per-Ledger (per-Connection) | Maximum gas (or ops budget) allocated to processing a single message.                                    |
-| `maxSyncsPerSec`            | TBD         | Per-Ledger (per-Connection) | Advisory maximum sync frequency. Not protocol-enforced; persistent violation is misbehavior.             |
-| `maxSyncPayloadBytes`       | TBD         | Per-Ledger (per-Connection) | Maximum total size of a sync payload. Endpoints MAY terminate streams exceeding this limit.              |
+| `maxSyncsPerSec`            | TBD         | Per-Ledger (per-Connection) | Advisory maximum sync frequency. Endpoints derive their outbound sync interval from this value and the number of local endpoints: `sync_interval_ms = 1000 * num_local_endpoints / max_syncs_per_sec`. Persistent violation is misbehavior. |
+| `maxSyncBytes`              | TBD         | Per-Ledger (per-Connection) | Maximum total size of a serialized `ClprSyncPayload`. Endpoints MUST reject messages exceeding this limit. |
 
 **Scope note.** Parameters marked "Per-Ledger (per-Connection)" are published in the ledger-wide configuration
 (`ClprThrottles`) and advertised to all peers. Each Connection independently enforces them against incoming data.
@@ -1193,12 +1210,13 @@ Unrecognized data MUST be rejected outright.
 ## 8.2 Trust Model
 
 Connecting to a peer ledger via CLPR means trusting:
-1. The peer ledger's consensus mechanism.
-2. The admin of the peer ledger's CLPR Service (controls `approved_verifiers`).
+1. The peer ledger's consensus mechanism and proof system.
+2. The **local** admin's judgment in approving verifiers (controls the local `ApprovedVerifiers`).
 
-A compromised admin can endorse a fraudulent verifier that returns fabricated data — and the ZK proof of endorsement
-will faithfully prove that fraudulent endorsement. Evaluate the security of the peer's CLPR Service admin before
-connecting.
+The trust chain is: the local admin approves a verifier fingerprint, the approved verifier checks peer proofs, and
+the peer's consensus/proof system is assumed trustworthy. A compromised local admin could approve a fraudulent
+verifier that returns fabricated data. Evaluate the security of the local CLPR Service admin's key management before
+relying on any Connection.
 
 ## 8.3 Reorg Risk
 
@@ -1233,10 +1251,10 @@ Applications requiring confidentiality MUST encrypt payloads at the application 
 ## 8.8 Upgradeable Verifier Contracts
 
 Verifier contracts MAY be deployed behind upgradeable proxies (e.g., EIP-1967). When proxies are used, the
-implementation fingerprint in `approved_verifiers` is the proxy's code hash. This is acceptable ONLY if the proxy's
-upgrade authority is controlled by the source ledger's CLPR Service admin (or equivalent governance). A verifier
-whose upgrade key is controlled by a third party is a critical vulnerability — that third party could silently
-replace the verification logic.
+implementation fingerprint in the local `ApprovedVerifiers` is the proxy's code hash. This is acceptable ONLY if
+the proxy's upgrade authority is controlled by the local ledger's CLPR Service admin (or equivalent governance).
+A verifier whose upgrade key is controlled by a third party is a critical vulnerability — that third party could
+silently replace the verification logic.
 
 ## 8.9 Upgradeable CLPR Service Contracts
 
@@ -1265,15 +1283,14 @@ queue fills.
 | #   | Scenario                                            | Sync Channel         | Recovery Path                                                                                                          | Status                        |
 |-----|-----------------------------------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------|-------------------------------|
 | R1  | Endpoints rotated during partition                  | Broken               | `recoverEndpointRoster` with `verifyEndpoints` proof.                                                                  | Works                         |
-| R2  | Planned verifier migration (sync working)           | Working              | 4-step ack-driven migration (§5.2).                                                                                    | Works                         |
+| R2  | Planned verifier migration (sync working)           | Working              | Locally-paced migration (§5.2): admin adds new fingerprint, user deploys new verifier and calls `updateConnectionVerifier`. | Works                         |
 | R3  | Endpoints rotated + verifier changed (same format)  | Broken               | Endpoint recovery (R1), then ConfigUpdate flows normally.                                                              | Works                         |
-| R4  | Endpoints rotated AND proof format changed           | Broken               | `updateConnectionVerifier` with ZK proof (§5.3), then endpoint recovery (R1).                                          | Works                         |
+| R4  | Endpoints rotated AND proof format changed           | Broken               | Local admin approves new verifier fingerprint, user deploys and calls `updateConnectionVerifier` (§5.3), then endpoint recovery (R1). | Works                         |
 | R5  | Verifier compromised or broken                      | Suspect              | Admin pauses/severs. New verifier via `updateConnectionVerifier` if buggy. Sever and re-register if compromised.       | Works (data loss on sever)    |
 | R6  | Queue state permanently corrupted on peer           | Working              | Connection halts (§4.5). Admin severs. Applications need out-of-band reconciliation.                                   | **Open question** (see below) |
 | R7  | Network partition (endpoints unchanged)             | Temporarily broken   | Syncs resume automatically. Monotonic IDs and running hash verify integrity.                                           | Works                         |
 | R8  | Peer ledger down entirely                           | Broken               | Messages queue up to `max_queue_depth`, then backpressure. Syncs resume when peer returns.                             | Works                         |
 | R9  | Both sides' endpoints change simultaneously         | Broken on both sides | `recoverEndpointRoster` submitted independently on both ledgers.                                                       | Works                         |
-| R10 | Built-in ZK verifier becomes obsolete               | N/A                  | Requires platform upgrade. Existing Connections unaffected.                                                            | Works (requires upgrade)      |
 
 ---
 
