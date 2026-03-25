@@ -252,7 +252,7 @@ class FrameRunnerTest {
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
-        inOrder.verify(tracer).tracePostExecution(eq(childFrame), any(Operation.OperationResult.class));
+        inOrder.verify(tracer).traceNotExecuting(eq(childFrame));
         inOrder.verify(messageCallProcessor).process(childFrame, tracer);
         inOrder.verify(tracer).sanitizeTracedActions(frame);
 
