@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
 
+    // Reenable TSS feature flags, after BNs are capable of verifying StateProofs
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,
@@ -42,14 +43,14 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "BLOCKS",
                             "blockStream.writerMode",
                             "GRPC",
-                            "blockStream.enableStateProofs",
+                            /*"blockStream.enableStateProofs",
                             "true",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
                             "true",
                             "tss.forceHandoffs",
-                            "true",
+                            "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
@@ -66,14 +67,14 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "BLOCKS",
                             "blockStream.writerMode",
                             "GRPC",
-                            "blockStream.enableStateProofs",
+                            /*"blockStream.enableStateProofs",
                             "true",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
                             "true",
                             "tss.forceHandoffs",
-                            "true",
+                            "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
@@ -90,14 +91,14 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "BLOCKS",
                             "blockStream.writerMode",
                             "GRPC",
-                            "blockStream.enableStateProofs",
+                            /*"blockStream.enableStateProofs",
                             "true",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
                             "true",
                             "tss.forceHandoffs",
-                            "true",
+                            "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
@@ -114,14 +115,14 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "BLOCKS",
                             "blockStream.writerMode",
                             "GRPC",
-                            "blockStream.enableStateProofs",
+                            /*"blockStream.enableStateProofs",
                             "true",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
                             "true",
                             "tss.forceHandoffs",
-                            "true",
+                            "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
