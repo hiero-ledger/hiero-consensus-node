@@ -163,7 +163,7 @@ class MerkleDbCompactionCoordinator {
      *
      * @param action action to run while compaction is paused
      */
-    synchronized void pauseCompactionAndRun(@NonNull IORunnable action) throws IOException {
+    synchronized void pauseCompactionAndRun(IORunnable action) throws IOException {
         try {
             for (final DataFileCompactor compactor : compactorsByName.values()) {
                 compactor.pauseCompaction();

@@ -10,6 +10,7 @@ import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -40,11 +41,11 @@ import org.apache.logging.log4j.Logger;
  *   <li><b>Phase 1 — Select eligible files:</b> files whose {@code liveToDeadRatio} is below
  *       {@code gcRateThreshold} are collected as compaction candidates for their level.</li>
  *   <li><b>Phase 2 — Absorb small files:</b> for each level where the aggregate live/dead ratio
- *       is still below the threshold and the projected output size is below
+ *       is still below {@code gcRateThreshold} and the projected output size is below
  *       {@code maxCompactedFileSizeInKB}, the scanner sorts remaining files (those NOT
  *       selected in phase 1) by size ascending and greedily absorbs them until either limit is
  *       reached. This consolidates small files that individually don't have enough garbage but
- *       can be absorbed "for free" within the budget of dirtier files.</li>
+ *       can be absorbed within the budget provided by dirtier files from phase 1.</li>
  * </ol>
  */
 public class GarbageScanner {
@@ -55,17 +56,35 @@ public class GarbageScanner {
     private final DataFileCollection dataFileCollection;
     private final String storeName;
     private final double gcRateThreshold;
-    private final long maxCompactionDataPerLevelInKB;
+    private final long maxCompactedFileSizeInKB;
     private final boolean deduplicateMirroredEntries;
 
+    /**
+     * Creates a new scanner with {@code deduplicateMirroredEntries} disabled.
+     *
+     * @param index             the in-memory index to traverse
+     * @param dataFileCollection the file collection whose files are scanned
+     * @param storeName         store name used for logging
+     * @param config            MerkleDb configuration
+     */
     public GarbageScanner(
-            final LongList index,
-            final DataFileCollection dataFileCollection,
-            final String storeName,
-            final MerkleDbConfig config) {
+            @NonNull final LongList index,
+            @NonNull final DataFileCollection dataFileCollection,
+            @NonNull final String storeName,
+            @NonNull final MerkleDbConfig config) {
         this(index, dataFileCollection, storeName, config, false);
     }
 
+    /**
+     * Creates a new scanner.
+     *
+     * @param index                      the in-memory index to traverse
+     * @param dataFileCollection         the file collection whose files are scanned
+     * @param storeName                  store name used for logging
+     * @param config                     MerkleDb configuration
+     * @param deduplicateMirroredEntries if {@code true}, enables HDHM bucket deduplication mode
+     *                                   (see class javadoc for details)
+     */
     public GarbageScanner(
             @NonNull final LongList index,
             @NonNull final DataFileCollection dataFileCollection,
@@ -81,7 +100,7 @@ public class GarbageScanner {
         this.dataFileCollection = dataFileCollection;
         this.storeName = storeName;
         this.gcRateThreshold = config.gcRateThreshold();
-        this.maxCompactionDataPerLevelInKB = config.maxCompactedFileSizeInKB();
+        this.maxCompactedFileSizeInKB = config.maxCompactedFileSizeInKB();
         this.deduplicateMirroredEntries = deduplicateMirroredEntries;
     }
 
@@ -94,6 +113,7 @@ public class GarbageScanner {
      *
      * @return scan result containing candidates grouped by level and per-file statistics
      */
+    @NonNull
     public ScanResult scan() {
         final long start = System.currentTimeMillis();
 
@@ -161,7 +181,7 @@ public class GarbageScanner {
             @NonNull final IndexedGarbageFileStats stats) {
 
         final long maxProjectedBytes =
-                maxCompactionDataPerLevelInKB > 0 ? maxCompactionDataPerLevelInKB * KIBIBYTES_TO_BYTES : Long.MAX_VALUE;
+                maxCompactedFileSizeInKB > 0 ? maxCompactedFileSizeInKB * KIBIBYTES_TO_BYTES : Long.MAX_VALUE;
 
         for (final var entry : selectedByLevel.entrySet()) {
             final int level = entry.getKey();
@@ -224,7 +244,9 @@ public class GarbageScanner {
             }
 
             if (absorbed > 0) {
-                final double finalRatio = totalDead == 0 ? Double.MAX_VALUE : (double) totalLive / totalDead;
+                final String finalRatio = totalDead == 0
+                        ? "n/a"
+                        : String.valueOf(Math.round((double) totalLive / totalDead * 100) / 100.0);
                 logger.info(
                         MERKLE_DB.getMarker(),
                         "[{}] Phase 2: absorbed {} small files at level {}, "
@@ -232,13 +254,13 @@ public class GarbageScanner {
                         storeName,
                         absorbed,
                         level,
-                        String.format("%.2f", finalRatio),
+                        finalRatio,
                         formatSizeBytes(projectedSize));
             }
         }
     }
 
-    private static void countAlive(long dataLocation, IndexedGarbageFileStats statsByFileIndex) {
+    private static void countAlive(final long dataLocation, @NonNull final IndexedGarbageFileStats statsByFileIndex) {
         final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
         final int idx = fileIndex - statsByFileIndex.offset;
         if (idx < 0 || idx >= statsByFileIndex.garbageFileStats.length) {
@@ -260,7 +282,7 @@ public class GarbageScanner {
      * @return estimated alive data size in bytes
      */
     public static long estimateAliveSize(
-            final List<DataFileReader> candidates, final IndexedGarbageFileStats statsByFileIndex) {
+            @NonNull final List<DataFileReader> candidates, @NonNull final IndexedGarbageFileStats statsByFileIndex) {
         long estimatedAliveSizeBytes = 0;
         for (final DataFileReader reader : candidates) {
             final GarbageFileStats stats = lookupStats(reader, statsByFileIndex);
@@ -271,14 +293,17 @@ public class GarbageScanner {
         return estimatedAliveSizeBytes;
     }
 
-    private static long estimateAliveBytes(final DataFileReader reader, final GarbageFileStats stats) {
+    private static long estimateAliveBytes(
+            @NonNull final DataFileReader reader, @NonNull final GarbageFileStats stats) {
         if (stats.totalItems() == 0) {
             return 0;
         }
         return (long) (reader.getSize() * (1.0 - stats.garbageRatio()));
     }
 
-    private static GarbageFileStats lookupStats(final DataFileReader reader, final IndexedGarbageFileStats stats) {
+    @Nullable
+    private static GarbageFileStats lookupStats(
+            @NonNull final DataFileReader reader, @NonNull final IndexedGarbageFileStats stats) {
         final int idx = reader.getIndex() - stats.offset;
         if (idx < 0 || idx >= stats.garbageFileStats.length) {
             return null;
@@ -286,7 +311,7 @@ public class GarbageScanner {
         return stats.garbageFileStats[idx];
     }
 
-    private void logLevelStats(IndexedGarbageFileStats statsByFileIndex) {
+    private void logLevelStats(@NonNull final IndexedGarbageFileStats statsByFileIndex) {
         final Map<Integer, long[]> totalsByLevel = new TreeMap<>();
         for (final GarbageFileStats stats : statsByFileIndex.garbageFileStats) {
             if (stats == null) {
@@ -323,6 +348,7 @@ public class GarbageScanner {
         });
     }
 
+    @NonNull
     private IndexedGarbageFileStats createStatsByFileIndexArray() {
         final List<DataFileReader> allCompletedFiles = new ArrayList<>(dataFileCollection.getAllCompletedFiles());
         allCompletedFiles.sort(Comparator.comparing(DataFileReader::getIndex));
@@ -341,13 +367,29 @@ public class GarbageScanner {
 
     /**
      * Scan result containing compaction candidates grouped by level and per-file statistics
-     * for use by the coordinator when splitting work into chunks.
+     * for use by the coordinator when splitting work into groups.
+     *
+     * @param candidatesByLevel compaction candidates grouped by compaction level
+     * @param stats             per-file garbage statistics indexed by file index
      */
-    public record ScanResult(Map<Integer, List<DataFileReader>> candidatesByLevel, IndexedGarbageFileStats stats) {
+    public record ScanResult(
+            @NonNull Map<Integer, List<DataFileReader>> candidatesByLevel,
+            @Nullable IndexedGarbageFileStats stats) {
+
+        /** Empty scan result with no candidates and no statistics. */
         public static final ScanResult EMPTY = new ScanResult(Map.of(), null);
     }
 
-    public record IndexedGarbageFileStats(int offset, GarbageFileStats[] garbageFileStats) {}
+    /**
+     * Per-file garbage statistics indexed by file index. The {@code offset} is subtracted from
+     * a file's index to obtain the array position in {@code garbageFileStats}.
+     *
+     * @param offset           the file index of the first element in the array
+     * @param garbageFileStats array of per-file statistics; entries may be {@code null} for
+     *                         gaps in the file index sequence
+     */
+    public record IndexedGarbageFileStats(
+            int offset, @NonNull GarbageFileStats[] garbageFileStats) {}
 
     /**
      * Per-file garbage statistics. Tracks total items (from file metadata) and alive items
@@ -356,38 +398,65 @@ public class GarbageScanner {
      */
     public static final class GarbageFileStats {
 
+        @NonNull
         final DataFileReader fileReader;
+
         private long aliveItems;
 
         /**
          * Creates stats with zero alive items. Used by the scanner during index traversal;
          * alive items are incremented as entries are encountered.
+         *
+         * @param fileReader the data file this stats object tracks
          */
-        public GarbageFileStats(final DataFileReader fileReader) {
+        public GarbageFileStats(@NonNull final DataFileReader fileReader) {
             this(fileReader, 0);
         }
 
         /**
          * Creates stats with a known alive item count. Useful for testing and for constructing
          * stats from pre-computed data.
+         *
+         * @param fileReader the data file this stats object tracks
+         * @param aliveItems initial alive item count
          */
-        public GarbageFileStats(final DataFileReader fileReader, final long aliveItems) {
-            this.fileReader = fileReader;
+        public GarbageFileStats(@NonNull final DataFileReader fileReader, final long aliveItems) {
+            this.fileReader = requireNonNull(fileReader);
             this.aliveItems = aliveItems;
         }
 
+        /**
+         * Returns the compaction level of the file.
+         *
+         * @return compaction level
+         */
         public int compactionLevel() {
             return fileReader.getMetadata().getCompactionLevel();
         }
 
+        /**
+         * Returns the total number of items recorded in the file's metadata.
+         *
+         * @return total item count
+         */
         public long totalItems() {
             return fileReader.getMetadata().getItemsCount();
         }
 
+        /**
+         * Returns the number of items still referenced by the index.
+         *
+         * @return alive item count
+         */
         public long aliveItems() {
             return aliveItems;
         }
 
+        /**
+         * Returns the number of items no longer referenced by the index.
+         *
+         * @return dead item count ({@code totalItems - aliveItems})
+         */
         public long deadItems() {
             return totalItems() - aliveItems;
         }
@@ -401,9 +470,11 @@ public class GarbageScanner {
          * Used for estimating projected output file size.
          *
          * <p>Returns 1.0 for empty files (totalItems == 0). This value may occur in two cases:
-         * 1) the file is truly empty, in which case the compaction task will be a no-op which is acceptable, or
-         * 2) the file metadata is of the previous version which didn't support the item count.
-         * In this case we need to do the full compaction.
+         * 1) the file is truly empty, in which case the compaction task will be a no-op which
+         * is acceptable, or 2) the file metadata is of the previous version which didn't support
+         * the item count. In this case we need to do the full compaction.
+         *
+         * @return garbage ratio in the range [0.0, 1.0]
          */
         public double garbageRatio() {
             if (totalItems() == 0) {
@@ -422,6 +493,8 @@ public class GarbageScanner {
          *
          * <p>The ratio is "additive" across files: for a set of files, the aggregate ratio
          * is {@code Σlive / Σdead}, which describes the combined compaction speed of the batch.
+         *
+         * @return live-to-dead ratio, or 0.0 / {@link Double#MAX_VALUE} for edge cases
          */
         public double liveToDeadRatio() {
             if (totalItems() == 0) {

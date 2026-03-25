@@ -176,10 +176,11 @@ class GarbageScannerLiveDeadRatioTest {
             // File 2 (small, moderate garbage): 15 alive / 5 dead → live/dead = 3.0 → NOT selected
             // File 3 (small, very clean): 19 alive / 1 dead → live/dead = 19.0 → NOT selected
             //
-            // Threshold: 0.5
+            // gcRateThreshold: 0.5
             // Phase 1 aggregate: 20/80 = 0.25
-            // After absorbing file 2: (20+15)/(80+5) = 35/85 = 0.41 → still < 0.5, absorb
-            // After absorbing file 3: (35+19)/(85+1) = 54/86 = 0.63 → exceeds 0.5, STOP
+            // Phase 2 sorts remaining by size: veryCleanFile(300), moderateFile(400)
+            // Absorb veryCleanFile: (20+19)/(80+1) = 39/81 = 0.48 → still < 0.5, absorb
+            // Absorb moderateFile: (39+15)/(81+5) = 54/86 = 0.63 → exceeds 0.5, STOP
             final DataFileReader dirtyFile = mockFileReader(1, 0, 100, 10000);
             final DataFileReader moderateFile = mockFileReader(2, 0, 20, 400);
             final DataFileReader veryCleanFile = mockFileReader(3, 0, 20, 300);
@@ -235,8 +236,8 @@ class GarbageScannerLiveDeadRatioTest {
         @Test
         @DisplayName("No absorption when phase 1 aggregate ratio already at threshold")
         void noAbsorptionWhenNoRatioHeadroom() {
-            // File 1: 45 alive / 55 dead → live/dead = 0.818 → selected (below 1.0)
-            // File 2: 5 alive / 5 dead → live/dead = 1.0 → NOT selected (not < 1.0)
+            // File 1: 45 alive / 55 dead → live/dead = 0.818 → selected (below 0.82)
+            // File 2: 5 alive / 5 dead → live/dead = 1.0 → NOT selected (not < 0.82)
             //
             // Phase 1 aggregate: 45/55 = 0.818
             // After absorbing file 2: (45+5)/(55+5) = 50/60 = 0.833 < 1.0 → absorbed
@@ -288,7 +289,7 @@ class GarbageScannerLiveDeadRatioTest {
             // Clean small: 9 alive / 1 dead, size=200 → NOT selected
             // Clean medium: 18 alive / 2 dead, size=1000 → NOT selected
             //
-            // Threshold: 0.5. Phase 1 aggregate: 5/95 = 0.053. Huge headroom.
+            // gcRateThreshold: 0.5. Phase 1 aggregate: 5/95 = 0.053. Huge headroom.
             // Phase 2 sorts remaining by size: small(200), medium(1000), large(5000)
             // Absorb small(200): (5+9)/(95+1) = 14/96 = 0.146 → absorbed
             // Absorb medium(1000): (14+18)/(96+2) = 32/98 = 0.327 → absorbed
@@ -354,7 +355,7 @@ class GarbageScannerLiveDeadRatioTest {
 
             final LongList index = mockIndexWithEntries(locationsForFile(1, 9), locationsForFile(2, 9));
 
-            // Threshold 0.2 → both files have live/dead = 9.0, way above threshold
+            // gcRate 0.2 → both files have live/dead = 9.0, way above threshold
             final GarbageScanner scanner = createScanner(index, List.of(file1, file2), 0.2, 0);
 
             final ScanResult result = scanner.scan();
@@ -591,11 +592,10 @@ class GarbageScannerLiveDeadRatioTest {
             final LongList index,
             final List<DataFileReader> files,
             final double gcRateThreshold,
-            final long maxCompactionDataPerLevelInKB) {
+            final long maxCompactedFileSizeInKB) {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(files);
-        return new GarbageScanner(
-                index, fileCollection, "test", config(gcRateThreshold, maxCompactionDataPerLevelInKB));
+        return new GarbageScanner(index, fileCollection, "test", config(gcRateThreshold, maxCompactedFileSizeInKB));
     }
 
     private static LongList emptyIndex() {
@@ -631,11 +631,7 @@ class GarbageScannerLiveDeadRatioTest {
         return locations;
     }
 
-    /**
-     * Creates a MerkleDbConfig with the specified gcRateThreshold and maxCompactedFileSizeInKB.
-     * The gcRateThreshold parameter replaces the former garbageThreshold in the config record.
-     */
-    private static MerkleDbConfig config(final double gcRateThreshold, final long maxCompactionDataPerLevelInKB) {
+    private static MerkleDbConfig config(final double gcRateThreshold, final long maxCompactedFileSizeInKB) {
         return new MerkleDbConfig(
                 DEFAULT_CONFIG.initialCapacity(),
                 DEFAULT_CONFIG.maxNumOfKeys(),
@@ -646,8 +642,8 @@ class GarbageScannerLiveDeadRatioTest {
                 DEFAULT_CONFIG.longListChunkSize(),
                 DEFAULT_CONFIG.longListReservedBufferSize(),
                 DEFAULT_CONFIG.compactionThreads(),
-                gcRateThreshold, // was: garbageThreshold
-                maxCompactionDataPerLevelInKB,
+                gcRateThreshold,
+                maxCompactedFileSizeInKB,
                 DEFAULT_CONFIG.maxCompactionLevel(),
                 DEFAULT_CONFIG.iteratorInputBufferBytes(),
                 DEFAULT_CONFIG.reconnectKeyLeakMitigationEnabled(),

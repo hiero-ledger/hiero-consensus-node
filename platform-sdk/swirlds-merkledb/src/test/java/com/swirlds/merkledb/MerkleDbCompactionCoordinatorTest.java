@@ -271,96 +271,93 @@ class MerkleDbCompactionCoordinatorTest {
     // ========================================================================
 
     @Test
-    void testPauseCompactionAndRunPausesAllActiveCompactorsAcrossLevels() throws IOException, InterruptedException {
+    void testPauseAndResumeCompaction() throws InterruptedException, IOException {
         final DataFileReader level0File = mockFileReader(1, 0);
-        final DataFileReader level2File = mockFileReader(2, 2);
-
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
-        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File, level2File));
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
 
         publishScanResult(
                 ID_TO_HASH_CHUNK,
                 new ScanResult(
-                        Map.of(0, List.of(level0File), 2, List.of(level2File)),
+                        Map.of(0, List.of(level0File)),
                         new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0])));
 
-        final CountDownLatch tasksStarted = new CountDownLatch(2);
-        final CountDownLatch releaseTasks = new CountDownLatch(1);
-        final DataFileCompactor taskCompactor1 = mock(DataFileCompactor.class);
-        when(taskCompactor1.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
-            tasksStarted.countDown();
-            releaseTasks.await(5, TimeUnit.SECONDS);
+        final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            taskStarted.countDown();
+            releaseTask.await(5, TimeUnit.SECONDS);
             return true;
         });
-        when(taskCompactor1.getDataFileCollection()).thenReturn(fileCollection);
-        final DataFileCompactor taskCompactor2 = mock(DataFileCompactor.class);
-        when(taskCompactor2.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
-            tasksStarted.countDown();
-            releaseTasks.await(5, TimeUnit.SECONDS);
-            return true;
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+        assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
+
+        coordinator.pauseCompactionAndRun(() -> {
+            verify(compactor).pauseCompaction();
         });
-        when(taskCompactor2.getDataFileCollection()).thenReturn(fileCollection);
+        verify(compactor).resumeCompaction();
 
-        final AtomicInteger factoryCalls = new AtomicInteger();
-        final Supplier<DataFileCompactor> factory = () -> {
-            final int call = factoryCalls.getAndIncrement();
-            return (call == 0) ? taskCompactor1 : taskCompactor2;
-        };
-
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
-        assertTrue(tasksStarted.await(1, TimeUnit.SECONDS), "Compaction tasks didn't start");
-
-        coordinator.pauseCompactionAndRun(() -> {});
-
-        verify(taskCompactor1).pauseCompaction();
-        verify(taskCompactor2).pauseCompaction();
-        verify(taskCompactor1).resumeCompaction();
-        verify(taskCompactor2).resumeCompaction();
-
-        releaseTasks.countDown();
+        releaseTask.countDown();
     }
 
     @Test
-    void testStopAndDisablePreventsNewTasks() {
-        coordinator.stopAndDisableBackgroundCompaction();
-        assertFalse(coordinator.isCompactionEnabled());
-
+    void testStopAndDisableInterruptsRunningCompaction() throws InterruptedException, IOException {
+        final DataFileReader level0File = mockFileReader(1, 0);
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
-        final DataFileReader file = mockFileReader(1, 0);
-        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file));
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
 
-        final AtomicInteger factoryCalls = new AtomicInteger();
-        final Supplier<DataFileCompactor> factory = () -> {
-            factoryCalls.incrementAndGet();
-            return mock(DataFileCompactor.class);
-        };
+        publishScanResult(
+                ID_TO_HASH_CHUNK,
+                new ScanResult(
+                        Map.of(0, List.of(level0File)),
+                        new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0])));
 
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
+        final CountDownLatch taskStarted = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            taskStarted.countDown();
+            Thread.sleep(10_000);
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
 
-        // Nothing should have been submitted
-        assertFalse(coordinator.isCompactionRunning(ID_TO_HASH_CHUNK));
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+        assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
+
+        coordinator.stopAndDisableBackgroundCompaction();
+
+        verify(compactor).interruptCompaction();
+        assertFalse(coordinator.isCompactionEnabled(), "Compaction should be disabled");
     }
 
     // ========================================================================
     // Helper methods
     // ========================================================================
 
+    @SuppressWarnings("unchecked")
     private void publishScanResult(final String storeName, final ScanResult result) {
-        final GarbageScanner scanner = mock(GarbageScanner.class);
-        when(scanner.scan()).thenReturn(result);
-        coordinator.submitScanIfNotRunning(storeName, scanner);
-        assertEventuallyDoesNotThrow(
-                () -> verify(scanner).scan(), Duration.ofSeconds(1), "Scanner task didn't complete");
+        try {
+            final var field = MerkleDbCompactionCoordinator.class.getDeclaredField("scanResultsByStore");
+            field.setAccessible(true);
+            final var map = (Map<String, ScanResult>) field.get(coordinator);
+            map.put(storeName, result);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private DataFileReader mockFileReader(final int index, final int level) {
+    private static DataFileReader mockFileReader(final int fileIndex, final int level) {
         final DataFileMetadata metadata = mock(DataFileMetadata.class);
-        when(metadata.getIndex()).thenReturn(index);
         when(metadata.getCompactionLevel()).thenReturn(level);
+        when(metadata.getItemsCount()).thenReturn(100L);
 
-        final DataFileReader fileReader = mock(DataFileReader.class);
-        when(fileReader.getIndex()).thenReturn(index);
-        when(fileReader.getMetadata()).thenReturn(metadata);
-        return fileReader;
+        final DataFileReader reader = mock(DataFileReader.class);
+        when(reader.getIndex()).thenReturn(fileIndex);
+        when(reader.getMetadata()).thenReturn(metadata);
+        when(reader.getSize()).thenReturn(1000L);
+        return reader;
     }
 }

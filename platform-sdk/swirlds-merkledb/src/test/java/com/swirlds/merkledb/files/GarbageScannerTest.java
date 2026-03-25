@@ -111,7 +111,7 @@ class GarbageScannerTest {
     }
 
     private static MerkleDbConfig config(
-            final double gcRateThreshold, final long maxCompactionDataPerLevelInKB, final int maxCompactionLevel) {
+            final double gcRateThreshold, final long maxCompactedFileSizeInKB, final int maxCompactionLevel) {
         return new MerkleDbConfig(
                 DEFAULT_CONFIG.initialCapacity(),
                 DEFAULT_CONFIG.maxNumOfKeys(),
@@ -123,7 +123,7 @@ class GarbageScannerTest {
                 DEFAULT_CONFIG.longListReservedBufferSize(),
                 DEFAULT_CONFIG.compactionThreads(),
                 gcRateThreshold,
-                maxCompactionDataPerLevelInKB,
+                maxCompactedFileSizeInKB,
                 maxCompactionLevel,
                 DEFAULT_CONFIG.iteratorInputBufferBytes(),
                 DEFAULT_CONFIG.reconnectKeyLeakMitigationEnabled(),

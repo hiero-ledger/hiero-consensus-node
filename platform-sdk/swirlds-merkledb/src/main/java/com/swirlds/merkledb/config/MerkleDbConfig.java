@@ -34,10 +34,11 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      {@code alive / dead < gcRateThreshold} are selected for compaction. In phase 2, small
  *      remaining files are absorbed into the batch as long as the aggregate ratio stays below
  *      this threshold. A value of 2.0 means: for every dead item reclaimed, up to 2 live items
- *      can be copied..
+ *      can be copied.
  * @param maxCompactedFileSizeInKB
- *      Maximum total size, in KB, of the resulting file after compaction. A non-positive
- *      value disables this limit.
+ *      Maximum projected output size (KB) per compaction task. Candidates are partitioned into
+ *      groups of this size. Also used as the size cap when absorbing small files in phase 2.
+ *      A non-positive value disables this limit.
  * @param maxCompactionLevel max number of compaction levels, once this level is reached compactors stop increasing levels.
  *      That is, the result of compaction at level N will be a file at level N.
  * @param iteratorInputBufferBytes
