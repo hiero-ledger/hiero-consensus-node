@@ -130,6 +130,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.grpc.impl.netty;
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.records.schemas;
+    exports com.hedera.node.app.records.handlers;
     exports com.hedera.node.app.hints.schemas;
     exports com.hedera.node.app.blocks.impl.streaming.config;
     exports com.hedera.node.app.history.schemas;
