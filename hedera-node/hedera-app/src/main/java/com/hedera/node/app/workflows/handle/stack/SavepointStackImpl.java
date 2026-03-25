@@ -598,7 +598,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                     case CHILD -> builder.parentConsensus(parentConsensusTime).exchangeRate(null);
                 }
             }
-            builder.blockNumber(blockNumber);
+            if (streamMode == BLOCKS) {
+                builder.blockNumber(blockNumber);
+            }
 
             switch (streamMode) {
                 case RECORDS -> {

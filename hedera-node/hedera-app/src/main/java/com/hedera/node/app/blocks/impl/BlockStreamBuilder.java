@@ -482,8 +482,12 @@ public class BlockStreamBuilder
      * {@link BlockItemsTranslator} to use.
      * @param blockItems the list of block items
      * @param translationContext the translation context
+     * @param blockNumber the block number, if known
      */
-    public record Output(@NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+    public record Output(
+            @NonNull List<BlockItem> blockItems,
+            @NonNull TranslationContext translationContext,
+            @Nullable Long blockNumber) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -577,9 +581,9 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result, outputs));
+                                        translator.translateReceipt(translationContext, result, blockNumber, outputs));
                             case RECORD ->
-                                translator.translateRecord(translationContext, result, logs, outputs);
+                                translator.translateRecord(translationContext, result, logs, blockNumber, outputs);
                         };
             } else {
                 return (T)
@@ -587,8 +591,8 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result));
-                            case RECORD -> translator.translateRecord(translationContext, result, null);
+                                        translator.translateReceipt(translationContext, result, blockNumber));
+                            case RECORD -> translator.translateRecord(translationContext, result, null, blockNumber);
                         };
             }
         }
@@ -786,7 +790,7 @@ public class BlockStreamBuilder
                             .build())
                     .build());
         }
-        return new Output(blockItems, translationContext);
+        return new Output(blockItems, translationContext, blockNumber);
     }
 
     @Override

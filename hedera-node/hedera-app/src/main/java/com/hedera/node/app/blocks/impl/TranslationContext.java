@@ -69,13 +69,6 @@ public interface TranslationContext {
     Bytes serializedSignedTx();
 
     /**
-     * Returns the block number to which the transaction belongs, if known.
-     * This is only set when stream mode is BLOCKS.
-     * @return the block number, or null if not known
-     */
-    Long blockNumber();
-
-    /**
      * Returns the hash of the transaction as it should appear in the legacy record stream, or be served from
      * existing APIs that look up transactions by hash.
      * @return the transaction hash
