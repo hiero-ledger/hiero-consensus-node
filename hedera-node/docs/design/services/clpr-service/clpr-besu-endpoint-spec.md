@@ -325,7 +325,7 @@ The sync engine initiates outbound sync calls **only when there are pending outb
 are received passively — the remote peer dials this node when it has messages to deliver. The engine uses a
 single-threaded scheduler per Connection.
 
-Per cross-platform spec §2.1.1, Connection status determines behavior: SEVERED/HALTED Connections are skipped
+Per cross-platform spec §2.1.1, Connection status determines behavior: CLOSED/HALTED Connections are skipped
 entirely, PAUSED Connections skip outbound initiation but remain available as responders, and ACTIVE Connections
 proceed normally. On Besu, the sync loop implementation is:
 
@@ -874,12 +874,12 @@ After submission:
    reasons:
    - Replay: another endpoint already submitted a bundle covering the same messages. Expected and benign.
    - Verification failure: possible if the block was reorged between pre-validation and inclusion.
-   - Connection status changed: paused, severed, or HALTED (spec §2.1.1, §4.5) between estimation and inclusion.
+   - Connection status changed: paused, closed, or HALTED (spec §2.1.1, §4.5) between estimation and inclusion.
 
    Per spec §4.2, bundle verification failures (bad hash chain, replay, oversized payload) cause a simple revert
    with no state change. Response ordering violations (spec §4.5) transition the Connection to HALTED permanently.
    On Besu, the endpoint SHOULD perform a pre-submission `eth_call` read of Connection status to avoid paying gas
-   for a guaranteed revert against a HALTED or SEVERED Connection.
+   for a guaranteed revert against a HALTED or CLOSED Connection.
 3. **Handle timeout.** If the transaction is not included within a configurable number of blocks (default: 20), the
    plugin may:
    - **Speed up:** Resubmit with higher gas price (same nonce — this replaces the pending transaction).
@@ -1005,7 +1005,7 @@ The plugin periodically reads the endpoint's bond balance from the contract:
 function endpointBond(bytes32 connection_id, address endpoint) external view returns (uint256);
 ```
 
-If the bond has been partially slashed (e.g., due to a misbehavior penalty), the plugin logs a warning and alerts
+If the bond has been partially slashed (e.g., due to a local misbehavior penalty), the plugin logs a warning and alerts
 via metrics. If the bond falls below the minimum, the plugin stops submitting bundles (since submissions from an
 under-bonded endpoint may be rejected) and logs an error instructing the operator to top up the bond.
 
@@ -1268,31 +1268,12 @@ If the Besu node temporarily follows a minority fork:
 The plugin does not need special handling for this case — the protocol's proof verification naturally rejects
 minority-fork data.
 
-## 12.7 Misbehavior Detection and Reporting
+## 12.7 Local Misbehavior Detection
 
-Per cross-platform spec §1.6 and §6.6, the primary misbehavior type is `EXCESS_FREQUENCY`. On Besu, the endpoint
-implements detection and reporting as follows:
-
-### EXCESS_FREQUENCY Detection
-
-The endpoint tracks the rate of remotely initiated inbound syncs per `(connection_id, remote_endpoint_account_id)`
-pair. If a peer exceeds the local ledger's `max_syncs_per_sec` limit, the endpoint records the sync timestamps as
-evidence.
-
-### reportMisbehavior Transaction
-
-The Solidity function signature on Ethereum:
-
-```solidity
-function reportMisbehavior(
-    bytes32 connectionId,
-    uint8 misbehaviorType,       // EXCESS_FREQUENCY = 1
-    bytes calldata evidence       // ABI-encoded array of timestamps
-) external;
-```
-
-The transaction is submitted through the same `TransactionSubmitter` pipeline as `submitBundle()`, sharing the
-`NonceTracker` and gas estimation strategies.
+Per cross-platform spec §1.6, misbehavior detection is strictly local. On Besu, the endpoint tracks the rate of
+remotely initiated inbound syncs per `(connection_id, remote_endpoint_account_id)` pair. If a peer exceeds the
+local ledger's `max_syncs_per_sec` limit, the endpoint shuns the offending peer endpoint — refusing further syncs
+from it. No cross-ledger misbehavior report is sent.
 
 ---
 
@@ -1404,8 +1385,8 @@ authentication.
 
 ## 14.3 Signing Key Management
 
-Per spec §1.2, endpoints use two key types: RSA (mTLS only) and ECDSA secp256k1 (payload signing + misbehavior
-evidence). On Ethereum, the ECDSA signing key is the same key as the endpoint operator's EOA — it signs both
+Per spec §1.2, endpoints use two key types: RSA (mTLS only) and ECDSA secp256k1 (payload signing + local
+misbehavior detection). On Ethereum, the ECDSA signing key is the same key as the endpoint operator's EOA — it signs both
 `endpoint_signature` payloads and Ethereum transactions (`submitBundle()`, `registerEndpoint()`, etc.).
 
 Key management options (apply to both keys — each key may use a different storage mechanism):
@@ -1463,7 +1444,7 @@ The CLPR plugin MUST NOT become an attack vector against the Besu node itself:
 ## 14.6 Rate Limiting
 
 Outbound rate limiting is implemented via the sync interval in §4.5. Inbound rate limiting is implemented via
-per-peer tracking in §12.7 (misbehavior detection).
+per-peer tracking in §12.7 (local misbehavior detection).
 
 ---
 

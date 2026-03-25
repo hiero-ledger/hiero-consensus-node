@@ -41,9 +41,8 @@ The following new `oneof` variants are added to `TransactionBody`:
 |---|---|---|---|
 | `setLedgerConfiguration` | `ClprSetLedgerConfiguration` | `clprSetLedgerConfiguration` | CLPR admin (council key) |
 | `registerConnection` | `ClprRegisterConnection` | `clprRegisterConnection` | Any (permissionless) |
-| `updateConnectionVerifier` | `ClprUpdateConnectionVerifier` | `clprUpdateConnectionVerifier` | Any (permissionless) |
-| `recoverEndpointRoster` | `ClprRecoverEndpointRoster` | `clprRecoverEndpointRoster` | Any (permissionless) |
-| `severConnection` | `ClprSeverConnection` | `clprSeverConnection` | CLPR admin |
+| `updateEndpointRoster` | `ClprUpdateEndpointRoster` | `clprUpdateEndpointRoster` | Any (permissionless) |
+| `closeConnection` | `ClprCloseConnection` | `clprCloseConnection` | CLPR admin |
 | `pauseConnection` | `ClprPauseConnection` | `clprPauseConnection` | CLPR admin |
 | `resumeConnection` | `ClprResumeConnection` | `clprResumeConnection` | CLPR admin |
 | `registerConnector` | `ClprRegisterConnector` | `clprRegisterConnector` | Any (requires initial funds) |
@@ -53,7 +52,9 @@ The following new `oneof` variants are added to `TransactionBody`:
 | `sendMessage` | `ClprSendMessage` | `clprSendMessage` | Any |
 | `submitBundle` | `ClprSubmitBundle` | `clprSubmitBundle` | Any (typically endpoint) |
 | `redactMessage` | `ClprRedactMessage` | `clprRedactMessage` | CLPR admin |
-| `reportMisbehavior` | `ClprReportMisbehavior` | `clprReportMisbehavior` | Any |
+
+**Note:** There is no `reportMisbehavior` transaction. Misbehavior detection and enforcement are strictly
+local (see cross-platform spec §1.6).
 
 **Note:** `registerEndpoint` and `deregisterEndpoint` from spec section 6.5 are **not implemented** on Hiero.
 Endpoints are derived automatically from the active roster (see [section 4](#4-endpoint-implementation)).
@@ -65,12 +66,16 @@ Endpoints are derived automatically from the active roster (see [section 4](#4-e
 ```protobuf
 // Sets or updates this ledger's local CLPR configuration.
 // Requires the CLPR admin key (governing council).
-// Stores the new configuration and increments the global config version counter.
 // ConfigUpdate control messages are lazily enqueued on each Connection at the
 // next interaction (see cross-platform spec §1.3).
+//
+// The following fields are NOT caller-supplied and are set automatically:
+//   - protocol_version: determined by the CLPR service code version, not the caller.
+//   - chain_id: immutable; determined by the ledger at CLPR activation time.
+//   - timestamp: set to the consensus timestamp of this transaction.
 message ClprSetLedgerConfigurationTransactionBody {
-  // The new configuration. The timestamp field is ignored and set by
-  // the service to the consensus timestamp of this transaction.
+  // The new configuration. The protocol_version, chain_id, and timestamp
+  // fields are ignored if supplied — the handler sets them automatically.
   ClprLedgerConfiguration configuration = 1;
 }
 ```
@@ -79,6 +84,10 @@ message ClprSetLedgerConfigurationTransactionBody {
 
 ```protobuf
 // Registers a new Connection to a peer ledger.
+// Note: chain_id and service_address are NOT supplied by the caller. The peer's
+// chain_id and service_address are derived from the peer's CLPR service configuration
+// (obtained via the verifier during the first successful sync), and the local ledger's
+// own identity is determined at CLPR activation time.
 message ClprRegisterConnectionTransactionBody {
   // Connection ID: keccak256(uncompressed_public_key). Exactly 32 bytes.
   bytes connection_id = 1;
@@ -95,33 +104,22 @@ message ClprRegisterConnectionTransactionBody {
   bytes ecdsa_public_key = 3;
 
   // Account ID of the locally deployed verifier system contract.
-  // The contract's code hash must match an entry in the local ApprovedVerifiers list.
+  // The verifier is immutable — it cannot be changed after registration.
   AccountID verifier_contract = 4;
 
-  // Anti-griefing deposit in tinybar; must meet minimum threshold.
-  // Returned on sever.
-  uint64 deposit = 5;
-
   // At least one peer endpoint for initial sync capability.
-  repeated ClprEndpoint seed_endpoints = 6;
-}
-
-// Updates the verifier contract on an existing Connection.
-// The new contract's code hash must match an entry in the local ApprovedVerifiers list.
-message ClprUpdateConnectionVerifierTransactionBody {
-  bytes connection_id = 1;
-  AccountID verifier_contract = 2;
+  repeated ClprEndpoint seed_endpoints = 5;
 }
 
 // Recovers a Connection's peer endpoint roster from a state proof.
-message ClprRecoverEndpointRosterTransactionBody {
+message ClprUpdateEndpointRosterTransactionBody {
   bytes connection_id = 1;
   // Opaque proof bytes passed to verifyEndpoints().
   bytes proof_bytes = 2;
 }
 
-// Severs (permanently closes) a Connection. Terminal state.
-message ClprSeverConnectionTransactionBody {
+// Closes (permanently closes) a Connection. Terminal state.
+message ClprCloseConnectionTransactionBody {
   bytes connection_id = 1;
 }
 
@@ -212,17 +210,7 @@ message ClprRedactMessageTransactionBody {
 }
 ```
 
-### 1.2.5 Misbehavior Reporting
-
-```protobuf
-// Submits a misbehavior report against a remote endpoint.
-message ClprReportMisbehaviorTransactionBody {
-  bytes connection_id = 1;
-  ClprMisbehaviorReport report = 2;
-}
-```
-
-### 1.2.6 Transaction Records
+### 1.2.5 Transaction Records
 
 Each CLPR transaction produces a `TransactionRecord` with a standard `TransactionReceipt`. Specific result fields:
 
@@ -238,7 +226,6 @@ Each CLPR transaction produces a `TransactionRecord` with a standard `Transactio
 | Pseudo-API (spec section 6) | HAPI Query Type | Response Type |
 |---|---|---|
 | `getLedgerConfiguration` | `ClprGetLedgerConfigurationQuery` | `ClprGetLedgerConfigurationResponse` |
-| `getConnection` | `ClprGetConnectionQuery` | `ClprGetConnectionResponse` |
 | `getQueueDepth` | `ClprGetQueueDepthQuery` | `ClprGetQueueDepthResponse` |
 | `getConnector` | `ClprGetConnectorQuery` | `ClprGetConnectorResponse` |
 
@@ -250,16 +237,6 @@ message ClprGetLedgerConfigurationQuery {
 message ClprGetLedgerConfigurationResponse {
   ResponseHeader header = 1;
   ClprLedgerConfiguration configuration = 2;
-}
-
-message ClprGetConnectionQuery {
-  QueryHeader header = 1;
-  bytes connection_id = 2;
-}
-
-message ClprGetConnectionResponse {
-  ResponseHeader header = 1;
-  ClprConnection connection = 2;
 }
 
 message ClprGetQueueDepthQuery {
@@ -297,9 +274,8 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 |---|---|
 | `ClprSetLedgerConfiguration` | CLPR admin key (Hedera council key, file `0.0.150` or equivalent system key) |
 | `ClprRegisterConnection` | Transaction payer only (permissionless) |
-| `ClprUpdateConnectionVerifier` | Transaction payer only (permissionless) |
-| `ClprRecoverEndpointRoster` | Transaction payer only (permissionless) |
-| `ClprSeverConnection` | CLPR admin key |
+| `ClprUpdateEndpointRoster` | Transaction payer only (permissionless) |
+| `ClprCloseConnection` | CLPR admin key |
 | `ClprPauseConnection` | CLPR admin key |
 | `ClprResumeConnection` | CLPR admin key |
 | `ClprRegisterConnector` | Transaction payer + Connector admin key |
@@ -309,8 +285,6 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 | `ClprSendMessage` | Transaction payer only |
 | `ClprSubmitBundle` | Transaction payer only (typically consensus node account) |
 | `ClprRedactMessage` | CLPR admin key |
-| `ClprReportMisbehavior` | Transaction payer only |
-
 The **CLPR admin key** is a new system entity key, analogous to the address book admin key. It is stored in state
 as part of the CLPR service's system entity configuration and is controlled by the Hedera governing council.
 
@@ -335,10 +309,9 @@ Initial schema: `V0650ClprSchema` (version `0.65.0`, matching the anticipated re
 
 | State Key | Type | Description |
 |---|---|---|
-| `LEDGER_CONFIGURATION` | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, throttles, timestamp). |
-| `APPROVED_VERIFIERS` | `ClprApprovedVerifiers` | The set of verifier code hashes that this ledger allows for verifying other chains' proofs. Managed by the CLPR admin key. Checked during Connection registration and verifier updates (see cross-platform spec §3.1). |
+| `LEDGER_CONFIGURATION` | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). The `chain_id` and `protocol_version` are immutable after CLPR activation — `chain_id` is determined by the ledger at activation time, `protocol_version` by the CLPR service code version. |
 | `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype. |
-| `GLOBAL_CONFIG_VERSION` | `ClprGlobalConfigVersion` | Monotonically increasing counter incremented by `ClprSetLedgerConfigurationHandler` on every config update. Used for lazy config propagation: each Connection's `local_config_version` is compared against this to determine whether a ConfigUpdate control message needs to be enqueued. |
+
 
 ### 2.3.2 Key-Value Stores
 
@@ -365,9 +338,9 @@ message ClprConnection {
   // --- Peer Configuration ---
   Timestamp peer_config_timestamp = 4;
 
-  // --- Verifier ---
+  // --- Verifier (immutable after registration) ---
   AccountID verifier_contract = 5;  // Hiero account of the verifier system contract
-  bytes verifier_fingerprint = 6;   // Code hash endorsed by peer
+  bytes verifier_fingerprint = 6;   // Code hash at registration time (informational)
 
   // --- Status ---
   ClprConnectionStatus status = 7;
@@ -382,18 +355,14 @@ message ClprConnection {
   bytes received_running_hash = 12; // 32 bytes
 
   // --- Lazy Config Propagation ---
-  // Last global config version propagated on this Connection.
-  uint64 local_config_version = 13;
-
-  // --- Registration Deposit ---
-  AccountID registrant = 14;        // Account that registered this Connection
-  uint64 deposit = 15;              // Anti-griefing deposit in tinybar; returned on sever
+  // Consensus timestamp of the last configuration propagated on this Connection.
+  Timestamp last_config_timestamp = 13;
 }
 
 enum ClprConnectionStatus {
   ACTIVE = 0;
   PAUSED = 1;
-  SEVERED = 2;
+  CLOSED = 2;
   HALTED = 3;
 }
 ```
@@ -403,14 +372,14 @@ enum ClprConnectionStatus {
 | From | To | Trigger |
 |---|---|---|
 | `ACTIVE` | `PAUSED` | `ClprPauseConnection` (admin) |
-| `ACTIVE` | `SEVERED` | `ClprSeverConnection` (admin) |
+| `ACTIVE` | `CLOSED`  | `ClprCloseConnection` (admin) |
 | `ACTIVE` | `HALTED` | Response ordering violation detected during `ClprSubmitBundle` |
 | `PAUSED` | `ACTIVE` | `ClprResumeConnection` (admin) |
-| `PAUSED` | `SEVERED` | `ClprSeverConnection` (admin) |
-| `HALTED` | `SEVERED` | `ClprSeverConnection` (admin) |
+| `PAUSED` | `CLOSED`  | `ClprCloseConnection` (admin) |
+| `HALTED` | `CLOSED`  | `ClprCloseConnection` (admin) |
 
-`SEVERED` is a terminal state with no outgoing transitions. `HALTED` does not automatically recover; admin
-intervention (sever) is required.
+`CLOSED` is a terminal state with no outgoing transitions. `HALTED` does not automatically recover; admin
+intervention (close) is required.
 
 ```protobuf
 // Connector state.
@@ -452,8 +421,6 @@ migration path:
 3. New state stores (`CONNECTIONS`, `CONNECTORS`, `CONNECTOR_INDEX`, `PEER_ENDPOINT_ROSTERS`) are created empty.
 4. The `LEDGER_CONFIGURATION` singleton is preserved but extended with new fields
    (`throttles`, `service_address`).
-5. The `APPROVED_VERIFIERS` singleton is created to hold the local set of approved verifier code hashes.
-
 **Decision:** The prototype state structure was intentionally simplified for early development. The migration
 drops prototype-specific fields that do not map to the cross-platform spec (e.g., `next_ledger_short_id`
 in `ClprLocalLedgerMetadata` becomes unused once Connections have proper 32-byte IDs).
@@ -508,11 +475,10 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 
 | Handler Class | Transaction Type | Complexity |
 |---|---|---|
-| `ClprSetLedgerConfigurationHandler` | `ClprSetLedgerConfiguration` | Low (admin key check, store config, increment global config version counter) |
-| `ClprRegisterConnectionHandler` | `ClprRegisterConnection` | Medium (ECDSA verify, code hash check against local ApprovedVerifiers, deposit transfer, Connection creation). Handler MUST verify `deposit >= clpr.minConnectionDeposit` and transfer the deposit from the caller to the CLPR Service treasury. |
-| `ClprUpdateConnectionVerifierHandler` | `ClprUpdateConnectionVerifier` | Low (code hash check against local ApprovedVerifiers) |
-| `ClprRecoverEndpointRosterHandler` | `ClprRecoverEndpointRoster` | Medium (verifier call, roster replacement) |
-| `ClprSeverConnectionHandler` | `ClprSeverConnection` | Low (status transition, return deposit to original registrant) |
+| `ClprSetLedgerConfigurationHandler` | `ClprSetLedgerConfiguration` | Medium (admin key check, store config). The handler sets `protocol_version` automatically from the CLPR service code version (callers do not supply it). The `chain_id` is immutable — it is determined by the ledger at CLPR activation time and cannot be modified via this transaction. |
+| `ClprRegisterConnectionHandler` | `ClprRegisterConnection` | Medium (ECDSA verify, store verifier contract and code fingerprint, Connection creation). The `chain_id` and `service_address` are NOT supplied by the caller — they are populated from the peer's configuration during the first successful sync. The verifier is immutable after registration. |
+| `ClprUpdateEndpointRosterHandler` | `ClprUpdateEndpointRoster` | Medium (verifier call, roster replacement) |
+| `ClprCloseConnectionHandler` | `ClprCloseConnection` | Low (status transition) |
 | `ClprPauseConnectionHandler` | `ClprPauseConnection` | Low (status transition) |
 | `ClprResumeConnectionHandler` | `ClprResumeConnection` | Low (status transition) |
 | `ClprRegisterConnectorHandler` | `ClprRegisterConnector` | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices. |
@@ -522,14 +488,13 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | `ClprSendMessageHandler` | `ClprSendMessage` | Medium (connector auth call, queue depth check, enqueue) |
 | `ClprSubmitBundleHandler` | `ClprSubmitBundle` | **High** (verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing) |
 | `ClprRedactMessageHandler` | `ClprRedactMessage` | Low (payload removal, slot retention) |
-| `ClprReportMisbehaviorHandler` | `ClprReportMisbehavior` | Medium (signature verification, evidence validation) |
 
 ### 3.2.1 Handler Details: ClprSubmitBundleHandler
 
 This is the most complex handler. Its `handle()` method implements the bundle verification algorithm from
 cross-platform spec section 4.2:
 
-1. **Verify Connection status.** Reject if `SEVERED` or `HALTED`. **Note:** PAUSED connections accept inbound
+1. **Verify Connection status.** Reject if `CLOSED` or `HALTED`. **Note:** PAUSED connections accept inbound
    bundles (the pause only prevents new outbound messages). This ensures acknowledgements continue flowing.
 2. **Call verifier contract** via `verifyBundle(proof_bytes)`. On Hiero, verifiers are system contracts invoked
    through the `HandleContext.dispatchChildTransaction()` or a dedicated verifier dispatch mechanism (see
@@ -547,9 +512,9 @@ cross-platform spec section 4.2:
 
 6. **Acknowledgement update.** Update `acked_message_id` from `ClprQueueMetadata.received_message_id`. Delete
    acknowledged Response Messages and Control Messages from outbound queue.
-7. **Lazy config propagation check.** If `connection.local_config_version < global_config_version`, enqueue a
+7. **Lazy config propagation check.** If `connection.last_config_timestamp < current_config.consensus_timestamp`, enqueue a
    ConfigUpdate Control Message containing the current `ClprLedgerConfiguration` on this Connection's outbound
-   queue and set `connection.local_config_version = global_config_version`.
+   queue and set `connection.last_config_timestamp = current_config.consensus_timestamp`.
 8. **Message dispatch.** For each message in order:
    - **Control Message:** Apply directly (update peer endpoint roster or store config values).
    - **Data Message:** Resolve Connector via cross-chain mapping. Charge Connector (execution cost + margin).
@@ -566,9 +531,9 @@ handled independently.
 Implements the message enqueue algorithm from cross-platform spec section 4.3:
 
 1. Look up Connection by `connection_id`. Reject if status is not `ACTIVE`.
-2. **Lazy config propagation check.** If `connection.local_config_version < global_config_version`, enqueue a
+2. **Lazy config propagation check.** If `connection.last_config_timestamp < current_config.consensus_timestamp`, enqueue a
    ConfigUpdate Control Message containing the current `ClprLedgerConfiguration` on this Connection's outbound
-   queue and set `connection.local_config_version = global_config_version`.
+   queue and set `connection.last_config_timestamp = current_config.consensus_timestamp`.
 3. Look up Connector by `connector_id` on the Connection. Reject if not found.
 4. Call `IClprConnectorAuth.authorizeMessage()` on the Connector's authorization contract (see
    [section 6](#6-connector-authorization)). Reject if not authorized.
@@ -585,21 +550,23 @@ Implements the message enqueue algorithm from cross-platform spec section 4.3:
 Most CLPR handlers have minimal `preHandle` work, consistent with Hiero's design principle that `preHandle` only
 verifies the payer can pay:
 
-- **Admin transactions** (`SetLedgerConfiguration`, `Sever`, `Pause`, `Resume`, `Redact`): `preHandle` adds the
+- **Admin transactions** (`SetLedgerConfiguration`, `Close`, `Pause`, `Resume`, `Redact`): `preHandle` adds the
   CLPR admin key to the required keys set.
 - **Connector admin transactions** (`TopUp`, `Withdraw`, `Deregister`): `preHandle` looks up the Connector and
   adds its admin key to the required keys set.
-- **Permissionless transactions** (`RegisterConnection`, `UpdateConnectionVerifier`, `RecoverEndpointRoster`,
-  `SendMessage`, `SubmitBundle`, `ReportMisbehavior`): `preHandle` is a no-op (payer key is the only requirement).
+- **Permissionless transactions** (`RegisterConnection`, `UpdateEndpointRoster`,
+  `SendMessage`, `SubmitBundle`): `preHandle` is a no-op (payer key is the only requirement).
 
 ## 3.3 Query Handlers
 
 | Handler Class | Query Type |
 |---|---|
 | `ClprGetLedgerConfigurationHandler` | `ClprGetLedgerConfigurationQuery` |
-| `ClprGetConnectionHandler` | `ClprGetConnectionQuery` |
 | `ClprGetQueueDepthHandler` | `ClprGetQueueDepthQuery` |
 | `ClprGetConnectorHandler` | `ClprGetConnectorQuery` |
+
+**Note:** `getConnection` from the cross-platform spec is not exposed as a HAPI query. Connection state is
+available via the Mirror Node REST API, which can serve this data more efficiently without consensus node load.
 
 All query handlers are straightforward state reads from the appropriate K/V store or singleton.
 
@@ -645,8 +612,8 @@ Service updates the endpoint set in state. The endpoint module reads this state 
 immutable state and enqueues the appropriate `EndpointJoin` / `EndpointLeave` control messages on active
 Connections.
 
-**Config version tracking:** When `ClprSetLedgerConfiguration` increments `global_config_version`, the endpoint
-module detects the version mismatch on subsequent state reads and enqueues ConfigUpdate control messages.
+**Config timestamp tracking:** When `ClprSetLedgerConfiguration` stores a new configuration, the endpoint
+module detects the timestamp mismatch on subsequent state reads and enqueues ConfigUpdate control messages.
 The service does not push config changes to the endpoint module — the endpoint module pulls from state.
 
 ---
@@ -671,11 +638,9 @@ Ethereum's sync committee.
 ## 5.2 Implementation Fingerprint (Code Hash)
 
 On Hiero, the verifier's implementation fingerprint is computed as the `keccak256` hash of the deployed contract's
-EVM bytecode. This matches the EVM `EXTCODEHASH` semantic. During connection registration and verifier updates,
-the CLPR service computes this fingerprint by reading the contract's bytecode from the smart contract service
-state and checks it against the **local** `ApprovedVerifiers` list (the `APPROVED_VERIFIERS` singleton). This
-ensures only verifiers explicitly approved by this ledger's admin can be used to verify other chains' proofs
-on this ledger.
+EVM bytecode. This matches the EVM `EXTCODEHASH` semantic. During connection registration, the CLPR service computes
+the fingerprint by reading the contract's bytecode from the smart contract service state and stores it on the
+Connection as an informational field. The verifier is immutable after registration.
 
 ## 5.3 Verifier Invocation from Native Service
 
@@ -794,9 +759,8 @@ added. This is a future enhancement, not a launch requirement.
 
 The CLPR admin key is the trust anchor for all administrative operations on Hiero. It controls:
 
-- Setting the ledger configuration (chain_id, throttles)
-- Managing the local ApprovedVerifiers list (adding/removing approved verifier code hashes)
-- Severing, pausing, and resuming Connections
+- Setting the ledger configuration (throttles)
+- Closing, pausing, and resuming Connections
 - Redacting messages from the outbound queue
 
 On Hedera mainnet, this key is controlled by the governing council. On HashSpheres, it is controlled by the
@@ -847,7 +811,6 @@ system (property files / dynamic config).
 | `clpr.defaultSyncsPerSec` | `int` | `1` | Conservative default sync rate per endpoint when peer's `max_syncs_per_sec` is not yet known. |
 | `clpr.endpointPort` | `int` | `50212` | Port for the `ClprEndpointService` gRPC server. |
 | `clpr.publicizeNetworkAddresses` | `boolean` | `true` | Whether to include service endpoint addresses in the endpoint roster. |
-| `clpr.minConnectionDeposit` | `long` (tinybars) | TBD | Minimum anti-griefing deposit required for Connection registration. Returned on sever. |
 | `clpr.minConnectorStake` | `long` (tinybars) | TBD | Minimum Connector stake requirement. |
 | `clpr.minConnectorBalance` | `long` (tinybars) | TBD | Minimum Connector initial balance. |
 | `clpr.connectorQueueQuotaPct` | `int` | `50` | Maximum percentage of queue depth a single Connector can occupy. |
@@ -893,11 +856,10 @@ Each handler registers a `ServiceFeeCalculator`:
 
 | Transaction | Fee Basis | Notes |
 |---|---|---|
-| `ClprSetLedgerConfiguration` | Fixed base only (O(1) — no per-Connection cost) | Admin operation; relatively rare. Config propagation is lazy, so no per-Connection enqueue at set time. |
-| `ClprRegisterConnection` | Fixed base + ECDSA verification cost | Code hash check against local ApprovedVerifiers; no ZK verification |
-| `ClprUpdateConnectionVerifier` | Fixed base | Code hash check against local ApprovedVerifiers only |
-| `ClprRecoverEndpointRoster` | Fixed base + verification cost | |
-| `ClprSeverConnection` | Fixed base | Low; state transition only |
+| `ClprSetLedgerConfiguration` | Fixed base | Admin operation; relatively rare. Config propagation is lazy, so no per-Connection enqueue at set time. |
+| `ClprRegisterConnection` | Fixed base + ECDSA verification cost | ECDSA verify + store verifier contract and code fingerprint |
+| `ClprUpdateEndpointRoster` | Fixed base + verification cost | |
+| `ClprCloseConnection` | Fixed base | Low; state transition only |
 | `ClprPauseConnection` | Fixed base | Low |
 | `ClprResumeConnection` | Fixed base | Low |
 | `ClprRegisterConnector` | Fixed base | |
@@ -907,7 +869,6 @@ Each handler registers a `ServiceFeeCalculator`:
 | `ClprSendMessage` | Fixed base + per-byte payload cost + queue depth escalation | Primary user-facing fee |
 | `ClprSubmitBundle` | Fixed base + per-message processing cost | Typically paid by endpoint node; reimbursed by Connector margin |
 | `ClprRedactMessage` | Fixed base | Admin operation |
-| `ClprReportMisbehavior` | Fixed base + evidence verification cost | |
 
 ## 10.3 Connector Margin and Endpoint Reimbursement
 
@@ -976,7 +937,7 @@ platform's built-in cryptographic utilities (same code path as `ecrecover` in th
 - **Connection registration:** Signed payload is `keccak256(connection_id || verifier_contract_address || caller_account_id)`.
 - **Endpoint signature:** Signed payload is `keccak256(connection_id || proof_bytes)`. The signer's public key
   is recovered via ecrecover and matched against `ecdsa_signing_key` entries in the Connection's endpoint roster.
-- **Misbehavior evidence:** Uses the same ecrecover mechanism on the `endpoint_signature` from evidence payloads.
+- **Local misbehavior detection:** Uses the same ecrecover mechanism on the `endpoint_signature` for attribution during local frequency tracking.
 
 ## 11.6 Minimum Connector Bond
 
@@ -1101,11 +1062,11 @@ same peer ledger, so ledger ID is insufficient as a key.
 
 The design document section 3.2.7 says: "Once valid data resumes, the Connection unblocks and normal operation
 continues." The cross-platform spec section 4.5 says: "A HALTED Connection does not automatically recover. The
-admin MUST intervene by severing the Connection." These contradict each other on the recovery path from a HALTED
+admin MUST intervene by closing the Connection." These contradict each other on the recovery path from a HALTED
 state.
 
 **Resolution:** This implementation follows the cross-platform spec: HALTED is not auto-recoverable. The only
-valid transition from HALTED is to SEVERED (admin action). The design doc appears to describe an earlier design
+valid transition from HALTED is to CLOSED (admin action). The design doc appears to describe an earlier design
 that was tightened in the cross-platform spec.
 
 ### F-9: Queue Metadata Naming

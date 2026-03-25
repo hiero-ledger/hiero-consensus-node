@@ -155,7 +155,7 @@ Hiero, nodes use three distinct keys:
 
 1. **RSA key** (from the node's TLS certificate) — mTLS transport authentication only. Reuses the node's existing
    signing certificate already published in the address book; no additional TLS key provisioning is required.
-2. **ECDSA secp256k1 key** — `endpoint_signature` and misbehavior attribution (see spec §1.5). MAY be the node's
+2. **ECDSA secp256k1 key** — `endpoint_signature` and local misbehavior detection (see spec §1.5). MAY be the node's
    existing ECDSA secp256k1 key if available, or a dedicated key generated for CLPR operations.
 3. **Ed25519/ECDSA key** (on the node's account) — signs HAPI transactions (`submitBundle`, etc.) submitted to the
    local ingest pipeline. Never exposed in the CLPR protocol wire format.
@@ -206,7 +206,7 @@ pair to detect abuse (see Section 12.1).
 
 **Connection status filtering.** Per cross-platform spec §2.1.1, Connections have four statuses. On Hiero, the
 sync orchestrator filters as follows: only ACTIVE Connections trigger outbound syncs. PAUSED Connections remain
-available as a responder for inbound syncs (the peer may still have messages to deliver). SEVERED and HALTED
+available as a responder for inbound syncs (the peer may still have messages to deliver). CLOSED and HALTED
 Connections are skipped entirely (see Section 13.4 for HALTED behavior).
 
 ## 3.2 Peer Endpoint Selection
@@ -595,7 +595,7 @@ the `service_endpoint` field. In this mode:
 
 - This network's endpoints can only initiate outbound syncs — peer endpoints cannot reach them.
 - The `EndpointJoin` Control Messages sent to peers contain no service endpoint, so peers know the endpoints exist
-  (for attribution and misbehavior tracking) but cannot initiate connections to them.
+  (for attribution and local misbehavior detection) but cannot initiate connections to them.
 
 ---
 
@@ -779,7 +779,7 @@ No manual intervention is required for partition recovery.
 | `clpr.messages.received`             | Counter | Total messages received via bundles (all Connections).                        |
 | `clpr.messages.acked`                | Counter | Total messages acknowledged by peers.                                         |
 | `clpr.controlMessages.sent`          | Counter | Total Control Messages enqueued (EndpointJoin, EndpointLeave, ConfigUpdate).  |
-| `clpr.misbehavior.reported`          | Counter | Total misbehavior reports submitted against remote endpoints.                 |
+| `clpr.misbehavior.detected`          | Counter | Total locally detected misbehavior events (excess frequency, duplicate submission). |
 
 ## 11.2 Gauges
 
@@ -836,7 +836,7 @@ inbound sync calls are authenticated at two levels:
 1. **TLS layer.** The caller's TLS certificate is verified against the Connection's peer endpoint roster
    (`tls_certificate` field). Unknown certificates are rejected before any protocol processing.
 2. **Payload signature.** The `endpoint_signature` signer is recovered and matched against the roster's
-   `ecdsa_signing_key`. This signature is for misbehavior attribution only — on-chain cryptographic assurance
+   `ecdsa_signing_key`. This signature is for local misbehavior detection only — on-chain cryptographic assurance
    comes from the TSS signature in `proof_bytes`.
 
 ## 12.3 Malicious Payload Protection
@@ -857,7 +857,7 @@ Additionally:
   emits the `allCircuitBreakersOpen` health indicator.
 - The sync orchestrator continues periodic probes (circuit breaker half-open state) to detect recovery.
 - No human intervention is required for transient unresponsiveness.
-- For **permanent** unresponsiveness (all peers gone), the recovery path is `recoverEndpointRoster`
+- For **permanent** unresponsiveness (all peers gone), the recovery path is `updateEndpointRoster`
   (cross-platform spec §5.4).
 
 ## 12.5 DUPLICATE_BROADCAST (Dropped)
@@ -866,12 +866,11 @@ DUPLICATE_BROADCAST was considered but dropped -- on-chain evidence cannot crypt
 (who initiated), and the economic harm (duplicate gas spend) is mitigated by natural endpoint deduplication
 strategies.
 
-## 12.6 Misbehavior Attribution
+## 12.6 Local Misbehavior Detection
 
-Misbehavior types and the `endpoint_signature`-based attribution mechanism are defined in the cross-platform spec
-§1.5 and §1.6. On Hiero, misbehavior detection is handled by the endpoint module's inbound sync frequency
-tracker (Section 12.1) and the `reportMisbehavior` HAPI transaction submitted to the offending endpoint's
-home ledger.
+Misbehavior detection is strictly local (cross-platform spec §1.6). On Hiero, the endpoint module's inbound
+sync frequency tracker (Section 12.1) detects excess-frequency violations by remote peer endpoints. When
+detected, the offending peer endpoint is shunned — no cross-ledger report is sent.
 
 ## 12.7 Node Account Security
 
