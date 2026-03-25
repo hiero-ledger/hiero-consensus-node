@@ -1,0 +1,38 @@
+/**
+ * # Migration Root Hash Vote Transaction
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.rfc-editor.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.services.auxiliary.blockrecords;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.services.auxiliary.blockrecords.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.services.auxiliary.blockrecords">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A transaction body to publish a node's vote for wrapped record migration state.
+ */
+message MigrationRootHashVoteTransactionBody {
+  /**
+   * The previous wrapped record block root hash from startup migration.
+   */
+  bytes previous_wrapped_record_block_root_hash = 1;
+
+  /**
+   * Intermediate hashing state for wrapped previous block roots.
+   */
+  repeated bytes wrapped_intermediate_previous_block_root_hashes = 2;
+
+  /**
+   * Leaf count of the wrapped previous block roots hasher.
+   */
+  uint64 wrapped_intermediate_block_roots_leaf_count = 3;
+}
