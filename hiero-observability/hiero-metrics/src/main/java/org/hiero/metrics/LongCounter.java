@@ -149,6 +149,9 @@ public final class LongCounter extends SettableMetric<LongSupplier, LongCounter.
             container.add(1L);
         }
 
+        /**
+         * @return the current value
+         */
         public long get() {
             return container.sum();
         }
