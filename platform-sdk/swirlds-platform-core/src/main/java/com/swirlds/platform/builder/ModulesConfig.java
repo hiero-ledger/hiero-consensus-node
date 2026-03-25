@@ -22,7 +22,10 @@ import com.swirlds.config.api.ConfigProperty;
 @ConfigData("modules")
 public record ModulesConfig(
         @ConfigProperty(defaultValue = "") String eventCreator,
-        @ConfigProperty(defaultValue = "") String eventIntake,
+
+        @ConfigProperty(defaultValue = "org.hiero.consensus.event.intake.impl")
+        String eventIntake,
+
         @ConfigProperty(defaultValue = "") String pces,
         @ConfigProperty(defaultValue = "") String hashgraph,
         @ConfigProperty(defaultValue = "") String gossip,

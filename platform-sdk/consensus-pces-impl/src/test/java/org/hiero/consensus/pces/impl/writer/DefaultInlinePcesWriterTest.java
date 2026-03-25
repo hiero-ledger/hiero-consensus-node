@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.writer;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -22,8 +26,11 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.pces.config.PcesConfig_;
+import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
 import org.hiero.consensus.pces.impl.common.PcesFileManager;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -69,8 +76,9 @@ class DefaultInlinePcesWriterTest {
         final Metrics metrics = platformContext.getMetrics();
         final Time time = platformContext.getTime();
         final PcesFileManager fileManager = new PcesFileManager(configuration, metrics, time, pcesFiles, tempDir, 0);
+        final CommonPcesWriter commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
         final DefaultInlinePcesWriter writer =
-                new DefaultInlinePcesWriter(configuration, metrics, time, fileManager, selfId);
+                new DefaultInlinePcesWriter(configuration, metrics, time, commonPcesWriter, selfId);
 
         writer.beginStreamingNewEvents();
         for (final PlatformEvent event : events) {
@@ -81,6 +89,57 @@ class DefaultInlinePcesWriterTest {
         writer.registerDiscontinuity(1L);
 
         PcesWriterTestUtils.verifyStream(tempDir, events, platformContext, 0);
+    }
+
+    /**
+     * Verify that after syncCurrentFile(), data is readable from disk even though the file has not been closed.
+     * This simulates the guarantee needed for the shutdown hook and the flush-during-freeze path.
+     */
+    @Test
+    void syncWithoutCloseTest() throws Exception {
+        final PlatformContext platformContext = getPlatformContext();
+        final Random random = RandomUtils.getRandomPrintSeed();
+
+        final StandardGraphGenerator generator = PcesWriterTestUtils.buildGraphGenerator(platformContext, random);
+
+        final List<PlatformEvent> events = new LinkedList<>();
+        for (int i = 0; i < numEvents; i++) {
+            events.add(generator.generateEventWithoutIndex());
+        }
+
+        final PcesFileTracker pcesFiles = new PcesFileTracker();
+
+        final Configuration configuration = platformContext.getConfiguration();
+        final Metrics metrics = platformContext.getMetrics();
+        final Time time = platformContext.getTime();
+        final PcesFileManager fileManager = new PcesFileManager(configuration, metrics, time, pcesFiles, tempDir, 0);
+        final CommonPcesWriter commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
+        final DefaultInlinePcesWriter writer =
+                new DefaultInlinePcesWriter(configuration, metrics, time, commonPcesWriter, selfId);
+
+        writer.beginStreamingNewEvents();
+        for (final PlatformEvent event : events) {
+            writer.writeEvent(event);
+        }
+
+        // Sync without closing — this is what the shutdown hook and flush() do
+        commonPcesWriter.syncCurrentFile();
+
+        // Read events back from disk. The file is still open, but synced data should be readable.
+        final PcesFileTracker readFiles =
+                PcesFileReader.readFilesFromDisk(configuration, platformContext.getRecycleBin(), tempDir, 0, false);
+        final PcesMultiFileIterator eventsIterator = readFiles.getEventIterator(0, 0);
+
+        int count = 0;
+        for (final PlatformEvent event : events) {
+            assertTrue(eventsIterator.hasNext(), "Expected event at index " + count);
+            assertEquals(event, eventsIterator.next());
+            count++;
+        }
+        assertFalse(eventsIterator.hasNext(), "There should be no more events");
+
+        // Now close properly for cleanup
+        commonPcesWriter.closeCurrentMutableFile();
     }
 
     @Test
@@ -97,8 +156,9 @@ class DefaultInlinePcesWriterTest {
         final Metrics metrics = platformContext.getMetrics();
         final Time time = platformContext.getTime();
         final PcesFileManager fileManager = new PcesFileManager(configuration, metrics, time, pcesFiles, tempDir, 0);
+        final CommonPcesWriter commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
         final DefaultInlinePcesWriter writer =
-                new DefaultInlinePcesWriter(configuration, metrics, time, fileManager, selfId);
+                new DefaultInlinePcesWriter(configuration, metrics, time, commonPcesWriter, selfId);
 
         // We will add this event at the very end, it should be ancient by then
         final PlatformEvent ancientEvent = generator.generateEventWithoutIndex();
