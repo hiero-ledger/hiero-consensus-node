@@ -52,14 +52,12 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
     public static final Factory FACTORY = new Factory() {
         @Override
         public boolean appliesTo(@NonNull final HapiSpec spec) {
-            // Apply to all specs by default, but could be configured based on spec properties
             return true;
         }
 
         @Override
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
-            // Create output directory based on spec working directory
             final Path outputDir = Path.of(".", "redacted-blocks", spec.getName());
             return new RedactingEventHashBlockStreamValidator(outputDir);
         }
@@ -272,8 +270,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
      * @param reloadedBlocks the blocks that were written to and read from disk
      * @param expectedBlockCount the expected number of blocks
      */
-    private void verifyRedactedBlocks(@NonNull final List<Block> reloadedBlocks, final int expectedBlockCount)
-            throws IOException {
+    private void verifyRedactedBlocks(@NonNull final List<Block> reloadedBlocks, final int expectedBlockCount) {
         logger.debug("Verifying event hash integrity in {} reloaded redacted blocks", reloadedBlocks.size());
 
         if (reloadedBlocks.size() != expectedBlockCount) {

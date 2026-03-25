@@ -11,6 +11,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -21,13 +22,25 @@ import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A BlockStreamValidator implementation that reassembles consensus events and verifies the hash integrity of the event
- * chain that forms the hashgraph. Specifically, it checks that events whose parents are in a previous block are found.
- * Doing so proves that the hash of the parent event was properly calculated. This is the best check we can do, since
- * parents within a block are referenced by an index and not the hash.
+ * chain that forms the hashgraph. Specifically, it checks that events whose parents are in a previous block can be
+ * found among the reconstructed events. This proves that event hashes are calculated correctly using only data from
+ * the block stream, which is required for downstream consumers to reconstruct the hashgraph.
+ *
+ * <p>A small percentage of cross-block parent lookups may fail due to "stale" events that went through gossip but
+ * never reached consensus and thus are absent from the block stream. Their children still have correct hashes because
+ * they contain the full parent {@code EventDescriptor}. The validator tolerates up to
+ * {@value #MAX_UNRESOLVED_PARENT_PERCENT}% of such unresolvable parents.
  */
 public class EventHashBlockStreamValidator implements BlockStreamValidator {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Maximum percentage of cross-block parent hashes that may be unresolvable before the validation fails.
+     * Stale events (events that never reached consensus) cause a small number of parent lookups to fail;
+     * a real problem with event reconstruction would affect far more lookups.
+     */
+    static final double MAX_UNRESOLVED_PARENT_PERCENT = 2.0;
 
     /**
      * A main method to run a standalone validation of the block stream files produced by HAPI tests in their default
@@ -55,7 +68,6 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     public static final Factory FACTORY = new Factory() {
         @Override
         public boolean appliesTo(@NonNull final HapiSpec spec) {
-            // Apply to all specs by default, but could be configured based on spec properties
             return true;
         }
 
@@ -71,20 +83,20 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         logger.info("Processing {} blocks for event chain verification", blocks.size());
 
         final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
+        final var events = eventBuilder.getEvents();
 
-        validateEventHashChain(eventBuilder.getEvents(), eventBuilder.getCrossBlockParentHashes());
+        validateEventHashChain(events, eventBuilder.getCrossBlockParentHashes());
 
-        logger.info(
-                "Successfully processed and verified {} events in {} blocks",
-                eventBuilder.getEvents().size(),
-                blocks.size());
+        logger.info("Successfully processed and verified {} events in {} blocks", events.size(), blocks.size());
     }
 
     /**
      * Validates the event hash chain by looking up all events that have a parent reference to an event in another
-     * block. If we are unable to locate the parent event hash among the reconstructed events, the validation fails.
+     * block. If we are unable to locate the parent event hash among the reconstructed events, it is likely a "stale"
+     * event that went through gossip but never reached consensus. A small percentage of such failures is tolerated.
      *
      * @param events the list of reconstructed events
+     * @param crossBlockParentHashes the set of parent hashes referencing events in other blocks
      */
     static void validateEventHashChain(
             @NonNull final List<PlatformEvent> events, @NonNull final Set<Hash> crossBlockParentHashes) {
@@ -96,10 +108,33 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         final Set<Hash> eventHashes =
                 events.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
 
+        final List<Hash> unresolvedHashes = new ArrayList<>();
         for (final Hash crossBlockParentHash : crossBlockParentHashes) {
             if (!eventHashes.contains(crossBlockParentHash)) {
-                fail("Cross block parent hash {} not found among event hashes!", crossBlockParentHash);
+                unresolvedHashes.add(crossBlockParentHash);
             }
+        }
+
+        if (!unresolvedHashes.isEmpty()) {
+            logger.warn(
+                    "Could not resolve {} of {} cross-block parent hashes (likely stale events)",
+                    unresolvedHashes.size(),
+                    crossBlockParentHashes.size());
+        }
+
+        // Tolerate a small percentage of unresolvable parents (stale events that never reached the
+        // block stream). A real problem with event reconstruction would affect far more lookups.
+        final double unresolvedPercent = crossBlockParentHashes.isEmpty()
+                ? 0.0
+                : 100.0 * unresolvedHashes.size() / crossBlockParentHashes.size();
+        if (unresolvedPercent > MAX_UNRESOLVED_PARENT_PERCENT) {
+            fail(
+                    "Too many unresolved cross-block parent hashes: %d of %d (%.1f%% > %.1f%% threshold). Hashes: %s",
+                    unresolvedHashes.size(),
+                    crossBlockParentHashes.size(),
+                    unresolvedPercent,
+                    MAX_UNRESOLVED_PARENT_PERCENT,
+                    unresolvedHashes);
         }
     }
 }

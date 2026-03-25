@@ -292,10 +292,6 @@ public class BlockStreamEventBuilder {
                     // Parent is already an EventDescriptor (outside current block)
                     final EventDescriptor parentDescriptor = parentRef.parent().as();
                     resolvedParents.add(parentDescriptor);
-                    final Hash parentHash = new Hash(parentDescriptor.hash());
-                    if (!eventHashToEvent.containsKey(parentHash)) {
-                        fail("Unable to find event matching parent hash %s", parentHash);
-                    }
                     crossBlockParentHashes.add(new Hash(parentDescriptor.hash()));
                     break;
 
