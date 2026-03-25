@@ -342,6 +342,28 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void addWrapsSigningMessageIgnoresNodeWithMissingSourceSchnorrKey() {
+        proofKeys.put(OTHER_NODE_ID, HistoryLibrary.MISSING_SCHNORR_KEY);
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                executor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+
+        final var publication = new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH);
+
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, publication, writableHistoryStore));
+        verifyNoInteractions(writableHistoryStore);
+    }
+
+    @Test
     void r1PhaseAdvancesToR2WhenEnoughWeight() {
         final var first = new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH);
         final var second = new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH.plusSeconds(1));
