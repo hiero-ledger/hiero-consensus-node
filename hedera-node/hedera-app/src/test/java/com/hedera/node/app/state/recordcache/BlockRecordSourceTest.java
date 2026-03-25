@@ -91,7 +91,8 @@ class BlockRecordSourceTest {
     @Test
     void actionSeesAllItems() {
         subjectWith(List.of(
-                new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
+                new BlockStreamBuilder.Output(
+                        List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT), translationContext, BLOCK_NUMBER)));
 
         subject.forEachItem(itemAction);
@@ -117,7 +118,8 @@ class BlockRecordSourceTest {
                         translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), null, BLOCK_NUMBER))
                 .willReturn(SECOND_BLOCK_NUMBERED_RECORD);
         subjectWith(List.of(
-                new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
+                new BlockStreamBuilder.Output(
+                        List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT), translationContext, BLOCK_NUMBER)));
 
         subject.forEachTxnRecord(recordAction);
@@ -143,7 +145,8 @@ class BlockRecordSourceTest {
                         translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), BLOCK_NUMBER))
                 .willReturn(SECOND_BLOCK_NUMBERED_RECORD.receiptOrThrow());
         subjectWith(List.of(
-                new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
+                new BlockStreamBuilder.Output(
+                        List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT), translationContext, BLOCK_NUMBER)));
 
         assertThat(subject.identifiedReceipts())
@@ -171,7 +174,8 @@ class BlockRecordSourceTest {
                         translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), BLOCK_NUMBER))
                 .willReturn(SECOND_BLOCK_NUMBERED_RECORD.receiptOrThrow());
         subjectWith(List.of(
-                new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
+                new BlockStreamBuilder.Output(
+                        List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT), translationContext, BLOCK_NUMBER)));
 
         assertThat(subject.receiptOf(FIRST_RECORD.transactionIDOrThrow()))
@@ -198,7 +202,8 @@ class BlockRecordSourceTest {
                         translationContext, TRANSACTION_RESULT.transactionResultOrThrow(), BLOCK_NUMBER))
                 .willReturn(SECOND_BLOCK_NUMBERED_RECORD.receiptOrThrow());
         subjectWith(List.of(
-                new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
+                new BlockStreamBuilder.Output(
+                        List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
                 new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT), translationContext, BLOCK_NUMBER)));
 
         assertThat(subject.childReceiptsOf(TransactionID.DEFAULT))

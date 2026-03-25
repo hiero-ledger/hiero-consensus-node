@@ -251,8 +251,8 @@ class BlockItemsTranslatorTest {
     @EnumSource(
             value = HederaFunctionality.class,
             names = {
-                    "CRYPTO_CREATE",
-                    "CRYPTO_UPDATE",
+                "CRYPTO_CREATE",
+                "CRYPTO_UPDATE",
             })
     void certainCryptoOpsUseCryptoOpContext(@NonNull final HederaFunctionality function) {
         final var context = new CryptoOpContext(
@@ -386,8 +386,8 @@ class BlockItemsTranslatorTest {
     @EnumSource(
             value = HederaFunctionality.class,
             names = {
-                    "TOKEN_ACCOUNT_WIPE",
-                    "TOKEN_BURN",
+                "TOKEN_ACCOUNT_WIPE",
+                "TOKEN_BURN",
             })
     void supplyChangeOpsUseSupplyChangeContext(@NonNull final HederaFunctionality function) {
         final var context = new SupplyChangeOpContext(
@@ -685,8 +685,8 @@ class BlockItemsTranslatorTest {
     @EnumSource(
             value = HederaFunctionality.class,
             names = {
-                    "CRYPTO_CREATE",
-                    "CRYPTO_UPDATE",
+                "CRYPTO_CREATE",
+                "CRYPTO_UPDATE",
             })
     void certainCryptoOpsUseEvmAddressFromContext(@NonNull final HederaFunctionality function) {
         final var context = new CryptoOpContext(

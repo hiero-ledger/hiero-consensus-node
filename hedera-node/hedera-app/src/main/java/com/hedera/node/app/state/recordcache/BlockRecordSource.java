@@ -50,7 +50,8 @@ public class BlockRecordSource implements RecordSource {
      */
     @VisibleForTesting
     public BlockRecordSource(
-            @NonNull final BlockItemsTranslator blockItemsTranslator, @NonNull final List<BlockStreamBuilder.Output> outputs) {
+            @NonNull final BlockItemsTranslator blockItemsTranslator,
+            @NonNull final List<BlockStreamBuilder.Output> outputs) {
         this.blockItemsTranslator = requireNonNull(blockItemsTranslator);
         this.outputs = requireNonNull(outputs);
     }

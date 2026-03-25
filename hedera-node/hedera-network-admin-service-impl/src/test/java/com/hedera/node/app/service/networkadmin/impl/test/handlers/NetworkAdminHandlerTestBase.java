@@ -73,7 +73,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class NetworkAdminHandlerTestBase {
-    protected static final long RECORD_BLOCK_NUMBER = 1L;
 
     private static final OneOf<Account.StakedIdOneOfType> UNSET_STAKED_ID =
             new OneOf<>(Account.StakedIdOneOfType.UNSET, null);
@@ -258,7 +257,6 @@ public class NetworkAdminHandlerTestBase {
         final var receipt = TransactionReceipt.newBuilder()
                 .accountID(accountId)
                 .status(ResponseCodeEnum.UNKNOWN)
-                .blockNumber(RECORD_BLOCK_NUMBER)
                 .build();
         primaryRecord = TransactionRecord.newBuilder()
                 .transactionID(transactionID)
@@ -308,27 +306,27 @@ public class NetworkAdminHandlerTestBase {
                 0,
                 primaryRecord.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(primaryRecord), RECORD_BLOCK_NUMBER));
+                new PartialRecordSource(List.of(primaryRecord)));
         cache.addRecordSource(
                 1,
                 duplicate1.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(duplicate1), RECORD_BLOCK_NUMBER));
+                new PartialRecordSource(List.of(duplicate1)));
         cache.addRecordSource(
                 2,
                 duplicate2.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(duplicate2), RECORD_BLOCK_NUMBER));
+                new PartialRecordSource(List.of(duplicate2)));
         cache.addRecordSource(
                 3,
                 duplicate3.transactionIDOrThrow(),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(duplicate3), RECORD_BLOCK_NUMBER));
+                new PartialRecordSource(List.of(duplicate3)));
         cache.addRecordSource(
                 0,
                 otherTxnId,
                 HederaRecordCache.DueDiligenceFailure.NO,
-                new PartialRecordSource(List.of(otherRecord, recordOne, recordTwo, recordThree), RECORD_BLOCK_NUMBER));
+                new PartialRecordSource(List.of(otherRecord, recordOne, recordTwo, recordThree)));
     }
 
     protected MapReadableKVState<AccountID, Account> readableAccountState() {

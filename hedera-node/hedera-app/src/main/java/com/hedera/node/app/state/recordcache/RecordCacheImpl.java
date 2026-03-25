@@ -277,11 +277,11 @@ public class RecordCacheImpl implements HederaRecordCache {
                 // These steps only make a partial transaction record available for answering queries, and are not
                 // of critical importance for the operation of the node
                 if (historySource.recordSources().isEmpty()) {
-                    historySource.recordSources().add(new PartialRecordSource(null));
+                    historySource.recordSources().add(new PartialRecordSource());
                 }
-                // Since these are partial records, we don't add block number to them
                 ((PartialRecordSource) historySource.recordSources.getFirst()).incorporate(asTxnRecord(receipt));
-                payerTxnIds.computeIfAbsent(txnId.accountIDOrThrow(), ignored -> new HashSet<>())
+                payerTxnIds
+                        .computeIfAbsent(txnId.accountIDOrThrow(), ignored -> new HashSet<>())
                         .add(txnId);
             }
         }
