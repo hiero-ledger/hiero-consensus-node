@@ -455,6 +455,8 @@ public class NodeRewardManager {
         // Step 4: Apply budget constraints
         final var constrained = applyBudgetConstraints(rewardAmounts, budget.accountBalance(), payerId);
         log.info("Calculated rewards: {}", constrained);
+
+        metrics.updateRewardMetrics(constrained, blockNodeEligibleNodeIds.size());
         return constrained;
     }
 

@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -531,7 +530,6 @@ public class AtomicBatchNegativeTest {
                 requirement = {THROTTLE_OVERRIDES},
                 throttles = "testSystemFiles/artificial-limits.json")
         @DisplayName("Verify inner transaction front end throttle leaks capacity")
-        @Tag(MATS)
         public Stream<DynamicTest> frontEndThrottleLeaksCapacity() {
             final var batchOperator = "batchOperator";
             final var contract = "CalldataSize";
@@ -791,12 +789,14 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> batchContainingFreezeTransactions() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
-                    atomicBatch(freezeOnly()
+                    // Source this transaction so the start time doesn't expire before the batch is submitted
+                    sourcing(() -> atomicBatch(freezeOnly()
                                     .payingWith(GENESIS)
-                                    .startingAt(Instant.now().plusSeconds(10))
+                                    .startingIn(10)
+                                    .seconds()
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("batchOperator"))
-                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST)));
         }
 
         @HapiTest
@@ -805,14 +805,16 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> nonBlacklistedAndBlacklistedTransactions() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
-                    atomicBatch(
+                    // Source this transaction so the start time doesn't expire before the batch is submitted
+                    sourcing(() -> atomicBatch(
                                     cryptoCreate("foo").batchKey("batchOperator"),
                                     freezeOnly()
                                             .payingWith(GENESIS)
-                                            .startingAt(Instant.now().plusSeconds(10))
+                                            .startingIn(10)
+                                            .seconds()
                                             .batchKey("batchOperator")
                                             .signedByPayerAnd("batchOperator"))
-                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST)));
         }
 
         @HapiTest
@@ -975,7 +977,6 @@ public class AtomicBatchNegativeTest {
 
         @HapiTest
         @DisplayName("Nonce gets updated after successful contract call inside batch")
-        @Tag(MATS)
         final Stream<DynamicTest> nonceUpdatedAfterSuccessfulInternalCall() {
             final var internalCalleeContract = "InternalCallee";
             final var externalFunction = "externalFunction";

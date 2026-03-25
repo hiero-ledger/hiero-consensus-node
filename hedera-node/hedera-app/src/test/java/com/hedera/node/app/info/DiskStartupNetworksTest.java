@@ -142,6 +142,13 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void hasNoLastUsedOverrideNetworkBeforeOverrideRoundIsSet() {
+        final var object = subject.lastUsedOverrideNetwork(DEFAULT_CONFIG);
+
+        assertThat(object).isEmpty();
+    }
+
+    @Test
     void archivesGenesisNetworks() throws IOException {
         givenConfig();
         putJsonAt(GENESIS_NETWORK_JSON);
@@ -212,6 +219,19 @@ class DiskStartupNetworksTest {
 
         final var maybeOverrideNetworkAfterRound = subject.overrideNetworkFor(ROUND_NO + 1, DEFAULT_CONFIG);
         assertThat(maybeOverrideNetworkAfterRound).isEmpty();
+    }
+
+    @Test
+    void findsLastUsedOverrideNetworkAfterOverrideRoundIsSet() throws IOException {
+        givenConfig();
+        putJsonAt(OVERRIDE_NETWORK_JSON);
+
+        subject.setOverrideRound(ROUND_NO);
+
+        final var lastUsedOverrideNetwork = subject.lastUsedOverrideNetwork(DEFAULT_CONFIG);
+
+        assertThat(lastUsedOverrideNetwork).isPresent();
+        assertThat(lastUsedOverrideNetwork.orElseThrow()).isEqualTo(NETWORK);
     }
 
     @Test
