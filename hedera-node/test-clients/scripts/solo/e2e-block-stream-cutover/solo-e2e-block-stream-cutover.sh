@@ -140,7 +140,7 @@ APP_PROPS_072_FILE="${SCRIPT_DIR}/resources/0.72/application.properties"
 APP_PROPS_073_FILE="${SCRIPT_DIR}/resources/0.73/application.properties"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.71.2}"
 UPGRADE_072_RELEASE_TAG="${UPGRADE_072_RELEASE_TAG:-v0.72.0-rc.2}"
-# Used with --local-build-path for Solo chart/metadata; jar/image comes from LOCAL_BUILD_PATH.
+# Reserved for the upcoming 0.73 network-upgrade step.
 UPGRADE_073_RELEASE_TAG="${UPGRADE_073_RELEASE_TAG:-0.73.0}"
 
 # SHA-384 hashes are 48 bytes => 96 hex chars.
@@ -174,7 +174,6 @@ ALLOW_GRAFANA_PORT_FORWARD_FAILURE="${ALLOW_GRAFANA_PORT_FORWARD_FAILURE:-true}"
 # Downloaded record stream objects from Solo MinIO (Step 5), next to this script.
 RECORD_STREAMS_DIR="${RECORD_STREAMS_DIR:-${SCRIPT_DIR}/recordStreams}"
 WRAPPED_BLOCKS_DIR="${WRAPPED_BLOCKS_DIR:-${SCRIPT_DIR}/wrappedBlocks}"
-MINIO_LOCAL_PORT="${MINIO_LOCAL_PORT:-19000}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 # Optional overrides if auto-discovery fails (service name in MINIO_NAMESPACE).
@@ -213,6 +212,7 @@ ZSTD_WRAPPER_BIN="${ZSTD_WRAPPER_DIR}/zstd"
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
 GRAFANA_PORT_FORWARD_PID=""
+TOTAL_STEPS=6
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -228,7 +228,7 @@ log_banner() {
 announce_step() {
   local step="$1"
   local description="$2"
-  log_banner "STEP ${step}/5: ${description}"
+  log_banner "STEP ${step}/${TOTAL_STEPS}: ${description}"
 }
 
 cleanup() {
@@ -342,6 +342,18 @@ EOF
   export ZSTD_WRAPPER_SRC
   export PATH="${ZSTD_WRAPPER_DIR}:${PATH}"
   log "zstd command not found; using Java zstd wrapper via zstd-jni (${zstd_jar})"
+}
+
+validate_block_node_repo() {
+  if [[ ! -d "${BLOCK_NODE_REPO_PATH}" ]]; then
+    echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH}" >&2
+    echo "Set BLOCK_NODE_REPO_PATH to your hiero-block-node checkout (branch driley/local-wrapped-record-files)." >&2
+    return 1
+  fi
+  if [[ ! -x "${BLOCK_NODE_REPO_PATH}/gradlew" ]]; then
+    echo "Block Node gradlew not executable: ${BLOCK_NODE_REPO_PATH}/gradlew" >&2
+    return 1
+  fi
 }
 
 validate_local_build_path() {
@@ -923,63 +935,6 @@ start_grafana_port_forward() {
   return 1
 }
 
-fix_consensus_metrics_scrape_config() {
-  log "Patching ServiceMonitor for consensus-node metrics discovery"
-  kubectl -n "${SOLO_NAMESPACE}" patch servicemonitor solo-service-monitor --type merge -p '{
-    "metadata": {
-      "labels": {
-        "release": "kube-prometheus-stack"
-      }
-    },
-    "spec": {
-      "selector": {
-        "matchLabels": {
-          "solo.hedera.com/type": "network-node-svc"
-        }
-      }
-    }
-  }' >/dev/null
-
-  log "Patching consensus-node services to scrape metrics on targetPort 9999"
-  local services
-  services="$(kubectl -n "${SOLO_NAMESPACE}" get svc -l solo.hedera.com/type=network-node-svc -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
-  if [[ -z "${services}" ]]; then
-    echo "No consensus-node services found with label solo.hedera.com/type=network-node-svc" >&2
-    return 1
-  fi
-
-  local svc
-  while IFS= read -r svc; do
-    [[ -z "${svc}" ]] && continue
-    kubectl -n "${SOLO_NAMESPACE}" patch service "${svc}" --type merge -p '{
-      "spec": {
-        "ports": [
-          {
-            "name": "gossip",
-            "port": 50111,
-            "targetPort": 50111
-          },
-          {
-            "name": "grpc-non-tls",
-            "port": 50211,
-            "targetPort": 50211
-          },
-          {
-            "name": "grpc-tls",
-            "port": 50212,
-            "targetPort": 50212
-          },
-          {
-            "name": "prometheus",
-            "port": 9090,
-            "targetPort": 9999
-          }
-        ]
-      }
-    }' >/dev/null
-  done <<< "${services}"
-}
-
 write_sdk_verifier() {
   cat > "${NODE_SCRIPT}" <<'EOF'
 const { Client, AccountCreateTransaction, PrivateKey, Hbar, Status } = require("@hashgraph/sdk");
@@ -1543,13 +1498,7 @@ run_block_node_wrap_tool() {
     return 0
   fi
 
-  if [[ ! -d "${BLOCK_NODE_REPO_PATH}" ]]; then
-    echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH}" >&2
-    echo "Set BLOCK_NODE_REPO_PATH to your hiero-block-node checkout." >&2
-    return 1
-  fi
-  if [[ ! -x "${BLOCK_NODE_REPO_PATH}/gradlew" ]]; then
-    echo "Block Node gradlew not executable: ${BLOCK_NODE_REPO_PATH}/gradlew" >&2
+  if ! validate_block_node_repo; then
     return 1
   fi
   if [[ ! -d "${records_dir}" ]]; then
@@ -1641,13 +1590,7 @@ require_cmd jq
 require_cmd java
 
 if [[ "${USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
-  if [[ ! -d "${BLOCK_NODE_REPO_PATH}" ]]; then
-    echo "BLOCK_NODE_REPO_PATH not found: ${BLOCK_NODE_REPO_PATH}" >&2
-    echo "Set BLOCK_NODE_REPO_PATH to your hiero-block-node checkout (branch driley/local-wrapped-record-files)." >&2
-    exit 1
-  fi
-  if [[ ! -x "${BLOCK_NODE_REPO_PATH}/gradlew" ]]; then
-    echo "Block Node gradlew not executable: ${BLOCK_NODE_REPO_PATH}/gradlew" >&2
+  if ! validate_block_node_repo; then
     exit 1
   fi
 fi
@@ -1713,8 +1656,6 @@ solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
 wait_for_consensus_pods_ready 600
 wait_for_haproxy_ready 600
 
-#fix_consensus_metrics_scrape_config
-
 log "Deploying mirror node and explorer"
 solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger
 solo explorer node add --deployment "${SOLO_DEPLOYMENT}"
@@ -1767,8 +1708,8 @@ log "Step 4: verify post-upgrade crypto create and mirror visibility"
 export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-600000}"
 node "${NODE_SCRIPT}"
 
-announce_step "5" "Process mirror/minio data, update File 121, then upgrade to 0.73"
-log "Step 5: mirror block query, File 121 jumpstart properties, upgrade to 0.73 (local build)"
+announce_step "5" "Download record files and wrap them into jumpstart artifacts"
+log "Step 5: mirror block query and record/wrap artifact generation"
 log "Step 5: waiting 30s before querying mirror for latest block number"
 sleep 30
 
@@ -1776,7 +1717,6 @@ MIRROR_BLOCKS_JSON="$(curl -sf "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v
   echo "Failed to GET /api/v1/blocks from mirror REST" >&2
   exit 1
 }
-export MIRROR_BLOCK_NUMBER
 MIRROR_BLOCK_NUMBER="$(echo "${MIRROR_BLOCKS_JSON}" | jq -r '.blocks[0].number')"
 if [[ -z "${MIRROR_BLOCK_NUMBER}" || "${MIRROR_BLOCK_NUMBER}" == "null" ]]; then
   echo "Could not parse latest block number from mirror response" >&2
@@ -1797,22 +1737,23 @@ generate_block_node_metadata_from_mirror "${MIRROR_BLOCK_NUMBER}"
 log "Step 5: running Block Node offline wrap tool (records -> wrapped blocks + jumpstart.bin)"
 run_block_node_wrap_tool "${WRAP_COMPRESSED_DAYS_DIR}" "${WRAPPED_BLOCKS_DIR}"
 
+announce_step "6" "Issue File 121 jumpstart update, then upgrade to ${UPGRADE_073_RELEASE_TAG}"
 if [[ "${USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
-  log "Step 5: parsing jumpstart.bin and loading blockStream.jumpstart.* values"
+  log "Step 6: parsing jumpstart.bin and loading blockStream.jumpstart.* values"
   load_jumpstart_env_from_bin "${JUMPSTART_BIN_PATH}"
 else
   export JUMPSTART_BLOCK_NUMBER="${MIRROR_BLOCK_NUMBER}"
-  log "Step 5: USE_BLOCK_NODE_JUMPSTART=false, using fallback jumpstart values from env (blockNum=${JUMPSTART_BLOCK_NUMBER})"
+  log "Step 6: USE_BLOCK_NODE_JUMPSTART=false, using fallback jumpstart values from env (blockNum=${JUMPSTART_BLOCK_NUMBER})"
 fi
 
-log "Step 5: issuing File 0.0.121 update with blockStream.jumpstart.* (blockNum=${JUMPSTART_BLOCK_NUMBER:-${MIRROR_BLOCK_NUMBER}})"
+log "Step 6: issuing File 0.0.121 update with blockStream.jumpstart.* (blockNum=${JUMPSTART_BLOCK_NUMBER:-${MIRROR_BLOCK_NUMBER}})"
 node "${FILE_121_JUMPSTART_SCRIPT}"
 
-# Step 5 upgrade path remains WIP; keep disabled until cutover path is validated.
-# log "Step 5: waiting 30s after File 121 update before consensus upgrade"
+# Step 6 upgrade path remains WIP; keep disabled until cutover path is validated.
+# log "Step 6: waiting 30s after File 121 update before consensus upgrade"
 # sleep 30
 #
-# log "Step 5: upgrading consensus network to 0.73 using local build (${LOCAL_BUILD_PATH}) and ${APP_PROPS_073_EFFECTIVE_FILE}"
+# log "Step 6: upgrading consensus network to 0.73 using local build (${LOCAL_BUILD_PATH}) and ${APP_PROPS_073_EFFECTIVE_FILE}"
 # run_with_consensus_diagnostics "solo 0.73 local-build network upgrade" \
 #   solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
 #   --local-build-path "${LOCAL_BUILD_PATH}" \
