@@ -95,25 +95,22 @@ message ClprRegisterConnectionTransactionBody {
   bytes ecdsa_public_key = 3;
 
   // Account ID of the locally deployed verifier system contract.
+  // The contract's code hash must match an entry in the local ApprovedVerifiers list.
   AccountID verifier_contract = 4;
-
-  // ZK proof attesting to the peer ledger's current configuration.
-  bytes zk_proof = 5;
 
   // Anti-griefing deposit in tinybar; must meet minimum threshold.
   // Returned on sever.
-  uint64 deposit = 6;
+  uint64 deposit = 5;
 
   // At least one peer endpoint for initial sync capability.
-  repeated ClprEndpoint seed_endpoints = 7;
+  repeated ClprEndpoint seed_endpoints = 6;
 }
 
 // Updates the verifier contract on an existing Connection.
+// The new contract's code hash must match an entry in the local ApprovedVerifiers list.
 message ClprUpdateConnectionVerifierTransactionBody {
   bytes connection_id = 1;
   AccountID verifier_contract = 2;
-  // Optional ZK proof for recovery path. Omit for local check.
-  bytes zk_proof = 3;
 }
 
 // Recovers a Connection's peer endpoint roster from a state proof.
@@ -338,7 +335,8 @@ Initial schema: `V0650ClprSchema` (version `0.65.0`, matching the anticipated re
 
 | State Key | Type | Description |
 |---|---|---|
-| `LEDGER_CONFIGURATION` | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, approved_verifiers, throttles, timestamp). |
+| `LEDGER_CONFIGURATION` | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, throttles, timestamp). |
+| `APPROVED_VERIFIERS` | `ClprApprovedVerifiers` | The set of verifier code hashes that this ledger allows for verifying other chains' proofs. Managed by the CLPR admin key. Checked during Connection registration and verifier updates (see cross-platform spec §3.1). |
 | `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype. |
 | `GLOBAL_CONFIG_VERSION` | `ClprGlobalConfigVersion` | Monotonically increasing counter incremented by `ClprSetLedgerConfigurationHandler` on every config update. Used for lazy config propagation: each Connection's `local_config_version` is compared against this to determine whether a ConfigUpdate control message needs to be enqueued. |
 
@@ -453,7 +451,8 @@ migration path:
 2. Existing `ClprLedgerId`-keyed entries are re-indexed under their corresponding `connection_id`.
 3. New state stores (`CONNECTIONS`, `CONNECTORS`, `CONNECTOR_INDEX`, `PEER_ENDPOINT_ROSTERS`) are created empty.
 4. The `LEDGER_CONFIGURATION` singleton is preserved but extended with new fields
-   (`approved_verifiers`, `throttles`, `service_address`).
+   (`throttles`, `service_address`).
+5. The `APPROVED_VERIFIERS` singleton is created to hold the local set of approved verifier code hashes.
 
 **Decision:** The prototype state structure was intentionally simplified for early development. The migration
 drops prototype-specific fields that do not map to the cross-platform spec (e.g., `next_ledger_short_id`
@@ -510,8 +509,8 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | Handler Class | Transaction Type | Complexity |
 |---|---|---|
 | `ClprSetLedgerConfigurationHandler` | `ClprSetLedgerConfiguration` | Low (admin key check, store config, increment global config version counter) |
-| `ClprRegisterConnectionHandler` | `ClprRegisterConnection` | High (ECDSA verify, ZK verify, code hash check, deposit transfer, Connection creation). Handler MUST verify `deposit >= clpr.minConnectionDeposit` and transfer the deposit from the caller to the CLPR Service treasury. |
-| `ClprUpdateConnectionVerifierHandler` | `ClprUpdateConnectionVerifier` | Medium (local check or ZK verify) |
+| `ClprRegisterConnectionHandler` | `ClprRegisterConnection` | Medium (ECDSA verify, code hash check against local ApprovedVerifiers, deposit transfer, Connection creation). Handler MUST verify `deposit >= clpr.minConnectionDeposit` and transfer the deposit from the caller to the CLPR Service treasury. |
+| `ClprUpdateConnectionVerifierHandler` | `ClprUpdateConnectionVerifier` | Low (code hash check against local ApprovedVerifiers) |
 | `ClprRecoverEndpointRosterHandler` | `ClprRecoverEndpointRoster` | Medium (verifier call, roster replacement) |
 | `ClprSeverConnectionHandler` | `ClprSeverConnection` | Low (status transition, return deposit to original registrant) |
 | `ClprPauseConnectionHandler` | `ClprPauseConnection` | Low (status transition) |
@@ -628,155 +627,40 @@ The `ClprServiceImpl` is registered into the Dagger dependency graph and discove
 
 # 4. Endpoint Implementation
 
-On Hiero, every consensus node is automatically a CLPR endpoint. There is no separate endpoint registration
-transaction.
+For endpoint module architecture, sync orchestration, proof construction, peer selection, gRPC service
+definition, roster auto-population, and misbehavior handling, see the
+[CLPR Hiero Endpoint Specification](clpr-hiero-endpoint-spec.md).
 
-## 4.1 Endpoint Roster Auto-Population
+This section covers only how the on-ledger CLPR Service interacts with the endpoint module.
 
-When CLPR is enabled (config `clpr.enabled = true`):
+## 4.1 Service-to-Endpoint Interaction
 
-1. On node startup and on every roster change event, the node software reads the active roster from platform state.
-2. For each node in the active roster, a `ClprEndpoint` entry is constructed:
-   - `service_endpoint`: The node's gRPC address and CLPR port (configurable, default TBD).
-   - `tls_certificate`: The node's DER-encoded RSA certificate (from the node's TLS keypair), used exclusively
-     for mTLS between endpoints. Minimum RSA key size: 2048 bits; RSA-3072 or higher is RECOMMENDED.
-   - `ecdsa_signing_key`: An ECDSA secp256k1 public key used for `endpoint_signature` in `ClprSyncPayload` and
-     misbehavior evidence verification. Hiero nodes MAY reuse their existing ECDSA secp256k1 key if available,
-     or generate a dedicated CLPR signing key.
-   - `account_id`: The node's account ID (`AccountID` serialized as bytes).
-3. The local endpoint set is stored in state and propagated to peers via `EndpointJoin` / `EndpointLeave`
-   control messages on every active Connection.
+The endpoint module submits `ClprSubmitBundle` HAPI transactions to the local node's transaction pipeline
+after receiving a peer's `ClprSyncPayload`. From the CLPR Service's perspective, these are ordinary consensus
+transactions — the service does not distinguish between bundles submitted by local endpoints and those submitted
+by other nodes.
 
-**Roster change detection:** The node subscribes to roster change notifications from the platform. When a node
-joins or leaves the active roster, the CLPR endpoint code enqueues the appropriate control message
-(`EndpointJoin` or `EndpointLeave`) on every active Connection. This is done as part of the roster change
-handling in `handle()`, not as a separate transaction.
+**Roster change propagation:** When a `handle()` call detects a roster change (node join/leave), the CLPR
+Service updates the endpoint set in state. The endpoint module reads this state change from the latest
+immutable state and enqueues the appropriate `EndpointJoin` / `EndpointLeave` control messages on active
+Connections.
 
-### 4.1.1 Key Requirements
-
-Each Hiero endpoint node has **three distinct keys** used in different contexts:
-
-1. **RSA TLS certificate** — used exclusively for mTLS between endpoints during gRPC sync calls;
-   published in `ClprEndpoint.tls_certificate`. NOT used for `endpoint_signature` or any on-chain verification.
-2. **ECDSA secp256k1 signing key** — used for `endpoint_signature` in `ClprSyncPayload` (signed data:
-   `keccak256(connection_id || proof_bytes)`) and misbehavior evidence verification; published in
-   `ClprEndpoint.ecdsa_signing_key`. ECDSA secp256k1 was chosen because it can be verified cheaply on all
-   target platforms (EVM ecrecover at ~3K gas, Hiero native support).
-3. **Ed25519/ECDSA key on the node's account** — used exclusively for signing HAPI transactions
-   (`submitBundle`, etc.); never exposed in the CLPR protocol wire format. This is the node's existing
-   signing key (already in the address book) and requires no additional setup.
-
-The RSA certificate provides transport security. The ECDSA secp256k1 key establishes endpoint identity for
-protocol-level signing and misbehavior attribution. The platform-native account key is used only for on-ledger
-transaction authorization.
-
-> **Post-quantum note:** ECDSA secp256k1 is not quantum-safe. The protocol anticipates migrating
-> `endpoint_signature` to a post-quantum scheme (e.g., Falcon, CRYSTALS-Dilithium) once mainline ledgers
-> add native support. This migration will use the existing ConfigUpdate mechanism to rotate endpoint keys.
-
-## 4.2 gRPC Endpoint Service
-
-The `ClprEndpointService` gRPC server runs alongside the existing HAPI gRPC services on each consensus node.
-
-```protobuf
-service ClprEndpointService {
-  rpc sync(ClprSyncPayload) returns (ClprSyncPayload);
-}
-```
-
-This is the endpoint-to-endpoint protocol (cross-platform spec section 1.5). It is separate from the on-ledger
-HAPI service.
-
-**Max message size:** The `ClprEndpointService` gRPC server MUST set its max inbound and outbound message size
-to `clpr.maxSyncPayloadBytes` to ensure sync payloads up to the configured limit can be exchanged.
-
-**Implementation:** The existing prototype already defines `sync` as a query on the HAPI `ClprService`. The full
-implementation separates concerns:
-
-- The **on-ledger ClprService** (HAPI) handles consensus transactions and state queries.
-- The **ClprEndpointService** (separate gRPC service) handles endpoint-to-endpoint sync communication.
-
-The `ClprEndpointService` runs on a configurable port (property `clpr.endpointPort`, default TBD) and is only
-started when `clpr.enabled = true`.
-
-## 4.3 Sync Initiation
-
-Each consensus node periodically initiates sync calls to peer endpoints:
-
-1. **Frequency:** Configurable via `clpr.connectionFrequency` (default 5000ms).
-2. **Peer selection:** For each active Connection, the node selects a peer endpoint from the Connection's peer
-   roster. Selection incorporates randomization to prevent persistent pairing and distributes load across endpoints.
-3. **Payload construction:**
-   - Read unacknowledged outbound messages from the message queue.
-   - Construct a state proof over the queue state (see [section 4.4](#44-proof-construction)).
-   - Package into a `ClprSyncPayload`.
-4. **Exchange:** Call `ClprEndpointService.sync()` on the selected peer. Receive the peer's `ClprSyncPayload`.
-5. **Submission:** Construct a `ClprSubmitBundle` HAPI transaction containing the received payload and submit it
-   to the local node's transaction pipeline for consensus processing.
-
-**Pre-verification:** Before submitting, the endpoint SHOULD verify the received proof locally (call the verifier
-contract in a local execution context) to avoid paying transaction fees for invalid payloads.
-
-## 4.4 Proof Construction
-
-On Hiero, proof bytes for the `ClprSyncPayload` are constructed from the Merkle state tree:
-
-1. **State proof generation:** The endpoint reads the relevant state from the Merkle tree:
-   - The `ClprConnection` singleton for queue metadata.
-   - The `ClprMessageValue` entries for unacknowledged messages.
-   - The `ClprLedgerConfiguration` singleton (for config metadata).
-2. **TSS signature:** The state proof includes TSS (Threshold Signature Scheme) signatures from the active
-   validator set, attesting to the state root at a specific consensus round.
-3. **Merkle path:** The proof includes Merkle paths from the specific state keys to the signed state root,
-   enabling the peer's verifier to extract and verify the individual state entries.
-4. **Packaging:** The state proof, queue metadata, and message payloads are serialized into the opaque
-   `proof_bytes` field of `ClprSyncPayload`.
-
-The exact format of the proof bytes is defined by the Hiero TSS verifier specification (out of scope for this
-document, but the verifier must understand this format).
-
-## 4.5 Endpoint Misbehavior
-
-Since Hiero endpoints are permissioned consensus nodes, misbehavior enforcement differs from permissionless chains:
-
-- **No bond required.** Hiero consensus nodes are governed by the council; no separate CLPR endpoint bond is needed.
-- **Slashing via governance.** A misbehaving endpoint's node account can be penalized through existing governance
-  mechanisms (council action, node removal from roster).
-- **Misbehavior evidence.** Evidence of remote endpoint misbehavior (excess frequency) is
-  still collected and can be submitted via `ClprReportMisbehavior` transactions to the remote ledger.
-
-> **Note:** DUPLICATE_BROADCAST was considered but dropped -- on-chain evidence cannot cryptographically prove
-> sync direction (who initiated), and the economic harm (duplicate gas spend) is mitigated by natural endpoint
-> deduplication strategies.
+**Config version tracking:** When `ClprSetLedgerConfiguration` increments `global_config_version`, the endpoint
+module detects the version mismatch on subsequent state reads and enqueues ConfigUpdate control messages.
+The service does not push config changes to the endpoint module — the endpoint module pulls from state.
 
 ---
 
 # 5. Verifier Integration
 
-The cross-platform spec defines verifier contracts with three methods: `verifyConfig`, `verifyBundle`, and
-`verifyEndpoints`. On Hiero, verifiers are **system contracts** deployed as smart contracts on the EVM layer
-with well-known addresses, callable from the native service layer.
+Per cross-platform spec §3.1 for the `IClprVerifier` interface definition and verification semantics. On Hiero,
+verifiers are **system contracts** deployed as EVM contracts with Hiero `AccountID`s, callable from the native
+service layer.
 
 ## 5.1 Verifier System Contracts
 
-Each verifier is deployed as a Hiero smart contract (EVM contract with a Hiero `AccountID`). The verifier contract
-implements the `IClprVerifier` interface:
-
-```solidity
-interface IClprVerifier {
-    function verifyConfig(bytes calldata proof_bytes)
-        external view returns (bytes memory /* serialized ClprLedgerConfiguration */);
-
-    function verifyBundle(bytes calldata proof_bytes)
-        external view returns (
-            bytes memory /* serialized ClprQueueMetadata */,
-            bytes[] memory /* serialized ClprMessagePayload[] */
-        );
-
-    function verifyEndpoints(bytes calldata proof_bytes)
-        external view returns (bytes[] memory /* serialized ClprEndpoint[] */);
-}
-```
+Each verifier is deployed as a Hiero smart contract (EVM contract with a Hiero `AccountID`) implementing the
+`IClprVerifier` interface (spec §3.1).
 
 **On Hiero-to-Hiero connections:** The verifier for Hiero proofs (the "HederaProofs-Hiero" verifier) validates
 TSS signatures and Merkle paths. This is expected to be the first verifier implementation.
@@ -787,9 +671,11 @@ Ethereum's sync committee.
 ## 5.2 Implementation Fingerprint (Code Hash)
 
 On Hiero, the verifier's implementation fingerprint is computed as the `keccak256` hash of the deployed contract's
-EVM bytecode. This matches the EVM `EXTCODEHASH` semantic. The CLPR service computes this fingerprint during
-Connection registration and verifier updates by reading the contract's bytecode from the smart contract service
-state.
+EVM bytecode. This matches the EVM `EXTCODEHASH` semantic. During connection registration and verifier updates,
+the CLPR service computes this fingerprint by reading the contract's bytecode from the smart contract service
+state and checks it against the **local** `ApprovedVerifiers` list (the `APPROVED_VERIFIERS` singleton). This
+ensures only verifiers explicitly approved by this ledger's admin can be used to verify other chains' proofs
+on this ledger.
 
 ## 5.3 Verifier Invocation from Native Service
 
@@ -811,45 +697,18 @@ implementations register. This would allow native Java verifier implementations 
 **Decision needed:** The EVM dispatch approach is the default; the SPI approach is an optimization to evaluate
 during performance testing.
 
-## 5.4 Built-in ZK Verifier
-
-The built-in ZK verifier (used only for Connection registration and the ZK recovery path of
-`updateConnectionVerifier`) is hardcoded into the CLPR service implementation itself. It is a Java class that
-implements ZK proof verification directly, not a smart contract.
-
-```java
-public interface BuiltInZkVerifier {
-    ClprLedgerConfiguration verifyConfig(byte[] zkProof);
-}
-```
-
-Upgrading the built-in ZK verifier requires a Hiero node software upgrade.
-
 ---
 
 # 6. Connector Authorization
 
-The cross-platform spec defines `IClprConnectorAuth.authorizeMessage()` as a callback to the Connector's
-authorization contract.
+Per cross-platform spec §3.2 for the `IClprConnectorAuth` interface definition and authorization semantics.
 
 ## 6.1 Authorization Contracts on Hiero
 
-On Hiero, Connector authorization contracts are **smart contracts** (EVM contracts with Hiero `AccountID`s) that
-implement the `IClprConnectorAuth` interface:
-
-```solidity
-interface IClprConnectorAuth {
-    function authorizeMessage(
-        bytes calldata sender,
-        bytes calldata target_application,
-        uint64 message_size,
-        bytes calldata message_data
-    ) external view returns (bool authorized);
-}
-```
-
-The CLPR service invokes this during `ClprSendMessage` handling via a child EVM call. The call is read-only
-(view function) and MUST NOT modify state.
+On Hiero, Connector authorization contracts are **smart contracts** (EVM contracts with Hiero `AccountID`s)
+implementing the `IClprConnectorAuth` interface (spec §3.2). The CLPR service invokes `authorizeMessage()`
+during `ClprSendMessage` handling via `HandleContext.dispatchChildTransaction()` with a
+`ContractCallTransactionBody`. The call is read-only (view function) and MUST NOT modify state.
 
 ## 6.2 Simple Connector Implementations
 
@@ -877,36 +736,10 @@ accounts and the CLPR service's custody accounting.
 
 # 7. Application Dispatch
 
-When the CLPR service processes a Data Message and dispatches it to the target application, the mechanism is
-platform-specific. On Hiero, the target application is a smart contract.
+Per cross-platform spec §3.3 for the `IClprReceiver` interface definition and callback semantics. On Hiero,
+the target application is a smart contract.
 
-## 7.1 Application Callback Interface
-
-Target applications implement a standard callback interface:
-
-```solidity
-interface IClprReceiver {
-    // Called when a cross-ledger Data Message is delivered.
-    // Returns application-specific response data (may be empty).
-    // Reverts to indicate APPLICATION_ERROR.
-    function onClprMessage(
-        bytes32 connectionId,
-        bytes calldata sender,          // Source-chain address of the original caller
-        bytes calldata connectorId,     // Source-chain Connector address
-        bytes calldata messageData      // Opaque application payload
-    ) external returns (bytes memory responseData);
-
-    // Called when a Response Message arrives for a previously sent message.
-    function onClprResponse(
-        bytes32 connectionId,
-        uint64 messageId,               // ID of the original sent message
-        uint8 status,                   // ClprMessageReplyStatus enum value
-        bytes calldata responseData     // Opaque application response payload
-    ) external;
-}
-```
-
-## 7.2 Dispatch Mechanism
+## 7.1 Dispatch Mechanism
 
 1. The CLPR service constructs a `ContractCallTransactionBody` targeting the `target_application` address with
    the `onClprMessage` function selector and ABI-encoded parameters.
@@ -919,7 +752,7 @@ interface IClprReceiver {
    all its state changes are rolled back, but the CLPR service's state changes (Connector charge, response
    generation) are retained.
 
-## 7.3 Response Delivery
+## 7.2 Response Delivery
 
 When a Response Message arrives on the source ledger:
 
@@ -928,7 +761,7 @@ When a Response Message arrives on the source ledger:
 3. If the sender is an EOA (externally owned account), the response is recorded in the transaction record but
    no callback is made. The sender polls via mirror node or subscribes to transaction records.
 
-## 7.4 Gas/Ops Limits
+## 7.3 Gas/Ops Limits
 
 On Hiero, the "gas" budget for application callbacks maps to the EVM gas limit for the child contract call.
 `max_gas_per_message` from the ledger configuration is the hard cap. The CLPR service sets this as the gas limit
@@ -943,13 +776,16 @@ change.
 
 # 8. Security Model
 
+For cross-platform security properties (reentrancy patterns, queue monopolization principles, threat model),
+see cross-platform spec §8. This section covers Hiero-specific security mechanisms.
+
 ## 8.1 Permissioned Endpoints
 
 On Hiero, all CLPR endpoints are consensus nodes governed by the Hedera council (on mainnet) or the network
 operator (on testnets and HashSpheres). This provides strong Sybil resistance without requiring endpoint bonds.
 
-**Implication:** The `registerEndpoint` and `deregisterEndpoint` pseudo-APIs from spec section 6.5 are not
-implemented on Hiero. Endpoint set changes are automatic, driven by roster changes.
+**Implication:** The `registerEndpoint` and `deregisterEndpoint` pseudo-APIs from spec §6.5 are not implemented
+on Hiero. Endpoint set changes are automatic, driven by roster changes.
 
 **Future consideration:** If Hiero moves to permissionless node operation, CLPR endpoint bonds would need to be
 added. This is a future enhancement, not a launch requirement.
@@ -958,7 +794,8 @@ added. This is a future enhancement, not a launch requirement.
 
 The CLPR admin key is the trust anchor for all administrative operations on Hiero. It controls:
 
-- Setting the ledger configuration (chain_id, approved_verifiers, throttles)
+- Setting the ledger configuration (chain_id, throttles)
+- Managing the local ApprovedVerifiers list (adding/removing approved verifier code hashes)
 - Severing, pausing, and resuming Connections
 - Redacting messages from the outbound queue
 
@@ -969,40 +806,28 @@ network operator.
 initialized during genesis or CLPR feature activation. It can be updated via a privileged transaction (similar
 to how other system keys are managed).
 
-## 8.3 TSS Proof Generation
+## 8.3 ABFT Guarantees
 
-Hiero state proofs leverage TSS (Threshold Signature Scheme) signatures from the active validator set. The TSS
-proof attests to a specific state root hash at a specific consensus round. Combined with Merkle paths to specific
-state entries, this provides ABFT-grade proof of any state in the Merkle tree.
-
-**ABFT guarantee:** When both participating ledgers are Hiero networks with ABFT finality, CLPR inherits ABFT
-properties. There is no reorg risk, and a single honest endpoint per ledger is sufficient for correct operation.
+Hiero state proofs leverage TSS (Threshold Signature Scheme) signatures from the active validator set. When
+both participating ledgers are Hiero networks with ABFT finality, CLPR inherits ABFT properties: no reorg risk,
+and a single honest endpoint per ledger is sufficient for correct operation.
 
 ## 8.4 Reentrancy
 
-On Hiero, reentrancy is a concern when dispatching to application contracts:
-
-1. The CLPR service updates all Connection state (message IDs, running hashes, Connector charges) **before**
-   dispatching to the application callback. This is the checks-effects-interactions pattern.
-2. The application callback runs in a child transaction context with limited gas. It cannot directly call back
-   into the CLPR service's native handler code (the EVM-to-native boundary prevents this).
-3. However, the application could submit a new CLPR transaction (e.g., `ClprSendMessage`) via the HAPI gRPC
-   interface. This would go through consensus as a separate transaction and is not a reentrancy concern.
-
-**Decision:** No explicit reentrancy guard is needed in the native CLPR service code because the EVM-to-native
-boundary already prevents synchronous reentrancy. The child transaction dispatch model provides natural isolation.
+Per cross-platform spec §8.5 for the reentrancy threat model. On Hiero, the EVM-to-native boundary prevents
+synchronous reentrancy: application callbacks run in a child transaction context and cannot call back into the
+CLPR service's native handler code. No explicit reentrancy guard is needed. An application could submit a new
+CLPR transaction via the HAPI gRPC interface, but that goes through consensus as a separate transaction.
 
 ## 8.5 Queue Monopolization Mitigation
 
-The cross-platform spec section 8.9 identifies queue monopolization as a DoS vector. On Hiero, the initial
-mitigation is:
+Per cross-platform spec §8.9 for the queue monopolization threat model. Hiero-specific parameters:
 
-1. **Per-Connector queue quota:** Each Connector is limited to occupying at most 50% of the `max_queue_depth`
-   for a Connection. This prevents a single Connector from filling the entire queue.
-2. **Fee escalation:** As the queue fills beyond 75% capacity, the fee for `ClprSendMessage` increases linearly,
-   making queue flooding progressively more expensive.
+1. **Per-Connector queue quota:** 50% of `max_queue_depth` (`clpr.connectorQueueQuotaPct`).
+2. **Fee escalation threshold:** 75% queue capacity (`clpr.queueFeeEscalationThresholdPct`), with linear
+   fee increase for `ClprSendMessage` beyond this point.
 
-These parameters are configurable via the CLPR config properties.
+These parameters are configurable via the CLPR config properties (see [section 9](#9-configuration)).
 
 ---
 
@@ -1010,21 +835,18 @@ These parameters are configurable via the CLPR config properties.
 
 ## 9.1 Configuration Properties (clpr.properties)
 
-These are node-local or network-wide configuration properties managed through Hiero's standard config system
-(property files / dynamic config).
+Cross-platform configuration parameters (throttles, queue limits, message sizes) are defined in cross-platform
+spec §7. These are node-local or network-wide configuration properties managed through Hiero's standard config
+system (property files / dynamic config).
+
+**Hiero-specific properties** (no cross-platform equivalent):
 
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `clpr.enabled` | `boolean` | `false` | Master enable switch. When false, all CLPR transactions return `NOT_SUPPORTED`. |
-| `clpr.connectionFrequency` | `long` (ms) | `5000` | How frequently endpoints initiate sync calls to peers. |
+| `clpr.defaultSyncsPerSec` | `int` | `1` | Conservative default sync rate per endpoint when peer's `max_syncs_per_sec` is not yet known. |
 | `clpr.endpointPort` | `int` | `50212` | Port for the `ClprEndpointService` gRPC server. |
 | `clpr.publicizeNetworkAddresses` | `boolean` | `true` | Whether to include service endpoint addresses in the endpoint roster. |
-| `clpr.maxQueueDepth` | `int` | `10000` | Maximum unacknowledged messages per Connection outbound queue. |
-| `clpr.maxMessagePayloadBytes` | `int` | `16384` | Maximum payload size for a single message (16 KB). |
-| `clpr.maxMessagesPerBundle` | `int` | `100` | Maximum messages per bundle. |
-| `clpr.maxGasPerMessage` | `long` | `1000000` | Maximum gas (EVM) allocated per application dispatch. |
-| `clpr.maxSyncsPerSec` | `int` | `2` | Advisory max sync frequency. |
-| `clpr.maxSyncPayloadBytes` | `long` | `4194304` | Maximum sync payload size (4 MB). |
 | `clpr.minConnectionDeposit` | `long` (tinybars) | TBD | Minimum anti-griefing deposit required for Connection registration. Returned on sever. |
 | `clpr.minConnectorStake` | `long` (tinybars) | TBD | Minimum Connector stake requirement. |
 | `clpr.minConnectorBalance` | `long` (tinybars) | TBD | Minimum Connector initial balance. |
@@ -1034,35 +856,27 @@ These are node-local or network-wide configuration properties managed through Hi
 | `clpr.slashEscalationMultiplier` | `double` | `2.0` | Multiplier applied to slash amount for each subsequent offense. |
 | `clpr.slashBanThreshold` | `int` | `3` | Number of slashes before a Connector is banned. |
 
-## 9.2 On-Ledger Configuration (State)
+**Hiero defaults for cross-platform parameters** (spec §7):
 
-The `ClprLedgerConfiguration` singleton in state contains the parameters that are published to peers and enforced
-cross-ledger:
+| Property | Type | Hiero Default | Spec Parameter |
+|---|---|---|---|
+| `clpr.maxQueueDepth` | `int` | `10000` | `max_queue_depth` |
+| `clpr.maxMessagePayloadBytes` | `int` | `16384` | `max_message_payload_bytes` |
+| `clpr.maxMessagesPerBundle` | `int` | `100` | `max_messages_per_bundle` |
+| `clpr.maxGasPerMessage` | `long` | `1000000` | `max_gas_per_message` |
+| `clpr.maxSyncsPerSec` | `int` | `2` | `max_syncs_per_sec` |
+| `clpr.maxSyncBytes` | `long` | `4194304` | `max_sync_bytes` |
 
-- `protocol_version`
-- `chain_id`
-- `service_address`
-- `approved_verifiers`
-- `timestamp`
-- `throttles` (contains `max_messages_per_bundle`, `max_syncs_per_sec`, `max_message_payload_bytes`,
-  `max_gas_per_message`, `max_queue_depth`, `max_sync_payload_bytes`)
-
-These are updated via the `ClprSetLedgerConfiguration` transaction (admin-only). Changes are propagated to peers
-lazily via ConfigUpdate Control Messages: the handler increments the `global_config_version` counter, and each
-Connection's next `ClprSubmitBundle` or `ClprSendMessage` interaction checks whether its `local_config_version`
-is behind and enqueues a ConfigUpdate if so (see sections 3.2.1 step 7 and 3.2.2 step 2).
-
-## 9.3 Relationship Between Config and State
+## 9.2 Relationship Between Config and State
 
 - **Config properties** (`clpr.properties`) control node behavior: sync frequency, port, feature flag, economic
   parameters (slash amounts, minimums).
 - **State configuration** (`ClprLedgerConfiguration`) controls protocol behavior: throttles, verifier endorsements,
   chain identity. These are the parameters that peers see and enforce.
 
-Some parameters appear in both: `maxQueueDepth`, `maxMessagePayloadBytes`, etc. exist as config properties (for
-node defaults) and in the on-ledger configuration (for cross-ledger enforcement). The on-ledger values are
+Some parameters appear in both (e.g., `maxQueueDepth`, `maxMessagePayloadBytes`). The on-ledger values are
 authoritative for cross-ledger purposes. The config property values serve as initial defaults when the CLPR admin
-first sets the ledger configuration.
+first sets the ledger configuration via `ClprSetLedgerConfiguration`.
 
 ---
 
@@ -1080,8 +894,8 @@ Each handler registers a `ServiceFeeCalculator`:
 | Transaction | Fee Basis | Notes |
 |---|---|---|
 | `ClprSetLedgerConfiguration` | Fixed base only (O(1) — no per-Connection cost) | Admin operation; relatively rare. Config propagation is lazy, so no per-Connection enqueue at set time. |
-| `ClprRegisterConnection` | Fixed base + ZK verification cost | Most expensive registration; ZK proof verification is computationally intensive |
-| `ClprUpdateConnectionVerifier` | Fixed base + optional ZK cost | Lower if local check path; higher if ZK path |
+| `ClprRegisterConnection` | Fixed base + ECDSA verification cost | Code hash check against local ApprovedVerifiers; no ZK verification |
+| `ClprUpdateConnectionVerifier` | Fixed base | Code hash check against local ApprovedVerifiers only |
 | `ClprRecoverEndpointRoster` | Fixed base + verification cost | |
 | `ClprSeverConnection` | Fixed base | Low; state transition only |
 | `ClprPauseConnection` | Fixed base | Low |

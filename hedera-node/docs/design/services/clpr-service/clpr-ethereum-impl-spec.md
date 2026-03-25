@@ -152,25 +152,23 @@ interface IClprService {
     ///        Signed payload: keccak256(abi.encodePacked(connectionId, verifierContract,
     ///        address(this), block.chainid)).
     /// @param verifierContract Address of the locally deployed verifier contract.
-    /// @param zkProof ZK proof attesting to the peer ledger's configuration.
+    ///        The contract's EXTCODEHASH must match an entry in the local ApprovedVerifiers.
     /// @param seedEndpoints ABI-encoded array of ClprEndpoint structs.
     function registerConnection(
         bytes32 connectionId,
         bytes calldata ecdsaPublicKey,
         bytes calldata ecdsaSignature,
         address verifierContract,
-        bytes calldata zkProof,
         bytes calldata seedEndpoints
     ) external payable;
 
     /// @notice Update the verifier contract on an existing Connection. Permissionless.
+    /// @dev The new verifier contract's EXTCODEHASH must match an entry in the local ApprovedVerifiers.
     /// @param connectionId The Connection ID.
     /// @param verifierContract Address of the new verifier contract.
-    /// @param zkProof Optional ZK proof for the recovery path. Pass empty bytes for local check.
     function updateConnectionVerifier(
         bytes32 connectionId,
-        address verifierContract,
-        bytes calldata zkProof
+        address verifierContract
     ) external;
 
     /// @notice Recover a Connection's peer endpoint roster from a state proof. Permissionless.
@@ -341,35 +339,24 @@ interface IClprService {
 
 ## 2.2 IClprVerifier
 
+These Solidity interfaces implement the cross-platform verification and authorization interfaces
+(spec §3.1, §3.2).
+
 ```solidity
 /// @title IClprVerifier
-/// @notice Interface for verifier contracts deployed per-Connection.
-/// @dev Implements Spec section 3.1 verification interfaces.
-///      Verifier contracts are deployed by the source ledger's ecosystem
-///      and endorsed via ApprovedVerifiers in the source ledger's configuration.
+/// @dev Solidity mapping of the cross-platform verification interface (spec §3.1).
+///      Called via STATICCALL; MUST NOT modify state. MUST revert on verification failure.
 interface IClprVerifier {
 
-    /// @notice Verify a configuration proof and return the verified configuration.
-    /// @dev Used during registerConnection and updateConnectionVerifier (ZK path).
-    ///      MUST revert if verification fails. SHOULD fail fast on malformed inputs.
-    /// @param proofBytes Opaque proof bytes from the source ledger's proof system.
-    /// @return configuration ABI-encoded ClprLedgerConfiguration.
+    /// @dev Returns ABI-encoded ClprLedgerConfiguration.
     function verifyConfig(bytes calldata proofBytes)
         external view returns (bytes memory configuration);
 
-    /// @notice Verify a bundle proof and return verified queue metadata and messages.
-    /// @dev Used during submitBundle. MUST revert if verification fails.
-    ///      SHOULD fail fast on obviously malformed inputs before expensive crypto.
-    /// @param proofBytes Opaque proof bytes from the source ledger's proof system.
-    /// @return metadata ABI-encoded ClprQueueMetadata.
-    /// @return messages ABI-encoded array of ClprMessagePayload.
+    /// @dev Returns ABI-encoded ClprQueueMetadata and ClprMessagePayload[].
     function verifyBundle(bytes calldata proofBytes)
         external view returns (bytes memory metadata, bytes memory messages);
 
-    /// @notice Verify an endpoint roster proof and return verified endpoints.
-    /// @dev Used during recoverEndpointRoster. MUST revert if verification fails.
-    /// @param proofBytes Opaque proof bytes from the source ledger's proof system.
-    /// @return endpoints ABI-encoded array of ClprEndpoint.
+    /// @dev Returns ABI-encoded ClprEndpoint[].
     function verifyEndpoints(bytes calldata proofBytes)
         external view returns (bytes memory endpoints);
 }
@@ -379,21 +366,13 @@ interface IClprVerifier {
 
 ```solidity
 /// @title IClprConnectorAuth
-/// @notice Interface for Connector authorization contracts.
-/// @dev Implements Spec section 3.2 Connector Authorization Interface.
-///      Called by the ClprService when an application submits a message.
-///      MUST NOT modify ClprService state. MUST be deterministic.
+/// @dev Solidity mapping of the cross-platform Connector authorization interface (spec §3.2).
+///      Called with a gas stipend of 100,000 gas (see section 7). NOT a STATICCALL — the
+///      Connector may update its own internal state (e.g., rate limit counters). MUST NOT
+///      modify ClprService state (reentrancy guard prevents this).
 interface IClprConnectorAuth {
 
-    /// @notice Authorize a message for cross-ledger delivery.
-    /// @dev By returning true, the Connector commits that its counterpart on the
-    ///      destination ledger has sufficient funds for execution.
-    ///      Called with a gas stipend of 100,000 gas (see section 7).
-    /// @param sender The msg.sender of the sendMessage call (source-chain address).
-    /// @param targetApplication Destination application address.
-    /// @param messageSize Payload size in bytes (convenience parameter).
-    /// @param messageData Opaque application payload.
-    /// @return authorized True if the Connector authorizes this message.
+    /// @dev Returns true to authorize. Revert or false rejects the message.
     function authorizeMessage(
         address sender,
         bytes calldata targetApplication,
@@ -615,6 +594,13 @@ bytes internal _ledgerConfiguration;
 // Slot 2: global config version counter (incremented by setLedgerConfiguration)
 uint256 public globalConfigVersion;
 
+// --- Approved Verifiers ---
+// Slot N-1: mapping from EXTCODEHASH to approval status.
+// Managed by ADMIN_ROLE. A verifier contract's code hash must be present
+// in this mapping for registerConnection and updateConnectionVerifier to accept it.
+// See cross-platform spec §8.8 (ApprovedVerifiers).
+mapping(bytes32 => bool) internal _approvedVerifiers;
+
 // --- Connections ---
 // Slot N: mapping from connectionId to Connection struct
 mapping(bytes32 => Connection) internal _connections;
@@ -659,7 +645,7 @@ struct Connection {
     // --- Verifier (slot 5) ---
     address verifierContract;          // 20 bytes
     // verifierFingerprint stored separately (32 bytes, does not pack well)
-    bytes32 verifierFingerprint;       // EXTCODEHASH endorsed by peer (slot 6)
+    bytes32 verifierFingerprint;       // EXTCODEHASH matched against local ApprovedVerifiers at registration (slot 6)
 
     // --- Status (slot 7, packed with queue metadata) ---
     uint8 status;                      // 0=UNSET, 1=ACTIVE, 2=PAUSED, 3=SEVERED, 4=HALTED
@@ -679,7 +665,7 @@ struct Connection {
     uint32 maxMessagePayloadBytes;
     uint64 maxGasPerMessage;
     uint32 maxQueueDepth;
-    uint64 maxSyncPayloadBytes;
+    uint64 maxSyncBytes;
 
     // --- Accounting ---
     // nextResponseExpectedId is a gas-efficient counter-based optimization of the
@@ -762,6 +748,10 @@ a single SLOAD per access.
 ---
 
 # 4. Endpoint Registration and Bond Management
+
+For the off-chain registration CLI, auto-registration flow, and bond status monitoring, see
+[clpr-besu-endpoint-spec.md §8](clpr-besu-endpoint-spec.md#8-endpoint-registration-and-bond-management).
+This section covers on-chain contract state and logic.
 
 ## 4.1 Dual-Key Requirement
 
@@ -969,6 +959,10 @@ initial deployment.
 
 # 6. Verifier Contract Standard
 
+For the proof bytes format and construction pipeline, see
+[clpr-besu-endpoint-spec.md §6](clpr-besu-endpoint-spec.md#6-proof-bytes-format). This section covers
+how on-chain verifier contracts validate proofs.
+
 ## 6.1 Ethereum-Specific Verifier Requirements
 
 Each verifier contract deployed on Ethereum MUST implement `IClprVerifier` (section 2.2). The verifier is
@@ -1006,16 +1000,16 @@ EIP-2537 is activated on mainnet.
 
 ## 6.3 EXTCODEHASH Fingerprint Verification
 
-The verifier's legitimacy is checked during `registerConnection` by comparing `EXTCODEHASH(verifierContract)`
-against the peer's `ApprovedVerifiers` entries. This is a single opcode costing 2,600 gas (cold) or 100 gas
-(warm).
+The verifier's legitimacy is checked during `registerConnection` and `updateConnectionVerifier` by comparing
+`EXTCODEHASH(verifierContract)` against the **local** ledger's `ApprovedVerifiers` mapping (see section 3.1).
+This is a single opcode costing 2,600 gas (cold) or 100 gas (warm).
 
 ```solidity
 bytes32 codeHash;
 assembly {
     codeHash := extcodehash(verifierContract)
 }
-require(isApprovedFingerprint(peerConfig, codeHash), "Verifier not endorsed");
+require(_approvedVerifiers[codeHash], "Verifier not approved");
 ```
 
 **Proxy considerations.** When a verifier is behind an EIP-1967 proxy, `EXTCODEHASH` returns the hash of the
@@ -1024,43 +1018,14 @@ Changing the proxy's implementation does not change `EXTCODEHASH`, so upgrades t
 require re-registration. This is by design (Spec section 8.8) and acceptable only if the proxy's upgrade
 authority is controlled by the source ledger's CLPR Service admin.
 
-## 6.4 Built-in ZK Verifier
-
-The ClprService contract includes a hardcoded ZK verifier function used exclusively for connection registration
-and the recovery path of `updateConnectionVerifier`. This verifier validates a zero-knowledge proof attesting
-to a peer ledger's configuration state.
-
-**Implementation options (choose one per deployment):**
-
-1. **Groth16 verifier** -- ~230,000 gas per proof. Compact proof size (~128 bytes). Requires trusted setup.
-   Well-suited for Ethereum due to low on-chain verification cost.
-2. **PLONK verifier** -- ~300,000 gas per proof. No trusted setup. Slightly larger proofs (~512 bytes).
-3. **STARK verifier** -- ~500,000+ gas per proof. No trusted setup. Large proofs (~50-200 KB). Higher calldata cost.
-
-The recommended choice is **Groth16** for initial deployment due to lowest gas cost, with a migration path to
-PLONK if the trusted setup is deemed unacceptable for governance.
-
-The built-in ZK verifier is compiled into the ClprService implementation contract. Upgrading the ZK verifier
-requires upgrading the ClprService implementation via the proxy.
-
 ---
 
 # 7. Connector Authorization
 
+Per cross-platform spec §4.3 for the generic authorization flow. This section covers
+Solidity-specific call mechanics, gas stipends, and reentrancy considerations.
+
 ## 7.1 Authorization Call Mechanics
-
-When `sendMessage` is called, the ClprService performs the following before enqueuing the user's message:
-
-1. `require(clprEnabled)` -- global enable check.
-2. Load `connection = _connections[connectionId]`. Require `connection.status == ACTIVE`.
-3. **Lazy Config Propagation:** If `connection.localConfigVersion < globalConfigVersion`, enqueue a ConfigUpdate
-   Control Message containing the current `_ledgerConfiguration`, then set
-   `connection.localConfigVersion = globalConfigVersion`. This amortizes config propagation cost across
-   interactions rather than paying it all in `setLedgerConfiguration`.
-4. Invoke `IClprConnectorAuth.authorizeMessage()` on the Connector's contract (see below).
-5. Enqueue the user's Data Message in the Connection's outbound queue.
-
-The Connector authorization call:
 
 ```solidity
 (bool success, bytes memory result) = connectorContract.call{gas: CONNECTOR_AUTH_GAS_STIPEND}(
@@ -1076,39 +1041,22 @@ require(success && abi.decode(result, (bool)), "Connector rejected");
 while allowing moderate logic (allow-list lookups, rate limit checks, signature verification). Connectors
 that need more gas can use a two-step pattern (pre-authorize off-chain, verify on-chain).
 
-## 7.2 Reentrancy Protection
+**Reentrancy protection:** The `authorizeMessage` call hands execution to external code. The ClprService
+ensures no connection state is updated before the call (checks-effects-interactions). A global reentrancy
+guard (`_reentrancyStatus`, see section 8.4) prevents the Connector from calling back into any
+ClprService state-modifying function. The call is NOT a `STATICCALL` because the Connector may update
+its own internal state (e.g., rate limit counters).
 
-The `authorizeMessage` call hands execution to external code. The ClprService MUST:
+## 7.2 Connector Payment and Slashing
 
-1. **NOT** have updated any connection state before the authorization call. The call happens during
-   validation, before the message is enqueued (checks-effects-interactions).
-2. Use a reentrancy guard (`_reentrancyStatus`) on `sendMessage`, `submitBundle`, and all other
-   state-modifying functions. If the Connector's `authorizeMessage` attempts to call back into
-   any ClprService state-modifying function, the call reverts.
+Per cross-platform spec §4.6 for generic slashing rules. In Solidity, Connector charges and slashing
+are computed during `submitBundle` message dispatch:
 
-The authorization call is NOT a `STATICCALL` because the Connector may need to update its own internal state
-(e.g., decrement a rate limit counter, record a payment). However, it MUST NOT modify ClprService state.
+- Charge formula: `gasCost + margin` where `margin = max(gasCost * 10 / 100, 0.001 ether)`.
+- Insufficient balance triggers slash from `lockedStake` and a `CONNECTOR_UNDERFUNDED` response.
+- Slash proceeds transfer to the submitting endpoint (`msg.sender`).
 
-## 7.3 Connector Payment and Slashing
-
-**Charging during Data Message dispatch** (within `submitBundle`):
-
-```
-For each Data Message:
-  1. Resolve sourceConnectorAddress -> local Connector via _connectors mapping.
-  2. If Connector not found: generate CONNECTOR_NOT_FOUND response. Submitter absorbs cost.
-  3. Calculate charge = gasCost + margin (margin = 10% of gasCost, minimum 0.001 ETH).
-  4. If Connector.balance < charge:
-     a. Slash min(Connector.lockedStake, SLASH_AMOUNT) -> submitter.
-     b. Generate CONNECTOR_UNDERFUNDED response.
-     c. Increment Connector.slashCount.
-     d. If slashCount >= MAX_SLASH_BEFORE_BAN: set Connector.active = false.
-  5. Else: deduct charge from Connector.balance. Credit margin to submitter.
-  6. Dispatch to application (see section 8).
-  7. Enqueue response in outbound queue.
-```
-
-**Slashing schedule:**
+**Escalating slashing schedule (Ethereum-specific):**
 
 | Occurrence | Fine                         | Action                                |
 |------------|------------------------------|---------------------------------------|
@@ -1121,16 +1069,11 @@ For each Data Message:
 
 # 8. Application Dispatch
 
+Per cross-platform spec §4.2 for the generic message dispatch algorithm. This section covers the
+Solidity-specific implementation: checks-effects-interactions ordering, gas stipends, low-level call
+mechanics, `nextResponseExpectedId` optimization, and HALTED recovery via EIP-1967 proxy.
+
 ## 8.1 Data Message Dispatch
-
-When a verified Data Message is dispatched to its target application:
-
-> **Normative note:** State updates to `receivedMessageId` and `receivedRunningHash` occur before each
-> individual application callback. If the callback reverts (caught by try/catch), the state update is NOT
-> rolled back -- the message is considered received and delivered regardless of the application's response.
-> This is consistent with the cross-platform spec's requirement that inbound processing is not contingent
-> on application behavior. The `submitBundle` step 18 reference to updating these fields refers to the
-> cumulative result after all per-message updates in the dispatch loop, not a separate single update.
 
 ```solidity
 // State updates BEFORE external call (checks-effects-interactions)
@@ -1158,34 +1101,31 @@ if (success) {
 _enqueueResponse(connectionId, messageId, replyStatus, responseData);
 ```
 
-## 8.2 Response Message Delivery
+> **Solidity note:** State updates to `receivedMessageId` and `receivedRunningHash` occur before each
+> individual application callback. If the callback reverts (caught by try/catch), the state update is NOT
+> rolled back -- the message is considered received regardless of the application's response.
+
+## 8.2 Response Ordering Verification
+
+The cross-platform spec §4.5 defines response ordering requirements. In Solidity, this is implemented
+via a `nextResponseExpectedId` counter -- a gas-efficient optimization of the spec's walk-based approach.
+Instead of walking the outbound queue from the beginning on every response, this counter tracks the
+current position, advancing via `_nextDataMessageId()` after each response delivery.
 
 ```solidity
-// Decode the target application from the original sent message
-bytes memory originalPayload = _messageQueue[connectionId][response.messageId].payload;
-address targetApp = _extractSenderApp(originalPayload);
-
-// --- Response ordering verification FIRST (Spec section 4.5) ---
-// The ordering check MUST happen BEFORE delivering the response to the application.
-// If the ordering is violated, the Connection is HALTED and no delivery occurs.
+// --- Response ordering verification FIRST ---
 if (response.messageId != connection.nextResponseExpectedId) {
     connection.status = 4; // HALTED
     emit ConnectionStatusChanged(connectionId, 1 /* ACTIVE */, 4 /* HALTED */);
-    // DO NOT deliver the response. DO NOT delete the outbound message.
-    return; // or revert the entire bundle -- implementation choice
+    return; // DO NOT deliver the response or delete the outbound message
 }
 
-// --- Deliver response (failure here does NOT affect protocol state) ---
-// EOA handling: if targetApp has no code (is an EOA), the low-level call succeeds
-// silently with empty return data. The response is considered delivered and logged
-// in the ResponseDelivered event. EOA users who need callback functionality should
-// use a thin proxy/forwarder contract.
+// --- Deliver response (failure does NOT affect protocol state) ---
+// EOA handling: if targetApp has no code, the call succeeds silently.
+// EOA users should use a thin proxy/forwarder contract for callbacks.
 if (targetApp.code.length > 0) {
     try IClprApplication(targetApp).onClprResponse(
-        connectionId,
-        response.messageId,
-        response.status,
-        response.messageReplyData
+        connectionId, response.messageId, response.status, response.messageReplyData
     ) {} catch {
         emit ResponseDeliveryFailed(connectionId, response.messageId);
     }
@@ -1198,14 +1138,8 @@ connection.nextResponseExpectedId = _nextDataMessageId(connectionId, response.me
 delete _messageQueue[connectionId][response.messageId];
 ```
 
-**`_nextDataMessageId(connectionId, messageId)` helper:** Scans the outbound queue forward from the given
-`messageId`, skipping Response and Control messages, returning the next Data Message ID. Returns
-`type(uint64).max` if no more Data Messages exist (meaning no further responses are expected).
-
-**Only response ordering violations trigger HALTED.** Verification failures in `submitBundle` (steps 1-4)
-simply revert the transaction with no Connection state change. The HALTED state is reserved exclusively
-for the case where a peer sends responses out of order, which indicates a protocol-level inconsistency
-that cannot be resolved without intervention.
+**`_nextDataMessageId` helper:** Scans the outbound queue forward, skipping Response and Control messages,
+returning the next Data Message ID. Returns `type(uint64).max` if no more Data Messages exist.
 
 ## 8.3 Gas Stipend for Application Callbacks
 
@@ -1270,70 +1204,26 @@ registration and loss of all in-flight messages.
 
 # 9. Security Model
 
-## 9.1 Reentrancy
+For cross-platform security concerns (reentrancy, front-running/MEV, gas griefing, DoS via queue
+monopolization), see spec §8.4, §8.5, §8.6, and §8.9 respectively. The Solidity reentrancy guard
+implementation is in section 8.4 of this document. This section covers EVM-specific security
+considerations that go beyond the cross-platform spec.
 
-**Attack:** A malicious target application receives a message dispatch and calls back into `submitBundle`,
-`sendMessage`, or another state-modifying function to manipulate Connection state mid-dispatch.
-
-**Mitigation:** Global reentrancy guard (section 8.4). ALL state-modifying functions are protected. The
-checks-effects-interactions pattern is followed: all Connection state (message IDs, running hashes,
-Connector charges) is updated BEFORE the external call to the application.
-
-**Residual risk:** The application callback CAN call other contracts and CAN call `view` functions on
-ClprService. This is intentional -- applications need to read state. View functions are safe because they
-do not modify state.
-
-## 9.2 Front-Running and MEV
-
-**Attack:** A MEV searcher observes a `submitBundle` transaction in the mempool and front-runs it with
-their own `submitBundle` containing the same proof bytes. The original submitter's transaction then fails
-(duplicate bundle / replay defense), and the front-runner earns the Connector reimbursement.
-
-**Mitigation options (recommended: option B):**
-
-- **A. Commit-reveal:** The endpoint commits to a hash of the bundle, then reveals. Two transactions,
-  higher cost, slower.
-- **B. Submitter binding:** The proof bytes include the submitter's address, and the verifier validates
-  that `msg.sender` matches the bound address. This requires verifier cooperation but prevents replay
-  by a different submitter. The remote endpoint signs `hash(proof_bytes || submitter_address)`, binding
-  the bundle to a specific local endpoint.
-- **C. Flashbots/private mempools:** Use Flashbots Protect or similar private transaction submission to
-  avoid mempool exposure. Works but is infrastructure-dependent.
-
-**Recommended approach:** Option B (submitter binding) as the primary defense, with option C as an
-operational best practice for endpoint operators.
-
-## 9.3 Gas Griefing
-
-**Attack 1: Large calldata.** An attacker submits a `submitBundle` with extremely large `proofBytes` that
-are valid enough to pass initial checks but cause the verifier to consume excessive gas before reverting.
-
-**Mitigation:** Verifier contracts SHOULD fail fast on malformed inputs (Spec section 3.1). The
-`maxSyncPayloadBytes` configuration bounds the total payload size. The ClprService SHOULD check
-`proofBytes.length <= maxSyncPayloadBytes` before calling the verifier.
-
-**Attack 2: Application gas consumption.** A malicious application's `onClprMessage` consumes exactly
-`maxGasPerMessage` gas doing nothing useful, wasting the Connector's funds.
-
-**Mitigation:** This is the Connector's problem. Connectors SHOULD only authorize messages to applications
-they trust. The `maxGasPerMessage` bounds the worst case. Connectors can use their `authorizeMessage` logic
-to reject messages to untrusted applications.
-
-## 9.4 Storage Collision
+## 9.1 Storage Collision
 
 **Mitigation:** The ClprService uses OpenZeppelin's storage layout conventions. The EIP-1967 proxy
 uses well-known storage slots (`0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc` for
 implementation, etc.). The implementation contract uses sequential storage slots starting from slot 0.
 Upgrades MUST be tested with OpenZeppelin's storage layout compatibility checker.
 
-## 9.5 Upgradeable Proxy Security
+## 9.2 Upgradeable Proxy Security
 
 - The `ProxyAdmin` is behind a `TimelockController` with a 48-hour delay.
 - The governance multisig requires M-of-N signatures (recommended: 3-of-5 minimum).
 - An `UpgradeScheduled` event is emitted when an upgrade is proposed, giving the community time to review.
 - The proxy cannot be upgraded by the implementation contract itself (transparent proxy pattern).
 
-## 9.6 Flash Loan Attacks on Bonds
+## 9.3 Flash Loan Attacks on Bonds
 
 **Attack:** An attacker takes a flash loan to temporarily hold enough ETH to register as an endpoint
 (meeting `MIN_ENDPOINT_BOND`), submits a malicious bundle, and repays the loan in the same transaction.
@@ -1343,22 +1233,6 @@ withdrawal. Since flash loans must be repaid within the same transaction, the at
 their bond, making the attack unprofitable. Additionally, `registerEndpoint` and `submitBundle` are
 protected by the reentrancy guard, so they cannot be called in the same transaction by the same contract.
 
-## 9.7 Denial of Service via Queue Monopolization
-
-**Attack:** A Connector authorizes a flood of messages to fill a Connection's queue to `maxQueueDepth`,
-blocking all other Connectors.
-
-**Mitigation (to be implemented):**
-
-1. **Per-Connector queue quota:** Each Connector may occupy at most `maxQueueDepth / maxConnectorsPerConnection`
-   queue slots. Exceeding the quota rejects the message.
-2. **Escrow at send time:** Each `sendMessage` call escrows a small deposit (e.g., 0.0001 ETH) from the sender,
-   returned when the response arrives. This makes queue monopolization expensive.
-3. **Priority pricing:** Queue slot cost increases as occupancy grows (similar to EIP-1559 base fee).
-
-The specific mitigation is an open design question (Spec section 8.9). The initial implementation SHOULD use
-per-Connector queue quotas as the simplest effective mitigation.
-
 ---
 
 # 10. Gas Economics
@@ -1367,8 +1241,8 @@ per-Connector queue quotas as the simplest effective mitigation.
 
 | Operation                      | Estimated Gas     | Who Pays                              | Notes                                         |
 |--------------------------------|-------------------|---------------------------------------|-----------------------------------------------|
-| `registerConnection`           | 400,000 - 600,000 | Caller (permissionless)              | Also requires MIN_CONNECTION_DEPOSIT in ETH   |
-| `updateConnectionVerifier`     | 100,000 - 400,000 | Caller (permissionless)              |                                               |
+| `registerConnection`           | 150,000 - 250,000 | Caller (permissionless)              | Also requires MIN_CONNECTION_DEPOSIT in ETH. No ZK proof; EXTCODEHASH check only. |
+| `updateConnectionVerifier`     | 50,000 - 100,000  | Caller (permissionless)              | EXTCODEHASH check against local ApprovedVerifiers |
 | `registerConnector`            | 150,000           | Connector admin                       |                                               |
 | `registerEndpoint`             | 80,000            | Endpoint operator                     |                                               |
 | `sendMessage` (enqueue)        | 80,000 - 175,000  | Message sender                        | +~25K if lazy ConfigUpdate is enqueued        |
@@ -1537,7 +1411,7 @@ With `maxQueueDepth = 1,000` and average execution cost of 0.0005 ETH: `MIN_CONN
 
 **Spec gap:** Spec section 8.9 notes queue monopolization as an open design issue.
 
-**Ethereum decision:** Per-Connector queue quotas as the initial mitigation (section 9.7). The maximum
+**Ethereum decision:** Per-Connector queue quotas as the initial mitigation (see spec §8.9). The maximum
 messages per Connector on a Connection is `maxQueueDepth / 2`, ensuring at least two Connectors can share
 the queue. This is a conservative starting point; more sophisticated mechanisms (escrow, priority pricing)
 can be introduced via governance upgrade.
@@ -1666,7 +1540,7 @@ same Connection simultaneously (possible on Ethereum where transactions are unor
 **Resolution:** The replay defense (Spec section 4.2, step 3) ensures that only one bundle can succeed --
 the second bundle's first message ID will not equal `receivedMessageId + 1` and will be rejected. The
 losing endpoint pays their transaction's gas cost. This is an expected cost of operating on a permissionless
-network and is mitigated by the submitter-binding mechanism (section 9.2, option B).
+network and is mitigated by the submitter-binding mechanism (spec §8.5).
 
 ### 13.3.3 Response Delivery Failure
 
@@ -1694,12 +1568,11 @@ parameter is needed.
 
 | Operation                  | Gas Required    | Feasible? | Notes                                  |
 |----------------------------|-----------------|-----------|----------------------------------------|
-| Connection registration    | ~500,000        | Yes       | One-time cost                          |
+| Connection registration    | ~200,000        | Yes       | One-time cost; EXTCODEHASH check only  |
 | Message enqueue            | ~100,000        | Yes       | Comparable to a Uniswap swap           |
 | Bundle (10 msgs, 2M gas/msg) | ~22,000,000  | Marginal  | 73% of block; at most 1/block          |
 | Bundle (10 msgs, 500K gas/msg) | ~7,000,000 | Yes       | Leaves room for other txns             |
 | BLS verification (EIP-2537) | ~185,000       | Yes       | Not yet on mainnet; pure Solidity: 1.5M+ |
-| ZK proof verification      | ~230,000        | Yes       | Groth16; one-time at registration      |
 | SHA-256 running hash (10 msgs) | ~2,000     | Yes       | Negligible                             |
 | Config update (setLedgerConfiguration) | ~50,000 | Yes  | O(1); lazy propagation amortizes enqueue cost |
 
