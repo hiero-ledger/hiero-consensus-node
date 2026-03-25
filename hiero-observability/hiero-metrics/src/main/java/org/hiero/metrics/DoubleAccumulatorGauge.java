@@ -167,7 +167,7 @@ public final class DoubleAccumulatorGauge extends SettableMetric<DoubleSupplier,
             accumulator.accumulate(value);
         }
 
-        double get() {
+        public double get() {
             return accumulator.get();
         }
 

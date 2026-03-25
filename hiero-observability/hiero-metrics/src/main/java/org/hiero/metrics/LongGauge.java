@@ -130,7 +130,7 @@ public final class LongGauge extends SettableMetric<LongSupplier, LongGauge.Meas
             container.set(value);
         }
 
-        long get() {
+        public long get() {
             return container.get();
         }
 
