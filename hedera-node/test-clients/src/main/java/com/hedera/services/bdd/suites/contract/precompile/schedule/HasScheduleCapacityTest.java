@@ -165,7 +165,6 @@ public class HasScheduleCapacityTest {
             final var scheduleAddress = new AtomicReference<Address>();
             allRunFor(
                     spec,
-                    // check schedule deleted
                     contract.call("scheduleCallWithCapacityCheckAndDeleteExample", BigInteger.valueOf(31))
                             .gas(2_000_000L)
                             .exposingResultTo(res -> scheduleAddress.set((Address) res[1]))
@@ -174,6 +173,7 @@ public class HasScheduleCapacityTest {
             final var scheduleIdString = String.valueOf(scheduleId.getScheduleNum());
             allRunFor(
                     spec,
+                    // check schedule deleted
                     getScheduleInfo(scheduleIdString)
                             .hasScheduleId(scheduleIdString)
                             .isDeleted());

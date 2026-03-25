@@ -355,8 +355,8 @@ public class ContractUpdateSuite {
                         .hasPrecheck(INVALID_ADMIN_KEY));
     }
 
-    @Tag(SERIAL)
     @HapiTest
+    @Tag(SERIAL)
     final Stream<DynamicTest> fridayThe13thSpec() {
         final var contract = "SimpleStorage";
         final var suffix = "Clone";

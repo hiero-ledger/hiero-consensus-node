@@ -429,7 +429,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                                     "Balance should decrease after failed jumbo transaction"))));
         }
 
-        @LeakyHapiTest
+        @HapiTest
         @DisplayName("Non-jumbo transaction bigger than 6kb should fail")
         // JUMBO_N_07
         public Stream<DynamicTest> nonJumboTransactionBiggerThan6kb() {
