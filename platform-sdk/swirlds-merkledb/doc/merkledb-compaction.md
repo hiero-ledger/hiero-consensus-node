@@ -181,8 +181,9 @@ less live data to copy per dead item reclaimed. The ratio has an important addit
 aggregate ratio is `Σalive / Σdead`, which describes the combined GC speed of the entire batch.
 
 Files with `totalItems == 0` are assigned `garbageRatio = 1.0` and `liveToDeadRatio = 0.0` (fastest possible GC —
-nothing to copy). This covers two cases: the file is truly empty (compaction will be a no-op, which is harmless),
-or the file was written by an older version that did not record the item count (a full compaction is needed).
+nothing to copy). This covers two cases: the file is truly empty (compaction will result in deletion of these files,
+which is harmless as they are empty), or the file was written by an older version that did not record the item count
+(a full compaction is needed).
 Files with zero dead items get `liveToDeadRatio = Double.MAX_VALUE` (no garbage — never individually selected for compaction).
 
 The scanner then applies a two-phase selection algorithm:
@@ -477,7 +478,7 @@ The following configuration parameters in `MerkleDbConfig` control compaction be
 | `compactionThreads`             | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                                                                                                                                                                                                                                                |
 | `maxCompactionLevel`            | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                                                                                                                                                                                                                                              |
 | `gcRateThreshold`               | 0.5     | Maximum live-to-dead ratio for compaction decisions. In phase 1, files whose individual ratio is below this value are selected. In phase 2, remaining files are considered for absorption as long as adding each one keeps the aggregate ratio below this value. A value of 0.5 means: for every 2 dead items, up to 1 live item can be copied. |
-| `maxCompactionDataPerLevelInKB` | 1000000 | Maximum projected output size (KB) per compaction task. Also the size cap for phase 2 absorption. Candidates are partitioned into chunks of this size. 1 GB by default.                                                                                                                                                                         |
+| `maxCompactionDataPerLevelInKB` | 1000000 | Maximum projected output size (KB) per compaction task. Also the size cap for phase 2 absorption. Candidates are partitioned into groups of this size. 1 GB by default.                                                                                                                                                                         |
 
 ### Observability
 

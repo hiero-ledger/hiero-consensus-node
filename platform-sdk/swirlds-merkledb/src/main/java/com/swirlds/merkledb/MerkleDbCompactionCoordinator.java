@@ -16,6 +16,7 @@ import com.swirlds.merkledb.files.GarbageScanner;
 import com.swirlds.merkledb.files.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.files.GarbageScanner.ScanResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.ArrayList;
@@ -89,7 +90,7 @@ class MerkleDbCompactionCoordinator {
                             .setThreadGroup(new ThreadGroup("Compaction"))
                             .setComponent(MERKLEDB_COMPONENT)
                             .setThreadName("Compacting")
-                            .setExceptionHandler((t, ex) ->
+                            .setExceptionHandler((_, ex) ->
                                     logger.error(EXCEPTION.getMarker(), "Uncaught exception during merging", ex))
                             .buildFactory());
         }
@@ -163,7 +164,7 @@ class MerkleDbCompactionCoordinator {
      *
      * @param action action to run while compaction is paused
      */
-    synchronized void pauseCompactionAndRun(IORunnable action) throws IOException {
+    synchronized void pauseCompactionAndRun(final @NonNull IORunnable action) throws IOException {
         try {
             for (final DataFileCompactor compactor : compactorsByName.values()) {
                 compactor.pauseCompaction();
@@ -357,7 +358,7 @@ class MerkleDbCompactionCoordinator {
     static List<List<DataFileReader>> splitIntoGroups(
             final @NonNull List<DataFileReader> candidates,
             final long maxProjectedBytes,
-            final @NonNull IndexedGarbageFileStats stats) {
+            final @Nullable IndexedGarbageFileStats stats) {
         if (maxProjectedBytes <= 0) {
             return List.of(candidates);
         }
@@ -388,7 +389,8 @@ class MerkleDbCompactionCoordinator {
      * Returns 0 for files with unknown item counts or files not found in the stats
      * (e.g. deleted between scan and grouping).
      */
-    static long estimateAliveBytes(final @NonNull DataFileReader reader, final @NonNull IndexedGarbageFileStats stats) {
+    static long estimateAliveBytes(
+            final @NonNull DataFileReader reader, final @Nullable IndexedGarbageFileStats stats) {
         if (stats == null) {
             return 0;
         }
@@ -417,6 +419,13 @@ class MerkleDbCompactionCoordinator {
         private final String storeName;
         private final GarbageScanner scanner;
 
+        /**
+         * Creates a new scanner task.
+         *
+         * @param taskKey   unique key for deduplication and tracking (e.g. "IdToHashChunk_scan")
+         * @param storeName store name used for keying scan results in {@link #scanResultsByStore}
+         * @param scanner   the scanner to execute
+         */
         ScannerTask(
                 final @NonNull String taskKey, final @NonNull String storeName, final @NonNull GarbageScanner scanner) {
             this.taskKey = taskKey;
@@ -456,6 +465,19 @@ class MerkleDbCompactionCoordinator {
         private final Supplier<DataFileCompactor> compactorFactory;
         private final MerkleDbConfig config;
 
+        /**
+         * Creates a new compaction task for a pre-assigned group of files.
+         *
+         * @param taskKey          unique key for deduplication and tracking
+         *                         (e.g. "IdToHashChunk_compact_0_1")
+         * @param levelKey         per-level key used for the counter-based deduplication in
+         *                         {@link #compactionTaskCounts} (e.g. "IdToHashChunk_compact_0")
+         * @param sourceLevel      compaction level of the input files
+         * @param assignedFiles    pre-assigned group of files to compact (non-overlapping with
+         *                         other groups at the same level)
+         * @param compactorFactory creates a fresh {@link DataFileCompactor} for this task
+         * @param config           MerkleDb configuration for level cap and other parameters
+         */
         CompactionTask(
                 @NonNull final String taskKey,
                 @NonNull final String levelKey,
@@ -474,10 +496,7 @@ class MerkleDbCompactionCoordinator {
         @Override
         public Boolean call() {
             try {
-                if (!isCompactionEnabled()) {
-                    return false;
-                }
-
+                // Create a compactor and register it for pause/resume/interrupt
                 final DataFileCompactor compactor = compactorFactory.get();
                 synchronized (MerkleDbCompactionCoordinator.this) {
                     if (!isCompactionEnabled()) {
