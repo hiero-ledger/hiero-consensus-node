@@ -92,6 +92,12 @@ public interface ReadableHistoryStore {
     Bytes getLedgerId();
 
     /**
+     * Returns the expected WRAPS proving key hash, if set; otherwise null.
+     */
+    @Nullable
+    Bytes getWrapsProvingKeyHash();
+
+    /**
      * Gets the construction with the given ID, throwing if it does not exist.
      */
     @NonNull
