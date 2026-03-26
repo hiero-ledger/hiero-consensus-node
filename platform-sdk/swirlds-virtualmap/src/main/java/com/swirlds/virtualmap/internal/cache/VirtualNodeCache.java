@@ -311,21 +311,25 @@ public final class VirtualNodeCache implements FastCopyable {
         this.fastCopyVersion.set(fastCopyVersion);
         this.virtualMapConfig = requireNonNull(virtualMapConfig);
 
-        cleaningPool = Boolean.getBoolean("syncCleaningPool")
-                ? Runnable::run
-                : new ThreadPoolExecutor(
-                        virtualMapConfig.getNumCleanerThreads(),
-                        virtualMapConfig.getNumCleanerThreads(),
-                        60L,
-                        TimeUnit.SECONDS,
-                        new LinkedBlockingQueue<>(),
-                        new ThreadConfiguration(getStaticThreadManager())
-                                .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
-                                .setComponent("virtual-map")
-                                .setThreadName("cache-cleaner")
-                                .setExceptionHandler((t, ex) -> logger.error(
-                                        EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
-                                .buildFactory());
+        if (Boolean.getBoolean("syncCleaningPool")) {
+            cleaningPool = Runnable::run;
+        } else {
+            final ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                    virtualMapConfig.getNumCleanerThreads(),
+                    virtualMapConfig.getNumCleanerThreads(),
+                    60L,
+                    TimeUnit.SECONDS,
+                    new LinkedBlockingQueue<>(),
+                    new ThreadConfiguration(getStaticThreadManager())
+                            .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
+                            .setComponent("virtual-map")
+                            .setThreadName("cache-cleaner")
+                            .setExceptionHandler((t, ex) -> logger.error(
+                                    EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
+                            .buildFactory());
+            pool.allowCoreThreadTimeOut(true);
+            cleaningPool = pool;
+        }
     }
 
     /**
@@ -360,6 +364,29 @@ public final class VirtualNodeCache implements FastCopyable {
         // Wire up the next & prev references
         this.next.set(source);
         source.prev.set(this);
+    }
+
+    /**
+     * Create a new VirtualNodeCache with a provided cleaning pool.
+     * Used by {@link #snapshot()} to create snapshot caches that inherit
+     * the parent's pool instead of creating a new one.
+     */
+    private VirtualNodeCache(
+            final @NonNull VirtualMapConfig virtualMapConfig,
+            final int hashChunkHeight,
+            final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
+            final long fastCopyVersion,
+            final @NonNull Executor cleaningPool) {
+        this.hashChunkHeight = hashChunkHeight;
+        this.hashChunkLoader = requireNonNull(hashChunkLoader);
+        this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
+        this.pathToDirtyKeyIndex = new ConcurrentHashMap<>();
+        this.idToDirtyHashChunkIndex = new ConcurrentHashMap<>();
+        this.releaseLock = new ReentrantLock();
+        this.lastReleased = new AtomicLong(-1L);
+        this.fastCopyVersion.set(fastCopyVersion);
+        this.virtualMapConfig = requireNonNull(virtualMapConfig);
+        this.cleaningPool = requireNonNull(cleaningPool);
     }
 
     /**
@@ -929,18 +956,14 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * Creates a new immutable instance of a {@link VirtualNodeCache}
-     * with {@code pathToDirtyHashIndex}, {@code pathToDirtyLeafIndex}, and
-     * {@code keyToDirtyLeafIndex}, containing only elements not marked for deletion,
-     * and only the latest mutation with version less than or equal to the current
-     * version is added to the maps.
+     * Creates a new immutable snapshot of this cache.
      *
      * @return snapshot of the current {@link VirtualNodeCache}
      */
     public VirtualNodeCache snapshot() {
         synchronized (lastReleased) {
-            final VirtualNodeCache newSnapshot =
-                    new VirtualNodeCache(virtualMapConfig, hashChunkHeight, hashChunkLoader, fastCopyVersion.get());
+            final VirtualNodeCache newSnapshot = new VirtualNodeCache(
+                    virtualMapConfig, hashChunkHeight, hashChunkLoader, fastCopyVersion.get(), cleaningPool);
             setMapSnapshotAndArray(
                     this.idToDirtyHashChunkIndex, newSnapshot.idToDirtyHashChunkIndex, newSnapshot.dirtyHashChunks);
             setMapSnapshotAndArray(
@@ -1464,5 +1487,14 @@ public final class VirtualNodeCache implements FastCopyable {
         }
 
         return builder.toString();
+    }
+
+    /**
+     * Returns the cleaning pool executor. Package-private, intended for testing only.
+     *
+     * @return the cleaning pool executor
+     */
+    Executor getCleaningPool() {
+        return cleaningPool;
     }
 }
