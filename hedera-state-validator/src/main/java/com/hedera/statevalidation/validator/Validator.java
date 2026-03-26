@@ -2,7 +2,6 @@
 package com.hedera.statevalidation.validator;
 
 import com.hedera.statevalidation.validator.listener.ValidationListener;
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -97,8 +96,8 @@ public interface Validator {
      *
      * <p>This method is called once after all data processing is complete. Implementations should:
      * <ul>
-     *     <li>Perform final assertions using
-     *         {@link ValidationAssertions}</li>
+     *     <li>Perform final assertions and throw {@link com.hedera.statevalidation.validator.util.ValidationException}
+     *         when validation fails</li>
      *     <li>Log summary statistics or results</li>
      *     <li>Compare accumulated counts against expected values from state metadata</li>
      * </ul>
