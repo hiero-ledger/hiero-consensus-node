@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip1261;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -644,6 +645,7 @@ public class TokenMintSimpleFeesTest {
                         validateChargedAccount(tokenMintTxn, PAYER));
             }
 
+            @Tag(ONLY_SUBPROCESS)
             @LeakyHapiTest
             @DisplayName("TokenMint - duplicate transaction fails on handle - payer charged for first only")
             final Stream<DynamicTest> tokenMintDuplicateFailsOnHandle() {
