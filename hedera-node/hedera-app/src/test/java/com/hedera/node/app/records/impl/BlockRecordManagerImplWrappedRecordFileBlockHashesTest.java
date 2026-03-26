@@ -120,8 +120,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -183,8 +182,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
 
             final var creationTime = new Timestamp(10, 1);
             final var t0 = InstantUtils.instant(creationTime.seconds(), creationTime.nanos());
@@ -335,8 +333,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             // Trigger a block boundary immediately; since no endUserTransaction was called, there are no captured
             // items.
             final var t1 = InstantUtils.instant(13, 1);
@@ -393,8 +390,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -456,8 +452,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -521,8 +516,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -592,8 +586,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -657,8 +650,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -718,8 +710,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             // Trigger a block boundary without any endUserTransaction calls (empty items)
             final var t1 = InstantUtils.instant(13, 1);
             mgr.startUserTransaction(t1, state);
@@ -801,8 +792,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RESTART,
-                migrationResult)) {
+                InitTrigger.RESTART)) {
             // Drive a block boundary: start block 0 (EPOCH path), add items, cross period
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -889,8 +879,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RESTART,
-                null)) {
+                InitTrigger.RESTART)) {
             // First boundary: freeze-restart with null currentBlockStartRunningHash (preserves state)
             final var t0 = InstantUtils.instant(200, 0);
             mgr.startUserTransaction(t0, state);
@@ -958,8 +947,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             // Open block 0 via EPOCH path
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -1025,8 +1013,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -1088,8 +1075,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
         }
 
@@ -1143,8 +1129,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
@@ -1206,8 +1191,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RESTART,
-                null)) {
+                InitTrigger.RESTART)) {
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, syncedIntermediate, 1);
             // Freeze persistence should use the synced in-memory wrapped hash state.
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
@@ -1274,8 +1258,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RESTART,
-                null)) {
+                InitTrigger.RESTART)) {
             // Phase 1-2: Open first block (EPOCH path)
             final var t0 = InstantUtils.instant(200, 1);
             mgr.startUserTransaction(t0, state);
@@ -1353,8 +1336,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RESTART,
-                null)) {
+                InitTrigger.RESTART)) {
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, List.of(Bytes.wrap(new byte[48])), 1);
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         }
@@ -1435,8 +1417,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RESTART,
-                null)) {
+                InitTrigger.RESTART)) {
             // First boundary after restart: freeze-restart with null currentBlockStartRunningHash
             final var t0 = InstantUtils.instant(200, 0);
             mgr.startUserTransaction(t0, state);
@@ -1499,8 +1480,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
-                InitTrigger.RECONNECT,
-                null)) {
+                InitTrigger.RECONNECT)) {
             // Open block 0 (EPOCH path), add items, cross period
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
