@@ -190,13 +190,15 @@ The scanner then applies a two-phase selection algorithm:
 1. **Phase 1 — Select eligible files:** files whose `liveToDeadRatio` is below `gcRateThreshold` are collected as
    compaction candidates for their level. These are files with enough garbage to justify compaction on their own.
 
-2. **Phase 2 — Absorb small files:** for each level with phase 1 candidates, the scanner checks if there is headroom
+2. **Phase 2 — Absorb remaining files:** for each level with `phase 1` candidates, the scanner checks if there is headroom
    in both the aggregate `Σlive / Σdead` ratio (relative to `gcRateThreshold`) and the projected output size
    (relative to `maxCompactedFileSizeInKB`). If so, remaining files at the level (those NOT selected in phase 1) are
-   sorted by size ascending and greedily absorbed into the candidate set. Absorption stops when either the aggregate
-   live/dead ratio would reach `gcRateThreshold` or the projected output size would reach the cap.
-   This consolidates small low-garbage files that would otherwise proliferate — the dirty files from phase 1 provide
-   a "budget" of GC efficiency that is spent absorbing cleaner files.
+   sorted by live/dead ratio ascending and each one is considered for absorption. Files whose addition would push the
+   aggregate ratio past the threshold or the projected output size past the cap are skipped — the scanner continues
+   to consider subsequent files rather than stopping at the first rejection. This maximizes file consolidation because
+   files sorted later may have better ratios despite being larger. Sorting by ratio ensures files that improve (or least
+   worsen) the aggregate are absorbed first, building maximum headroom for subsequent candidates. The dirty files from
+   phase 1 provide a "budget" of GC efficiency that is spent absorbing cleaner files.
 
 The output of `scan()` is a `ScanResult` containing a `Map<Integer, List<DataFileReader>>` (candidates grouped by level)
 and `IndexedGarbageFileStats` (per-file statistics used by the coordinator to estimate projected output sizes when splitting work into tasks).
@@ -243,10 +245,11 @@ Compaction decisions are driven by the live-to-dead ratio threshold (`gcRateThre
 `liveToDeadRatio` (alive items / dead items) is below this threshold is eligible for compaction. A threshold of 0.5
 means: for every 2 dead items reclaimed, the compactor copies at most 1 live item — a 2:1 efficiency ratio.
 
-Phase 2 of the scan extends the candidate set by absorbing small clean files into the compaction batch when the
-aggregate live/dead ratio and projected output size both have headroom below their respective limits. This reduces
-file proliferation without degrading GC throughput — the dirty files from phase 1 provide a budget of efficiency that
-is spent absorbing cleaner files, as long as the aggregate ratio stays below `gcRateThreshold`.
+Phase 2 of the scan extends the candidate set by absorbing additional files into the compaction batch. Remaining
+files (those not individually eligible) are sorted by live/dead ratio ascending and each is considered for absorption.
+Files that would push the aggregate ratio past `gcRateThreshold` or the projected output past `maxCompactedFileSizeInKB`
+are skipped — the scanner continues to consider all remaining files rather than stopping at the first rejection.
+Sorting by ratio ensures files that least worsen the aggregate are tried first, maximizing the number of files absorbed.
 
 ### Compaction Task Submission
 
@@ -356,16 +359,15 @@ On each flush, the data source calls `submitScanIfNotRunning()` to ensure a scan
 which discovers levels from `scanResultsByStore`, partitions each level's candidates into groups bounded by projected output size,
 and submits each group as an independent task.
 
-**`GarbageScanner`** is the background scanner. It accepts a `LongList` index, a `DataFileCollection`, a store name, and
-`MerkleDbConfig` (from which it reads `gcRateThreshold` and `maxCompactedFileSizeInKB`). It traverses the index,
-computes per-file garbage stats, and applies the two-phase selection algorithm:
-phase 1 selects files whose live/dead ratio is below `gcRateThreshold`,
-then phase 2 absorbs small remaining files while the aggregate ratio stays below `gcRateThreshold` and
-the projected output size stays below `maxCompactedFileSizeInKB`. The output is a `ScanResult` containing the candidate
-map and per-file statistics (`IndexedGarbageFileStats`) for use by the coordinator when splitting into groups.
-For the ObjectKeyToPath store, the scanner is constructed with `deduplicateMirroredEntries = true` to handle `HalfDiskHashMap`
-bucket index doubling (see [HalfDiskHashMap Deduplication](#halfdiskhashmap-deduplication)). Scanner instances are created
-once per data source and reused across flushes.
+**`GarbageScanner`** is the background scanner. It accepts a `LongList` index, a `DataFileCollection`, a store name, and `MerkleDbConfig`
+(from which it reads `gcRateThreshold` and `maxCompactedFileSizeInKB`). It traverses the index, computes per-file garbage stats,
+and applies a two-phase selection algorithm: phase 1 selects files whose live/dead ratio is below `gcRateThreshold`, then `phase 2`
+sorts remaining files by live/dead ratio ascending and considers each for absorption — files that would push the aggregate ratio
+past the threshold or the projected output past the cap are skipped, and the scanner continues to consider all remaining files.
+The output is a `ScanResult` containing the candidate map and per-file statistics (`IndexedGarbageFileStats`) for use by the
+coordinator when splitting into groups. For the ObjectKeyToPath store, the scanner is constructed with `deduplicateMirroredEntries = true`
+to handle `HalfDiskHashMap` bucket index doubling (see [HalfDiskHashMap Deduplication](#halfdiskhashmap-deduplication)).
+Scanner instances are created once per data source and reused across flushes.
 
 **`DataFileCompactor`** performs the actual compaction for a given file collection. Each instance is used for a single
 compaction run — the coordinator creates a fresh instance per task because each instance carries its own `snapshotCompactionLock`,
@@ -470,12 +472,12 @@ underestimated garbage ratio. The next scan will use the post-doubling index siz
 
 The following configuration parameters in `MerkleDbConfig` control compaction behavior:
 
-|            Parameter            | Default |                                                                                      Description                                                                                       |
-|---------------------------------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `compactionThreads`             | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                                                                                       |
-| `maxCompactionLevel`            | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                                                                                     |
-| `gcRateThreshold`               | 0.5     | Maximum live-to-dead ratio for phase 1 file selection. Also the aggregate limit for phase 2 absorption. A value of 0.5 means: for every 2 dead items, up to 1 live item can be copied. |
-| `maxCompactionDataPerLevelInKB` | 1000000 | Maximum projected output size (KB) per compaction task. Also the size cap for phase 2 absorption. Candidates are partitioned into chunks of this size. 1 GB by default.                |
+|            Parameter            | Default |                                                                                                                                                                   Description                                                                                                                                                                   |
+|---------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `compactionThreads`             | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                                                                                                                                                                                                                                                |
+| `maxCompactionLevel`            | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                                                                                                                                                                                                                                              |
+| `gcRateThreshold`               | 0.5     | Maximum live-to-dead ratio for compaction decisions. In phase 1, files whose individual ratio is below this value are selected. In phase 2, remaining files are considered for absorption as long as adding each one keeps the aggregate ratio below this value. A value of 0.5 means: for every 2 dead items, up to 1 live item can be copied. |
+| `maxCompactionDataPerLevelInKB` | 1000000 | Maximum projected output size (KB) per compaction task. Also the size cap for phase 2 absorption. Candidates are partitioned into chunks of this size. 1 GB by default.                                                                                                                                                                         |
 
 ### Observability
 

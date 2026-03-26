@@ -40,12 +40,16 @@ import org.apache.logging.log4j.Logger;
  * <ol>
  *   <li><b>Phase 1 — Select eligible files:</b> files whose {@code liveToDeadRatio} is below
  *       {@code gcRateThreshold} are collected as compaction candidates for their level.</li>
- *   <li><b>Phase 2 — Absorb small files:</b> for each level where the aggregate live/dead ratio
+ *   <li><b>Phase 2 — Absorb remaining files:</b> for each level where the aggregate live/dead ratio
  *       is still below {@code gcRateThreshold} and the projected output size is below
  *       {@code maxCompactedFileSizeInKB}, the scanner sorts remaining files (those NOT
- *       selected in phase 1) by size ascending and greedily absorbs them until either limit is
- *       reached. This consolidates small files that individually don't have enough garbage but
- *       can be absorbed within the budget provided by dirtier files from phase 1.</li>
+ *       selected in phase 1) by live/dead ratio ascending and considers each one for absorption.
+ *       Files whose addition would push the aggregate ratio past the threshold or the projected
+ *       output size past the cap are skipped — the scanner continues to consider subsequent files
+ *       rather than stopping at the first rejection. This maximizes file consolidation because
+ *       files sorted later may have better ratios despite being larger. Sorting by ratio ensures
+ *       files that improve (or least worsen) the aggregate are absorbed first, building maximum
+ *       headroom for subsequent candidates.</li>
  * </ol>
  */
 public class GarbageScanner {
@@ -169,10 +173,14 @@ public class GarbageScanner {
     /**
      * Phase 2: for each level with selected candidates, check if there is headroom in both
      * the aggregate live/dead ratio and the projected output size. If so, sort the remaining
-     * files at this level by size ascending and greedily absorb them until either limit is
-     * reached.
+     * files at this level by live/dead ratio ascending and consider each for absorption. Files
+     * that would breach either limit are skipped rather than stopping the loop — subsequent
+     * files with better ratios or smaller projected sizes may still fit.
      *
-     * <p>This consolidates small low-garbage files that would otherwise proliferate. The dirty
+     * <p>Sorting by live/dead ratio ascending ensures files that improve (or least worsen) the
+     * aggregate are absorbed first, building maximum headroom for later candidates.
+     *
+     * <p>This consolidates low-garbage files that would otherwise proliferate. The dirty
      * files from phase 1 provide a "budget" of GC efficiency that is spent absorbing clean files.
      */
     private void absorbSmallFiles(
@@ -211,9 +219,13 @@ public class GarbageScanner {
                 continue;
             }
 
-            // Sort remaining files by size ascending — absorb smallest first
+            // Sort remaining files by live/dead ratio ascending — files that improve
+            // (or least worsen) the aggregate are absorbed first
             final List<DataFileReader> sortedRemaining = new ArrayList<>(remaining);
-            sortedRemaining.sort(Comparator.comparingLong(DataFileReader::getSize));
+            sortedRemaining.sort(Comparator.comparingDouble(r -> {
+                final GarbageFileStats fs = lookupStats(r, stats);
+                return fs != null ? fs.liveToDeadRatio() : Double.MAX_VALUE;
+            }));
 
             int absorbed = 0;
             for (final DataFileReader reader : sortedRemaining) {
@@ -231,7 +243,8 @@ public class GarbageScanner {
                 final double newRatio = newTotalDead == 0 ? Double.MAX_VALUE : (double) newTotalLive / newTotalDead;
                 final long newProjectedSize = projectedSize + fileProjectedAlive;
 
-                // Skipping if adding this file would breach either limit
+                // Skip this file if it would breach either limit — continue to
+                // consider subsequent files, which may have better ratios
                 if (newRatio >= gcRateThreshold || newProjectedSize >= maxProjectedBytes) {
                     continue;
                 }
@@ -249,8 +262,7 @@ public class GarbageScanner {
                         : String.valueOf(Math.round((double) totalLive / totalDead * 100) / 100.0);
                 logger.info(
                         MERKLE_DB.getMarker(),
-                        "[{}] Phase 2: absorbed {} small files at level {}, "
-                                + "aggregate live/dead={}, projected output={}",
+                        "[{}] Phase 2: absorbed {} files at level {}, " + "aggregate live/dead={}, projected output={}",
                         storeName,
                         absorbed,
                         level,
