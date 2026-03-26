@@ -56,6 +56,7 @@ public class CodeDelegationAtomicBatchTest {
     private static final String CONTRACT = "CreateTrivial";
     private static final String DELEGATION_SET = "DelegationSet";
     private static final String CRYPTO_CREATE_DELEGATING_ACCOUNT = "CryptoCreateDelegatingAccount";
+    private static final String ACCOUNT_WITH_BALANCE = "AccountWithBalance";
     private static final String INSUFFICIENT_BALANCE_ACCOUNT = "InsufficientBalanceAccount";
 
     @BeforeAll
@@ -67,7 +68,88 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> atomicBatchRevertsAllDelegationTransactionsOnInnerTxFailureTest() {
+    final Stream<DynamicTest> testDelegationCommitedInSuccessfulAtomicBatch() {
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var type4Txn = "DelegationInBatch";
+        return hapiTest(
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT).gas(4_000_000L),
+                newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
+                cryptoCreate(DELEGATING_ACCOUNT)
+                        .key(DELEGATING_ACCOUNT)
+                        .withMatchingEvmAddress()
+                        .balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(ACCOUNT_WITH_BALANCE).shape(SECP_256K1_SHAPE),
+                cryptoCreate(ACCOUNT_WITH_BALANCE)
+                        .key(ACCOUNT_WITH_BALANCE)
+                        .balance(ONE_HUNDRED_HBARS),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(DELEGATING_ACCOUNT)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(2_000_000L)
+                                        .via(type4Txn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)),
+                        getTxnRecord(type4Txn).andAllChildRecords().logged(),
+
+                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> testDelegationSurvivesAtomicBatchRollback() {
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var failedBatchTxn = "DelegationInAFailedBatch";
+        return hapiTest(
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT).gas(4_000_000L),
+                newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
+                cryptoCreate(DELEGATING_ACCOUNT)
+                        .key(DELEGATING_ACCOUNT)
+                        .withMatchingEvmAddress()
+                        .balance(ONE_HUNDRED_HBARS),
+                newKeyNamed(INSUFFICIENT_BALANCE_ACCOUNT).shape(SECP_256K1_SHAPE),
+                cryptoCreate(INSUFFICIENT_BALANCE_ACCOUNT)
+                        .key(INSUFFICIENT_BALANCE_ACCOUNT)
+                        .balance(0L),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(DELEGATING_ACCOUNT)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(2_000_000L)
+                                        .via(failedBatchTxn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .via(failedBatchTxn)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(failedBatchTxn).andAllChildRecords().logged(),
+
+                        // TODO (dsinyakov): switch to below assert when atomic batch behavior is fixed
+                        // getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress)
+                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation())
+                ));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> testAtomicBatchRevertsAllDelegationTransactionsOnInnerTxFailure() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var batchTxn = "BatchDelegationRollback";
@@ -109,7 +191,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> atomicBatchCreateThenType4UpdatesDelegationTest() {
+    final Stream<DynamicTest> testAtomicBatchCryptoCreateSetsDelegationThenType4UpdatesIt() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var accountInBatch = DELEGATING_ACCOUNT + "CreateThenUpdateInBatch";
@@ -142,7 +224,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> atomicBatchType4PartialCommitIsRolledBackOnInnerTxFailureAcrossAccountsTest() {
+    final Stream<DynamicTest> testAtomicBatchType4PartialCommitIsRolledBackOnInnerTxFailureAcrossAccounts() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegatingAccount1 = DELEGATING_ACCOUNT + "Batch1";
         final var delegatingAccount2 = DELEGATING_ACCOUNT + "Batch2";
@@ -197,7 +279,7 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> atomicBatchType4PartialCommitAcrossAccountsWithInvalidAuthorizationTest() {
+    final Stream<DynamicTest> testAtomicBatchType4PartialCommitAcrossAccountsWithInvalidAuthorization() {
         final var delegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegatingAccount1 = DELEGATING_ACCOUNT + "Batch1";
         final var delegatingAccount2 = DELEGATING_ACCOUNT + "Batch2";
