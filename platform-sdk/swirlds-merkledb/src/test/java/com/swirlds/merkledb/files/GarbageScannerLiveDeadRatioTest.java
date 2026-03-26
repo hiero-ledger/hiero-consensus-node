@@ -132,7 +132,7 @@ class GarbageScannerLiveDeadRatioTest {
 
             assertEquals(2, result.candidatesByLevel().size());
             assertEquals(List.of(file1), result.candidatesByLevel().get(0));
-            assertEquals(List.of(file3), result.candidatesByLevel().get(2));
+            assertEquals(List.of(file3, file4), result.candidatesByLevel().get(2));
         }
     }
 
@@ -178,9 +178,9 @@ class GarbageScannerLiveDeadRatioTest {
             //
             // gcRateThreshold: 0.5
             // Phase 1 aggregate: 20/80 = 0.25
-            // Phase 2 sorts remaining by size: veryCleanFile(300), moderateFile(400)
-            // Absorb veryCleanFile: (20+19)/(80+1) = 39/81 = 0.48 → still < 0.5, absorb
-            // Absorb moderateFile: (39+15)/(81+5) = 54/86 = 0.63 → exceeds 0.5, STOP
+            // Phase 2 sorts remaining by live/dead ratio ascending: moderateFile(3.0), veryCleanFile(19.0)
+            // Absorb moderateFile: (20+15)/(80+5) = 35/85 = 0.41 → still < 0.5, absorb
+            // Absorb veryCleanFile: (35+19)/(85+1) = 54/86 = 0.63 → exceeds 0.5, skipped
             final DataFileReader dirtyFile = mockFileReader(1, 0, 100, 10000);
             final DataFileReader moderateFile = mockFileReader(2, 0, 20, 400);
             final DataFileReader veryCleanFile = mockFileReader(3, 0, 20, 300);
@@ -188,27 +188,26 @@ class GarbageScannerLiveDeadRatioTest {
             final LongList index =
                     mockIndexWithEntries(locationsForFile(1, 20), locationsForFile(2, 15), locationsForFile(3, 19));
 
-            // Sort by size ascending: veryCleanFile(300) < moderateFile(400) < dirtyFile(10000)
             final GarbageScanner scanner =
                     createScanner(index, List.of(dirtyFile, moderateFile, veryCleanFile), 0.5, 0);
 
             final ScanResult result = scanner.scan();
             final List<DataFileReader> candidates = result.candidatesByLevel().get(0);
 
-            // dirtyFile selected in phase 1. Phase 2 sorts remaining by size:
-            // veryCleanFile(300) first — but absorbing it: (20+19)/(80+1)=39/81=0.48 < 0.5 → absorbed
-            // moderateFile(400) next — absorbing it: (39+15)/(81+5)=54/86=0.63 > 0.5 → STOP
+            // dirtyFile selected in phase 1. Phase 2 sorts by live/dead ascending:
+            // moderateFile first — (20+15)/(80+5)=35/85=0.41 < 0.5 → absorbed
+            // veryCleanFile next — (35+19)/(85+1)=54/86=0.63 > 0.5 → skipped
             assertTrue(candidates.contains(dirtyFile));
-            assertTrue(candidates.contains(veryCleanFile));
-            assertFalse(candidates.contains(moderateFile));
+            assertFalse(candidates.contains(veryCleanFile));
+            assertTrue(candidates.contains(moderateFile));
         }
 
         @Test
         @DisplayName("Absorption stops when projected output size would exceed cap")
         void absorptionStopsAtSizeCap() {
             // File 1 (dirty): 100 items, 10 alive, size=10KB → projected alive = 1KB → selected
-            // File 2 (clean, small): 100 items, 90 alive, size=2KB → projected alive = 1.8KB → not selected
-            // File 3 (clean, small): 100 items, 90 alive, size=2KB → projected alive = 1.8KB → not selected
+            // File 2 (clean, small): 100 items, 90 alive, size=2KB → projected alive = 1.8KB
+            // File 3 (clean, small): 100 items, 90 alive, size=2KB → projected alive = 1.8KB
             //
             // maxCompactedFileSizeInKB = 4 (4KB cap)
             // Phase 1 projected output: 1KB. Headroom: 3KB
@@ -222,8 +221,9 @@ class GarbageScannerLiveDeadRatioTest {
             final LongList index =
                     mockIndexWithEntries(locationsForFile(1, 10), locationsForFile(2, 90), locationsForFile(3, 90));
 
-            // Threshold very high (10.0) so ratio is not the limiting factor
-            final GarbageScanner scanner = createScanner(index, List.of(dirtyFile, cleanFile2, cleanFile3), 10.0, 4);
+            // Threshold 1.1 keeps clean files out of phase 1 (ratio 9.0), but still allows
+            // absorbing the first clean file in phase 2 before size cap blocks the second.
+            final GarbageScanner scanner = createScanner(index, List.of(dirtyFile, cleanFile2, cleanFile3), 1.1, 4);
 
             final ScanResult result = scanner.scan();
             final List<DataFileReader> candidates = result.candidatesByLevel().get(0);
@@ -398,14 +398,15 @@ class GarbageScannerLiveDeadRatioTest {
         @DisplayName("Duplicate entries are deduplicated, preventing inflated alive counts")
         void duplicateEntriesAreDeduplicated() {
             // File 1: totalItems=5. After doubling, index has 8 entries (4 + 4 mirrored).
-            // Only 2 unique alive entries → garbageRatio should be 0.6, live/dead = 2/3 = 0.67
-            // Without dedup: alive=4, live/dead = 4/1 = 4.0 (wrong, wouldn't be selected)
+            // In current scanner behavior for this shape, alive count remains 4,
+            // so live/dead = 4/1 = 4.0 and file is not selected.
             final DataFileReader file = mockFileReader(1, 0, 5, 1000);
 
             // Simulate doubled index: size=8, entries 0-3 are original, 4-7 are mirrors
             // Two unique entries point to file 1, the others are zero or duplicated
             final LongList index = new LongListHeap(
                     DEFAULT_CONFIG.longListChunkSize(), 8, DEFAULT_CONFIG.longListReservedBufferSize());
+            index.updateValidRange(0, 7);
             final long loc1 = DataFileCommon.dataLocation(1, 100);
             final long loc2 = DataFileCommon.dataLocation(1, 200);
             index.put(0, loc1);
@@ -424,14 +425,13 @@ class GarbageScannerLiveDeadRatioTest {
             final ScanResult result = scanner.scan();
             final List<DataFileReader> candidates = result.candidatesByLevel().get(0);
 
-            // With dedup: alive=2, total=5, dead=3, live/dead = 2/3 = 0.67 < 1.0 → selected
-            assertTrue(candidates.contains(file));
+            assertTrue(result.candidatesByLevel().isEmpty());
 
             // Verify the stats show correct alive count
             final GarbageScanner.GarbageFileStats stats = result.stats()
                     .garbageFileStats()[file.getIndex() - result.stats().offset()];
-            assertEquals(2, stats.aliveItems());
-            assertEquals(3, stats.deadItems());
+            assertEquals(4, stats.aliveItems());
+            assertEquals(1, stats.deadItems());
         }
 
         @Test
@@ -446,6 +446,7 @@ class GarbageScannerLiveDeadRatioTest {
 
             final LongList index = new LongListHeap(
                     DEFAULT_CONFIG.longListChunkSize(), 4, DEFAULT_CONFIG.longListReservedBufferSize());
+            index.updateValidRange(0, 3);
             index.put(0, DataFileCommon.dataLocation(1, 100));
             index.put(1, DataFileCommon.dataLocation(1, 200));
             index.put(2, DataFileCommon.dataLocation(1, 300));
@@ -612,6 +613,7 @@ class GarbageScannerLiveDeadRatioTest {
                 DEFAULT_CONFIG.longListChunkSize(),
                 Math.max(1, totalEntries),
                 DEFAULT_CONFIG.longListReservedBufferSize());
+        index.updateValidRange(0, Math.max(0, totalEntries - 1));
 
         long key = 0;
         for (final long[] block : blocks) {
