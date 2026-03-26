@@ -416,6 +416,8 @@ tasks.register<Test>("testSubprocess") {
         "--add-reads=org.testcontainers=org.apache.commons.codec",
     )
     maxParallelForks = 1
+    // temporary fix for logging
+    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testSubprocessConcurrent") {
@@ -534,6 +536,8 @@ tasks.register<Test>("testSubprocessConcurrent") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
+    // temporary fix for logging
+    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testRemote") {
@@ -693,6 +697,8 @@ tasks.register<Test>("testEmbedded") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+    // temporary fix for logging
+    modularity.inferModulePath.set(false)
 }
 
 val repeatableBaseTags = mapOf("hapiTestMiscRepeatable" to "REPEATABLE&!CRYPTO")
@@ -749,6 +755,8 @@ tasks.register<Test>("testRepeatable") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+    // temporary fix for logging
+    modularity.inferModulePath.set(false)
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
