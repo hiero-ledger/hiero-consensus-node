@@ -109,9 +109,12 @@ jobs:
         id: detect-flaky-integration-tests
         if: ${{ !cancelled() }}
         run: |
-          count=$(find . -path "*/build/test-results/testIntegration/TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find . -path "*/build/test-results/testIntegration/TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload Otter Integration Tests Turtle Logs
         id: upload-otter-turtle-integration-logs

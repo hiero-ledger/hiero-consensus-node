@@ -6,16 +6,16 @@
 categories:
   unit-tests:
     artifact-pattern: "Unit Test Report"
-    managers: [akdev, Ferparishuertas, Jeffrey-morgan34]
+    managers: [Jeffrey-morgan34]
   integration-tests:
     artifact-pattern: "Integration Test Report"
     managers: [Jeffrey-morgan34]
   smart-contract-hapi-tests:
     artifact-pattern: "HAPI Test (Smart Contract) Report"
-    managers: [Ferparishuertas]
+    managers: [Jeffrey-morgan34]
   hapi-tests:
     artifact-pattern: "HAPI Test*"
-    managers: [akdev]
+    managers: [Jeffrey-morgan34]
   otter-tests:
     artifact-pattern: "Otter Tests*"
     managers: [Jeffrey-morgan34]

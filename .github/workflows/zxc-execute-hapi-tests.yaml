@@ -179,9 +179,12 @@ jobs:
         id: detect-flaky-hapi-misc
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Misc) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -252,9 +255,12 @@ jobs:
         id: detect-flaky-hapi-misc-records
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Misc Records) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -326,9 +332,12 @@ jobs:
         id: detect-flaky-hapi-crypto
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Crypto) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -400,9 +409,12 @@ jobs:
         id: detect-flaky-hapi-simplefees
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Simple Fees) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -473,9 +485,12 @@ jobs:
         id: detect-flaky-hapi-token
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Token) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -546,9 +561,12 @@ jobs:
         id: detect-flaky-hapi-smart-contract
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Smart Contract) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -619,9 +637,12 @@ jobs:
         id: detect-flaky-hapi-time-consuming
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Time Consuming) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -692,9 +713,12 @@ jobs:
         id: detect-flaky-hapi-restart
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Restart) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -765,9 +789,12 @@ jobs:
         id: detect-flaky-hapi-nd-reconnect
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Node Death Reconnect) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -838,9 +865,12 @@ jobs:
         id: detect-flaky-hapi-iss
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (ISS) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -911,9 +941,12 @@ jobs:
         id: detect-flaky-hapi-bn-communication
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Block Node Communication) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -982,9 +1015,12 @@ jobs:
         id: detect-flaky-hapi-atomic-batch
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Atomic Batch) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1055,9 +1091,12 @@ jobs:
         id: detect-flaky-hapi-state-throttling
         if: ${{ !cancelled() }}
         run: |
-          count=$(find hedera-node/test-clients/build/test-results -name "TEST-*.xml" \
-            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
-          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+          has_flaky="false"
+          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
+              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+            has_flaky="true"
+          fi
+          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (State Throttling) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
