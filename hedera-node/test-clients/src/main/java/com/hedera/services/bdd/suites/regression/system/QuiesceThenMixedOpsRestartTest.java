@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDurati
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
@@ -47,6 +48,16 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
         final AtomicReference<Instant> scheduleExpiry = new AtomicReference<>();
         final AtomicReference<Instant> sleepStart = new AtomicReference<>(Instant.now());
         return hapiTest(
+                // Override properties that interfere with the idle->QUIESCE
+                // transition and restart so they take effect with a fresh
+                // lastQuiescenceCommand in BlockStreamManagerImpl
+                overridingAllOf(Map.of(
+                        "staking.periodMins", "1440",
+                        "nodes.nodeRewardsEnabled", "false")),
+                LifecycleTest.restartAtNextConfigVersion(),
+                // Ensure the network is out of quiescence before the test logic
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
+                // --- actual test workflow ---
                 cryptoCreate("scheduledReceiver").via("txn").balance(41 * ONE_HBAR),
                 doWithStartupDuration("quiescence.tctDuration", duration -> scheduleCreate(
                                 "schedule", cryptoTransfer(tinyBarsFromTo(GENESIS, "scheduledReceiver", ONE_HBAR)))
@@ -58,24 +69,13 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 getScheduleInfo("schedule")
                         .exposingInfoTo(info -> scheduleExpiry.set(asInstant(info.getExpirationTime())))
                         .logged(),
-                // Disable stake rewards and set a long staking period to avoid
-                // staking-period system transactions that interfere with the
-                // idle->QUIESCE transition, then restart for the overrides to
-                // take effect with a fresh lastQuiescenceCommand
-                overridingAllOf(Map.of(
-                        "staking.periodMins", "1440",
-                        "nodes.nodeRewardsEnabled", "false")),
-                // Capture sleepStart before restart so the search window covers
-                // the "to QUIESCE" transition that occurs on the first block
-                // after the network restarts with quiescence enabled
                 withOpContext((spec, opLog) -> sleepStart.set(Instant.now())),
-                LifecycleTest.restartAtNextConfigVersion(),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
                 assertHgcaaLogContainsTimeframe(
                         NodeSelector.byNodeId(0),
                         sleepStart::get,
-                        Duration.ofSeconds(30),
-                        Duration.ofSeconds(30),
+                        Duration.ofSeconds(15),
+                        Duration.ofSeconds(15),
                         "to QUIESCE"),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
@@ -85,7 +85,7 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                     assertFalse(
                             actual.isBefore(expected),
                             "Execution time " + actual + " was before scheduled expiry " + expected);
-                    final var maxDelay = Duration.ofSeconds(10);
+                    final var maxDelay = Duration.ofSeconds(5);
                     assertTrue(
                             Duration.between(expected, actual).compareTo(maxDelay) < 0,
                             "Execution time " + actual + " was more than " + maxDelay + " after scheduled expiry "
