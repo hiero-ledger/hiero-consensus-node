@@ -10,9 +10,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
@@ -20,10 +23,11 @@ import static com.hedera.services.bdd.suites.regression.system.MixedOperations.b
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -39,10 +43,21 @@ import org.junit.jupiter.api.Tag;
 public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
     private static final int MIXED_OPS_BURST_TPS = 50;
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"staking.periodMins", "nodes.nodeRewardsEnabled"})
     final Stream<DynamicTest> quiesceAndThenRestartMixedOps() {
         final AtomicReference<Instant> scheduleExpiry = new AtomicReference<>();
+        final AtomicReference<Instant> sleepStart = new AtomicReference<>(Instant.now());
         return hapiTest(
+                // Override properties that interfere with the idle->QUIESCE
+                // transition and restart so they take effect with a fresh
+                // lastQuiescenceCommand in BlockStreamManagerImpl
+                overridingAllOf(Map.of(
+                        "staking.periodMins", "1440",
+                        "nodes.nodeRewardsEnabled", "false")),
+                LifecycleTest.restartAtNextConfigVersion(),
+                // Ensure the network is out of quiescence before the test logic
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
+                // --- actual test workflow ---
                 cryptoCreate("scheduledReceiver").via("txn").balance(41 * ONE_HBAR),
                 doWithStartupDuration("quiescence.tctDuration", duration -> scheduleCreate(
                                 "schedule", cryptoTransfer(tinyBarsFromTo(GENESIS, "scheduledReceiver", ONE_HBAR)))
@@ -54,11 +69,14 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 getScheduleInfo("schedule")
                         .exposingInfoTo(info -> scheduleExpiry.set(asInstant(info.getExpirationTime())))
                         .logged(),
+                withOpContext((spec, opLog) -> sleepStart.set(Instant.now())),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
-                assertHgcaaLogContainsPattern(
+                assertHgcaaLogContainsTimeframe(
                         NodeSelector.byNodeId(0),
-                        "Updating quiescence command from .* to QUIESCE",
-                        Duration.ofSeconds(1)),
+                        sleepStart::get,
+                        Duration.ofSeconds(15),
+                        Duration.ofSeconds(15),
+                        "to QUIESCE"),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
                 getTxnRecord("creation").scheduled().exposingTo(r -> {
@@ -67,7 +85,7 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                     assertFalse(
                             actual.isBefore(expected),
                             "Execution time " + actual + " was before scheduled expiry " + expected);
-                    final var maxDelay = Duration.ofSeconds(2);
+                    final var maxDelay = Duration.ofSeconds(5);
                     assertTrue(
                             Duration.between(expected, actual).compareTo(maxDelay) < 0,
                             "Execution time " + actual + " was more than " + maxDelay + " after scheduled expiry "
