@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -119,7 +120,7 @@ public class NaturalDispatchOrderingTest {
     @DisplayName("reversible user stream items are as expected")
     final Stream<DynamicTest> reversibleUserItemsAsExpected() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(reversibleUserValidator(), "firstCreation", "duplicateCreation")),
                 scheduleCreate(
                                 "scheduledTxn",
@@ -158,7 +159,7 @@ public class NaturalDispatchOrderingTest {
             @Contract(contract = "LowLevelCall", creationGas = 3_000_000) SpecContract lowLevelCallContract) {
         final var transferFunction = new Function("transferNFTThanRevertCall(address,address,address,int64)");
         return hapiTest(
-                recordStreamMustIncludePassFrom(visibleNonSyntheticItems(
+                recordStreamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
                         reversibleChildValidator(), "fullSuccess", "containedRevert", "fullRevert")),
                 nonFungibleToken.treasury().authorizeContract(transferContract),
                 transferContract
