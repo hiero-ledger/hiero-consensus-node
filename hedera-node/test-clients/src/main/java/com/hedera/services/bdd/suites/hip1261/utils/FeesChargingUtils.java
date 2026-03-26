@@ -430,7 +430,7 @@ public class FeesChargingUtils {
         return expectedCryptoCreateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 extras.getOrDefault(Extra.KEYS, 0L),
-                extras.getOrDefault(Extra.HOOK_EXECUTION, 0L),
+                extras.getOrDefault(Extra.HOOK_UPDATES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
