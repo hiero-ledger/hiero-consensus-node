@@ -109,8 +109,18 @@ public class WorkingDirUtils {
         requireNonNull(workingDir);
         requireNonNull(network);
 
-        // Clean up any existing directory structure
-        rm(workingDir);
+        // If a previous run exists, preserve it under a "-prev-run" sibling directory so that
+        // flaky-test investigations can access logs from both the first (failing) and the retry
+        // (passing) runs. The CI upload globs already cover both because they use "**" patterns.
+        if (Files.exists(workingDir)) {
+            final Path prevRunDir = workingDir.resolveSibling(workingDir.getFileName() + "-prev-run");
+            rm(prevRunDir);
+            try {
+                Files.move(workingDir, prevRunDir);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
         // Initialize the data folders
         WORKING_DIR_DATA_FOLDERS.forEach(folder ->
                 createDirectoriesUnchecked(workingDir.resolve(DATA_DIR).resolve(folder)));
