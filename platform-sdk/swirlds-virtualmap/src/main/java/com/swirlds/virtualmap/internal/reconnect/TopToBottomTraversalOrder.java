@@ -153,7 +153,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             chunkLastLeafPath = Path.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
             addInitialChunkInternals();
 
-            logger.info(RECONNECT.getMarker(), "Pull start: chunk root rank = {}", chunkRootRank);
+            logger.debug(RECONNECT.getMarker(), "Pull start: chunk root rank = {}", chunkRootRank);
         }
     }
 
@@ -240,7 +240,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                 // This was the last chunk. Done
                 return Path.INVALID_PATH;
             } else {
-                logger.info(
+                logger.debug(
                         RECONNECT.getMarker(),
                         "Chunk end: clean paths: {} some dirty paths: {} last chunk path: {}",
                         cleanPaths.size(),
