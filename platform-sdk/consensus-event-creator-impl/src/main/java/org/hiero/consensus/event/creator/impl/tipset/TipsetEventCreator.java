@@ -272,32 +272,32 @@ public class TipsetEventCreator implements EventCreator {
     private UnsignedEvent createEventCombinedAlgorithm() {
         final List<PlatformEvent> possibleOtherParents =
                 new ArrayList<>(childlessOtherEventTracker.getChildlessEvents());
-        Collections.shuffle(possibleOtherParents, random);
+//        Collections.shuffle(possibleOtherParents, random);
+//
+//        final List<PlatformEvent> bestParents = possibleOtherParents.stream()
+//                .map(op -> {
+//                    final List<EventDescriptorWrapper> parents = new ArrayList<>(2);
+//                    parents.add(op.getDescriptor());
+//                    if (lastSelfEvent != null) {
+//                        parents.add(lastSelfEvent.getDescriptor());
+//                    }
+//                    return new Pair<>(op, tipsetWeightCalculator.getTheoreticalAdvancementWeight(parents));
+//                })
+//                .filter(p -> p.right().isNonZero())
+//                .sorted(Comparator.comparing(Pair::right))
+//                .map(Pair::left)
+//                .toList();
+//
+//        final PlatformEvent[] chosenBestParents;
+//        if (bestParents.size() > maxOtherParents) {
+//            chosenBestParents = bestParents
+//                    .subList(bestParents.size() - maxOtherParents, bestParents.size())
+//                    .toArray(new PlatformEvent[0]);
+//        } else {
+//            chosenBestParents = bestParents.toArray(new PlatformEvent[0]);
+//        }
 
-        final List<PlatformEvent> bestParents = possibleOtherParents.stream()
-                .map(op -> {
-                    final List<EventDescriptorWrapper> parents = new ArrayList<>(2);
-                    parents.add(op.getDescriptor());
-                    if (lastSelfEvent != null) {
-                        parents.add(lastSelfEvent.getDescriptor());
-                    }
-                    return new Pair<>(op, tipsetWeightCalculator.getTheoreticalAdvancementWeight(parents));
-                })
-                .filter(p -> p.right().isNonZero())
-                .sorted(Comparator.comparing(Pair::right))
-                .map(Pair::left)
-                .toList();
-
-        final PlatformEvent[] chosenBestParents;
-        if (bestParents.size() > maxOtherParents) {
-            chosenBestParents = bestParents
-                    .subList(bestParents.size() - maxOtherParents, bestParents.size())
-                    .toArray(new PlatformEvent[0]);
-        } else {
-            chosenBestParents = bestParents.toArray(new PlatformEvent[0]);
-        }
-
-        if (chosenBestParents.length == 0) {
+        if (possibleOtherParents.size() == 0) {
             // If there are no available other parents, it is only legal to create a new event if we are
             // creating a genesis event. In order to create a genesis event, we must have never created
             // an event before and the current event window must have never been advanced.
@@ -310,43 +310,43 @@ public class TipsetEventCreator implements EventCreator {
             return buildAndProcessEvent();
         }
 
-        final long selfishness = tipsetWeightCalculator.getMaxSelfishnessScore();
-        tipsetMetrics.getSelfishnessMetric().update(selfishness);
+//        final long selfishness = tipsetWeightCalculator.getMaxSelfishnessScore();
+//        tipsetMetrics.getSelfishnessMetric().update(selfishness);
+//
+//        // Never bother with anti-selfishness techniques if we have a selfishness score of 1.
+//        // We are pretty much guaranteed to be selfish to ~1/3 of other nodes by a score of 1.
+//        final double beNiceChance = (selfishness - 1) / antiSelfishnessFactor;
+//
+//        boolean replacedBestParentForSelfishness = false;
+//
+//        if (beNiceChance > 0 && random.nextDouble() < beNiceChance) {
+//            // replace one of the best parents with the one chosen to reduce selfishness
+//            final PlatformEvent selflessParent = selectParentToReduceSelfishness();
+//            if (selflessParent == null) {
+//                return null;
+//            }
+//            // if we already contain that event, everything is good
+//            if (!contains(chosenBestParents, selflessParent)) {
+//                // otherwise, replace the least important parent with one we have chosen to reduce selfishness
+//                // please note in case of single-parent events, this will replace the only parent
+//                chosenBestParents[chosenBestParents.length - 1] = selflessParent;
+//                replacedBestParentForSelfishness = true;
+//            }
+//        }
 
-        // Never bother with anti-selfishness techniques if we have a selfishness score of 1.
-        // We are pretty much guaranteed to be selfish to ~1/3 of other nodes by a score of 1.
-        final double beNiceChance = (selfishness - 1) / antiSelfishnessFactor;
+//        for (int i = 0; i < chosenBestParents.length; i++) {
+//            if (replacedBestParentForSelfishness && i == chosenBestParents.length - 1) {
+//                tipsetMetrics
+//                        .getPityParentMetric(chosenBestParents[i].getCreatorId())
+//                        .cycle();
+//            } else {
+//                tipsetMetrics
+//                        .getTipsetParentMetric(chosenBestParents[i].getCreatorId())
+//                        .cycle();
+//            }
+//        }
 
-        boolean replacedBestParentForSelfishness = false;
-
-        if (beNiceChance > 0 && random.nextDouble() < beNiceChance) {
-            // replace one of the best parents with the one chosen to reduce selfishness
-            final PlatformEvent selflessParent = selectParentToReduceSelfishness();
-            if (selflessParent == null) {
-                return null;
-            }
-            // if we already contain that event, everything is good
-            if (!contains(chosenBestParents, selflessParent)) {
-                // otherwise, replace the least important parent with one we have chosen to reduce selfishness
-                // please note in case of single-parent events, this will replace the only parent
-                chosenBestParents[chosenBestParents.length - 1] = selflessParent;
-                replacedBestParentForSelfishness = true;
-            }
-        }
-
-        for (int i = 0; i < chosenBestParents.length; i++) {
-            if (replacedBestParentForSelfishness && i == chosenBestParents.length - 1) {
-                tipsetMetrics
-                        .getPityParentMetric(chosenBestParents[i].getCreatorId())
-                        .cycle();
-            } else {
-                tipsetMetrics
-                        .getTipsetParentMetric(chosenBestParents[i].getCreatorId())
-                        .cycle();
-            }
-        }
-
-        return buildAndProcessEvent(chosenBestParents);
+        return buildAndProcessEvent(possibleOtherParents.toArray(PlatformEvent[]::new));
     }
 
     /**
