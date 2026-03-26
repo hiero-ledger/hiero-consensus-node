@@ -105,7 +105,7 @@ ALL_FLAKY_ISSUES=$(gh api \
     -f state="all" \
     -f per_page=100 \
     --jq '[.[] | select(.pull_request == null) | {number: .number, state: (.state | ascii_upcase), title: .title, url: .html_url, closedAt: .closed_at}]' \
-    2>/dev/null | jq -s 'add // []')
+    | jq -s 'add // []' || echo '[]')
 echo "Found $(echo "${ALL_FLAKY_ISSUES}" | jq 'length') existing flaky-test issue(s)"
 
 # Process each flaky test
