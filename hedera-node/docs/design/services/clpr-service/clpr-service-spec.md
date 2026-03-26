@@ -33,8 +33,6 @@ unrecognized fields.
 syntax = "proto3";
 
 // The static configuration for a ledger participating in CLPR.
-// Does not include the endpoint roster, which is managed separately
-// via control messages (see design doc §3.1.2).
 message ClprLedgerConfiguration {
   // Protocol version. Implementations MUST reject configurations with
   // an unrecognized protocol_version.
@@ -55,6 +53,12 @@ message ClprLedgerConfiguration {
 
   // Capacity limits advertised by this ledger.
   ClprThrottles throttles = 5;
+
+  // Seed endpoints for initial peer discovery. Up to 10 entries.
+  // These provide bootstrap connectivity for new endpoints that have no
+  // prior knowledge of the peer network. Endpoint discovery beyond seed
+  // nodes uses the off-chain gossip protocol (discoverEndpoints RPC).
+  repeated ClprEndpoint seed_endpoints = 6;
 }
 
 // Consensus timestamp. Defined here rather than importing google.protobuf.Timestamp
@@ -99,8 +103,8 @@ message ClprThrottles {
 
 ```protobuf
 // An endpoint participating in CLPR syncs for a specific Connection.
-// Maintained in state separately from the configuration, propagated via
-// EndpointJoin / EndpointLeave control messages.
+// Used in seed endpoint lists (in ClprLedgerConfiguration) and in the
+// off-chain gossip-based endpoint discovery protocol.
 message ClprEndpoint {
   // Network address and port. Optional; omit for private networks that
   // only initiate outbound syncs.
@@ -135,7 +139,7 @@ message ClprEndpoint {
 
   // On-ledger account associated with this endpoint node.
   // Length is platform-dependent (e.g., 20 bytes for EVM/Hiero).
-  // MUST be unique within a Connection's endpoint roster.
+  // MUST be unique within an endpoint set.
   bytes account_id = 4;
 }
 
@@ -161,23 +165,8 @@ message ServiceEndpoint {
 // skipping unknown control messages could cause state divergence.
 message ClprControlMessage {
   oneof payload {
-    ClprEndpointJoin endpoint_join = 1;
-    ClprEndpointLeave endpoint_leave = 2;
-    ClprConfigUpdate config_update = 3;
+    ClprConfigUpdate config_update = 1;
   }
-}
-
-// Announces a new endpoint joining the peer's roster.
-message ClprEndpointJoin {
-  ClprEndpoint endpoint = 1;
-}
-
-// Announces an endpoint's departure from the peer's roster.
-// The connection_id is implicit — the endpoint is removed from the roster
-// of the Connection on which this Control Message was received.
-message ClprEndpointLeave {
-  // Account ID of the departing endpoint. MUST match an existing roster entry.
-  bytes account_id = 1;
 }
 
 // Carries updated configuration parameters.
@@ -379,6 +368,19 @@ service ClprEndpointService {
   // The responder computes its payload upon receiving the incoming connection.
   // Each side then submits the received payload to its own ledger.
   rpc sync(ClprSyncPayload) returns (ClprSyncPayload);
+
+  // Endpoint discovery: returns known peer endpoints for a Connection.
+  // Used for gossip-based endpoint discovery. Endpoints SHOULD throttle
+  // responses to protect against discovery abuse.
+  rpc discoverEndpoints(DiscoverEndpointsRequest) returns (DiscoverEndpointsResponse);
+}
+
+message DiscoverEndpointsRequest {
+  bytes connection_id = 1;
+}
+
+message DiscoverEndpointsResponse {
+  repeated ClprEndpoint endpoints = 1;
 }
 ```
 
@@ -452,9 +454,9 @@ Connection {
 exist, so no responses are expected. The first Data Message ever enqueued will have ID 1 (from
 `next_message_id`), and the first Response Message received from the peer MUST reference that ID.
 
-**Peer endpoint roster** is stored separately, keyed by `(connection_id, account_id)`. It is NOT embedded in the
-Connection object. Endpoints are seeded at connection registration and updated via EndpointJoin/EndpointLeave control
-messages.
+**Peer endpoint discovery** is handled off-chain via gossip between endpoints (see §5.4). Peer endpoint data is NOT
+stored in on-ledger state. Seed endpoints for initial discovery are included in the peer's `ClprLedgerConfiguration`
+and propagated via ConfigUpdate control messages.
 
 **Message queue** entries are stored separately, keyed by `(connection_id, message_id)`.
 
@@ -535,8 +537,7 @@ interface IClprVerifier {
   // (including chain_id, service_address, timestamp, throttles).
   //
   // Used during:
-  //   - The first sync to verify and extract the peer's configuration
-  //   - updateEndpointRoster to verify the peer's endpoint list context
+  //   - registerConnection to verify and extract the peer's configuration
   //
   // The proof_bytes contain whatever the source ledger's proof system produces
   // to attest to its configuration state (state roots, Merkle paths, etc.).
@@ -561,15 +562,6 @@ interface IClprVerifier {
   // SHOULD fail fast on obviously malformed inputs (wrong proof length, etc.)
   //   before performing expensive cryptographic operations.
   function verifyBundle(bytes proof_bytes) returns (ClprQueueMetadata, ClprMessagePayload[])
-
-  // Verify an endpoint roster proof. Returns the verified endpoint list
-  // for a Connection on the source ledger.
-  //
-  // Used during:
-  //   - updateEndpointRoster (when sync channel is broken)
-  //
-  // MUST revert if verification fails.
-  function verifyEndpoints(bytes proof_bytes) returns (ClprEndpoint[])
 }
 ```
 
@@ -785,18 +777,17 @@ Connection creation is **permissionless**. The registrant:
 1. Generates an **ECDSA_secp256k1 keypair** and computes the Connection ID as `keccak256(uncompressed_public_key)`
    (64-byte x||y coordinates, without the `0x04` prefix).
 2. Deploys a **verifier contract** on the local ledger.
-3. Discovers the peer ledger's CLPR Service address and endpoint roster through **off-chain** means (documentation,
-   registries, direct coordination). Verifier discovery is off-chain — there is no on-chain bootstrap proof.
-4. Calls `registerConnection` on the local CLPR Service.
+3. Obtains a **configuration proof** from the peer ledger through off-chain means.
+4. Calls `registerConnection` on the local CLPR Service with the verifier address and the peer's config proof.
 
 The CLPR Service:
 
 1. Verifies the **ECDSA signature** over the registration data (proves caller controls the Connection ID).
    The exact signed payload format is defined in platform-specific specifications.
-2. Creates the Connection: stores the Connection ID, peer's `chain_id` and `service_address`, verifier
-   contract address and code fingerprint, and seed endpoints. The verifier is immutable — it cannot be changed
-   after registration. The peer's configuration is not yet known at registration time — it will be obtained and
-   verified during the first sync.
+2. Calls `verifyConfig(config_proof_bytes)` on the specified verifier contract to obtain the peer's verified
+   `ClprLedgerConfiguration` (chain_id, service_address, throttles, timestamp).
+3. Creates the Connection: stores the Connection ID, verified peer configuration, verifier contract address
+   and code fingerprint. The verifier is immutable — it cannot be changed after registration.
 
 This process is repeated independently on the peer ledger for bidirectional communication. No pairing ceremony is
 needed — the deterministic Connection ID from the shared keypair links the two registrations.
@@ -805,11 +796,28 @@ needed — the deterministic Connection ID from the shared keypair links the two
 ledger upgrades its proof format, a new Connection must be registered with a new verifier. This simplifies the trust
 model: applications can evaluate a Connection's verifier once and know it will not change.
 
-## 5.4 Endpoint Roster Update
+## 5.4 Endpoint Discovery
 
-If the sync channel breaks down (e.g., a ledger has completely rotated its endpoint set), any user may submit a
-`updateEndpointRoster` call. The Connection's verifier validates proof bytes via `verifyEndpoints()` and returns
-the peer's current endpoint list. The CLPR Service replaces the stale peer roster.
+Peer endpoint discovery is handled entirely off-chain via gossip between endpoints. Each ledger's configuration
+includes up to 10 **seed endpoints** that provide initial connectivity for new endpoints. Once connected to any
+peer, an endpoint uses the `discoverEndpoints` RPC (§1.5) to learn about additional peers.
+
+Peer endpoint data is NOT stored in on-ledger state. Each endpoint maintains its own local, ephemeral view of
+known peers. This design avoids the O(N × M) gas cost of propagating endpoint changes across N endpoints and
+M connections via on-chain state updates.
+
+**Endpoint registration** is local to each ledger. On permissioned ledgers (Hiero), endpoints are derived
+automatically from the consensus roster. On permissionless ledgers (Ethereum), endpoints register on-chain with
+a bond for Sybil resistance. In both cases, registration is on the endpoint's own ledger — not on the peer's.
+
+**Per-endpoint throttle.** The CLPR Service enforces a per-endpoint submission rate limit on `submitBundle`. Each
+registered endpoint gets `1 / num_registered_endpoints` of the total bundle submission capacity. Excess submissions
+are rejected and the submitter is charged. This incentivizes endpoints to avoid duplicate submissions (e.g., by
+introducing a small random delay before submitting, as described in the design doc).
+
+**Reciprocity-based peer selection.** Endpoints SHOULD prefer to sync with peers that reciprocate by providing
+messages in return. An endpoint that only requests messages without providing any will be deprioritized by its
+peers. This naturally converges on efficient pairings where both sides do useful work.
 
 ## 5.5 Administrative Operations
 
@@ -870,17 +878,9 @@ registerConnection(
                                   // to prevent cross-Connection replay. Exact payload format is
                                   // defined in platform-specific specifications.
   verifier_contract: bytes,       // address of locally deployed verifier (immutable)
-  chain_id: string,               // CAIP-2 identifier of the peer chain
-  service_address: bytes,         // on-ledger address of the peer's CLPR Service
-  seed_endpoints: ClprEndpoint[], // at least one peer endpoint
-) → success | error
-
-// Recover a Connection's peer endpoint roster from a state proof.
-// Authority: any caller (permissionless).
-updateEndpointRoster(
-  [auth] caller,
-  connection_id: bytes(32),
-  proof_bytes: bytes              // passed to verifyEndpoints()
+  config_proof_bytes: bytes,      // opaque proof from peer ledger; passed to verifyConfig()
+                                  // to obtain verified peer configuration (chain_id, service_address,
+                                  // throttles, timestamp) at registration time
 ) → success | error
 
 // Close (permanently close) a Connection.
@@ -1061,8 +1061,8 @@ No cross-ledger misbehavior reports are exchanged.
 
 | **Parameter**               | **Default** | **Scope**                  | **Description**                                                                                          |
 |-----------------------------|-------------|----------------------------|----------------------------------------------------------------------------------------------------------|
-| `clprEnabled`               | `false`     | Global                     | Master enable switch. When disabled, all pseudo-API calls MUST return an error.                           |
-| `publicizeNetworkAddresses` | `true`      | Global                     | Whether to include service endpoint addresses in the endpoint roster.                                    |
+| `clprEnabled`               | `false`     | Global                     | Master enable switch. When disabled, all pseudo-API calls MUST return an error. Checked dynamically at call time (not at startup), enabling runtime kill-switch. |
+| `maxBundlesPerSec`          | TBD         | Global                     | Total bundle submission capacity per second. Divided equally among registered endpoints. Each endpoint gets `maxBundlesPerSec / numEndpoints` capacity. Excess submissions rejected and charged. |
 | `maxQueueDepth`             | TBD         | Per-Ledger (per-Connection) | Maximum unacknowledged messages in the outbound queue before new messages are rejected.                   |
 | `maxMessagePayloadBytes`    | TBD         | Per-Ledger (per-Connection) | Maximum payload size for a single message. Enforced by source (enqueue) and destination (bundle).        |
 | `maxMessagesPerBundle`      | TBD         | Per-Ledger (per-Connection) | Maximum messages a single bundle may contain. Platform specs MUST set this to ensure bundles fit within the platform's transaction size and execution budget limits. |
@@ -1162,15 +1162,15 @@ queue fills.
 
 | #   | Scenario                                            | Sync Channel         | Recovery Path                                                                                                          | Status                        |
 |-----|-----------------------------------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| R1  | Endpoints rotated during partition                  | Broken               | `updateEndpointRoster` with `verifyEndpoints` proof.                                                                  | Works                         |
+| R1  | Endpoints rotated during partition                  | Broken               | Endpoints discover new peers via gossip (`discoverEndpoints` RPC) once any connectivity is restored. Seed endpoints in config provide fallback bootstrap. | Works                         |
 | R2  | Source ledger upgrades proof format                 | Breaks when source switches | Register new Connection with new verifier. Applications migrate. Admin closes old Connection.                    | Works (requires new Connection) |
-| R3  | Endpoints rotated (proof format unchanged)          | Broken               | Endpoint recovery (R1), then ConfigUpdate flows normally.                                                              | Works                         |
-| R4  | Endpoints rotated AND proof format changed           | Broken               | Register new Connection with new verifier. Endpoint recovery (R1) on new Connection. Admin closes old Connection.     | Works (requires new Connection) |
+| R3  | Endpoints rotated (proof format unchanged)          | Broken               | Endpoint discovery (R1), then ConfigUpdate flows normally.                                                              | Works                         |
+| R4  | Endpoints rotated AND proof format changed           | Broken               | Register new Connection with new verifier. Endpoint discovery (R1) on new Connection. Admin closes old Connection.     | Works (requires new Connection) |
 | R5  | Verifier compromised or broken                      | Suspect              | Admin pauses/closes. Since verifier is immutable, register new Connection with correct verifier.                       | Works (data loss on close)    |
 | R6  | Queue state permanently corrupted on peer           | Working              | Connection halts (§4.5). Admin closes. Applications need out-of-band reconciliation.                                   | **Open question** (see below) |
 | R7  | Network partition (endpoints unchanged)             | Temporarily broken   | Syncs resume automatically. Monotonic IDs and running hash verify integrity.                                           | Works                         |
 | R8  | Peer ledger down entirely                           | Broken               | Messages queue up to `max_queue_depth`, then backpressure. Syncs resume when peer returns.                             | Works                         |
-| R9  | Both sides' endpoints change simultaneously         | Broken on both sides | `updateEndpointRoster` submitted independently on both ledgers.                                                       | Works                         |
+| R9  | Both sides' endpoints change simultaneously         | Broken on both sides | Endpoints on both sides discover new peers via gossip once any connectivity is restored.                               | Works                         |
 
 ---
 

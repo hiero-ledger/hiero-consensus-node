@@ -24,11 +24,6 @@ CLPR introduces no new token. All incentives and penalties are denominated in na
 - **Unlocks new business use cases** — positions Hedera competitively as the financial rails of tomorrow are being
   decided today.
 
-## SMART Goal
-
-> *"Interledger communication deployed from Ethereum to Hedera Mainnet, and at least 1 K transactions processed between
-Ethereum and Mainnet by the end of 2026."*
-
 ---
 
 # 2. Core Concepts and Terminology
@@ -216,7 +211,7 @@ roster is maintained separately and is not part of the configuration — see [§
 The *local configuration* describes *this* ledger.
 
 **Authority.** The local configuration may only be updated by the admin of the CLPR Service — on Hiero this is a
-privileged system operation, on Ethereum this is a call from the contract's designated admin account.
+privileged system operation. On Ethereum this is a call from the contract's designated admin account.
 
 ---
 
@@ -267,7 +262,7 @@ roster is managed separately.
 Each ledger specifies the following capacity limits in its configuration:
 
 `MaxMessagesPerBundle` is a hard capability limit. It reflects the maximum number of messages that can be included in a
-single bundle without exceeding the **this** ledger's gas or execution budget when receiving bundles. Sending endpoints
+single bundle without exceeding **this** ledger's gas or execution budget when receiving bundles. Sending endpoints
 MUST respect this limit.
 
 `MaxMessagePayloadBytes` is the maximum size of a single message payload that **this** ledger will accept when receiving
@@ -280,8 +275,7 @@ worst-case execution time per message and prevents a single expensive message fr
 `MaxSyncBytes` is the maximum total size of a bundle exchange payload (proof bytes, queue metadata, and
 message bundle combined) that **this** ledger will accept from a peer endpoint. This caps the data an
 endpoint must receive and process at the gRPC level before submitting it as a transaction. Endpoints MUST
-reject bundle payloads exceeding this limit. Metadata proofs exchanged during the optional metadata exchange
-phase ([§3.1.4](#314-endpoint-communication-protocol)) are lightweight and not subject to this limit. This
+reject bundle payloads exceeding this limit. This limit also applies to Metadata proofs. This
 value MUST be greater than `MaxMessagePayloadBytes` plus the protocol overhead (proof bytes, queue metadata,
 and message framing) required to deliver a single message. If `MaxSyncBytes` is set too low, the Connection
 can deadlock — the next message to send may be larger than the bundle payload can carry, halting progress
@@ -339,19 +333,25 @@ An endpoint has:
 - **Account ID** — The on-ledger account associated with this endpoint node. A byte array whose length depends on the
   ledger (e.g., 20 bytes for Hiero and Ethereum, 32 bytes for Solana).
 
-**Bootstrap.** Seed endpoints are not part of `registerConnection` itself — they are supplied via a separate call after
-the connection is established. A private ledger may choose to omit supplying any seed endpoints entirely, since
-endpoints can be learned later via `updateEndpointRoster` or through the normal sync channel.
+**Discovery.** Peer endpoint discovery is handled entirely off-chain via gossip between endpoints. Each ledger's
+configuration includes up to 10 **seed endpoints** (in `ClprLedgerConfiguration`) that provide initial
+bootstrap connectivity for new endpoints. Seed endpoints are propagated to peers via the normal `ConfigUpdate`
+Control Message mechanism. Once an endpoint has connected to any peer, it uses the `discoverEndpoints` gRPC RPC
+to learn about additional peers.
 
-**Ongoing updates.** After bootstrap, changes to the peer endpoint roster are propagated via Control Messages in the
-message queue (see [§3.2.2](#322-message-storage) for the Control Message types and ordering guarantees). Each receiving
-ledger's CLPR Service is responsible for applying these updates to its local copy of the peer roster.
+**No on-chain peer roster.** Peer endpoint data is NOT stored in on-ledger state. Each endpoint maintains its
+own local, ephemeral view of known peers. This avoids the O(N × M) gas cost of propagating endpoint changes
+across N endpoints and M connections.
 
-**Recovery.** If the automatic sync channel breaks down — for example, because a ledger has completely rotated its
-endpoint set and none of the new endpoints are known to the peer — any user may submit a `updateEndpointRoster` call
-directly to the CLPR Service API. This call requires a proof, which the Connection's verifier contract validates via
-`verifyEndpoints` ([§3.1.5](#315-verifier-contracts)), returning the peer's current endpoint list. The CLPR Service
-replaces the stale peer roster with the verified endpoints. No live sync is required, and any user may submit the call.
+**Per-endpoint throttle.** The CLPR Service enforces a per-endpoint submission rate limit on `submitBundle`.
+Each registered endpoint gets `1 / num_registered_endpoints` of the total bundle submission capacity. Excess
+submissions are rejected and the submitter is charged. This incentivizes endpoints to avoid duplicate submissions
+(e.g., by introducing a small random delay before submitting).
+
+**Reciprocity.** Endpoints prefer to sync with peers that reciprocate by providing messages in return. An
+endpoint that only requests messages without providing any will be deprioritized by its peers. This naturally
+converges on efficient pairings where both sides do useful work, and cannot be faked — providing a valid
+bundle with messages requires having actual messages to send.
 
 **How local endpoints are established** varies by ledger type:
 
@@ -490,15 +490,8 @@ registration exists solely to coordinate cross-ledger registration and has no fu
 > situation as a remote ledger dying unexpectedly — the protocol cannot resolve what it cannot
 > reach.
 
-**Verifier immutability.** The verifier contract is fixed at registration time and cannot be changed. If the source
-ledger upgrades its proof format, a new Connection must be registered with a new verifier. This simplifies the trust
-model: applications can evaluate a Connection's verifier once and know it will not change underneath them.
-
-> 💡 **Hiero:** Connection creation is a non-privileged HAPI transaction. The CLPR Service admin
-> (governing council) can pause or close Connections via HAPI transactions.
-
-> 💡 **Ethereum:** Connection creation is a non-privileged call on the CLPR Service contract. The
-> CLPR Service admin (contract governance) can pause or close Connections via contract functions.
+**Verifier immutability.** The verifier contract is fixed at registration time and cannot be changed. This simplifies
+the trust model: applications can evaluate a Connection's verifier once and know it will not change underneath them.
 
 ### 3.1.4 Endpoint Communication Protocol
 
@@ -544,15 +537,14 @@ The bundle exchange carries:
 - **Proof bytes** — Opaque bytes that the receiving ledger's verifier contract knows how to interpret. Contains
   whatever the verifier needs to extract and verify the queue metadata and messages.
 - **Queue metadata** — Current message IDs and running hashes (defined in [§3.2.1](#321-message-queue-metadata)), so
-  each side knows what the other has
-  sent and received. Extracted and verified by the verifier contract.
+  each side knows what the other has sent and received. Extracted and verified by the verifier contract.
 - **Message bundles** — Any pending messages that the peer has not yet acknowledged. Extracted and verified by the
   verifier contract.
 
-The queue metadata exchange is the mechanism by which acknowledgements are communicated — the peer's reported
+The queue metadata exchange is the preferred mechanism by which acknowledgements are communicated — the peer's reported
 `received_message_id` becomes the sender's `acked_message_id`, enabling deletion of acknowledged response messages and
 ordering verification for initiating messages (see [§3.2.6](#326-message-lifecycle-and-redaction)
-and [§3.2.7](#327-response-ordering-and-correlation)).
+and [§3.2.7](#327-response-ordering-and-correlation)). The metadata is also included as part of the bundle proof.
 
 ```mermaid
 sequenceDiagram
@@ -585,14 +577,6 @@ with a public ledger like Hedera or Ethereum without exposing any network infras
 
 When a ledger is private, its endpoints are responsible for initiating communication with the peer ledger.
 
-> 💡 **Hiero:** A gRPC server is built into the consensus node software. Every node runs the CLPR Endpoint API alongside
-> the existing HAPI gRPC services. Nodes initiate sync calls to peer endpoints when there are pending outbound messages,
-> at a rate derived from the peer ledger's `max_syncs_per_sec` and the number of local endpoints.
-
-> 💡 **Ethereum:** The gRPC server runs as a sidecar process alongside the Besu client (or as a built-in module if CLPR
-> support is contributed to Besu). The sidecar reads from and writes to the CLPR Service contract via standard Ethereum
-> JSON-RPC, but communicates with peer endpoints over gRPC.
-
 ### 3.1.5 Verifier Contracts
 
 CLPR is **proof-system-agnostic** — all cryptographic verification is delegated to verifier contracts, and the protocol
@@ -600,16 +584,12 @@ never interprets proof bytes directly. A verifier contract is a smart contract (
 native callback (on Hiero) that implements the following methods:
 
 - **`verifyConfig(bytes) → ClprLedgerConfiguration`** — Accepts opaque proof bytes, performs whatever cryptographic
-  verification is appropriate for the source ledger, and returns a verified configuration. Used during `setPeerConfig`
-  to establish the peer's configuration ([§3.1.3](#313-establishing-and-updating-connections)), and during endpoint
-  roster update to re-verify the peer's configuration from a state proof.
+  verification is appropriate for the source ledger, and returns a verified configuration. Used during
+  `registerConnection` to verify the peer's configuration at registration time
+  ([§3.1.3](#313-establishing-and-updating-connections)).
 - **`verifyBundle(bytes) → (ClprQueueMetadata, ClprMessagePayload[])`** — Accepts opaque proof bytes, performs
   verification, and returns verified queue metadata and messages. Used during bundle processing
   ([§3.2.4](#324-bundle-verification)).
-- **`verifyEndpoints(bytes) → ClprEndpoint[]`** — Accepts opaque proof bytes, performs verification, and returns a
-  verified list of endpoints for a specific Connection on the source ledger. Used during endpoint roster update
-  ([§3.1.2](#312-endpoint-roster)) when the sync channel is broken and the peer's endpoint set must be re-bootstrapped
-  from a state proof.
 - **`verifyMetadata(bytes) → ClprQueueMetadata`** — Accepts opaque metadata proof bytes, performs cryptographic
   verification appropriate for the source ledger, and returns verified queue metadata. Used during the optional
   metadata exchange phase of a sync cycle ([§3.1.4](#314-endpoint-communication-protocol)) so each endpoint can learn
@@ -618,7 +598,7 @@ native callback (on Hiero) that implements the following methods:
   `exchangeMetadata` require it.
 
 What happens inside the verifier contract is entirely its own concern. A verifier for Hiero might check TSS signatures
-and Merkle paths. A verifier for Ethereum might validate BLS aggregate signatures from the sync committee, or verify a
+and Merkle paths. A verifier for Ethereum might validate BLS aggregate signatures from the sync committee or verify a
 ZK proof that wraps the Ethereum consensus attestation. A verifier for a new chain might use an entirely novel proof
 system. CLPR does not constrain or even inspect the proof format — it only requires that the verifier return structured,
 verified data.
@@ -651,17 +631,11 @@ maintain.
 **Verifier contract examples.** The following are illustrative examples of verifier contracts that might be deployed for
 different ledger pairs. Each is a separate implementation; CLPR treats them identically.
 
-- **Hiero TSS Verifier** — For Hiero-to-Hiero connections (including HashSphere deployments). Verifies Merkle paths,
-  block proofs, and TSS signatures from the source network's consensus nodes. Provides the lowest-latency verification
-  path: sub-second message delivery with ABFT guarantees inherited from both networks.
-- **Ethereum BLS Verifier** — For Ethereum-to-Hiero connections. Validates BLS aggregate signatures from Ethereum's
-  sync committee. Internally manages validator set tracking (committee rotation every ~27 hours). The commitment level
-  (e.g., `finalized` vs. `safe` vs. `latest`) is a property of the verifier implementation — different deployments may
-  enforce different levels depending on the source ledger's risk profile.
-- **ZK Verifier** — A universal adapter for any source ledger. Verifies a zero-knowledge proof (Groth16, PLONK, STARK,
-  etc.) that wraps the source ledger's native consensus attestation. The source ledger's ecosystem builds the prover;
-  the verifier contract only needs to check the proof. This is the natural choice when the receiving ledger cannot
-  natively verify the source ledger's consensus mechanism.
+- **Hiero TSS Verifier** — For verifying state proofs originating from Hiero ledgers using TSS
+- **Ethereum BLS Verifier** — Validates BLS aggregate signatures from Ethereum's sync committee. Internally manages
+  validator set tracking (committee rotation every ~27 hours). The commitment level (e.g., `finalized` vs. `safe` vs.
+  `latest`) is a property of the verifier implementation — different deployments may enforce different levels depending
+  on the application's risk profile.
 
 > ‼️ **Upgradeable verifier contracts.** Although the verifier address is fixed at connection creation, the verifier
 > contract itself may be deployed behind an upgradeable proxy (e.g., EIP-1967). If the verifier is a proxy, the
@@ -779,12 +753,8 @@ Each queued entry contains:
       opaque byte data. The encoding and semantics of the payload are defined by higher-level protocol layers.
     - **Response Message** — A reply to a previously received Data Message, containing the original message ID, a
       structured status, and opaque reply bytes.
-    - **Control Message** — A protocol-level message. There are three subtypes:
-        - **EndpointJoin** — Announces a new endpoint joining the peer's roster. Carries the endpoint's signing
-          certificate, service endpoint (if any), and account ID (see [§3.1.2](#312-endpoint-roster)).
-        - **EndpointLeave** — Announces an endpoint's departure. Carries the departing endpoint's account ID. Sent
-          when an endpoint is removed for any reason.
-        - **ConfigUpdate** — Carries updated configuration parameters (throttles, payload limits,
+    - **Control Message** — A protocol-level message. Currently one subtype:
+        - **ConfigUpdate** — Carries updated configuration parameters (throttles, payload limits, seed endpoints,
           etc.). When the local admin changes a configuration parameter, the CLPR Service enqueues a ConfigUpdate on
           **every active Connection**. The peer processes it at a well-defined point in the message stream, so messages
           enqueued before the ConfigUpdate were valid under the old config and MUST be accepted; messages enqueued after
@@ -1249,15 +1219,15 @@ should be used as the basis for integration and fault-tolerance testing.
 
 | #   | Scenario                                                                                                                                    | Sync channel         | Recovery path                                                                                                                                                                                                                                                                | Status                                           |
 |-----|---------------------------------------------------------------------------------------------------------------------------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------|
-| R1  | **Endpoints rotated during partition.** Peer has completely replaced its endpoint set; local ledger knows none of the new endpoints.        | Broken               | Any user submits `updateEndpointRoster` ([§3.1.2](#312-endpoint-roster)) with proof bytes. The Connection's verifier validates via `verifyEndpoints` ([§3.1.5](#315-verifier-contracts)) and returns the peer's current endpoints. Syncs resume.                            | **Works.**                                       |
+| R1  | **Endpoints rotated during partition.** Peer has completely replaced its endpoint set; local ledger knows none of the new endpoints.        | Broken               | Endpoints discover new peers via the gossip-based `discoverEndpoints` RPC once any connectivity is restored. Seed endpoints in the peer's configuration (propagated via ConfigUpdate) provide fallback bootstrap.                                                             | **Works.**                                       |
 | R2  | **Source ledger upgrades proof format.** Syncs are active but the existing verifier cannot read the new format.                             | Breaks when source switches | Register a new Connection with a new verifier that understands the new proof format. Applications migrate to the new Connection. The old Connection can be closed by the CLPR Service admin. | **Works** (requires new Connection).             |
-| R3  | **Endpoints rotated, proof format unchanged.** Sync channel broken, but existing verifier can still read proofs.                            | Broken               | Endpoint recovery first (R1), then ConfigUpdate flows normally once syncs resume.                                                                                                                                                                                            | **Works.**                                       |
-| R4  | **Endpoints rotated AND proof format changed.** Sync channel broken, existing verifier cannot read new proofs.                              | Broken               | Register a new Connection with a new verifier. Endpoint recovery (R1) on the new Connection. Old Connection closed by admin. Applications migrate to the new Connection.                                                                                                      | **Works** (requires new Connection).             |
+| R3  | **Endpoints rotated, proof format unchanged.** Sync channel broken, but existing verifier can still read proofs.                            | Broken               | Endpoint discovery (R1), then ConfigUpdate flows normally once syncs resume.                                                                                                                                                                                                  | **Works.**                                       |
+| R4  | **Endpoints rotated AND proof format changed.** Sync channel broken, existing verifier cannot read new proofs.                              | Broken               | Register a new Connection with a new verifier. Endpoint discovery (R1) on the new Connection. Old Connection closed by admin. Applications migrate to the new Connection.                                                                                                     | **Works** (requires new Connection).             |
 | R5  | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                                    | Suspect              | CLPR Service admin pauses the Connection. Since the verifier is immutable, the Connection must be closed — in-flight messages receive `UNRESOLVED`. A new Connection with a correct verifier can be registered.                                                               | **Works** (`UNRESOLVED` for in-flight messages). |
 | R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection is automatically paused ([§3.2.7](#327-response-ordering-and-correlation)). CLPR Service admin coordinates with peer to fix the bug, then closes and re-registers. In-flight messages receive `UNRESOLVED`; applications reconcile out-of-band.                   | **Works** (`UNRESOLVED` for in-flight messages). |
 | R7  | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints.                                                 | Temporarily broken   | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed.                                                                                                                                               | **Works.**                                       |
 | R8  | **Peer ledger down entirely.** The remote ledger is offline.                                                                                | Broken               | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off.                                                                                                                                   | **Works.**                                       |
-| R9  | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints.                                                  | Broken on both sides | Endpoint recovery (R1) submitted independently on both ledgers by any user.                                                                                                                                                                                                  | **Works.**                                       |
+| R9  | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints.                                                  | Broken on both sides | Endpoints on both sides discover new peers via gossip once any connectivity is restored.                                                                                                                                                                                      | **Works.**                                       |
 
 > 💡 All recovery scenarios have defined recovery paths. R5 and R6 may result in `UNRESOLVED`
 > in-flight messages that require application-level out-of-band reconciliation.

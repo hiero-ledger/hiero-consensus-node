@@ -151,21 +151,14 @@ interface IClprService {
     ///        address(this), block.chainid)).
     /// @param verifierContract Address of the locally deployed verifier contract.
     ///        The verifier is immutable — it cannot be changed after registration.
-    /// @param seedEndpoints ABI-encoded array of ClprEndpoint structs.
+    /// @param configProofBytes Opaque proof from the peer ledger, passed to verifyConfig()
+    ///        to obtain the verified peer configuration (chain_id, service_address, throttles).
     function registerConnection(
         bytes32 connectionId,
         bytes calldata ecdsaPublicKey,
         bytes calldata ecdsaSignature,
         address verifierContract,
-        bytes calldata seedEndpoints
-    ) external;
-
-    /// @notice Recover a Connection's peer endpoint roster from a state proof. Permissionless.
-    /// @param connectionId The Connection ID.
-    /// @param proofBytes Proof bytes passed to the verifier's verifyEndpoints().
-    function updateEndpointRoster(
-        bytes32 connectionId,
-        bytes calldata proofBytes
+        bytes calldata configProofBytes
     ) external;
 
     /// @notice Close (permanently close) a Connection. ADMIN_ROLE only.
@@ -267,8 +260,8 @@ interface IClprService {
     /// @notice Submit a bundle received from a peer endpoint for on-chain processing.
     /// @dev Permissionless (typically called by endpoint nodes).
     ///      The signer's identity is recovered from the ECDSA secp256k1 signature
-    ///      via ecrecover and matched against registered ecdsa_signing_key entries
-    ///      in the Connection's peer endpoint roster.
+    ///      via ecrecover. Used for per-endpoint throttle enforcement and local
+    ///      misbehavior detection.
     /// @param connectionId The Connection ID.
     /// @param proofBytes Opaque proof bytes from ClprSyncPayload.
     /// @param remoteEndpointSignature ECDSA secp256k1 signature over
@@ -323,10 +316,6 @@ interface IClprVerifier {
     /// @dev Returns ABI-encoded ClprQueueMetadata and ClprMessagePayload[].
     function verifyBundle(bytes calldata proofBytes)
         external view returns (bytes memory metadata, bytes memory messages);
-
-    /// @dev Returns ABI-encoded ClprEndpoint[].
-    function verifyEndpoints(bytes calldata proofBytes)
-        external view returns (bytes memory endpoints);
 }
 ```
 
@@ -504,11 +493,6 @@ event ConnectorSlashed(
     string reason
 );
 
-/// @notice Emitted when the peer endpoint roster is recovered.
-event EndpointRosterRecovered(
-    bytes32 indexed connectionId,
-    uint256 endpointCount
-);
 
 /// @notice Emitted when a Response Message callback to the target application reverts.
 event ResponseDeliveryFailed(
@@ -1106,7 +1090,7 @@ modifier nonReentrant() {
 ```
 
 Applied to: `setLedgerConfiguration`, `registerConnection`,
-`updateEndpointRoster`, `closeConnection`, `pauseConnection`, `resumeConnection`, `registerConnector`,
+`closeConnection`, `pauseConnection`, `resumeConnection`, `registerConnector`,
 `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`, `sendMessage`, `submitBundle`,
 `redactMessage`, `registerEndpoint`, `deregisterEndpoint`.
 
@@ -1397,9 +1381,9 @@ The following contradictions existed in earlier revisions and have been correcte
 4. **Incomplete `clprEnabled` coverage.** The cross-platform spec §7 states "When disabled, all pseudo-API
    calls MUST return an error." All state-modifying non-admin functions MUST check `require(clprEnabled)` as
    their first step. This includes: `registerConnection`, `registerConnector`,
-   `updateEndpointRoster`, `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
+   `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
    `registerEndpoint`, `deregisterEndpoint`, `redactMessage`, and `sendMessage`.
-   Read-only query functions (`getLedgerConfiguration`, `getQueueDepth`, `getConnector`) are exempt. Admin operations
+   Read-only query functions (`getLedgerConfiguration`, `getConnector`) are exempt. Admin operations
    (`closeConnection`, `pauseConnection`, `resumeConnection`, `setLedgerConfiguration`) are exempt from the
    `clprEnabled` check because the admin must be able to manage the system even when disabled.
 

@@ -218,7 +218,7 @@ besu/
         state/
           ClprContractReader.java        # Reads CLPR Service contract state
           ConnectionCache.java           # Caches Connection metadata
-          EndpointRosterCache.java       # Caches peer endpoint rosters
+          PeerEndpointCache.java         # Caches discovered peer endpoints (ephemeral, gossip-based)
         bond/
           EndpointBondManager.java       # Registration and bond management
         metrics/
@@ -290,8 +290,9 @@ Configuration:
 client-auth = "REQUIRE"  # or "OPTIONAL" or "NONE"
 ```
 
-When `client-auth = "REQUIRE"`, the server only accepts connections from endpoints whose certificates appear in a
-known Connection's peer endpoint roster. This provides strong peer authentication at the transport layer.
+TLS provides transport encryption. Peer authentication is proof-based (any peer providing valid bundle proofs is
+legitimate) rather than certificate-based against an on-chain roster. The `client-auth` setting controls whether
+TLS client certificates are required for transport, but is NOT used for CLPR-level admission control.
 
 ## 3.4 Coexistence with Existing Servers
 
@@ -1365,23 +1366,16 @@ The gRPC server is exposed to the internet and is a potential DDoS target. Prote
    (read from the on-chain roster). This provides strong DDoS protection but breaks the ability to accept connections
    from newly registered peers until the roster cache is refreshed.
 
-## 14.2 mTLS for Peer Authentication
+## 14.2 TLS and Peer Authentication
 
-When `clpr.tls.client-auth = "REQUIRE"`, the gRPC server enforces mutual TLS:
+TLS provides transport encryption. Peer authentication is **proof-based**, not certificate-based — any peer that
+provides a valid bundle proof (verified on-chain by the Connection's verifier contract) is legitimate regardless
+of identity. Peer endpoint data is not stored in on-chain state, so there is no roster to verify certificates
+against.
 
-- The connecting peer must present a certificate.
-- The server validates that the certificate matches an entry in the Connection's peer endpoint roster
-  (`ClprEndpoint.tls_certificate`).
-- Connections from unknown certificates are rejected at the TLS handshake level.
-
-This provides strong authentication — only registered peer endpoints can connect. The tradeoff is that roster updates
-(new peers joining) require a cache refresh before the new peer can connect.
-
-**Recommendation:** Use `client-auth = "OPTIONAL"` for production. The server accepts connections with or without
-client certificates. If a certificate is presented, it is validated against the roster. If not, the endpoint is
-treated as unauthenticated, and the proof_bytes it sends will be validated on-chain regardless. The protocol's
-cryptographic verification (verifier contract + running hash chain) provides security even without transport-layer
-authentication.
+The `client-auth` TLS setting controls transport-layer behavior only and is NOT used for CLPR-level admission
+control. `client-auth = "NONE"` or `"OPTIONAL"` is recommended. Peers that send invalid proofs or abuse rate
+limits are shunned locally.
 
 ## 14.3 Signing Key Management
 
@@ -1698,7 +1692,7 @@ to develop and may result in Connections with only one or two active endpoints �
    storage layout file.
 
 5. **Endpoint signing certificate renewal.** The RSA certificate used for TLS has an expiry date. Renewal requires
-   updating the on-chain endpoint roster (via EndpointLeave + EndpointJoin control messages). The plugin should
-   detect impending certificate expiry and alert the operator. Automated renewal is complex because the new
-   certificate must be registered on-chain before it can be used for TLS, and peers must see the roster update
-   before they will accept connections with the new certificate.
+   updating the TLS certificate. The plugin should detect impending certificate expiry and alert the operator.
+   Since peer authentication is proof-based (not certificate-based), the new certificate does not need to be
+   registered with peers — it simply starts being used for TLS. Peers discover updated endpoint info via the
+   gossip-based `discoverEndpoints` RPC.

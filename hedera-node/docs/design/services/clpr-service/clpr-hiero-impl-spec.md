@@ -41,7 +41,6 @@ The following new `oneof` variants are added to `TransactionBody`:
 |---|---|---|---|
 | `setLedgerConfiguration` | `ClprSetLedgerConfiguration` | `clprSetLedgerConfiguration` | CLPR admin (council key) |
 | `registerConnection` | `ClprRegisterConnection` | `clprRegisterConnection` | Any (permissionless) |
-| `updateEndpointRoster` | `ClprUpdateEndpointRoster` | `clprUpdateEndpointRoster` | Any (permissionless) |
 | `closeConnection` | `ClprCloseConnection` | `clprCloseConnection` | CLPR admin |
 | `pauseConnection` | `ClprPauseConnection` | `clprPauseConnection` | CLPR admin |
 | `resumeConnection` | `ClprResumeConnection` | `clprResumeConnection` | CLPR admin |
@@ -49,15 +48,20 @@ The following new `oneof` variants are added to `TransactionBody`:
 | `topUpConnector` | `ClprTopUpConnector` | `clprTopUpConnector` | Connector admin |
 | `withdrawConnectorBalance` | `ClprWithdrawConnectorBalance` | `clprWithdrawConnectorBalance` | Connector admin |
 | `deregisterConnector` | `ClprDeregisterConnector` | `clprDeregisterConnector` | Connector admin |
-| `sendMessage` | `ClprSendMessage` | `clprSendMessage` | Any |
 | `submitBundle` | `ClprSubmitBundle` | `clprSubmitBundle` | Any (typically endpoint) |
 | `redactMessage` | `ClprRedactMessage` | `clprRedactMessage` | CLPR admin |
 
 **Note:** There is no `reportMisbehavior` transaction. Misbehavior detection and enforcement are strictly
 local (see cross-platform spec §1.6).
 
+**Note:** `sendMessage` is a **system contract method**, not a HAPI transaction. Application smart contracts
+call it directly from EVM execution context. See [section 6](#6-connector-authorization) for details.
+
 **Note:** `registerEndpoint` and `deregisterEndpoint` from spec section 6.5 are **not implemented** on Hiero.
 Endpoints are derived automatically from the active roster (see [section 4](#4-endpoint-implementation)).
+
+**Note:** `updateEndpointRoster` from spec section 6.2 is **not implemented**. Peer endpoint discovery is
+handled off-chain via gossip (see cross-platform spec §5.4). Peer endpoint data is not stored in on-ledger state.
 
 ## 1.2 Protobuf Message Definitions
 
@@ -107,15 +111,10 @@ message ClprRegisterConnectionTransactionBody {
   // The verifier is immutable — it cannot be changed after registration.
   AccountID verifier_contract = 4;
 
-  // At least one peer endpoint for initial sync capability.
-  repeated ClprEndpoint seed_endpoints = 5;
-}
-
-// Recovers a Connection's peer endpoint roster from a state proof.
-message ClprUpdateEndpointRosterTransactionBody {
-  bytes connection_id = 1;
-  // Opaque proof bytes passed to verifyEndpoints().
-  bytes proof_bytes = 2;
+  // Opaque proof bytes from the peer ledger containing the peer's configuration.
+  // Passed to verifyConfig() on the verifier contract to obtain the verified
+  // ClprLedgerConfiguration (chain_id, service_address, throttles, timestamp).
+  bytes config_proof_bytes = 5;
 }
 
 // Closes (permanently closes) a Connection. Terminal state.
@@ -274,7 +273,6 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 |---|---|
 | `ClprSetLedgerConfiguration` | CLPR admin key (Hedera council key, file `0.0.150` or equivalent system key) |
 | `ClprRegisterConnection` | Transaction payer only (permissionless) |
-| `ClprUpdateEndpointRoster` | Transaction payer only (permissionless) |
 | `ClprCloseConnection` | CLPR admin key |
 | `ClprPauseConnection` | CLPR admin key |
 | `ClprResumeConnection` | CLPR admin key |
@@ -282,7 +280,6 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 | `ClprTopUpConnector` | Connector admin key |
 | `ClprWithdrawConnectorBalance` | Connector admin key |
 | `ClprDeregisterConnector` | Connector admin key |
-| `ClprSendMessage` | Transaction payer only |
 | `ClprSubmitBundle` | Transaction payer only (typically consensus node account) |
 | `ClprRedactMessage` | CLPR admin key |
 The **CLPR admin key** is a new system entity key, analogous to the address book admin key. It is stored in state
@@ -318,7 +315,6 @@ Initial schema: `V0650ClprSchema` (version `0.65.0`, matching the anticipated re
 | State Key | Key Type | Value Type | Description |
 |---|---|---|---|
 | `CONNECTIONS` | `bytes(32)` (connection_id) | `ClprConnection` | All registered Connections. |
-| `PEER_ENDPOINT_ROSTERS` | `ClprPeerEndpointKey` | `ClprEndpoint` | Peer endpoint roster entries, keyed by `(connection_id, account_id)`. |
 | `CONNECTORS` | `ClprConnectorKey` | `ClprConnector` | Registered Connectors, keyed by `(connection_id, source_connector_address)`. |
 | `CONNECTOR_INDEX` | `ClprConnectorIndexKey` | `ClprConnectorKey` | Cross-chain mapping: `(connection_id, source_connector_address)` to local Connector. Used to resolve incoming messages. |
 | `MESSAGE_QUEUE` | `ClprMessageKey` | `ClprMessageValue` | Outbound message queue entries, keyed by `(connection_id, message_id)`. Exists in prototype. |
@@ -394,11 +390,6 @@ message ClprConnector {
 }
 
 // Composite keys for K/V stores.
-message ClprPeerEndpointKey {
-  bytes connection_id = 1;
-  bytes account_id = 2;
-}
-
 message ClprConnectorKey {
   bytes connection_id = 1;
   bytes source_connector_address = 2;
@@ -418,7 +409,7 @@ migration path:
 
 1. Schema `V0650ClprSchema` reads all existing prototype state.
 2. Existing `ClprLedgerId`-keyed entries are re-indexed under their corresponding `connection_id`.
-3. New state stores (`CONNECTIONS`, `CONNECTORS`, `CONNECTOR_INDEX`, `PEER_ENDPOINT_ROSTERS`) are created empty.
+3. New state stores (`CONNECTIONS`, `CONNECTORS`, `CONNECTOR_INDEX`) are created empty.
 4. The `LEDGER_CONFIGURATION` singleton is preserved but extended with new fields
    (`throttles`, `service_address`).
 **Decision:** The prototype state structure was intentionally simplified for early development. The migration
@@ -432,7 +423,6 @@ in `ClprLocalLedgerMetadata` becomes unused once Connections have proper 32-byte
 | `CONNECTIONS` | ~300 bytes | 10s-100s | One per active Connection |
 | `CONNECTORS` | ~200 bytes | 100s-1000s per Connection | |
 | `MESSAGE_QUEUE` | variable (payload-dependent) | Up to `maxQueueDepth` per Connection | Entries deleted after ack/response |
-| `PEER_ENDPOINT_ROSTERS` | ~200 bytes per endpoint | 10s per Connection | |
 
 ---
 
@@ -476,8 +466,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | Handler Class | Transaction Type | Complexity |
 |---|---|---|
 | `ClprSetLedgerConfigurationHandler` | `ClprSetLedgerConfiguration` | Medium (admin key check, store config). The handler sets `protocol_version` automatically from the CLPR service code version (callers do not supply it). The `chain_id` is immutable — it is determined by the ledger at CLPR activation time and cannot be modified via this transaction. |
-| `ClprRegisterConnectionHandler` | `ClprRegisterConnection` | Medium (ECDSA verify, store verifier contract and code fingerprint, Connection creation). The `chain_id` and `service_address` are NOT supplied by the caller — they are populated from the peer's configuration during the first successful sync. The verifier is immutable after registration. |
-| `ClprUpdateEndpointRosterHandler` | `ClprUpdateEndpointRoster` | Medium (verifier call, roster replacement) |
+| `ClprRegisterConnectionHandler` | `ClprRegisterConnection` | Medium (ECDSA verify, verifyConfig call, store verifier contract and code fingerprint, Connection creation). The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
 | `ClprCloseConnectionHandler` | `ClprCloseConnection` | Low (status transition) |
 | `ClprPauseConnectionHandler` | `ClprPauseConnection` | Low (status transition) |
 | `ClprResumeConnectionHandler` | `ClprResumeConnection` | Low (status transition) |
@@ -485,8 +474,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | `ClprTopUpConnectorHandler` | `ClprTopUpConnector` | Low (balance update) |
 | `ClprWithdrawConnectorBalanceHandler` | `ClprWithdrawConnectorBalance` | Low (balance check + transfer) |
 | `ClprDeregisterConnectorHandler` | `ClprDeregisterConnector` | Medium (in-flight check, fund return) |
-| `ClprSendMessageHandler` | `ClprSendMessage` | Medium (connector auth call, queue depth check, enqueue) |
-| `ClprSubmitBundleHandler` | `ClprSubmitBundle` | **High** (verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing) |
+| `ClprSubmitBundleHandler` | `ClprSubmitBundle` | **High** (per-endpoint throttle check, verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing) |
 | `ClprRedactMessageHandler` | `ClprRedactMessage` | Low (payload removal, slot retention) |
 
 ### 3.2.1 Handler Details: ClprSubmitBundleHandler
@@ -516,7 +504,7 @@ cross-platform spec section 4.2:
    ConfigUpdate Control Message containing the current `ClprLedgerConfiguration` on this Connection's outbound
    queue and set `connection.last_config_timestamp = current_config.consensus_timestamp`.
 8. **Message dispatch.** For each message in order:
-   - **Control Message:** Apply directly (update peer endpoint roster or store config values).
+   - **Control Message:** Apply directly (store peer config values from ConfigUpdate).
    - **Data Message:** Resolve Connector via cross-chain mapping. Charge Connector (execution cost + margin).
      Dispatch to target application (see [section 7](#7-application-dispatch)). Generate Response Message and
      enqueue it.
@@ -526,9 +514,11 @@ cross-platform spec section 4.2:
 **Failure isolation:** A failure on one message does not stop processing of remaining messages. Each message is
 handled independently.
 
-### 3.2.2 Handler Details: ClprSendMessageHandler
+### 3.2.2 sendMessage (System Contract Method)
 
-Implements the message enqueue algorithm from cross-platform spec section 4.3:
+`sendMessage` is a **system contract method**, not a HAPI transaction handler. Application smart contracts call
+it directly from EVM execution context. It implements the message enqueue algorithm from cross-platform spec
+section 4.3:
 
 1. Look up Connection by `connection_id`. Reject if status is not `ACTIVE`.
 2. **Lazy config propagation check.** If `connection.last_config_timestamp < current_config.consensus_timestamp`, enqueue a
@@ -539,11 +529,12 @@ Implements the message enqueue algorithm from cross-platform spec section 4.3:
    [section 6](#6-connector-authorization)). Reject if not authorized.
 5. Validate payload size against the destination's `max_message_payload_bytes`. Reject if exceeded.
 6. Validate queue depth: `next_message_id - acked_message_id < max_queue_depth`. Reject if full.
-7. Construct `ClprMessage` with `connector_id`, `target_application`, `sender` (stamped from transaction payer),
-   and `message_data`.
+7. Construct `ClprMessage` with `connector_id`, `target_application`, `sender` (stamped from calling contract
+   address), and `message_data`.
 8. Compute `running_hash = SHA-256(sent_running_hash || serialized_payload)`.
 9. Store message in queue keyed by `(connection_id, next_message_id)`.
 10. Update Connection: `sent_running_hash = running_hash`, `next_message_id += 1`.
+11. Return the assigned `messageId` to the calling contract.
 
 ### 3.2.3 preHandle Patterns
 
@@ -554,8 +545,10 @@ verifies the payer can pay:
   CLPR admin key to the required keys set.
 - **Connector admin transactions** (`TopUp`, `Withdraw`, `Deregister`): `preHandle` looks up the Connector and
   adds its admin key to the required keys set.
-- **Permissionless transactions** (`RegisterConnection`, `UpdateEndpointRoster`,
-  `SendMessage`, `SubmitBundle`): `preHandle` is a no-op (payer key is the only requirement).
+- **Permissionless transactions** (`RegisterConnection`, `SubmitBundle`): `preHandle` is a no-op (payer key
+  is the only requirement).
+
+**Note:** `sendMessage` is a system contract method and does not go through `preHandle`.
 
 ## 3.3 Query Handlers
 
@@ -607,14 +600,15 @@ after receiving a peer's `ClprSyncPayload`. From the CLPR Service's perspective,
 transactions — the service does not distinguish between bundles submitted by local endpoints and those submitted
 by other nodes.
 
-**Roster change propagation:** When a `handle()` call detects a roster change (node join/leave), the CLPR
-Service updates the endpoint set in state. The endpoint module reads this state change from the latest
-immutable state and enqueues the appropriate `EndpointJoin` / `EndpointLeave` control messages on active
-Connections.
-
 **Config timestamp tracking:** When `ClprSetLedgerConfiguration` stores a new configuration, the endpoint
 module detects the timestamp mismatch on subsequent state reads and enqueues ConfigUpdate control messages.
 The service does not push config changes to the endpoint module — the endpoint module pulls from state.
+
+**Per-endpoint throttle:** The `ClprSubmitBundleHandler` enforces a per-endpoint submission rate limit. Each
+registered endpoint (derived from the active consensus roster on Hiero) gets `max_bundles_per_sec / num_endpoints`
+of the total bundle submission capacity. The submitter's identity is recovered from the `endpoint_signature` via
+ecrecover and matched against the local endpoint registry. Excess submissions are rejected and the submitter is
+charged.
 
 ---
 
@@ -646,7 +640,7 @@ Connection as an informational field. The verifier is immutable after registrati
 
 The CLPR native service invokes verifier contracts via `HandleContext.dispatchChildTransaction()`, constructing a
 `ContractCallTransactionBody` targeting the verifier contract's address with the appropriate function selector and
-encoded `proof_bytes`. The `verifyBundle`/`verifyConfig`/`verifyEndpoints` calls are **read-only with respect to
+encoded `proof_bytes`. The `verifyBundle`/`verifyConfig`/`verifyMetadata` calls are **read-only with respect to
 CLPR state** — the `view` modifier on the Solidity interface is correct (reads storage, does not write during
 the call).
 
@@ -810,7 +804,7 @@ system (property files / dynamic config).
 | `clpr.enabled` | `boolean` | `false` | Master enable switch. When false, all CLPR transactions return `NOT_SUPPORTED`. |
 | `clpr.defaultSyncsPerSec` | `int` | `1` | Conservative default sync rate per endpoint when peer's `max_syncs_per_sec` is not yet known. |
 | `clpr.endpointPort` | `int` | `50212` | Port for the `ClprEndpointService` gRPC server. |
-| `clpr.publicizeNetworkAddresses` | `boolean` | `true` | Whether to include service endpoint addresses in the endpoint roster. |
+| `clpr.maxBundlesPerSec` | `int` | `100` | Total bundle submission capacity per second. Divided among registered endpoints. |
 | `clpr.minConnectorStake` | `long` (tinybars) | TBD | Minimum Connector stake requirement. |
 | `clpr.minConnectorBalance` | `long` (tinybars) | TBD | Minimum Connector initial balance. |
 | `clpr.connectorQueueQuotaPct` | `int` | `50` | Maximum percentage of queue depth a single Connector can occupy. |
@@ -898,8 +892,8 @@ Hiero-specific choices made.
 Hiero where "consensus nodes are the endpoints."
 
 **Hiero decision:** No `registerEndpoint` or `deregisterEndpoint` transactions. Endpoints are derived
-automatically from the active roster. The `EndpointJoin` / `EndpointLeave` control messages are generated
-automatically when the roster changes.
+automatically from the active roster. Peer endpoint discovery is handled off-chain via the gossip-based
+`discoverEndpoints` RPC (see cross-platform spec §5.4). Peer endpoint data is NOT stored in on-ledger state.
 
 ## 11.2 Endpoint Bond
 
@@ -999,8 +993,8 @@ and Hiero-specific concerns were identified.
 
 ### F-1: Control Messages Missing from Prototype State Protos
 
-The cross-platform spec defines three control message types (`EndpointJoin`, `EndpointLeave`, `ConfigUpdate`) as
-part of the `ClprMessagePayload` oneof. The existing prototype's `clpr_message_queue.proto` does not include a
+The cross-platform spec defines `ConfigUpdate` as a control message type in the `ClprControlMessage` oneof
+(part of the `ClprMessagePayload` oneof). The existing prototype's `clpr_message_queue.proto` does not include a
 `ClprControlMessage` variant in the `ClprMessagePayload` oneof. This must be added.
 
 **Action:** Add `ClprControlMessage control = 3` to `ClprMessagePayload` in the state proto.
