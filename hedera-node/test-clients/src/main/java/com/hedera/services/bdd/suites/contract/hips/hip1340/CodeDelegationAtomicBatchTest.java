@@ -34,6 +34,8 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,9 +61,13 @@ public class CodeDelegationAtomicBatchTest {
     private static final String ACCOUNT_WITH_BALANCE = "AccountWithBalance";
     private static final String INSUFFICIENT_BALANCE_ACCOUNT = "InsufficientBalanceAccount";
 
+    @Contract(contract = CONTRACT, creationGas = 5_000_000)
+    static SpecContract contract;
+
     @BeforeAll
     public static void setup(@NonNull final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
+                contract.getInfo(),
                 uploadInitCode(CODE_DELEGATION_CONTRACT),
                 contractCreate(CODE_DELEGATION_CONTRACT).exposingAddressTo(DELEGATION_TARGET::set),
                 cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS));
@@ -72,8 +78,6 @@ public class CodeDelegationAtomicBatchTest {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var type4Txn = "DelegationInBatch";
         return hapiTest(
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(4_000_000L),
                 newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
                 cryptoCreate(DELEGATING_ACCOUNT)
                         .key(DELEGATING_ACCOUNT)
@@ -84,7 +88,8 @@ public class CodeDelegationAtomicBatchTest {
                         .key(ACCOUNT_WITH_BALANCE)
                         .balance(ONE_HUNDRED_HBARS),
                 getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
-                withOpContext((spec, opLog) -> allRunFor(
+                withOpContext((spec, opLog) -> {
+                    allRunFor(
                         spec,
                         sourcing(() -> atomicBatch(
                                 ethereumCall(CONTRACT, "create")
@@ -101,8 +106,8 @@ public class CodeDelegationAtomicBatchTest {
                                         .batchKey(RELAYER))
                                 .payingWith(RELAYER)),
                         getTxnRecord(type4Txn).andAllChildRecords().logged(),
-
-                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress))));
+                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress));
+                }));
     }
 
     @HapiTest
@@ -110,8 +115,6 @@ public class CodeDelegationAtomicBatchTest {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var failedBatchTxn = "DelegationInAFailedBatch";
         return hapiTest(
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(4_000_000L),
                 newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
                 cryptoCreate(DELEGATING_ACCOUNT)
                         .key(DELEGATING_ACCOUNT)
@@ -154,8 +157,6 @@ public class CodeDelegationAtomicBatchTest {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var batchTxn = "BatchDelegationRollback";
         return hapiTest(
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(4_000_000L),
                 newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS).between(GENESIS, DELEGATING_ACCOUNT)),
                 cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
@@ -197,8 +198,6 @@ public class CodeDelegationAtomicBatchTest {
         final var accountInBatch = DELEGATING_ACCOUNT + "CreateThenUpdateInBatch";
         final var type4Txn = "type4UpdatesDelegationInBatch";
         return hapiTest(
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(4_000_000L),
                 newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
@@ -232,8 +231,6 @@ public class CodeDelegationAtomicBatchTest {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var partialCommitTxn = "batchType4PartialCommitAcrossAccounts";
         return hapiTest(
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(4_000_000L),
                 newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
                 newKeyNamed(delegatingAccount1).shape(SECP_256K1_SHAPE),
                 newKeyNamed(delegatingAccount2).shape(SECP_256K1_SHAPE),
@@ -287,8 +284,6 @@ public class CodeDelegationAtomicBatchTest {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var partialCommitTxn = "batchType4PartialCommitAcrossAccounts";
         return hapiTest(
-                uploadInitCode(CONTRACT),
-                contractCreate(CONTRACT).gas(4_000_000L),
                 newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
                 newKeyNamed(delegatingAccount1).shape(SECP_256K1_SHAPE),
                 newKeyNamed(delegatingAccount2).shape(SECP_256K1_SHAPE),
