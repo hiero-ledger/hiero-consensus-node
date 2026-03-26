@@ -117,9 +117,10 @@ The service definition class (`ClprEndpointServiceDefinition`) implements `RpcSe
 `sync` RPC method. It is discovered and registered by the same `ServiceRegistration` mechanism that handles all
 other HAPI services.
 
-**Conditional registration.** The `ClprEndpointService` MUST only be registered when `clprEnabled` is `true` in
-the node's configuration. When CLPR is disabled, the gRPC method is not registered and attempts to call it return
-`UNIMPLEMENTED`.
+**Dynamic enable/disable.** The `ClprEndpointService` is always registered, regardless of the `clprEnabled` flag.
+The flag is checked dynamically at call time — when CLPR is disabled, calls return `UNAVAILABLE`. This ensures the
+governing council can enable or disable CLPR via a configuration update without requiring node restarts, providing
+a runtime kill-switch for emergency situations.
 
 ## 2.2 Port Configuration
 
@@ -142,13 +143,13 @@ All CLPR endpoint-to-endpoint communication MUST use TLS. The node's existing TL
   same certificate advertised in the node's `ClprEndpoint.tls_certificate` field in the endpoint roster.
 - **Client TLS.** Outbound gRPC connections to peer endpoints use TLS with the node's RSA certificate for client
   authentication.
-- **Peer verification.** When a node receives an inbound sync call, it MUST verify that the caller's TLS certificate
-  matches a `tls_certificate` in the Connection's peer endpoint roster. Connections from unknown certificates
-  MUST be rejected.
+- **Peer verification.** TLS provides transport encryption. Peer identity verification is NOT based on TLS
+  certificate matching against an on-chain roster — peer endpoint data is not stored in state. Instead,
+  authentication is proof-based: any peer that provides a valid bundle proof (verified by the Connection's
+  verifier contract) is legitimate regardless of identity. Endpoints that send invalid data are simply shunned.
 
-**Mutual TLS (mTLS).** The endpoint module SHOULD use mutual TLS where both sides present their TLS certificates.
-This provides bidirectional authentication at the transport layer. The endpoint's TLS certificate is already
-published in the on-ledger roster, making verification straightforward.
+**TLS mode.** Standard TLS (server-side certificate) is sufficient. Mutual TLS is NOT required since peer
+authentication does not rely on certificate matching against a roster.
 
 **Triple-key architecture.** Per cross-platform spec §1.2, endpoints have separate TLS and ECDSA signing keys. On
 Hiero, nodes use three distinct keys:
@@ -355,10 +356,8 @@ public key and accepts transitions when a proof is validly signed by the current
 new `tss_public_key` value, establishing a chain of trust. This allows the verifier to track key rotations
 without any out-of-band communication.
 
-EndpointJoin/EndpointLeave Control Messages carry TLS certificates and ECDSA secp256k1 signing keys for
-endpoint authentication (mTLS and `endpoint_signature` verification respectively) — they do NOT carry TSS key
-shares or TSS public key updates. These control messages update the peer's view of which endpoints exist and
-how to authenticate them, which is entirely separate from the TSS trust anchor used for proof verification.
+Peer endpoint discovery is handled off-chain via the gossip-based `discoverEndpoints` RPC (see Section 7.2),
+entirely separate from the TSS trust anchor used for proof verification.
 
 ## 4.4 State Freshness
 
@@ -529,24 +528,15 @@ submitting endpoint pays the transaction cost.
 
 ---
 
-# 7. Automatic Roster Management
+# 7. Endpoint Management
 
-## 7.1 Endpoint Roster Derivation
+## 7.1 Local Endpoint Identity
 
-On Hiero, every consensus node is automatically a CLPR endpoint. The CLPR endpoint module derives the local
-endpoint roster from the active consensus roster. No manual endpoint registration is needed.
+On Hiero, every consensus node is automatically a CLPR endpoint. The CLPR endpoint module derives its identity
+from the active consensus roster. No manual endpoint registration is needed.
 
-**Roster reading.** The `RosterObserver` component within the endpoint module reads the active roster from state
-on startup and watches for roster change events. The active roster contains:
-
-- Node ID
-- Account ID
-- TLS certificate (RSA, DER-encoded)
-- ECDSA secp256k1 signing key (33 bytes compressed)
-- Service endpoints (IP address and port for each gRPC listener)
-- Stake weight
-
-**Mapping to CLPR endpoint fields:**
+**Roster reading.** The `RosterObserver` component reads the active roster from state on startup and watches for
+roster change events. Each node's CLPR endpoint identity is derived from:
 
 | CLPR Endpoint Field   | Source                                                                      |
 |-----------------------|-----------------------------------------------------------------------------|
@@ -555,47 +545,43 @@ on startup and watches for roster change events. The active roster contains:
 | `ecdsa_signing_key`   | Node's ECDSA secp256k1 public key (33 bytes compressed, or 64 bytes uncompressed) |
 | `account_id`          | Node's account ID (serialized as bytes, 20 bytes for Hiero)                 |
 
-## 7.2 Roster Change Detection
+The endpoint count from the active roster is used for per-endpoint throttle calculation
+(`max_bundles_per_sec / num_endpoints`).
 
-The `RosterObserver` detects roster changes through the `LedgerIdentityChangeListener` SPI. When a roster change
-occurs (node join, leave, or key rotation), the endpoint module:
+## 7.2 Peer Endpoint Discovery
 
-1. **Compares** the new roster against the previous roster.
-2. **For each joining node:** Enqueues an `EndpointJoin` Control Message (cross-platform spec §1.3) on every
-   active Connection.
-3. **For each leaving node:** Enqueues an `EndpointLeave` Control Message on every active Connection. The message
-   carries the departing node's `account_id`.
-4. **For key rotation:** Enqueues an `EndpointLeave` followed by an `EndpointJoin` with the new certificate and
-   signing key.
+Peer endpoint discovery is handled **off-chain via gossip**. Peer endpoint data is NOT stored in on-ledger state.
 
-**Enqueue semantics.** When this section says the endpoint module "enqueues" a Control Message, this means the
-endpoint module submits a HAPI transaction that, when processed post-consensus, causes the CLPR Service handler
-to enqueue the control message in the outbound queue. The endpoint module does NOT directly write to state — all
-state modifications go through the consensus transaction pipeline (see Section 8.3).
+**Seed endpoints.** The peer ledger's `ClprLedgerConfiguration` includes up to 10 seed endpoints. These are obtained
+during connection registration (via `verifyConfig`) and updated when ConfigUpdate control messages arrive. Seed
+endpoints provide initial bootstrap connectivity.
 
-**Timing.** Roster changes are detected after the roster transition is finalized in consensus. The Control Messages
-are enqueued in the same consensus round as the roster transition, ensuring they are ordered correctly relative to
-any data messages.
+**Discovery protocol.** When an endpoint needs to discover additional peers, it calls the `discoverEndpoints` RPC
+on any known peer endpoint. The peer responds with its known endpoint list for that Connection. Through iterative
+discovery, endpoints converge on a full view of the peer network.
 
-**Configuration propagation.** Changes to Connection-level configuration are propagated by the CLPR Service's lazy
-config version mechanism (cross-platform spec §1.3), not by the endpoint module. The endpoint reads peer throttle
-values from Connection state on each sync tick, so config updates are automatically reflected.
+**Discovery throttling.** Endpoints SHOULD throttle responses to `discoverEndpoints` to protect against abuse.
+A simple rate limit per caller (e.g., 1 request per minute per IP) is sufficient.
 
-## 7.3 Initial Endpoint Registration
+**No authentication required for discovery.** The identity of the peer providing discovery information doesn't
+matter — endpoints will validate all actual sync data via proofs. If a malicious peer provides false endpoint
+information, the worst outcome is wasted connection attempts.
 
-When CLPR is first enabled on a Hiero network (i.e., `clprEnabled` transitions from `false` to `true`), the endpoint
-module reads the entire active roster and enqueues an `EndpointJoin` Control Message for every consensus node on
-every active Connection. If there are no active Connections yet (typical for initial enablement), the endpoint list
-is stored in local state and will be provided as seed endpoints when Connections are subsequently registered.
+## 7.3 Reciprocity-Based Peer Selection
 
-## 7.4 Private Network Mode
+Endpoints SHOULD prefer to sync with peers that reciprocate by providing messages in return. The endpoint module
+tracks a reciprocity score per known peer:
 
-When `publicizeNetworkAddresses` is `false` (e.g., for a HashSphere deployment), the endpoint roster entries omit
-the `service_endpoint` field. In this mode:
+- Peers that provide bundles with messages during sync get a reputation bonus.
+- Peers that only request messages without providing any get deprioritized.
+- This naturally converges on efficient pairings where both sides do useful work.
+- Freeloading cannot be faked — providing a valid bundle with messages requires having actual messages to send.
 
-- This network's endpoints can only initiate outbound syncs — peer endpoints cannot reach them.
-- The `EndpointJoin` Control Messages sent to peers contain no service endpoint, so peers know the endpoints exist
-  (for attribution and local misbehavior detection) but cannot initiate connections to them.
+## 7.4 Configuration Propagation
+
+Changes to the local ledger configuration are propagated by the CLPR Service's lazy config version mechanism
+(cross-platform spec §1.3), not by the endpoint module. The endpoint reads peer throttle values from Connection
+state on each sync tick, so config updates are automatically reflected.
 
 ---
 
@@ -657,7 +643,8 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 | Parameter                        | Type        | Default | Description                                                         |
 |----------------------------------|-------------|---------|---------------------------------------------------------------------|
 | `clpr.enabled`                   | `boolean`   | `false` | Master enable switch. When false, the endpoint module is dormant.   |
-| `clpr.publicizeNetworkAddresses` | `boolean`   | `true`  | Whether to include service endpoints in the roster.                 |
+| `clpr.maxBundlesPerSec`          | `int`       | `100`   | Total bundle submission capacity per second. Divided among endpoints. |
+| `clpr.discoveryRateLimit`        | `int`       | `1`     | Max `discoverEndpoints` responses per minute per caller.             |
 
 ## 9.2 Sync Parameters
 
@@ -703,9 +690,10 @@ in Section 14).
 The endpoint module starts during the node's standard initialization sequence, after the Platform layer and
 application services have been initialized:
 
-1. **Configuration check.** If `clpr.enabled` is `false`, the endpoint module remains dormant. No threads are
-   started, no gRPC service is registered.
-2. **gRPC registration.** Register `ClprEndpointService` on the node's gRPC server.
+1. **gRPC registration.** Register `ClprEndpointService` on the node's gRPC server. The service is always
+   registered regardless of the `clpr.enabled` flag (the flag is checked dynamically at call time).
+2. **Configuration check.** If `clpr.enabled` is `false`, the endpoint module remains dormant. No sync threads
+   are started. The gRPC service returns `UNAVAILABLE` for all calls.
 3. **State initialization.** Read the latest signed state to load all active Connections, their peer rosters, and
    queue metadata into the orchestrator's in-memory structures.
 4. **Roster observation.** Register with `LedgerIdentityChangeListener` to receive roster change notifications.
@@ -778,7 +766,9 @@ No manual intervention is required for partition recovery.
 | `clpr.messages.sent`                 | Counter | Total messages enqueued in outbound queues (all Connections).                 |
 | `clpr.messages.received`             | Counter | Total messages received via bundles (all Connections).                        |
 | `clpr.messages.acked`                | Counter | Total messages acknowledged by peers.                                         |
-| `clpr.controlMessages.sent`          | Counter | Total Control Messages enqueued (EndpointJoin, EndpointLeave, ConfigUpdate).  |
+| `clpr.controlMessages.sent`          | Counter | Total Control Messages enqueued (ConfigUpdate).  |
+| `clpr.discovery.requests`            | Counter | Total `discoverEndpoints` requests received.  |
+| `clpr.discovery.responses`           | Counter | Total `discoverEndpoints` responses sent.  |
 | `clpr.misbehavior.detected`          | Counter | Total locally detected misbehavior events (excess frequency, duplicate submission). |
 
 ## 11.2 Gauges
@@ -830,14 +820,15 @@ following protections apply:
 
 ## 12.2 Peer Authentication
 
-Peer authentication follows the cross-platform spec §1.5 (ECDSA secp256k1 `endpoint_signature`). On Hiero,
-inbound sync calls are authenticated at two levels:
+Peer authentication is **proof-based**, not identity-based. There is no on-chain peer endpoint roster to verify
+against. Instead:
 
-1. **TLS layer.** The caller's TLS certificate is verified against the Connection's peer endpoint roster
-   (`tls_certificate` field). Unknown certificates are rejected before any protocol processing.
-2. **Payload signature.** The `endpoint_signature` signer is recovered and matched against the roster's
-   `ecdsa_signing_key`. This signature is for local misbehavior detection only — on-chain cryptographic assurance
-   comes from the TSS signature in `proof_bytes`.
+1. **TLS layer.** Provides transport encryption. No certificate matching against a roster.
+2. **Proof verification.** Any peer that provides a valid bundle proof (verified by the Connection's verifier
+   contract) is legitimate. The proof is self-authenticating via the verifier.
+3. **Payload signature.** The `endpoint_signature` is used for local misbehavior detection (excess frequency
+   tracking per signer). It is NOT used for admission control.
+4. **Shunning.** Peers that send invalid data or abuse rate limits are shunned locally.
 
 ## 12.3 Malicious Payload Protection
 
@@ -857,8 +848,8 @@ Additionally:
   emits the `allCircuitBreakersOpen` health indicator.
 - The sync orchestrator continues periodic probes (circuit breaker half-open state) to detect recovery.
 - No human intervention is required for transient unresponsiveness.
-- For **permanent** unresponsiveness (all peers gone), the recovery path is `updateEndpointRoster`
-  (cross-platform spec §5.4).
+- For **permanent** unresponsiveness (all peers gone), the recovery path is gossip-based discovery via
+  seed endpoints in the peer's configuration (cross-platform spec §5.4).
 
 ## 12.5 DUPLICATE_BROADCAST (Dropped)
 
