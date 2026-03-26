@@ -5,7 +5,6 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,6 +27,8 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -60,15 +61,11 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -164,6 +161,7 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
+
         subject = new SystemTransactions(
                 initTrigger,
                 parentTxnFactory,
@@ -188,7 +186,7 @@ class SystemTransactionsTest {
     void testResetNextDispatchNonce() {
         // The nonce starts at 1 and should reset to 1
         subject.resetNextDispatchNonce();
-        // No exception means success - the nonce is private so we can't directly verify,
+        // No exception means success - the nonce is private so we can't directly verify
         // but we can verify the method doesn't throw
         assertDoesNotThrow(() -> subject.resetNextDispatchNonce());
     }
@@ -552,8 +550,7 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void postUpgradeSetupDefersArchivingJumpstartFileWhenMigrationResultPresent(@TempDir Path tempDir)
-            throws IOException {
+    void postUpgradeSetupInitializesVotingMetadataWhenMigrationResultPresent() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -573,14 +570,9 @@ class SystemTransactionsTest {
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
 
-        // Create a real jumpstart file
-        final var jumpstartFile = tempDir.resolve("jumpstart.bin");
-        Files.writeString(jumpstartFile, "test");
-
         given(wrappedRecordBlockHashMigration.result())
-                .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, List.of(), 0));
+                .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, Bytes.EMPTY, List.of(), 0));
 
-        // Set up block info mock (values match migration so no update needed)
         @SuppressWarnings("unchecked")
         final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
         given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
@@ -609,17 +601,15 @@ class SystemTransactionsTest {
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        assertTrue(Files.exists(jumpstartFile), "Jumpstart file should remain until vote is observed in state");
-        assertFalse(
-                Files.exists(tempDir.resolve("archived_jumpstart.bin")),
-                "Archived jumpstart file should not exist yet");
+        // Voting metadata should be initialized on first upgrade
         verify(blockInfoSingleton).put(any());
         verify(blockInfoSingleton).commit();
+        // Vote submission happens later, not during setup
         verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test
-    void postUpgradeSetupDoesNotArchiveWhenMigrationResultIsNull() {
+    void postUpgradeSetupInitializesVotingMetadataEvenWhenMigrationResultIsNull() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -668,13 +658,11 @@ class SystemTransactionsTest {
 
         verify(blockInfoSingleton).put(any());
         verify(blockInfoSingleton).commit();
-        // jumpstartFilePath() should never be called when result is null
-        verify(wrappedRecordBlockHashMigration, never()).jumpstartFilePath();
         verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test
-    void postUpgradeSetupOverwritesBlockInfo() {
+    void postUpgradeSetupOverwritesBlockInfoWhenMigrationDiffers() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -700,7 +688,7 @@ class SystemTransactionsTest {
         final long migrationLeafCount = 42L;
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(
-                        migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
+                        Bytes.EMPTY, migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
 
         // Set up BlockInfo in state with DIFFERENT values than the migration
         final var staleBlockInfo = BlockInfo.newBuilder()
@@ -746,7 +734,7 @@ class SystemTransactionsTest {
     @Test
     void maybeSubmitStartupMigrationVoteSubmitsWhenSelfVoteAbsent() {
         final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
         given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
         given(creatorNodeInfo.nodeId()).willReturn(0L);
@@ -767,14 +755,12 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void maybeSubmitStartupMigrationVoteSkipsWhenSelfVotePresent() throws IOException {
+    void maybeSubmitStartupMigrationVoteSkipsWhenSelfVotePresent() {
         final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
         given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
         given(creatorNodeInfo.nodeId()).willReturn(0L);
-        final var jumpstartFile = Files.createTempFile("jumpstart-", ".bin");
-        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         final WritableStates blockRecordStates = mock(WritableStates.class);
         @SuppressWarnings("unchecked")
@@ -785,9 +771,8 @@ class SystemTransactionsTest {
                 .willReturn(BlockInfo.newBuilder()
                         .votingComplete(false)
                         .migrationRootHashVotes(List.of(NodeMigrationRootHashVote.newBuilder()
-                                .nodeId(new com.hedera.hapi.platform.state.NodeId(0L))
-                                .vote(com.hedera.hapi.services.auxiliary.blockrecords
-                                        .MigrationRootHashVoteTransactionBody.newBuilder()
+                                .nodeId(new NodeId(0L))
+                                .vote(MigrationRootHashVoteTransactionBody.newBuilder()
                                         .build())
                                 .build()))
                         .build());
@@ -796,7 +781,5 @@ class SystemTransactionsTest {
         subject.maybeSubmitStartupMigrationRootHashVote(state);
 
         verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
-        verify(wrappedRecordBlockHashMigration, times(1)).jumpstartFilePath();
-        assertFalse(Files.exists(jumpstartFile));
     }
 }

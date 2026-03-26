@@ -3,19 +3,18 @@ package com.hedera.node.app.records.impl;
 
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.State;
-import java.io.DataOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -41,145 +40,139 @@ class WrappedRecordBlockHashMigrationTest {
 
     @Test
     void skipsWhenStreamModeIsBlocks() {
-        final var config = configWith("BLOCKS", true, b -> {});
-        assertDoesNotThrow(() -> subject.execute(StreamMode.BLOCKS, config));
+        final var config = recordsConfigWith("BLOCKS", true, b -> {});
+        subject.execute(StreamMode.BLOCKS, config, defaultJumpstartConfig(), false);
         assertNull(subject.result());
         verifyNoInteractions(state);
     }
 
     @Test
     void skipsWhenComputeHashesIsFalse() {
-        final var config = configWith(RECORDS, false, b -> {});
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        final var config = recordsConfigWith(RECORDS, false, b -> {});
+        subject.execute(StreamMode.RECORDS, config, defaultJumpstartConfig(), false);
         assertNull(subject.result());
         verifyNoInteractions(state);
     }
 
     @Test
-    void returnsEarlyWhenJumpstartFilePathBlank() {
-        final var config = configWith(RECORDS, true, b -> b.withValue("hedera.recordStream.jumpstartFile", ""));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+    void returnsEarlyWhenJumpstartConfigNotPopulated() {
+        final var config = recordsConfigWith(RECORDS, true, b -> {});
+        // Default jumpstart config has blockNum=-1, meaning not configured
+        subject.execute(StreamMode.RECORDS, config, defaultJumpstartConfig(), false);
+        assertNull(subject.result());
         verifyNoInteractions(state);
     }
 
     @Test
-    void returnsEarlyWhenJumpstartFileNotFound() {
-        final var config = configWith(
-                RECORDS,
-                true,
-                b -> b.withValue(
-                        "hedera.recordStream.jumpstartFile",
-                        tempDir.resolve("nonexistent.bin").toString()));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
-        verifyNoInteractions(state);
-    }
-
-    @Test
-    void returnsEarlyWhenWrappedRecordHashesDirBlank() throws Exception {
-        final var jumpstartFile = createJumpstartFile(0, 1, 1);
-        final var config = configWith(
-                RECORDS, true, b -> b.withValue("hedera.recordStream.jumpstartFile", jumpstartFile.toString())
-                        .withValue("hedera.recordStream.wrappedRecordHashesDir", ""));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+    void returnsEarlyWhenWrappedRecordHashesDirBlank() {
+        final var config =
+                recordsConfigWith(RECORDS, true, b -> b.withValue("hedera.recordStream.wrappedRecordHashesDir", ""));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(0, 1, 1), false);
         verifyNoInteractions(state);
     }
 
     @Test
     void returnsEarlyWhenRecentHashesFileNotFound() throws Exception {
-        final var jumpstartFile = createJumpstartFile(0, 1, 1);
         final var emptyDir = tempDir.resolve("empty-recent-dir");
         Files.createDirectories(emptyDir);
-        final var config = configWith(
-                RECORDS, true, b -> b.withValue("hedera.recordStream.jumpstartFile", jumpstartFile.toString())
-                        .withValue("hedera.recordStream.wrappedRecordHashesDir", emptyDir.toString()));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        final var config = recordsConfigWith(
+                RECORDS, true, b -> b.withValue("hedera.recordStream.wrappedRecordHashesDir", emptyDir.toString()));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(0, 1, 1), false);
         verifyNoInteractions(state);
     }
 
     @Test
-    void returnsEarlyWhenJumpstartFileIsEmpty() throws Exception {
-        final var emptyFile = tempDir.resolve("jumpstart.bin");
-        Files.createFile(emptyFile);
-        final var recentDir = createRecentHashesDir(List.of(entry(100)));
-        final var config = enabledConfigWithFiles(emptyFile, recentDir);
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
-        verifyNoInteractions(state);
-    }
-
-    @Test
-    void returnsEarlyWhenJumpstartFileIsTruncatedAfterBlockNumber() throws Exception {
-        // File has only the 8-byte block number — prev hash bytes are missing
-        final var truncatedFile = tempDir.resolve("jumpstart.bin");
-        try (var out = new DataOutputStream(Files.newOutputStream(truncatedFile))) {
-            out.writeLong(100L);
+    void skipsWhenMigrationAlreadyApplied() throws Exception {
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(entry(i));
         }
-        final var recentDir = createRecentHashesDir(List.of(entry(100)));
-        final var config = enabledConfigWithFiles(truncatedFile, recentDir);
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
-        verifyNoInteractions(state);
+        final var recentHashesDir = createRecentHashesDir(entries);
+        final var config = enabledRecordsConfig(recentHashesDir);
+
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(98, 4, 1), true);
+        assertNull(subject.result());
     }
 
     @Test
-    void returnsEarlyWhenJumpstartFileIsTruncatedAfterPrevHash() throws Exception {
-        // File has block number + prev hash but is missing the hasher state
-        final var truncatedFile = tempDir.resolve("jumpstart.bin");
-        try (var out = new DataOutputStream(Files.newOutputStream(truncatedFile))) {
-            out.writeLong(100L);
-            out.write(new byte[HASH_SIZE]); // prev hash present, but nothing after
+    void skipsExecutionAfterCrashWhenMigrationAlreadyApplied() throws Exception {
+        // Initial migration succeeds
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(entry(i));
         }
-        final var recentDir = createRecentHashesDir(List.of(entry(100)));
-        final var config = enabledConfigWithFiles(truncatedFile, recentDir);
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
-        verifyNoInteractions(state);
+        final var recentHashesDir = createRecentHashesDir(entries);
+        final var config = enabledRecordsConfig(recentHashesDir);
+        final var jsConfig = jumpstartConfig(98, 4, 1);
+
+        subject.execute(StreamMode.RECORDS, config, jsConfig, false);
+        assertThat(subject.result()).isNotNull();
+
+        // Remove the latest entry from the wrapped record hashes file, as would happen if the node went down days after
+        // migration and the file rotated or was truncated
+        final var truncatedEntries = new ArrayList<>(entries);
+        truncatedEntries.removeLast();
+        createRecentHashesDir(truncatedEntries); // Overwrites existing file in same dir
+
+        // Instantiate a new migration instance, same config, but migrationAlreadyApplied=true
+        final var restartSubject = new WrappedRecordBlockHashMigration();
+        restartSubject.execute(StreamMode.RECORDS, config, jsConfig, true);
+
+        assertNull(restartSubject.result());
+    }
+
+    @Test
+    void returnsEarlyWhenHashCountMismatchesSubtreeHashes() throws Exception {
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
+        // hashCount=5 but only 1 subtree hash provided
+        final var badConfig = new BlockStreamJumpstartConfig(
+                100, Bytes.wrap(new byte[HASH_SIZE]), 4, 5, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+        subject.execute(StreamMode.RECORDS, config, badConfig, false);
+        assertNull(subject.result());
     }
 
     @Test
     void returnsEarlyWhenJumpstartHasherIsEmpty() throws Exception {
-        final var config =
-                enabledConfigWithFiles(createJumpstartFile(0, 0, 0), createRecentHashesDir(List.of(entry(100))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100))));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(0, 0, 0), false);
         verifyNoInteractions(state);
     }
 
     @Test
     void returnsEarlyWhenRecentHashesLogIsEmpty() throws Exception {
-        final var config = enabledConfigWithFiles(createJumpstartFile(0, 1, 1), createRecentHashesDir(List.of()));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of()));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(0, 1, 1), false);
         verifyNoInteractions(state);
     }
 
     @Test
     void returnsEarlyWhenJumpstartBlockNumBeforeFirstRecentBlock() throws Exception {
         // jumpstartBlockNumber 50 < first recent block 100
-        final var config = fullMigrationConfig(
-                createJumpstartFile(50, 1, 1), createRecentHashesDir(List.of(entry(100), entry(101))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(50, 1, 1), false);
         verifyNoInteractions(state);
     }
 
     @Test
     void returnsEarlyWhenJumpstartBlockNumAfterLastRecentBlock() throws Exception {
         // jumpstartBlockNumber 200 > last recent block 101
-        final var config = fullMigrationConfig(
-                createJumpstartFile(200, 1, 1), createRecentHashesDir(List.of(entry(100), entry(101))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(200, 1, 1), false);
         verifyNoInteractions(state);
     }
 
     @Test
     void returnsEarlyWhenNeededRecordsHaveGap() throws Exception {
-        final var config = fullMigrationConfig(
-                createJumpstartFile(100, 1, 1), createRecentHashesDir(List.of(entry(100), entry(102), entry(104))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(102), entry(104))));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(100, 1, 1), false);
         assertNull(subject.result());
     }
 
     @Test
     void returnsEarlyWhenNeededRecordsHaveDuplicateBlockNumbers() throws Exception {
-        final var config = fullMigrationConfig(
-                createJumpstartFile(100, 4, 1),
-                createRecentHashesDir(List.of(entry(100), entry(101), entry(101), entry(103))));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        final var config =
+                enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101), entry(101), entry(103))));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(100, 4, 1), false);
         assertNull(subject.result());
     }
 
@@ -189,9 +182,9 @@ class WrappedRecordBlockHashMigrationTest {
         for (long i = 90; i <= 100; i++) {
             entries.add(entry(i));
         }
-        final var config = fullMigrationConfig(createJumpstartFile(98, 4, 1), createRecentHashesDir(entries));
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
 
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(98, 4, 1), false);
 
         final var result = subject.result();
         assertThat(result).isNotNull();
@@ -207,20 +200,17 @@ class WrappedRecordBlockHashMigrationTest {
      */
     @Test
     void successfullyMigratesWithStaticTestFiles() throws Exception {
-        final var jumpstartFile = createJumpstartFile(45, 31, 5);
-
         final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
         for (long i = 10; i <= 109; i++) {
             entries.add(entry(i));
         }
         final var recentHashesDir = createRecentHashesDir(entries);
 
-        final var config = configWith(
-                RECORDS, true, b -> b.withValue("hedera.recordStream.jumpstartFile", jumpstartFile.toString())
-                        .withValue("hedera.recordStream.wrappedRecordHashesDir", recentHashesDir.toString())
-                        .withValue("hedera.recordStream.numOfBlockHashesInState", 256));
+        final var config = recordsConfigWith(RECORDS, true, b -> b.withValue(
+                        "hedera.recordStream.wrappedRecordHashesDir", recentHashesDir.toString())
+                .withValue("hedera.recordStream.numOfBlockHashesInState", 256));
 
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(45, 31, 5), false);
 
         final var result = subject.result();
         assertThat(result).isNotNull();
@@ -232,29 +222,21 @@ class WrappedRecordBlockHashMigrationTest {
 
     @Test
     void handlesEmptyRecentHashesListGracefully() throws Exception {
-        final var config = enabledConfigWithFiles(createJumpstartFile(0, 1, 1), createRecentHashesDir(List.of()));
-        assertDoesNotThrow(
-                () -> subject.execute(StreamMode.RECORDS, config),
-                "Should handle empty recent hashes list without crashing");
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of()));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(0, 1, 1), false);
     }
 
     @Test
     void handlesVeryLargeBlockNumbers() throws Exception {
-        final var config = enabledConfigWithFiles(
-                createJumpstartFile(0, 1, 1),
-                createRecentHashesDir(
-                        List.of(entry(Long.MAX_VALUE - 5), entry(Long.MAX_VALUE - 4), entry(Long.MAX_VALUE - 3))));
-        assertDoesNotThrow(
-                () -> subject.execute(StreamMode.RECORDS, config),
-                "Should handle large block numbers without overflow");
+        final var config = enabledRecordsConfig(createRecentHashesDir(
+                List.of(entry(Long.MAX_VALUE - 5), entry(Long.MAX_VALUE - 4), entry(Long.MAX_VALUE - 3))));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(0, 1, 1), false);
     }
 
     @Test
     void handlesSingleEntryInRecentHashes() throws Exception {
-        final var config =
-                enabledConfigWithFiles(createJumpstartFile(0, 1, 1), createRecentHashesDir(List.of(entry(100))));
-        assertDoesNotThrow(
-                () -> subject.execute(StreamMode.RECORDS, config), "Should handle single-entry recent hashes");
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100))));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(0, 1, 1), false);
     }
 
     @Test
@@ -263,8 +245,8 @@ class WrappedRecordBlockHashMigrationTest {
         for (long i = 100; i <= 105; i++) {
             entries.add(entry(i));
         }
-        final var config = fullMigrationConfig(createJumpstartFile(100, 1, 1), createRecentHashesDir(entries));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(100, 1, 1), false);
     }
 
     @Test
@@ -273,37 +255,8 @@ class WrappedRecordBlockHashMigrationTest {
         for (long i = 100; i <= 105; i++) {
             entries.add(entry(i));
         }
-        final var config = fullMigrationConfig(createJumpstartFile(105, 1, 1), createRecentHashesDir(entries));
-        assertDoesNotThrow(() -> subject.execute(StreamMode.RECORDS, config));
-    }
-
-    /**
-     * Creates a jumpstart file in the new binary format:
-     * <ul>
-     *   <li>8 bytes: block number (long)</li>
-     *   <li>48 bytes: previous block root hash (SHA-384)</li>
-     *   <li>8 bytes: streaming hasher leaf count (long)</li>
-     *   <li>4 bytes: streaming hasher hash count (int)</li>
-     *   <li>48 bytes × hash count: streaming hasher pending subtree hashes</li>
-     * </ul>
-     */
-    private Path createJumpstartFile(long blockNumber, long leafCount, int numHashes) throws Exception {
-        return createJumpstartFile(blockNumber, new byte[HASH_SIZE], leafCount, numHashes);
-    }
-
-    private Path createJumpstartFile(long blockNumber, byte[] prevHash, long leafCount, int numHashes)
-            throws Exception {
-        final var file = tempDir.resolve("jumpstart.bin");
-        try (var out = new DataOutputStream(Files.newOutputStream(file))) {
-            out.writeLong(blockNumber);
-            out.write(prevHash);
-            out.writeLong(leafCount);
-            out.writeInt(numHashes);
-            for (int i = 0; i < numHashes; i++) {
-                out.write(new byte[HASH_SIZE]);
-            }
-        }
-        return file;
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(105, 1, 1), false);
     }
 
     private Path createRecentHashesDir(List<WrappedRecordFileBlockHashes> entries) throws Exception {
@@ -329,7 +282,8 @@ class WrappedRecordBlockHashMigrationTest {
         void customize(TestConfigBuilder builder);
     }
 
-    private BlockRecordStreamConfig configWith(String streamMode, boolean computeHashes, ConfigCustomizer customizer) {
+    private BlockRecordStreamConfig recordsConfigWith(
+            String streamMode, boolean computeHashes, ConfigCustomizer customizer) {
         final var builder = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", streamMode)
                 .withValue("hedera.recordStream.computeHashesFromWrappedRecordBlocks", computeHashes)
@@ -338,20 +292,21 @@ class WrappedRecordBlockHashMigrationTest {
         return builder.getOrCreateConfig().getConfigData(BlockRecordStreamConfig.class);
     }
 
-    private BlockRecordStreamConfig enabledConfigWithFiles(Path jumpstartFile, Path recentDir) {
-        return enabledConfigWithFiles(jumpstartFile, recentDir, b -> {});
+    private BlockRecordStreamConfig enabledRecordsConfig(Path recentDir) {
+        return recordsConfigWith(
+                RECORDS, true, b -> b.withValue("hedera.recordStream.wrappedRecordHashesDir", recentDir.toString()));
     }
 
-    private BlockRecordStreamConfig enabledConfigWithFiles(
-            Path jumpstartFile, Path recentDir, ConfigCustomizer customizer) {
-        return configWith(RECORDS, true, b -> {
-            b.withValue("hedera.recordStream.jumpstartFile", jumpstartFile.toString())
-                    .withValue("hedera.recordStream.wrappedRecordHashesDir", recentDir.toString());
-            customizer.customize(b);
-        });
+    private static BlockStreamJumpstartConfig defaultJumpstartConfig() {
+        return new BlockStreamJumpstartConfig(-1, Bytes.wrap(new byte[HASH_SIZE]), 0, 0, List.of());
     }
 
-    private BlockRecordStreamConfig fullMigrationConfig(Path jumpstartFile, Path recentDir) {
-        return enabledConfigWithFiles(jumpstartFile, recentDir);
+    private static BlockStreamJumpstartConfig jumpstartConfig(long blockNumber, long leafCount, int numHashes) {
+        final List<Bytes> subtreeHashes = new ArrayList<>(numHashes);
+        for (int i = 0; i < numHashes; i++) {
+            subtreeHashes.add(Bytes.wrap(new byte[HASH_SIZE]));
+        }
+        return new BlockStreamJumpstartConfig(
+                blockNumber, Bytes.wrap(new byte[HASH_SIZE]), leafCount, numHashes, subtreeHashes);
     }
 }

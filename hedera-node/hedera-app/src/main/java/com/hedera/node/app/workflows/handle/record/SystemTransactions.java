@@ -22,7 +22,6 @@ import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRAN
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -187,7 +186,6 @@ public class SystemTransactions {
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
     private final MigrationRootHashSubmissions migrationRootHashSubmissions;
     private boolean startupMigrationVoteSubmissionRequested = false;
-    private boolean startupMigrationJumpstartArchiveHandled = false;
     private int nextDispatchNonce = 1;
 
     @FunctionalInterface
@@ -520,7 +518,6 @@ public class SystemTransactions {
             if (existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0 || existingBlockInfo.votingComplete()) {
                 // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
                 startupMigrationVoteSubmissionRequested = true;
-                startupMigrationJumpstartArchiveHandled = true;
                 log.info(
                         "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
                         existingBlockInfo.votingCompletionDeadlineBlockNumber(),
@@ -541,7 +538,6 @@ public class SystemTransactions {
                 final var migration = wrappedRecordBlockHashMigration.result();
                 if (migration != null) {
                     startupMigrationVoteSubmissionRequested = false;
-                    startupMigrationJumpstartArchiveHandled = false;
                     log.info(
                             "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}); will submit vote",
                             networkInfo.selfNodeInfo().nodeId(),
@@ -551,7 +547,6 @@ public class SystemTransactions {
                                     .size());
                 } else {
                     startupMigrationVoteSubmissionRequested = true;
-                    startupMigrationJumpstartArchiveHandled = true;
                     log.info(
                             "No local startup migration root hash result for node{}",
                             networkInfo.selfNodeInfo().nodeId());
@@ -563,7 +558,7 @@ public class SystemTransactions {
     /**
      * Submits this node's startup migration root-hash vote once round handling is active.
      *
-     * <p>If this node's vote is already present in state, this is a no-op and the jumpstart file is archived.
+     * <p>If this node's vote is already present in state or voting is complete, this is a no-op.
      * If no local migration result is available, this is also a no-op.
      *
      * @param state the writable state in the current handling context
@@ -589,11 +584,7 @@ public class SystemTransactions {
                 .map(NodeMigrationRootHashVote::vote)
                 .findFirst()
                 .orElse(null);
-        if (existingVote != null || blockInfo.votingComplete()) {
-            archiveJumpstartFileIfPresent();
-            return;
-        }
-        if (startupMigrationVoteSubmissionRequested) {
+        if (existingVote != null || blockInfo.votingComplete() || startupMigrationVoteSubmissionRequested) {
             return;
         }
 
@@ -604,29 +595,6 @@ public class SystemTransactions {
                 .build();
         log.info("Submitting startup migration root hash vote for node{} during round handling", selfNodeId);
         startupMigrationVoteSubmissionRequested = migrationRootHashSubmissions.submitStartupVoteIfActive(voteBody);
-    }
-
-    private void archiveJumpstartFileIfPresent() {
-        if (startupMigrationJumpstartArchiveHandled) {
-            return;
-        }
-        final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();
-        if (jumpstartFilePath == null) {
-            startupMigrationJumpstartArchiveHandled = true;
-            return;
-        }
-        if (!Files.exists(jumpstartFilePath)) {
-            startupMigrationJumpstartArchiveHandled = true;
-            return;
-        }
-        try {
-            final var archivedPath = jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
-            Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
-            startupMigrationJumpstartArchiveHandled = true;
-            log.info("Archived jumpstart file to {}", archivedPath);
-        } catch (final IOException e) {
-            log.warn("Failed to archive jumpstart file at {}", jumpstartFilePath, e);
-        }
     }
 
     /**
