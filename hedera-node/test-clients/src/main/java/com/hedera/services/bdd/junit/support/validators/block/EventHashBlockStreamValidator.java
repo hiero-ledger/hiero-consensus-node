@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -122,33 +123,22 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         final Set<Hash> eventHashes =
                 events.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
 
-        final List<Hash> unresolvedHashes = new ArrayList<>();
+        final List<Hash> pcesOnlyHashes = new ArrayList<>();
         for (final Hash crossBlockParentHash : crossBlockParentHashes) {
-            if (!eventHashes.contains(crossBlockParentHash) && !pcesEventHashes.contains(crossBlockParentHash)) {
-                fail("Cross block parent hash {} not found among event or PCES hashes!", crossBlockParentHash);
+            if (!eventHashes.contains(crossBlockParentHash)) {
+                if (pcesEventHashes.contains(crossBlockParentHash)) {
+                    pcesOnlyHashes.add(crossBlockParentHash);
+                } else {
+                    fail("Cross block parent hash {} not found among event or PCES hashes!", crossBlockParentHash);
+                }
             }
         }
 
-        if (!unresolvedHashes.isEmpty()) {
+        if (!pcesOnlyHashes.isEmpty()) {
             logger.warn(
-                    "Could not resolve {} of {} cross-block parent hashes (likely stale events)",
-                    unresolvedHashes.size(),
+                    "{} of {} cross-block parent hashes were resolved via PCES only (stale events not in block stream)",
+                    pcesOnlyHashes.size(),
                     crossBlockParentHashes.size());
-        }
-
-        // Tolerate a small percentage of unresolvable parents (stale events that never reached the
-        // block stream). A real problem with event reconstruction would affect far more lookups.
-        final double unresolvedPercent = crossBlockParentHashes.isEmpty()
-                ? 0.0
-                : 100.0 * unresolvedHashes.size() / crossBlockParentHashes.size();
-        if (unresolvedPercent > MAX_UNRESOLVED_PARENT_PERCENT) {
-            fail(
-                    "Too many unresolved cross-block parent hashes: %d of %d (%.1f%% > %.1f%% threshold). Hashes: %s",
-                    unresolvedHashes.size(),
-                    crossBlockParentHashes.size(),
-                    unresolvedPercent,
-                    MAX_UNRESOLVED_PARENT_PERCENT,
-                    unresolvedHashes);
         }
     }
 
