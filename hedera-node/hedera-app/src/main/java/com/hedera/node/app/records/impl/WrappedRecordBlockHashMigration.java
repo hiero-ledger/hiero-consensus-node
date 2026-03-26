@@ -259,6 +259,8 @@ public class WrappedRecordBlockHashMigration {
     }
 
     private boolean validateHashLengths(@NonNull final BlockStreamJumpstartConfig jumpstartConfig) {
+        boolean foundError = false;
+
         final var prevHash = jumpstartConfig.previousWrappedRecordBlockHash();
         if (prevHash.length() != HASH_SIZE) {
             log.error(
@@ -266,9 +268,8 @@ public class WrappedRecordBlockHashMigration {
                     prevHash.length(),
                     HASH_SIZE,
                     RESUME_MESSAGE);
-            return false;
+            foundError = true;
         }
-        boolean foundError = false;
         for (int i = 0; i < jumpstartConfig.streamingHasherSubtreeHashes().size(); i++) {
             final var hash = jumpstartConfig.streamingHasherSubtreeHashes().get(i);
             if (hash.length() != HASH_SIZE) {
