@@ -1259,21 +1259,19 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 app.platform(),
                 diskWriter,
                 InitTrigger.RESTART)) {
-            // Phase 1-2: Open first block (EPOCH path)
+            // Open first block
             final var t0 = InstantUtils.instant(200, 1);
             mgr.startUserTransaction(t0, state);
 
-            // Phase 3: Simulate vote finalization — syncFinalizedMigrationHashes should propagate
-            // votingComplete = true to the cached lastBlockInfo
+            // Simulate vote finalization
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, syncedIntermediate, 1);
 
-            // Phase 5: Add items and cross a block boundary. The block boundary's putLastBlockInfo
-            // writes the cached lastBlockInfo (including its votingComplete flag) to state.
+            // Add items and cross current block boundary, causing latest block info write to state
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
-            final var t1 = InstantUtils.instant(204, 1); // crosses logPeriod boundary
+            final var t1 = InstantUtils.instant(204, 1);
             mgr.startUserTransaction(t1, state);
 
-            // Phase 6: Freeze persistence — should persist the synced wrapped hash state
+            // Simulate freeze
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         }
 
