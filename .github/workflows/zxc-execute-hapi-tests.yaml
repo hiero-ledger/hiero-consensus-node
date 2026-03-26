@@ -355,7 +355,32 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Simple Fees uses same task for PR and MATS (no MATS suffix)
-        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon && ${GRADLE_EXEC} hapiEmbeddedSimpleFees --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
+        run: |
+          set -euo pipefail
+          LOG_DIR="ci-logs/hapi-simple-fees"
+          mkdir -p "${LOG_DIR}"
+          run_gradle_capture() {
+            local task_name="$1"
+            local log_file="${LOG_DIR}/${task_name}.log"
+            echo "Running ${task_name} (capturing output to ${log_file})"
+            if ! ${GRADLE_EXEC} "${task_name}" --no-daemon >"${log_file}" 2>&1; then
+              echo "Task ${task_name} failed. Last 200 log lines:"
+              tail -n 200 "${log_file}" || true
+              return 1
+            fi
+          }
+          run_gradle_capture "hapiTestSimpleFees"
+          run_gradle_capture "hapiEmbeddedSimpleFees"
+          run_gradle_capture "hapiTestSimpleFeesSerial"
+
+      - name: Upload HAPI Test (Simple Fees) Gradle Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() && !cancelled() }}
+        with:
+          name: HAPI Test (Simple Fees) Gradle Logs
+          path: ci-logs/hapi-simple-fees/*.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Publish HAPI Test (Simple Fees) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -873,7 +898,32 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon
+        run: |
+          set -euo pipefail
+          LOG_DIR="ci-logs/hapi-atomic-batch"
+          mkdir -p "${LOG_DIR}"
+          run_gradle_capture() {
+            local task_name="$1"
+            local log_file="${LOG_DIR}/${task_name}.log"
+            echo "Running ${task_name} (capturing output to ${log_file})"
+            if ! ${GRADLE_EXEC} "${task_name}" --no-daemon >"${log_file}" 2>&1; then
+              echo "Task ${task_name} failed. Last 200 log lines:"
+              tail -n 200 "${log_file}" || true
+              return 1
+            fi
+          }
+          run_gradle_capture "hapiTestAtomicBatch"
+          run_gradle_capture "hapiTestAtomicBatchSerial"
+          run_gradle_capture "hapiTestAtomicBatchEmbedded"
+
+      - name: Upload HAPI Test (Atomic Batch) Gradle Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ always() && !cancelled() }}
+        with:
+          name: HAPI Test (Atomic Batch) Gradle Logs
+          path: ci-logs/hapi-atomic-batch/*.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Publish HAPI Test (Atomic Batch) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
