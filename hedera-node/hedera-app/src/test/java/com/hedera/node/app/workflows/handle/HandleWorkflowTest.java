@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
@@ -8,6 +9,7 @@ import static java.util.Collections.emptyList;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -264,6 +266,31 @@ class HandleWorkflowTest {
                 .writeItem(BlockItem.newBuilder()
                         .stateChanges(builder.consensusTimestamp(BLOCK_TIME).build())
                         .build()));
+    }
+
+    @Test
+    void currentBlockNumberUsesRecordBlockNumberInRecordsMode() throws Exception {
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        final var method = HandleWorkflow.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertNull(method.invoke(subject));
+        verify(blockStreamManager, never()).blockNo();
+        verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void currentBlockNumberUsesBlockStreamNumberInBlocksMode() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.blockNo()).willReturn(123L);
+
+        final var method = HandleWorkflow.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertEquals(123L, method.invoke(subject));
+        verify(blockStreamManager).blockNo();
+        verify(blockRecordManager, never()).blockNo();
     }
 
     @Test
@@ -562,7 +589,7 @@ class HandleWorkflowTest {
         configOverrides.forEach(config::withValue);
         final var hederaConfig = config.getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(hederaConfig, 1L));
-        given(round.getConsensusTimestamp()).willReturn(NOW);
+        lenient().when(round.getConsensusTimestamp()).thenReturn(NOW);
         subject = new HandleWorkflow(
                 networkInfo,
                 stakePeriodChanges,
