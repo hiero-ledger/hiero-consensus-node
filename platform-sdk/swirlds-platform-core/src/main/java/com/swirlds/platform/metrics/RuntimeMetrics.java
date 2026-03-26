@@ -133,6 +133,7 @@ public final class RuntimeMetrics {
         if (SETUP_STARTED.compareAndSet(false, true)) {
             final RuntimeMetrics runtimeMetrics = new RuntimeMetrics(metrics);
             metrics.addUpdater(runtimeMetrics::update);
+            new GCMetrics(metrics);
         }
     }
 
