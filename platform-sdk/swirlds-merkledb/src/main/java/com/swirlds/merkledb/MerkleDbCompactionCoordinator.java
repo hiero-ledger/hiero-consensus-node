@@ -5,23 +5,25 @@ import static com.swirlds.base.units.UnitConstants.KIBIBYTES_TO_BYTES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.MerkleDbDataSource.MERKLEDB_COMPONENT;
+import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.common.io.utility.IORunnable;
+import com.swirlds.merkledb.GarbageScanner.GarbageFileStats;
+import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
-import com.swirlds.merkledb.files.GarbageScanner;
-import com.swirlds.merkledb.files.GarbageScanner.IndexedGarbageFileStats;
-import com.swirlds.merkledb.files.GarbageScanner.ScanResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,12 +45,13 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * <ul>
  *   <li><b>Scanner tasks</b> — traverse the in-memory index and compute per-file garbage
  *       statistics. At most one scanner per store runs at any time. Scanners are read-only and
- *       do not need to be paused for snapshots. Results are cached in {@link #scanResultsByStore}
+ *       do not need to be paused for snapshots. Results are cached in {@link #scanStatsByStore}
  *       and shared across all compaction tasks for the same store.</li>
- *   <li><b>Compaction tasks</b> — multiple tasks per level per store. The coordinator partitions
- *       eligible files into groups bounded by projected output size
- *       ({@link MerkleDbConfig#maxCompactedFileSizeInKB()}), and submits each group as an
- *       independent task. Tasks at different levels and within the same level run concurrently.
+ *   <li><b>Compaction tasks</b> — multiple tasks per level per store. The coordinator filters
+ *       files by {@code gcRateThreshold}, partitions eligible files into groups bounded by
+ *       projected output size ({@link MerkleDbConfig#maxCompactedFileSizeInKB()}), absorbs
+ *       additional files into each group (phase 2), and submits each group as an independent
+ *       task. Tasks at different levels and within the same level run concurrently.
  *       New groups for a level are only submitted once ALL previous tasks for that level have
  *       completed. Compaction tasks are paused during snapshots.</li>
  * </ul>
@@ -124,11 +127,11 @@ class MerkleDbCompactionCoordinator {
     private final Map<String, Integer> compactionTaskCounts = new HashMap<>(16);
 
     /**
-     * Latest scan results per store name. Written by scanner tasks, read by
-     * {@link #submitCompactionTasks} to partition candidates into groups.
+     * Latest scan statistics per store name. Written by scanner tasks, read by
+     * {@link #submitCompactionTasks} to filter and partition candidates.
      * Keys are store names (e.g. "IdToHashChunk").
      */
-    private final Map<String, ScanResult> scanResultsByStore = new ConcurrentHashMap<>(4);
+    private final Map<String, IndexedGarbageFileStats> scanStatsByStore = new ConcurrentHashMap<>(4);
 
     @NonNull
     private final MerkleDbConfig merkleDbConfig;
@@ -219,8 +222,8 @@ class MerkleDbCompactionCoordinator {
 
     /**
      * Submits a scanner task for the given store, if one is not already running. The scanner
-     * traverses the in-memory index and stores the results in {@link #scanResultsByStore},
-     * where {@link #submitCompactionTasks} reads them to partition work.
+     * traverses the in-memory index and stores the results in {@link #scanStatsByStore},
+     * where {@link #submitCompactionTasks} reads them to filter and partition work.
      *
      * @param storeName store name (e.g. {@link MerkleDbDataSource#ID_TO_HASH_CHUNK})
      * @param scanner   the scanner to run
@@ -240,19 +243,27 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Partitions compaction candidates from the latest scan results into groups bounded by
-     * projected output size, and submits each group as an independent compaction task.
+     * Filters files from the latest scan results, partitions eligible files into groups,
+     * runs phase 2 absorption on each group, and submits each group as an independent
+     * compaction task.
      *
-     * <p>For each level present in the scan results, new tasks are only submitted when ALL
-     * tasks from the previous submission for that level have completed (counter reaches zero).
-     * This prevents overlapping file sets between old and new tasks.
+     * <p>The algorithm proceeds per level:
+     * <ol>
+     *   <li><b>Phase 1:</b> select files whose {@code deadToAliveRatio > gcRateThreshold}.</li>
+     *   <li><b>Split:</b> partition eligible files into groups bounded by
+     *       {@code maxCompactedFileSizeInKB}.</li>
+     *   <li><b>Phase 2:</b> for each group, absorb additional non-eligible files from a shared
+     *       remaining pool. Absorbed files are removed from the pool so no other group at the
+     *       same level can claim them.</li>
+     *   <li><b>Submit:</b> submit each group as a compaction task.</li>
+     * </ol>
      *
-     * <p>This method is called from the flush handler after each flush. It is lightweight — it
-     * reads cached scan results, partitions by projected output size, and submits tasks.
+     * <p>For each level, new tasks are only submitted when ALL tasks from the previous
+     * submission for that level have completed (counter reaches zero).
      *
      * @param storeName        store name (e.g. {@link MerkleDbDataSource#ID_TO_HASH_CHUNK})
      * @param compactorFactory creates a fresh {@link DataFileCompactor} per compaction task
-     * @param config           MerkleDb config with size cap and level cap parameters
+     * @param config           MerkleDb config with threshold, size cap, and level cap parameters
      */
     synchronized void submitCompactionTasks(
             final @NonNull String storeName,
@@ -262,16 +273,31 @@ class MerkleDbCompactionCoordinator {
             return;
         }
 
-        final ScanResult scanResult = scanResultsByStore.get(storeName);
-        if (scanResult == null || scanResult.candidatesByLevel().isEmpty()) {
+        final IndexedGarbageFileStats stats = scanStatsByStore.get(storeName);
+        if (stats == null || stats.garbageFileStats().length == 0) {
             return;
         }
 
+        final double gcRateThreshold = config.gcRateThreshold();
         final long maxProjectedBytes = config.maxCompactedFileSizeInKB() * KIBIBYTES_TO_BYTES;
         final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
 
-        for (final Map.Entry<Integer, List<DataFileReader>> entry :
-                scanResult.candidatesByLevel().entrySet()) {
+        // Phase 1: separate eligible from remaining, grouped by level
+        final Map<Integer, List<DataFileReader>> eligibleByLevel = new HashMap<>();
+        final Map<Integer, List<DataFileReader>> remainingByLevel = new HashMap<>();
+        for (final GarbageFileStats fs : stats.garbageFileStats()) {
+            if (fs == null) {
+                continue;
+            }
+            final int level = fs.compactionLevel();
+            if (fs.deadToAliveRatio() > gcRateThreshold) {
+                eligibleByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(fs.fileReader);
+            } else {
+                remainingByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(fs.fileReader);
+            }
+        }
+
+        for (final var entry : eligibleByLevel.entrySet()) {
             final int level = entry.getKey();
             final String levelKey = compactionTaskKey(storeName, level);
 
@@ -280,13 +306,29 @@ class MerkleDbCompactionCoordinator {
                 continue;
             }
 
-            final List<DataFileReader> candidates = entry.getValue();
-            if (candidates.isEmpty()) {
+            final List<DataFileReader> eligible = entry.getValue();
+            if (eligible.isEmpty()) {
                 continue;
             }
 
-            final List<List<DataFileReader>> groups =
-                    splitIntoGroups(candidates, maxProjectedBytes, scanResult.stats());
+            // Split eligible files into groups bounded by projected output size
+            final List<List<DataFileReader>> groups = splitIntoGroups(eligible, maxProjectedBytes, stats);
+
+            // Phase 2: for each group, absorb additional files from the shared remaining pool
+            final List<DataFileReader> remainingPool = remainingByLevel.getOrDefault(level, List.of());
+            if (!remainingPool.isEmpty()) {
+                // Sort once by dead/alive descending — files that least worsen the aggregate first
+                final List<DataFileReader> sortedPool = new ArrayList<>(remainingPool);
+                sortedPool.sort(Comparator.<DataFileReader>comparingDouble(r -> {
+                            final GarbageFileStats fs = lookupStats(r, stats);
+                            return fs != null ? fs.deadToAliveRatio() : 0.0;
+                        })
+                        .reversed());
+
+                for (final List<DataFileReader> group : groups) {
+                    absorbIntoGroup(storeName, group, sortedPool, stats, gcRateThreshold, maxProjectedBytes);
+                }
+            }
 
             compactionTaskCounts.put(levelKey, groups.size());
             for (int i = 0; i < groups.size(); i++) {
@@ -298,11 +340,11 @@ class MerkleDbCompactionCoordinator {
             if (groups.size() > 1) {
                 logger.info(
                         MERKLE_DB.getMarker(),
-                        "[{}] Submitted {} compaction tasks for level {} ({} candidate files)",
+                        "[{}] Submitted {} compaction tasks for level {} ({} eligible files)",
                         storeName,
                         groups.size(),
                         level,
-                        candidates.size());
+                        eligible.size());
             }
         }
     }
@@ -342,7 +384,7 @@ class MerkleDbCompactionCoordinator {
     }
 
     // ========================================================================
-    // Grouping
+    // Grouping and absorption
     // ========================================================================
 
     /**
@@ -385,6 +427,95 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
+     * Phase 2: absorbs additional files from a shared remaining pool into a single group.
+     * Files that would push the group's aggregate dead/alive ratio below the threshold or
+     * the projected output size past the cap are skipped. Absorbed files are removed from
+     * the pool so no other group at the same level can claim them.
+     *
+     * <p>The pool must be pre-sorted by dead/alive ratio descending. Files that least worsen
+     * the aggregate are tried first, maximizing the number of files absorbed.
+     *
+     * @param storeName         name of the store being compacted (for logging only)
+     * @param group             the group to absorb files into (modified in place)
+     * @param remainingPool     shared pool of non-eligible files for this level, sorted by
+     *                          dead/alive ratio descending (modified — absorbed files are removed)
+     * @param stats             per-file garbage statistics from the scan
+     * @param gcRateThreshold   minimum aggregate dead/alive ratio to maintain
+     * @param maxProjectedBytes maximum projected alive bytes for the group
+     */
+    static void absorbIntoGroup(
+            @NonNull String storeName,
+            @NonNull final List<DataFileReader> group,
+            @NonNull final List<DataFileReader> remainingPool,
+            @NonNull final IndexedGarbageFileStats stats,
+            final double gcRateThreshold,
+            final long maxProjectedBytes) {
+
+        // Compute current aggregate for the group
+        long totalLive = 0;
+        long totalDead = 0;
+        long projectedSize = 0;
+        for (final DataFileReader reader : group) {
+            final GarbageFileStats fs = lookupStats(reader, stats);
+            if (fs != null) {
+                totalLive += fs.aliveItems();
+                totalDead += fs.deadItems();
+                projectedSize += estimateAliveBytes(reader, stats);
+            }
+        }
+
+        final double aggregateRatio = totalLive == 0 ? Double.MAX_VALUE : (double) totalDead / totalLive;
+
+        // No headroom — skip absorption for this group
+        if (aggregateRatio <= gcRateThreshold || (maxProjectedBytes > 0 && projectedSize >= maxProjectedBytes)) {
+            return;
+        }
+
+        int absorbed = 0;
+        final Iterator<DataFileReader> it = remainingPool.iterator();
+        while (it.hasNext()) {
+            final DataFileReader reader = it.next();
+            final GarbageFileStats fs = lookupStats(reader, stats);
+            if (fs == null) {
+                continue;
+            }
+
+            final long fileLive = fs.aliveItems();
+            final long fileDead = fs.deadItems();
+            final long fileProjectedAlive = estimateAliveBytes(reader, stats);
+
+            final long newTotalLive = totalLive + fileLive;
+            final long newTotalDead = totalDead + fileDead;
+            final double newRatio = newTotalLive == 0 ? Double.MAX_VALUE : (double) newTotalDead / newTotalLive;
+            final long newProjectedSize = projectedSize + fileProjectedAlive;
+
+            // Skip this file if it would breach either limit
+            if (newRatio <= gcRateThreshold || (maxProjectedBytes > 0 && newProjectedSize >= maxProjectedBytes)) {
+                continue;
+            }
+
+            group.add(reader);
+            it.remove(); // remove from shared pool so no other group can claim it
+            totalLive = newTotalLive;
+            totalDead = newTotalDead;
+            projectedSize = newProjectedSize;
+            absorbed++;
+        }
+
+        if (absorbed > 0) {
+            final String finalRatio =
+                    totalLive == 0 ? "n/a" : String.valueOf(Math.round((double) totalDead / totalLive * 100) / 100.0);
+            logger.info(
+                    MERKLE_DB.getMarker(),
+                    "[{}]: absorbed {} files into group, aggregate dead/alive={}, projected output={}",
+                    storeName,
+                    absorbed,
+                    finalRatio,
+                    formatSizeBytes(projectedSize));
+        }
+    }
+
+    /**
      * Estimates the projected alive bytes for a single file based on scan statistics.
      * Returns 0 for files with unknown item counts or files not found in the stats
      * (e.g. deleted between scan and grouping).
@@ -398,11 +529,21 @@ class MerkleDbCompactionCoordinator {
         if (idx < 0 || idx >= stats.garbageFileStats().length) {
             return 0;
         }
-        final GarbageScanner.GarbageFileStats fileStats = stats.garbageFileStats()[idx];
+        final GarbageFileStats fileStats = stats.garbageFileStats()[idx];
         if (fileStats == null || fileStats.totalItems() == 0) {
             return 0;
         }
         return (long) (reader.getSize() * (1.0 - fileStats.garbageRatio()));
+    }
+
+    @Nullable
+    private static GarbageFileStats lookupStats(
+            final @NonNull DataFileReader reader, final @NonNull IndexedGarbageFileStats stats) {
+        final int idx = reader.getIndex() - stats.offset();
+        if (idx < 0 || idx >= stats.garbageFileStats().length) {
+            return null;
+        }
+        return stats.garbageFileStats()[idx];
     }
 
     // ========================================================================
@@ -411,7 +552,7 @@ class MerkleDbCompactionCoordinator {
 
     /**
      * Background task that traverses the in-memory index and computes per-file garbage statistics.
-     * Results are stored in {@link #scanResultsByStore} for compaction tasks to consume.
+     * Results are stored in {@link #scanStatsByStore} for compaction tasks to consume.
      */
     private class ScannerTask implements Runnable {
 
@@ -423,11 +564,11 @@ class MerkleDbCompactionCoordinator {
          * Creates a new scanner task.
          *
          * @param taskKey   unique key for deduplication and tracking (e.g. "IdToHashChunk_scan")
-         * @param storeName store name used for keying scan results in {@link #scanResultsByStore}
+         * @param storeName store name used for keying scan results in {@link #scanStatsByStore}
          * @param scanner   the scanner to execute
          */
         ScannerTask(
-                final @NonNull String taskKey, final @NonNull String storeName, final @NonNull GarbageScanner scanner) {
+                @NonNull final String taskKey, @NonNull final String storeName, @NonNull final GarbageScanner scanner) {
             this.taskKey = taskKey;
             this.storeName = storeName;
             this.scanner = scanner;
@@ -436,7 +577,7 @@ class MerkleDbCompactionCoordinator {
         @Override
         public void run() {
             try {
-                scanResultsByStore.put(storeName, scanner.scan());
+                scanStatsByStore.put(storeName, scanner.scan());
             } catch (Exception e) {
                 logger.error(EXCEPTION.getMarker(), "[{}] Garbage scan failed", taskKey, e);
             } finally {
@@ -451,7 +592,7 @@ class MerkleDbCompactionCoordinator {
     /**
      * Background compaction task for a pre-assigned group of files at a single level. The group
      * is determined at submission time by {@link #submitCompactionTasks}, which partitions
-     * candidates by projected output size.
+     * candidates by projected output size and absorbs additional files via phase 2.
      *
      * <p>Before compacting, the task filters out files that may have been deleted by concurrent
      * compaction tasks since the scan. If no valid files remain, the task is a no-op.

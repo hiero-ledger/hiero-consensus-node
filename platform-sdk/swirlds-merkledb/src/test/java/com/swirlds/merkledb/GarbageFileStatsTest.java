@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.merkledb.files;
+package com.swirlds.merkledb;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.swirlds.merkledb.files.DataFileMetadata;
+import com.swirlds.merkledb.files.DataFileReader;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

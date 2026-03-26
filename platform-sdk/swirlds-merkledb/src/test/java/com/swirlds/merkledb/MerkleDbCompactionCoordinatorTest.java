@@ -16,14 +16,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
-import com.swirlds.merkledb.files.GarbageScanner;
-import com.swirlds.merkledb.files.GarbageScanner.IndexedGarbageFileStats;
-import com.swirlds.merkledb.files.GarbageScanner.ScanResult;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -97,10 +95,10 @@ class MerkleDbCompactionCoordinatorTest {
         final GarbageScanner scanner = mock(GarbageScanner.class);
         final CountDownLatch scanStarted = new CountDownLatch(1);
         final CountDownLatch releaseScan = new CountDownLatch(1);
-        when(scanner.scan()).thenAnswer(invocation -> {
+        when(scanner.scan()).thenAnswer(_ -> {
             scanStarted.countDown();
             releaseScan.await(5, TimeUnit.SECONDS);
-            return ScanResult.EMPTY;
+            return new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0]);
         });
 
         coordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, scanner);
@@ -121,10 +119,6 @@ class MerkleDbCompactionCoordinatorTest {
 
     @Test
     void testSubmitCompactionTasksWithNoScanResultsIsNoOp() throws InterruptedException, IOException {
-        final DataFileCollection fileCollection = mock(DataFileCollection.class);
-        final DataFileReader level0File = mockFileReader(1, 0);
-        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
-
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         final AtomicInteger factoryCalls = new AtomicInteger();
         final Supplier<DataFileCompactor> factory = () -> {
@@ -132,34 +126,46 @@ class MerkleDbCompactionCoordinatorTest {
             return compactor;
         };
 
-        // No scan results have been published — tasks will be submitted but will no-op
+        // No scan stats have been published
         coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
 
-        // Wait for submitted task to complete
         coordinator.awaitForCurrentCompactionsToComplete(2000);
 
-        // Factory should never be called since the task sees no scan results and exits
-        assertEquals(0, factoryCalls.get(), "Factory should not be called when no scan results exist");
+        assertEquals(0, factoryCalls.get(), "Factory should not be called when no scan stats exist");
+        verify(compactor, never()).compactSingleLevel(anyList(), anyInt());
+    }
+
+    @Test
+    void testTaskNoOpsWhenNoFilesExceedThreshold() throws InterruptedException, IOException {
+        // File with all items alive → dead/alive = 0.0 → not eligible
+        final DataFileReader cleanFile = mockFileReader(1, 0, 100, 1000);
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(cleanFile));
+
+        // Publish stats where file has 100 alive, 0 dead
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(cleanFile, 100)));
+
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
         verify(compactor, never()).compactSingleLevel(anyList(), anyInt());
     }
 
     @Test
     void testSubmitCompactionTasksEvaluatesAtExecutionTime() throws InterruptedException, IOException {
-        final DataFileReader level0File1 = mockFileReader(1, 0);
-        final DataFileReader level0File2 = mockFileReader(2, 0);
-        final DataFileReader level2File1 = mockFileReader(3, 2);
-        final DataFileReader level2File2 = mockFileReader(4, 2);
+        // Two levels, each with a dirty file
+        // dead/alive must exceed gcRateThreshold (default 0.5)
+        final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader level2File = mockFileReader(2, 2, 100, 1000);
 
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
-        when(fileCollection.getAllCompletedFiles())
-                .thenReturn(List.of(level0File1, level0File2, level2File1, level2File2));
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File, level2File));
 
-        // Publish scan results: both levels have high garbage
-        publishScanResult(
-                ID_TO_HASH_CHUNK,
-                new ScanResult(
-                        Map.of(0, List.of(level0File1, level0File2), 2, List.of(level2File1, level2File2)),
-                        new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0])));
+        // 20 alive → 80 dead → d/a = 4.0 > 0.5 → eligible
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20), new StatsEntry(level2File, 20)));
 
         final CountDownLatch compactionsDone = new CountDownLatch(2);
         final List<Integer> compactedTargetLevels = new ArrayList<>();
@@ -201,17 +207,15 @@ class MerkleDbCompactionCoordinatorTest {
 
     @Test
     void testSubmitCompactionTasksDoesNotDuplicateSameLevelTasks() throws InterruptedException, IOException {
-        final DataFileReader level0File1 = mockFileReader(1, 0);
-        final DataFileReader level0File2 = mockFileReader(2, 0);
+        final DataFileReader level0File1 = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader level0File2 = mockFileReader(2, 0, 100, 1000);
 
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File1, level0File2));
 
-        publishScanResult(
-                ID_TO_HASH_CHUNK,
-                new ScanResult(
-                        Map.of(0, List.of(level0File1, level0File2)),
-                        new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0])));
+        // Both files: 20 alive → 80 dead → d/a = 4.0 → eligible
+        publishScanStats(
+                ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File1, 20), new StatsEntry(level0File2, 20)));
 
         final CountDownLatch taskStarted = new CountDownLatch(1);
         final CountDownLatch releaseTask = new CountDownLatch(1);
@@ -242,45 +246,17 @@ class MerkleDbCompactionCoordinatorTest {
         releaseTask.countDown();
     }
 
-    @Test
-    void testTaskNoOpsWhenThresholdsNotExceeded() throws InterruptedException, IOException {
-        final DataFileReader level0File = mockFileReader(1, 0);
-
-        final DataFileCollection fileCollection = mock(DataFileCollection.class);
-        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
-
-        publishScanResult(
-                ID_TO_HASH_CHUNK,
-                new ScanResult(Map.of(), new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0])));
-
-        final DataFileCompactor compactor = mock(DataFileCompactor.class);
-        final Supplier<DataFileCompactor> factory = () -> compactor;
-
-        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, config);
-
-        coordinator.awaitForCurrentCompactionsToComplete(2000);
-
-        verify(compactor, never()).compactSingleLevel(anyList(), anyInt());
-        assertFalse(
-                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
-                "No compaction should be running after task completes");
-    }
-
     // ========================================================================
     // Pause / resume / stop tests
     // ========================================================================
 
     @Test
     void testPauseAndResumeCompaction() throws InterruptedException, IOException {
-        final DataFileReader level0File = mockFileReader(1, 0);
+        final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
 
-        publishScanResult(
-                ID_TO_HASH_CHUNK,
-                new ScanResult(
-                        Map.of(0, List.of(level0File)),
-                        new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0])));
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
 
         final CountDownLatch taskStarted = new CountDownLatch(1);
         final CountDownLatch releaseTask = new CountDownLatch(1);
@@ -305,15 +281,11 @@ class MerkleDbCompactionCoordinatorTest {
 
     @Test
     void testStopAndDisableInterruptsRunningCompaction() throws InterruptedException, IOException {
-        final DataFileReader level0File = mockFileReader(1, 0);
+        final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
 
-        publishScanResult(
-                ID_TO_HASH_CHUNK,
-                new ScanResult(
-                        Map.of(0, List.of(level0File)),
-                        new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0])));
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
 
         final CountDownLatch taskStarted = new CountDownLatch(1);
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
@@ -334,30 +306,129 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     // ========================================================================
+    // absorbIntoGroup tests
+    // ========================================================================
+
+    @Test
+    void testAbsorbIntoGroupAbsorbsEligibleFiles() {
+        final DataFileReader dirty = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader clean = mockFileReader(2, 0, 100, 500);
+
+        // dirty: 10 alive, 90 dead → d/a = 9.0
+        // clean: 90 alive, 10 dead → d/a = 0.11
+        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(dirty, 10), new StatsEntry(clean, 90));
+
+        final List<DataFileReader> group = new ArrayList<>(List.of(dirty));
+        final List<DataFileReader> pool = new ArrayList<>(List.of(clean));
+
+        // aggregate after absorbing clean: (90+10)/(10+90) = 100/100 = 1.0 > 0.5 → absorbed
+        MerkleDbCompactionCoordinator.absorbIntoGroup("", group, pool, stats, 0.5, 0);
+
+        assertEquals(2, group.size());
+        assertTrue(group.contains(dirty));
+        assertTrue(group.contains(clean));
+        assertTrue(pool.isEmpty(), "Absorbed file should be removed from pool");
+    }
+
+    @Test
+    void testAbsorbIntoGroupSkipsFileThatWouldBreachRatio() {
+        final DataFileReader dirty = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader clean = mockFileReader(2, 0, 100, 500);
+
+        // dirty: 40 alive, 60 dead → d/a = 1.5
+        // clean: 95 alive, 5 dead → d/a = 0.053
+        // absorb clean: (60+5)/(40+95) = 65/135 = 0.48 → not > 0.5 → skip
+        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(dirty, 40), new StatsEntry(clean, 95));
+
+        final List<DataFileReader> group = new ArrayList<>(List.of(dirty));
+        final List<DataFileReader> pool = new ArrayList<>(List.of(clean));
+
+        MerkleDbCompactionCoordinator.absorbIntoGroup("", group, pool, stats, 0.5, 0);
+
+        assertEquals(1, group.size(), "Clean file should not be absorbed");
+        assertEquals(1, pool.size(), "Pool should be unchanged");
+    }
+
+    @Test
+    void testAbsorbIntoGroupRemovesFromSharedPool() {
+        final DataFileReader dirty = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader small1 = mockFileReader(2, 0, 20, 100);
+        final DataFileReader small2 = mockFileReader(3, 0, 20, 100);
+
+        // dirty: 10 alive, 90 dead → huge budget
+        // small1: 15 alive, 5 dead → d/a = 0.33
+        // small2: 18 alive, 2 dead → d/a = 0.11
+        final IndexedGarbageFileStats stats =
+                buildStats(new StatsEntry(dirty, 10), new StatsEntry(small1, 15), new StatsEntry(small2, 18));
+
+        final List<DataFileReader> group1 = new ArrayList<>(List.of(dirty));
+        final List<DataFileReader> pool = new ArrayList<>(List.of(small1, small2));
+
+        MerkleDbCompactionCoordinator.absorbIntoGroup("", group1, pool, stats, 0.5, 0);
+
+        // Both should be absorbed into group1
+        assertEquals(3, group1.size());
+        assertTrue(pool.isEmpty(), "All files absorbed from pool");
+
+        // A second group trying to absorb from the same pool gets nothing
+        final DataFileReader dirty2 = mockFileReader(4, 0, 100, 1000);
+        final List<DataFileReader> group2 = new ArrayList<>(List.of(dirty2));
+        MerkleDbCompactionCoordinator.absorbIntoGroup("", group2, pool, stats, 0.5, 0);
+
+        assertEquals(1, group2.size(), "No files left in pool to absorb");
+    }
+
+    // ========================================================================
     // Helper methods
     // ========================================================================
 
     @SuppressWarnings("unchecked")
-    private void publishScanResult(final String storeName, final ScanResult result) {
+    private void publishScanStats(final String storeName, final IndexedGarbageFileStats stats) {
         try {
-            final var field = MerkleDbCompactionCoordinator.class.getDeclaredField("scanResultsByStore");
+            final var field = MerkleDbCompactionCoordinator.class.getDeclaredField("scanStatsByStore");
             field.setAccessible(true);
-            final var map = (Map<String, ScanResult>) field.get(coordinator);
-            map.put(storeName, result);
+            final var map = (Map<String, IndexedGarbageFileStats>) field.get(coordinator);
+            map.put(storeName, stats);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static DataFileReader mockFileReader(final int fileIndex, final int level) {
+    private record StatsEntry(DataFileReader reader, long aliveItems) {}
+
+    /**
+     * Builds an {@link IndexedGarbageFileStats} from the given entries. Files are assumed to
+     * have contiguous indices starting from the first entry's index.
+     */
+    private static IndexedGarbageFileStats buildStats(final StatsEntry... entries) {
+        if (entries.length == 0) {
+            return new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0]);
+        }
+
+        int minIndex = Integer.MAX_VALUE;
+        int maxIndex = Integer.MIN_VALUE;
+        for (final StatsEntry e : entries) {
+            minIndex = Math.min(minIndex, e.reader.getIndex());
+            maxIndex = Math.max(maxIndex, e.reader.getIndex());
+        }
+
+        final GarbageScanner.GarbageFileStats[] arr = new GarbageScanner.GarbageFileStats[maxIndex - minIndex + 1];
+        for (final StatsEntry e : entries) {
+            arr[e.reader.getIndex() - minIndex] = new GarbageScanner.GarbageFileStats(e.reader, e.aliveItems);
+        }
+        return new IndexedGarbageFileStats(minIndex, arr);
+    }
+
+    private static DataFileReader mockFileReader(
+            final int fileIndex, final int level, final long totalItems, final long sizeBytes) {
         final DataFileMetadata metadata = mock(DataFileMetadata.class);
         when(metadata.getCompactionLevel()).thenReturn(level);
-        when(metadata.getItemsCount()).thenReturn(100L);
+        when(metadata.getItemsCount()).thenReturn(totalItems);
 
         final DataFileReader reader = mock(DataFileReader.class);
         when(reader.getIndex()).thenReturn(fileIndex);
         when(reader.getMetadata()).thenReturn(metadata);
-        when(reader.getSize()).thenReturn(1000L);
+        when(reader.getSize()).thenReturn(sizeBytes);
         return reader;
     }
 }

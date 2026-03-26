@@ -29,7 +29,6 @@ import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
-import com.swirlds.merkledb.files.GarbageScanner;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.metrics.api.Metrics;
@@ -473,17 +472,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
 
         COUNT_OF_OPEN_DATABASES.increment();
-        chunkStoreScanner = new GarbageScanner(
-                idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK, merkleDbConfig);
-        pathToKeyValueStoreScanner = new GarbageScanner(
-                pathToDiskLocationLeafNodes, keyValueStore.getFileCollection(), PATH_TO_KEY_VALUE, merkleDbConfig);
+        chunkStoreScanner =
+                new GarbageScanner(idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK);
+        pathToKeyValueStoreScanner =
+                new GarbageScanner(pathToDiskLocationLeafNodes, keyValueStore.getFileCollection(), PATH_TO_KEY_VALUE);
         objectkeyToPathScanner = new GarbageScanner(
-                keyToPath.getBucketIndexToBucketLocation(),
-                keyToPath.getFileCollection(),
-                OBJECT_KEY_TO_PATH,
-                merkleDbConfig,
-                true);
-
+                keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), OBJECT_KEY_TO_PATH, true);
         logger.info(
                 MERKLE_DB.getMarker(),
                 "Created MerkleDB [{}] with store path '{}', initial capacity = {}, hash chunk height = {}",
