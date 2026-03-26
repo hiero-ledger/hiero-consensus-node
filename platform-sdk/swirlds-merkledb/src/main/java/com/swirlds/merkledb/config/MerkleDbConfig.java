@@ -30,14 +30,14 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
  * @param gcRateThreshold
- *      Maximum live-to-dead ratio for compaction decisions. In phase 1, files whose individual
- *      {@code alive / dead < gcRateThreshold} are selected for compaction. In phase 2, small
- *      remaining files are absorbed into the batch as long as the aggregate ratio stays below
- *      this threshold. A value of 2.0 means: for every dead item reclaimed, up to 2 live items
- *      can be copied.
+ *      Minimum dead-to-alive ratio for compaction decisions. In phase 1, files whose individual
+ *      {@code dead / alive > gcRateThreshold} are selected for compaction. In phase 2, remaining
+ *      files are considered for absorption as long as adding each one keeps the aggregate ratio
+ *      above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead
+ *      item must be reclaimed.
  * @param maxCompactedFileSizeInKB
  *      Maximum projected output size (KB) per compaction task. Candidates are partitioned into
- *      groups of this size. Also used as the size cap when absorbing small files in phase 2.
+ *      groups bounded by this size. Also used as the size cap when absorbing files in phase 2.
  *      A non-positive value disables this limit.
  * @param maxCompactionLevel max number of compaction levels, once this level is reached compactors stop increasing levels.
  *      That is, the result of compaction at level N will be a file at level N.

@@ -12,47 +12,47 @@ import org.junit.jupiter.api.Test;
 class GarbageFileStatsTest {
 
     @Test
-    @DisplayName("liveToDeadRatio: normal case with both alive and dead items")
-    void normalLiveToDeadRatio() {
-        // 40 alive out of 100 total → 40 live / 60 dead = 0.667
+    @DisplayName("deadToAliveRatio: normal case with both alive and dead items")
+    void normalDeadToAliveRatio() {
+        // 40 alive out of 100 total → 60 dead / 40 alive = 1.5
         final var stats = statsWithAlive(100, 40);
-        assertEquals(40.0 / 60.0, stats.liveToDeadRatio(), 1e-9);
+        assertEquals(60.0 / 40.0, stats.deadToAliveRatio(), 1e-9);
     }
 
     @Test
-    @DisplayName("liveToDeadRatio: all items alive (zero dead) → MAX_VALUE")
+    @DisplayName("deadToAliveRatio: all items alive (zero dead) → 0.0")
     void allAliveRatio() {
         final var stats = statsWithAlive(50, 50);
-        assertEquals(Double.MAX_VALUE, stats.liveToDeadRatio());
+        assertEquals(0.0, stats.deadToAliveRatio());
     }
 
     @Test
-    @DisplayName("liveToDeadRatio: all items dead (zero alive) → 0.0")
+    @DisplayName("deadToAliveRatio: all items dead (zero alive) → MAX_VALUE")
     void allDeadRatio() {
         final var stats = statsWithAlive(50, 0);
-        assertEquals(0.0, stats.liveToDeadRatio());
+        assertEquals(Double.MAX_VALUE, stats.deadToAliveRatio());
     }
 
     @Test
-    @DisplayName("liveToDeadRatio: totalItems == 0 → 0.0")
+    @DisplayName("deadToAliveRatio: totalItems == 0 → MAX_VALUE")
     void emptyFileRatio() {
         final var stats = statsWithAlive(0, 0);
-        assertEquals(0.0, stats.liveToDeadRatio());
+        assertEquals(Double.MAX_VALUE, stats.deadToAliveRatio());
     }
 
     @Test
-    @DisplayName("liveToDeadRatio: high garbage file (90% dead)")
+    @DisplayName("deadToAliveRatio: high garbage file (90% dead)")
     void highGarbageRatio() {
-        // 10 alive out of 100 → 10 / 90 ≈ 0.111
+        // 10 alive out of 100 → 90 dead / 10 alive = 9.0
         final var stats = statsWithAlive(100, 10);
-        assertEquals(10.0 / 90.0, stats.liveToDeadRatio(), 1e-9);
+        assertEquals(90.0 / 10.0, stats.deadToAliveRatio(), 1e-9);
     }
 
     @Test
-    @DisplayName("liveToDeadRatio: exactly half alive")
+    @DisplayName("deadToAliveRatio: exactly half alive")
     void halfAliveRatio() {
         final var stats = statsWithAlive(100, 50);
-        assertEquals(1.0, stats.liveToDeadRatio(), 1e-9);
+        assertEquals(1.0, stats.deadToAliveRatio(), 1e-9);
     }
 
     // ========================================================================
@@ -62,7 +62,6 @@ class GarbageFileStatsTest {
     @Test
     @DisplayName("garbageRatio: normal case")
     void normalGarbageRatio() {
-        // 40 alive out of 100 → garbage = 60%
         final var stats = statsWithAlive(100, 40);
         assertEquals(0.6, stats.garbageRatio(), 1e-9);
     }

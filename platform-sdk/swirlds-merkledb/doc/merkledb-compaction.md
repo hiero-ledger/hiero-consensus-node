@@ -167,39 +167,39 @@ Rather than maintaining real-time counters on the hot path, garbage is estimated
 
 The scanner (`GarbageScanner`) traverses the in-memory (off-heap) index for a given file collection. For each index entry, the scanner
 checks which file the entry points to and increments an alive counter for that file. Index entries pointing to files
-not present in the collection (e.g. files deleted by a concurrent compaction) are silently skipped. After the full traversal,
-the scanner knows how many items in each file are still referenced by the index. Two ratios are computed per file:
+not present in the collection (e.g. files deleted by a concurrent compaction) are silently skipped.
+After the full traversal, the scanner knows how many items in each file are still referenced by the index. Two ratios
+are computed per file:
 
 ```
 garbageRatio(file) = 1 - (aliveItems / totalItems)
-liveToDeadRatio(file) = aliveItems / (totalItems - aliveItems)
+deadToAliveRatio(file) = (totalItems - aliveItems) / aliveItems
 ```
 
-The `garbageRatio` is used to estimate projected output file size: `fileSize × (1 - garbageRatio)`. The `liveToDeadRatio`
-drives the compaction decision — it describes the "garbage collection speed" for a file. A lower ratio means faster GC:
-less live data to copy per dead item reclaimed. The ratio has an important additive property: for a set of files, the
-aggregate ratio is `Σalive / Σdead`, which describes the combined GC speed of the entire batch.
+The `garbageRatio` is used to estimate projected output file size: `fileSize × (1 - garbageRatio)`. The `deadToAliveRatio`
+drives the compaction decision — it describes the "garbage collection speed" for a file. A higher ratio means faster GC:
+more dead items reclaimed per alive item copied. The ratio has an important additive property: for a set of files, the
+aggregate ratio is `Σdead / Σalive`, which describes the combined GC speed of the entire batch.
 
-Files with `totalItems == 0` are assigned `garbageRatio = 1.0` and `liveToDeadRatio = 0.0` (fastest possible GC —
-nothing to copy). This covers two cases: the file is truly empty (compaction will result in deletion of these files,
-which is harmless as they are empty), or the file was written by an older version that did not record the item count
-(a full compaction is needed).
-Files with zero dead items get `liveToDeadRatio = Double.MAX_VALUE` (no garbage — never individually selected for compaction).
+Files with `totalItems == 0` are assigned `garbageRatio = 1.0` and `deadToAliveRatio = MAX_VALUE` (fastest possible GC —
+nothing to copy, or file needs full rewrite). This covers two cases: the file is truly empty (compaction will be a no-op,
+which is harmless), or the file was written by an older version that did not record the item count.
+Files with zero alive items also get `deadToAliveRatio = MAX_VALUE` (nothing to copy — perfect).
+Files with zero dead items get `deadToAliveRatio = 0.0` (no garbage — never individually selected for compaction).
 
 The scanner then applies a two-phase selection algorithm:
 
-1. **Phase 1 — Select eligible files:** files whose `liveToDeadRatio` is below `gcRateThreshold` are collected as
+1. **Phase 1 — Select eligible files:** files whose `deadToAliveRatio` exceeds `gcRateThreshold` are collected as
    compaction candidates for their level. These are files with enough garbage to justify compaction on their own.
 
-2. **Phase 2 — Absorb remaining files:** for each level with `phase 1` candidates, the scanner checks if there is headroom
-   in both the aggregate `Σlive / Σdead` ratio (relative to `gcRateThreshold`) and the projected output size
+2. **Phase 2 — Absorb remaining files:** for each level with phase 1 candidates, the scanner checks if there is headroom
+   in both the aggregate `Σdead / Σalive` ratio (must be above `gcRateThreshold`) and the projected output size
    (relative to `maxCompactedFileSizeInKB`). If so, remaining files at the level (those NOT selected in phase 1) are
-   sorted by live/dead ratio ascending and each one is considered for absorption. Files whose addition would push the
-   aggregate ratio past the threshold or the projected output size past the cap are skipped — the scanner continues
-   to consider subsequent files rather than stopping at the first rejection. This maximizes file consolidation because
-   files sorted later may have better ratios despite being larger. Sorting by ratio ensures files that improve (or least
-   worsen) the aggregate are absorbed first, building maximum headroom for subsequent candidates. The dirty files from
-   phase 1 provide a "budget" of GC efficiency that is spent absorbing cleaner files.
+   sorted by dead/alive ratio descending and each one is considered for absorption. Files whose addition would push the
+   aggregate ratio below the threshold or the projected output size past the cap are skipped — the scanner continues
+   to consider subsequent files rather than stopping at the first rejection. Sorting by ratio descending ensures files
+   that least worsen the aggregate are absorbed first, building maximum headroom for subsequent candidates. The dirty
+   files from phase 1 provide a "budget" of GC efficiency that is spent absorbing cleaner files.
 
 The output of `scan()` is a `ScanResult` containing a `Map<Integer, List<DataFileReader>>` (candidates grouped by level)
 and `IndexedGarbageFileStats` (per-file statistics used by the coordinator to estimate projected output sizes when splitting work into tasks).
@@ -242,13 +242,13 @@ dedup provides a 50% correction — imperfect but sufficient to prevent compacti
 
 ### Compaction Triggering
 
-Compaction decisions are driven by the live-to-dead ratio threshold (`gcRateThreshold`, default 0.5). A file whose
-`liveToDeadRatio` (alive items / dead items) is below this threshold is eligible for compaction. A threshold of 0.5
-means: for every 2 dead items reclaimed, the compactor copies at most 1 live item — a 2:1 efficiency ratio.
+Compaction decisions are driven by the dead-to-alive ratio threshold (`gcRateThreshold`, default 0.5). A file whose
+`deadToAliveRatio` (dead items / alive items) exceeds this threshold is eligible for compaction. A threshold of 0.5
+means: for every 2 alive items copied, at least 1 dead item must be reclaimed.
 
 Phase 2 of the scan extends the candidate set by absorbing additional files into the compaction batch. Remaining
-files (those not individually eligible) are sorted by live/dead ratio ascending and each is considered for absorption.
-Files that would push the aggregate ratio past `gcRateThreshold` or the projected output past `maxCompactedFileSizeInKB`
+files (those not individually eligible) are sorted by dead/alive ratio descending and each is considered for absorption.
+Files that would push the aggregate ratio below `gcRateThreshold` or the projected output past `maxCompactedFileSizeInKB`
 are skipped — the scanner continues to consider all remaining files rather than stopping at the first rejection.
 Sorting by ratio ensures files that least worsen the aggregate are tried first, maximizing the number of files absorbed.
 
@@ -361,14 +361,13 @@ which discovers levels from `scanResultsByStore`, partitions each level's candid
 and submits each group as an independent task.
 
 **`GarbageScanner`** is the background scanner. It accepts a `LongList` index, a `DataFileCollection`, a store name, and `MerkleDbConfig`
-(from which it reads `gcRateThreshold` and `maxCompactedFileSizeInKB`). It traverses the index, computes per-file garbage stats,
-and applies a two-phase selection algorithm: phase 1 selects files whose live/dead ratio is below `gcRateThreshold`, then `phase 2`
-sorts remaining files by live/dead ratio ascending and considers each for absorption — files that would push the aggregate ratio
-past the threshold or the projected output past the cap are skipped, and the scanner continues to consider all remaining files.
-The output is a `ScanResult` containing the candidate map and per-file statistics (`IndexedGarbageFileStats`) for use by the
-coordinator when splitting into groups. For the ObjectKeyToPath store, the scanner is constructed with `deduplicateMirroredEntries = true`
-to handle `HalfDiskHashMap` bucket index doubling (see [HalfDiskHashMap Deduplication](#halfdiskhashmap-deduplication)).
-Scanner instances are created once per data source and reused across flushes.
+(from which it reads `gcRateThreshold` and `maxCompactedFileSizeInKB`). It traverses the index, computes per-file garbage stats, and applies
+a two-phase selection algorithm: phase 1 selects files whose dead/alive ratio exceeds `gcRateThreshold`, then phase 2 sorts remaining files by
+dead/alive ratio descending and considers each for absorption — files that would push the aggregate ratio below the threshold or the projected
+output past the cap are skipped, and the scanner continues to consider all remaining files. The output is a `ScanResult` containing the candidate
+map and per-file statistics (`IndexedGarbageFileStats`) for use by the coordinator when splitting into groups. For the ObjectKeyToPath store,
+the scanner is constructed with `deduplicateMirroredEntries = true` to handle `HalfDiskHashMap` bucket index doubling
+(see [HalfDiskHashMap Deduplication](#halfdiskhashmap-deduplication)). Scanner instances are created once per data source and reused across flushes.
 
 **`DataFileCompactor`** performs the actual compaction for a given file collection. Each instance is used for a single
 compaction run — the coordinator creates a fresh instance per task because each instance carries its own `snapshotCompactionLock`,
@@ -442,7 +441,7 @@ both atomic CAS-loop operations and are safe under concurrency. Each group produ
 Files with `totalItems == 0` (either truly empty or written by older metadata versions) are also assigned a garbage
 ratio of 1.0, ensuring they are always eligible for compaction.
 
-**All files at a level above the GC rate threshold.** If no file at a level has a `liveToDeadRatio` below `gcRateThreshold`,
+**All files at a level below the GC rate threshold.** If no file at a level has a `deadToAliveRatio` above `gcRateThreshold`,
 that level produces no phase 1 candidates. Since phase 2 only runs for levels that have phase 1 candidates, no files are
 selected and compaction is not scheduled for such levels.
 
@@ -473,12 +472,12 @@ underestimated garbage ratio. The next scan will use the post-doubling index siz
 
 The following configuration parameters in `MerkleDbConfig` control compaction behavior:
 
-|            Parameter            | Default |                                                                                                                                                                   Description                                                                                                                                                                   |
-|---------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `compactionThreads`             | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                                                                                                                                                                                                                                                |
-| `maxCompactionLevel`            | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                                                                                                                                                                                                                                              |
-| `gcRateThreshold`               | 0.5     | Maximum live-to-dead ratio for compaction decisions. In phase 1, files whose individual ratio is below this value are selected. In phase 2, remaining files are considered for absorption as long as adding each one keeps the aggregate ratio below this value. A value of 0.5 means: for every 2 dead items, up to 1 live item can be copied. |
-| `maxCompactionDataPerLevelInKB` | 1000000 | Maximum projected output size (KB) per compaction task. Also the size cap for phase 2 absorption. Candidates are partitioned into groups of this size. 1 GB by default.                                                                                                                                                                         |
+|            Parameter            | Default |                                                                                                                                                                        Description                                                                                                                                                                        |
+|---------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `compactionThreads`             | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                                                                                                                                                                                                                                                          |
+| `maxCompactionLevel`            | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                                                                                                                                                                                                                                                        |
+| `gcRateThreshold`               | 0.5     | Minimum dead-to-alive ratio for compaction decisions. In phase 1, files whose individual ratio exceeds this value are selected. In phase 2, remaining files are considered for absorption as long as adding each one keeps the aggregate ratio above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead item is reclaimed. |
+| `maxCompactionDataPerLevelInKB` | 1000000 | Maximum projected output size (KB) per compaction task. Also the size cap for phase 2 absorption. Candidates are partitioned into groups of this size. 1 GB by default.                                                                                                                                                                                   |
 
 ### Observability
 

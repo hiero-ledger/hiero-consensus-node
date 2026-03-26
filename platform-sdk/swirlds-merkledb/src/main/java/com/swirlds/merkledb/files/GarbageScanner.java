@@ -38,18 +38,17 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>The scan operates in two phases:
  * <ol>
- *   <li><b>Phase 1 — Select eligible files:</b> files whose {@code liveToDeadRatio} is below
+ *   <li><b>Phase 1 — Select eligible files:</b> files whose {@code deadToAliveRatio} exceeds
  *       {@code gcRateThreshold} are collected as compaction candidates for their level.</li>
- *   <li><b>Phase 2 — Absorb remaining files:</b> for each level where the aggregate live/dead ratio
- *       is still below {@code gcRateThreshold} and the projected output size is below
- *       {@code maxCompactedFileSizeInKB}, the scanner sorts remaining files (those NOT
- *       selected in phase 1) by live/dead ratio ascending and considers each one for absorption.
- *       Files whose addition would push the aggregate ratio past the threshold or the projected
+ *   <li><b>Phase 2 — Absorb remaining files:</b> for each level where the aggregate dead/alive
+ *       ratio is still above {@code gcRateThreshold} and the projected output size is below
+ *       {@code maxCompactedFileSizeInKB}, the scanner sorts remaining files (those NOT selected
+ *       in phase 1) by dead/alive ratio descending and considers each one for absorption. Files
+ *       whose addition would push the aggregate ratio below the threshold or the projected
  *       output size past the cap are skipped — the scanner continues to consider subsequent files
- *       rather than stopping at the first rejection. This maximizes file consolidation because
- *       files sorted later may have better ratios despite being larger. Sorting by ratio ensures
- *       files that improve (or least worsen) the aggregate are absorbed first, building maximum
- *       headroom for subsequent candidates.</li>
+ *       rather than stopping at the first rejection. Sorting by ratio descending ensures files
+ *       that least worsen the aggregate are absorbed first, building maximum headroom for
+ *       subsequent candidates.</li>
  * </ol>
  */
 public class GarbageScanner {
@@ -144,7 +143,7 @@ public class GarbageScanner {
             }
         }
 
-        // Phase 1: select files whose live/dead ratio is below the threshold
+        // Phase 1: select files whose dead/alive ratio exceeds the threshold
         final Map<Integer, List<DataFileReader>> selectedByLevel = new HashMap<>();
         final Map<Integer, List<DataFileReader>> remainingByLevel = new HashMap<>();
         for (final GarbageFileStats stats : statsByFileIndex.garbageFileStats) {
@@ -152,14 +151,14 @@ public class GarbageScanner {
                 continue;
             }
             final int level = stats.compactionLevel();
-            if (stats.liveToDeadRatio() < gcRateThreshold) {
+            if (stats.deadToAliveRatio() > gcRateThreshold) {
                 selectedByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(stats.fileReader);
             } else {
                 remainingByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(stats.fileReader);
             }
         }
 
-        // Phase 2: absorb small remaining files when there's headroom in both ratio and size
+        // Phase 2: absorb remaining files when there's headroom in both ratio and size
         absorbSmallFiles(selectedByLevel, remainingByLevel, statsByFileIndex);
 
         logLevelStats(statsByFileIndex);
@@ -172,13 +171,13 @@ public class GarbageScanner {
 
     /**
      * Phase 2: for each level with selected candidates, check if there is headroom in both
-     * the aggregate live/dead ratio and the projected output size. If so, sort the remaining
-     * files at this level by live/dead ratio ascending and consider each for absorption. Files
+     * the aggregate dead/alive ratio and the projected output size. If so, sort the remaining
+     * files at this level by dead/alive ratio descending and consider each for absorption. Files
      * that would breach either limit are skipped rather than stopping the loop — subsequent
      * files with better ratios or smaller projected sizes may still fit.
      *
-     * <p>Sorting by live/dead ratio ascending ensures files that improve (or least worsen) the
-     * aggregate are absorbed first, building maximum headroom for later candidates.
+     * <p>Sorting by dead/alive ratio descending ensures files that least worsen the aggregate
+     * are absorbed first, building maximum headroom for later candidates.
      *
      * <p>This consolidates low-garbage files that would otherwise proliferate. The dirty
      * files from phase 1 provide a "budget" of GC efficiency that is spent absorbing clean files.
@@ -199,7 +198,7 @@ public class GarbageScanner {
                 continue;
             }
 
-            // Compute aggregate live/dead and projected size for the phase 1 candidates
+            // Compute aggregate dead/alive and projected size for the phase 1 candidates
             long totalLive = 0;
             long totalDead = 0;
             long projectedSize = 0;
@@ -212,20 +211,21 @@ public class GarbageScanner {
                 }
             }
 
-            final double aggregateRatio = totalDead == 0 ? Double.MAX_VALUE : (double) totalLive / totalDead;
+            final double aggregateRatio = totalLive == 0 ? Double.MAX_VALUE : (double) totalDead / totalLive;
 
             // No headroom — skip absorption for this level
-            if (aggregateRatio >= gcRateThreshold || projectedSize >= maxProjectedBytes) {
+            if (aggregateRatio <= gcRateThreshold || projectedSize >= maxProjectedBytes) {
                 continue;
             }
 
-            // Sort remaining files by live/dead ratio ascending — files that improve
-            // (or least worsen) the aggregate are absorbed first
+            // Sort remaining files by dead/alive ratio descending — files that least
+            // worsen the aggregate are absorbed first
             final List<DataFileReader> sortedRemaining = new ArrayList<>(remaining);
-            sortedRemaining.sort(Comparator.comparingDouble(r -> {
-                final GarbageFileStats fs = lookupStats(r, stats);
-                return fs != null ? fs.liveToDeadRatio() : Double.MAX_VALUE;
-            }));
+            sortedRemaining.sort(Comparator.<DataFileReader>comparingDouble(r -> {
+                        final GarbageFileStats fs = lookupStats(r, stats);
+                        return fs != null ? fs.deadToAliveRatio() : 0.0;
+                    })
+                    .reversed());
 
             int absorbed = 0;
             for (final DataFileReader reader : sortedRemaining) {
@@ -240,12 +240,12 @@ public class GarbageScanner {
 
                 final long newTotalLive = totalLive + fileLive;
                 final long newTotalDead = totalDead + fileDead;
-                final double newRatio = newTotalDead == 0 ? Double.MAX_VALUE : (double) newTotalLive / newTotalDead;
+                final double newRatio = newTotalLive == 0 ? Double.MAX_VALUE : (double) newTotalDead / newTotalLive;
                 final long newProjectedSize = projectedSize + fileProjectedAlive;
 
                 // Skip this file if it would breach either limit — continue to
                 // consider subsequent files, which may have better ratios
-                if (newRatio >= gcRateThreshold || newProjectedSize >= maxProjectedBytes) {
+                if (newRatio <= gcRateThreshold || newProjectedSize >= maxProjectedBytes) {
                     continue;
                 }
 
@@ -257,12 +257,13 @@ public class GarbageScanner {
             }
 
             if (absorbed > 0) {
-                final String finalRatio = totalDead == 0
+                final String finalRatio = totalLive == 0
                         ? "n/a"
-                        : String.valueOf(Math.round((double) totalLive / totalDead * 100) / 100.0);
+                        : String.valueOf(Math.round((double) totalDead / totalLive * 100) / 100.0);
                 logger.info(
                         MERKLE_DB.getMarker(),
-                        "[{}] Phase 2: absorbed {} files at level {}, " + "aggregate live/dead={}, projected output={}",
+                        "[{}] Phase 2: absorbed {} files at level {}, "
+                                + "aggregate dead/alive={}, projected output={}",
                         storeName,
                         absorbed,
                         level,
@@ -342,13 +343,13 @@ public class GarbageScanner {
             final double levelGarbageRatio =
                     levelTotalItems == 0 ? 1.0 : 1.0 - ((double) levelAliveItems / levelTotalItems);
             final long levelDeadItems = levelTotalItems - levelAliveItems;
-            final String levelLiveToDeadRatio = levelDeadItems == 0
+            final String levelDeadToAliveRatio = levelAliveItems == 0
                     ? "n/a"
-                    : String.valueOf(Math.round((double) levelAliveItems / levelDeadItems * 100) / 100.0);
+                    : String.valueOf(Math.round((double) levelDeadItems / levelAliveItems * 100) / 100.0);
 
             logger.info(
                     MERKLE_DB.getMarker(),
-                    "[%s] Garbage scan level %d: files=%d, totalItems=%d, aliveItems=%d, garbageRatio=%1.2f, live/dead=%s"
+                    "[%s] Garbage scan level %d: files=%d, totalItems=%d, aliveItems=%d, garbageRatio=%1.2f, dead/alive=%s"
                             .formatted(
                                     storeName,
                                     level,
@@ -356,7 +357,7 @@ public class GarbageScanner {
                                     levelTotalItems,
                                     levelAliveItems,
                                     levelGarbageRatio,
-                                    levelLiveToDeadRatio));
+                                    levelDeadToAliveRatio));
         });
     }
 
@@ -496,30 +497,30 @@ public class GarbageScanner {
         }
 
         /**
-         * Returns the ratio of live items to dead items. This describes the compaction speed —
-         * lower ratio means faster GC (less data to copy per dead item reclaimed).
+         * Returns the ratio of dead items to alive items. This describes the compaction speed —
+         * higher ratio means faster GC (more dead items reclaimed per alive item copied).
          *
-         * <p>Returns 0.0 for files with no alive items or zero total items (best possible —
-         * nothing to copy). Returns {@link Double#MAX_VALUE} for files with no dead items
-         * (no garbage — never individually selected for compaction).
+         * <p>Returns {@link Double#MAX_VALUE} for files with no alive items or zero total items
+         * (best possible — nothing to copy, or file needs full rewrite). Returns 0.0 for files
+         * with no dead items (no garbage — never individually selected for compaction).
          *
          * <p>The ratio is "additive" across files: for a set of files, the aggregate ratio
-         * is {@code Σlive / Σdead}, which describes the combined compaction speed of the batch.
+         * is {@code Σdead / Σalive}, which describes the combined compaction speed of the batch.
          *
-         * @return live-to-dead ratio, or 0.0 / {@link Double#MAX_VALUE} for edge cases
+         * @return dead-to-alive ratio, or {@link Double#MAX_VALUE} / 0.0 for edge cases
          */
-        public double liveToDeadRatio() {
+        public double deadToAliveRatio() {
             if (totalItems() == 0) {
-                return 0.0;
-            }
-            final long dead = deadItems();
-            if (dead == 0) {
                 return Double.MAX_VALUE;
             }
+            final long dead = deadItems();
             if (aliveItems == 0) {
+                return Double.MAX_VALUE;
+            }
+            if (dead == 0) {
                 return 0.0;
             }
-            return (double) aliveItems / dead;
+            return (double) dead / aliveItems;
         }
     }
 }

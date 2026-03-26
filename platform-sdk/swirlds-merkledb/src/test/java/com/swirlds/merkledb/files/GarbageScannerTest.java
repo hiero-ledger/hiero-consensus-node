@@ -25,9 +25,9 @@ class GarbageScannerTest {
         final DataFileReader file2 = mockFileReader(2, 0, 10);
         final DataFileReader file3 = mockFileReader(3, 1, 10);
 
-        // file1: 3 alive, 7 dead → live/dead = 0.43
-        // file2: 2 alive, 8 dead → live/dead = 0.25
-        // file3: 1 alive, 9 dead → live/dead = 0.11
+        // file1: 3 alive, 7 dead → dead/alive = 2.33
+        // file2: 2 alive, 8 dead → dead/alive = 4.0
+        // file3: 1 alive, 9 dead → dead/alive = 9.0
         final Map<Long, Long> indexEntries = new LinkedHashMap<>();
         indexEntries.put(0L, dataLocation(1, 1));
         indexEntries.put(1L, dataLocation(2, 1));
@@ -36,7 +36,7 @@ class GarbageScannerTest {
         indexEntries.put(4L, dataLocation(1, 2));
         indexEntries.put(5L, dataLocation(1, 3));
 
-        // gcRateThreshold=1.0 → all three files have live/dead < 1.0, so all selected
+        // gcRateThreshold=1.0 → all three files have dead/alive > 1.0, so all selected
         final GarbageScanner task = createTask(indexWithEntries(indexEntries), List.of(file1, file2, file3));
 
         final GarbageScanner.ScanResult result = task.scan();
@@ -49,7 +49,7 @@ class GarbageScannerTest {
 
     @Test
     void scanWithEmptyIndexReportsNoAliveItems() {
-        // All items dead → live/dead = 0.0 → always selected
+        // All items dead → dead/alive = MAX_VALUE → always selected
         final DataFileReader file1 = mockFileReader(1, 0, 5);
         final DataFileReader file2 = mockFileReader(2, 1, 9);
 
@@ -65,9 +65,8 @@ class GarbageScannerTest {
 
     @Test
     void scanAllIndexEntriesPointToSingleFile() {
-        // file2: 8 alive out of 8 total → 0 dead → live/dead = MAX_VALUE → not selected in phase 1
-        // file1, file3: 0 alive out of 8 → live/dead = 0.0 → selected in phase 1
-        // phase 2 can then absorb file2 because aggregate budget allows it: (0+8)/(16+0) = 0.5 < 1.0
+        // file2: 8 alive out of 8 total → 0 dead → dead/alive = 0.0 → not selected
+        // file1, file3: 0 alive out of 8 → dead/alive = MAX_VALUE → selected
         final DataFileReader file1 = mockFileReader(1, 0, 8);
         final DataFileReader file2 = mockFileReader(2, 0, 8);
         final DataFileReader file3 = mockFileReader(3, 0, 8);
@@ -83,13 +82,13 @@ class GarbageScannerTest {
         final Map<Integer, List<DataFileReader>> filesToCompact = result.candidatesByLevel();
 
         assertEquals(1, filesToCompact.size());
-        assertEquals(List.of(file1, file3, file2), filesToCompact.get(0));
+        assertEquals(List.of(file1, file3), filesToCompact.get(0));
     }
 
     private static GarbageScanner createTask(final LongList index, final List<DataFileReader> files) {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(files);
-        // gcRateThreshold=1.0 → selects files with live/dead < 1.0 (i.e. more dead than alive)
+        // gcRateThreshold=1.0 → selects files with dead/alive > 1.0 (more dead than alive)
         return new GarbageScanner(index, fileCollection, "test-store", config(1.0, 0, 5));
     }
 
