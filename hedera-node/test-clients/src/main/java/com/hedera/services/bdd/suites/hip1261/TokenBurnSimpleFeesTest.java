@@ -24,9 +24,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAcco
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnNetworkFeeOnlyUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnNftFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -107,7 +106,7 @@ public class TokenBurnSimpleFeesTest {
                             .via(tokenBurnTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
-                            txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                            txnSize -> expectedTokenBurnFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenBurnTxn, PAYER));
@@ -130,7 +129,7 @@ public class TokenBurnSimpleFeesTest {
                             .via(tokenBurnTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
-                            txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                            txnSize -> expectedTokenBurnFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenBurnTxn, PAYER));
@@ -159,7 +158,7 @@ public class TokenBurnSimpleFeesTest {
                             .via(tokenBurnTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
-                            txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                            txnSize -> expectedTokenBurnFullFeeUsd(
                                     Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenBurnTxn, PAYER));
@@ -191,7 +190,7 @@ public class TokenBurnSimpleFeesTest {
                             .via(tokenBurnTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
-                            txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                            txnSize -> expectedTokenBurnFullFeeUsd(
                                     Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
@@ -225,7 +224,7 @@ public class TokenBurnSimpleFeesTest {
                             .via(tokenBurnTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
-                            txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                            txnSize -> expectedTokenBurnFullFeeUsd(
                                     Map.of(SIGNATURES, 42L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
@@ -255,7 +254,7 @@ public class TokenBurnSimpleFeesTest {
                             .via(tokenBurnTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
-                            txnSize -> expectedTokenBurnNftFullFeeUsd(
+                            txnSize -> expectedTokenBurnFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenBurnTxn, PAYER));
@@ -286,7 +285,7 @@ public class TokenBurnSimpleFeesTest {
                             .via(tokenBurnTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
-                            txnSize -> expectedTokenBurnNftFullFeeUsd(
+                            txnSize -> expectedTokenBurnFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenBurnTxn, PAYER));
@@ -321,7 +320,7 @@ public class TokenBurnSimpleFeesTest {
                             .via(tokenBurnTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
-                            txnSize -> expectedTokenBurnNftFullFeeUsd(
+                            txnSize -> expectedTokenBurnFullFeeUsd(
                                     Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenBurnTxn, PAYER));
@@ -357,7 +356,7 @@ public class TokenBurnSimpleFeesTest {
                             .via(tokenBurnTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
-                            txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                            txnSize -> expectedTokenBurnFullFeeUsd(
                                     Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
@@ -597,7 +596,7 @@ public class TokenBurnSimpleFeesTest {
                                 .hasKnownStatus(TOKEN_HAS_NO_SUPPLY_KEY),
                         validateChargedUsdWithinWithTxnSize(
                                 tokenBurnTxn,
-                                txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                                txnSize -> expectedTokenBurnFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(tokenBurnTxn, PAYER));
@@ -637,7 +636,7 @@ public class TokenBurnSimpleFeesTest {
                                     .hasPrecheck(DUPLICATE_TRANSACTION),
                             validateChargedUsdWithinWithTxnSize(
                                     tokenBurnTxn,
-                                    txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                                    txnSize -> expectedTokenBurnFullFeeUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.1),
                             validateChargedAccount(tokenBurnTxn, PAYER));

@@ -31,7 +31,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoUpdateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
@@ -210,7 +210,7 @@ public class TokenOpsShortPrefixTest {
                         .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
                         .fee(ONE_HUNDRED_HBARS)
                         .via("burnTxn"),
-                validateChargedUsdWithin("burnTxn", expectedTokenBurnFungibleFullFeeUsd(2L), 5.0));
+                validateChargedUsdWithin("burnTxn", expectedTokenBurnFullFeeUsd(2L), 5.0));
     }
 
     @HapiTest

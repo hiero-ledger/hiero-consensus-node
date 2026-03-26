@@ -1553,7 +1553,7 @@ public class FeesChargingUtils {
      * service = TOKEN_BURN_BASE
      * total   = node + network + service
      */
-    private static double expectedTokenBurnFungibleFullFeeUsd(long sigs, int txnSize) {
+    private static double expectedTokenBurnFullFeeUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
@@ -1568,35 +1568,15 @@ public class FeesChargingUtils {
         return nodeFee + networkFee + serviceFee;
     }
 
-    public static double expectedTokenBurnFungibleFullFeeUsd(long sigs) {
-        return expectedTokenBurnFungibleFullFeeUsd(sigs, 0);
+    public static double expectedTokenBurnFullFeeUsd(long sigs) {
+        return expectedTokenBurnFullFeeUsd(sigs, 0);
     }
 
     /**
      * Overload when extras are provided in a map.
      */
-    public static double expectedTokenBurnFungibleFullFeeUsd(final Map<Extra, Long> extras) {
-        return expectedTokenBurnFungibleFullFeeUsd(
-                extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
-    }
-
-    /**
-     * SimpleFees formula for TokenBurn (NFT):
-     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
-     * network = node * NETWORK_MULTIPLIER
-     * service = TOKEN_BURN_BASE (no extras for NFT serials in burn)
-     * total   = node + network + service
-     */
-    public static double expectedTokenBurnNftFullFeeUsd(long sigs) {
-        return expectedTokenBurnFungibleFullFeeUsd(sigs);
-    }
-
-    /**
-     * Overload when extras are provided in a map.
-     */
-    public static double expectedTokenBurnNftFullFeeUsd(final Map<Extra, Long> extras) {
-        return expectedTokenBurnFungibleFullFeeUsd(
+    public static double expectedTokenBurnFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenBurnFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }

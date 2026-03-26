@@ -50,7 +50,7 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCancelAirdropFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateWithCustomFullFeeUsd;
@@ -956,7 +956,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 BASE_TXN,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                                txnSize -> expectedTokenBurnFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
