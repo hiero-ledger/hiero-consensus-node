@@ -19,6 +19,7 @@ import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -361,11 +362,19 @@ public class ServicesMain {
     /**
      * Checks if migration root hash voting has already completed in state.
      */
-    private static boolean isMigrationVotingComplete(@NonNull final State state) {
+    @VisibleForTesting
+    static boolean isMigrationVotingComplete(@NonNull final State state) {
         final var blockRecordStates = state.getReadableStates(BlockRecordService.NAME);
         final var blockInfo = blockRecordStates
                 .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
                 .get();
-        return blockInfo != null && blockInfo.votingComplete();
+        if (blockInfo == null) {
+            return false;
+        }
+        if (blockInfo.votingComplete()) {
+            return true;
+        }
+        return blockInfo.votingCompletionDeadlineBlockNumber() > 0
+                && blockInfo.lastBlockNumber() > blockInfo.votingCompletionDeadlineBlockNumber();
     }
 }
