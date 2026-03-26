@@ -85,7 +85,7 @@ class CryptoDeleteAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
 
     @Test
     void preHandleFailsIfOwnerDoesNotExist() {
-        final var nonExistentOwnerId = idFactory.newAccountId(999999);
+        final var nonExistentOwnerId = idFactory.newAccountId(999_999);
         final var nftAllowance = NftRemoveAllowance.newBuilder()
                 .owner(nonExistentOwnerId)
                 .tokenId(nonFungibleTokenId)
