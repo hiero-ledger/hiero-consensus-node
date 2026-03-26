@@ -106,6 +106,10 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
+        if (!validateHashLengths(jumpstartConfig)) {
+            return;
+        }
+
         final var recentHashesPath = resolveRecentHashesPath(recordsConfig);
         if (recentHashesPath == null) {
             return;
@@ -252,6 +256,32 @@ public class WrappedRecordBlockHashMigration {
                     lastNeededRecentRecord.outputItemsTreeRootHash());
         }
         return true;
+    }
+
+    private boolean validateHashLengths(@NonNull final BlockStreamJumpstartConfig jumpstartConfig) {
+        final var prevHash = jumpstartConfig.previousWrappedRecordBlockHash();
+        if (prevHash.length() != HASH_SIZE) {
+            log.error(
+                    "Jumpstart previousWrappedRecordBlockHash has invalid length {} (expected {}). {}",
+                    prevHash.length(),
+                    HASH_SIZE,
+                    RESUME_MESSAGE);
+            return false;
+        }
+        boolean foundError = false;
+        for (int i = 0; i < jumpstartConfig.streamingHasherSubtreeHashes().size(); i++) {
+            final var hash = jumpstartConfig.streamingHasherSubtreeHashes().get(i);
+            if (hash.length() != HASH_SIZE) {
+                log.error(
+                        "Jumpstart streamingHasherSubtreeHashes[{}] has invalid length {} (expected {}). {}",
+                        i,
+                        hash.length(),
+                        HASH_SIZE,
+                        RESUME_MESSAGE);
+                foundError = true;
+            }
+        }
+        return foundError;
     }
 
     private void computeHashes(

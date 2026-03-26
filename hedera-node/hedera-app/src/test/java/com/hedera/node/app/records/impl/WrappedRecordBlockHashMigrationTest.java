@@ -259,6 +259,39 @@ class WrappedRecordBlockHashMigrationTest {
         subject.execute(StreamMode.RECORDS, config, jumpstartConfig(105, 1, 1), false);
     }
 
+    @Test
+    void returnsEarlyWhenPreviousBlockHashHasWrongLength() throws Exception {
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
+        // previousWrappedRecordBlockHash is 32 bytes instead of HASH_SIZE (48)
+        final var badConfig = new BlockStreamJumpstartConfig(
+                100, Bytes.wrap(new byte[32]), 4, 1, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+        subject.execute(StreamMode.RECORDS, config, badConfig, false);
+        assertNull(subject.result());
+    }
+
+    @Test
+    void returnsEarlyWhenSubtreeHashHasWrongLength() throws Exception {
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
+        // One subtree hash is 32 bytes instead of HASH_SIZE (48)
+        final var badConfig = new BlockStreamJumpstartConfig(
+                100,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                2,
+                List.of(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[32])));
+        subject.execute(StreamMode.RECORDS, config, badConfig, false);
+        assertNull(subject.result());
+    }
+
+    @Test
+    void returnsEarlyWhenPreviousBlockHashIsEmpty() throws Exception {
+        final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
+        final var badConfig =
+                new BlockStreamJumpstartConfig(100, Bytes.EMPTY, 4, 1, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+        subject.execute(StreamMode.RECORDS, config, badConfig, false);
+        assertNull(subject.result());
+    }
+
     private Path createRecentHashesDir(List<WrappedRecordFileBlockHashes> entries) throws Exception {
         final var dir = tempDir.resolve("recent-hashes");
         Files.createDirectories(dir);
