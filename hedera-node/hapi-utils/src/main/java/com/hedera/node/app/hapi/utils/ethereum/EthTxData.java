@@ -45,7 +45,9 @@ public record EthTxData(
         byte[] r,
         byte[] s) {
 
-    public static final int EVM_ADDRESS_LENGTH = 20;
+    private static final int EVM_ADDRESS_LENGTH = 20;
+    private static final int ELEMENTS_IN_ACCESS_LIST_ITEM = 2;
+    private static final int ELEMENTS_IN_AUTHORIZATION_LIST_ITEM = 6;
 
     /**
      * A "wiebar" is 10⁻¹⁸ of an hbar.  The relationship is weibar : hbar as wei : ether.  Ethereum
@@ -469,7 +471,7 @@ public record EthTxData(
     /**
      * Parse <a href="https://eips.ethereum.org/EIPS/eip-2930">EIP-2930</a> Access Lists from its RLP bytes.
      *
-     * @return Parsed access lists. It is @NonNull event if HederaEvmTransaction.accessLists are @Nullable,
+     * @return Parsed access lists. It is @NonNull even if HederaEvmTransaction.accessLists are @Nullable,
      * because we do not want to deal with nulls elsewhere
      * @throws IllegalArgumentException if RLP item of the Access list is not a list
      * @throws IllegalArgumentException if RLP list of the Access list does not contain expected number of elements
@@ -488,7 +490,7 @@ public record EthTxData(
                     throw new IllegalArgumentException("Access list item should be a list");
                 }
                 final var accessListElements = accessListItem.asRLPList().elements();
-                if (accessListElements.size() != 2) {
+                if (accessListElements.size() != ELEMENTS_IN_ACCESS_LIST_ITEM) {
                     throw new IllegalArgumentException("Access list item does not contain expected number of elements");
                 }
                 final var address = accessListElements.getFirst().data();
@@ -532,7 +534,7 @@ public record EthTxData(
                 if (!rlpItem.isList()) {
                     throw new IllegalArgumentException("Authorization list item should be a list");
                 }
-                if (rlpItem.asRLPList().elements().size() != 6) {
+                if (rlpItem.asRLPList().elements().size() != ELEMENTS_IN_AUTHORIZATION_LIST_ITEM) {
                     throw new IllegalArgumentException(
                             "Authorization list item does not contain expected number of elements");
                 }
