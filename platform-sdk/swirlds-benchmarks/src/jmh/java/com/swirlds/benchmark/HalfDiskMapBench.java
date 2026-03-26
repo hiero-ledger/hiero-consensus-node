@@ -33,7 +33,7 @@ public class HalfDiskMapBench extends BaseBench {
     @Benchmark
     public void merge() throws Exception {
         String storeName = "mergeBench";
-        beforeTest(storeName);
+        setTestDir(storeName);
 
         final long[] map = new long[verify ? maxKey : 0];
         Arrays.fill(map, INVALID_PATH);
@@ -84,6 +84,6 @@ public class HalfDiskMapBench extends BaseBench {
             System.out.println("Verified HalfDiskHashMap in " + (System.currentTimeMillis() - start) + "ms");
         }
 
-        afterTest(store::close);
+        store.close();
     }
 }

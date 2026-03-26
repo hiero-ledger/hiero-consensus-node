@@ -164,7 +164,6 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
-
         subject = new SystemTransactions(
                 initTrigger,
                 parentTxnFactory,
@@ -189,7 +188,7 @@ class SystemTransactionsTest {
     void testResetNextDispatchNonce() {
         // The nonce starts at 1 and should reset to 1
         subject.resetNextDispatchNonce();
-        // No exception means success - the nonce is private so we can't directly verify
+        // No exception means success - the nonce is private so we can't directly verify,
         // but we can verify the method doesn't throw
         assertDoesNotThrow(() -> subject.resetNextDispatchNonce());
     }
