@@ -1048,8 +1048,10 @@ public class SystemTransactions {
             }
 
             dispatch.stack().commitFullStack();
-            final var handleOutput =
-                    parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
+            final var handleOutput = parentTxn
+                    .stack()
+                    .buildHandleOutput(
+                            parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), currentBlockNumber());
             recordCache.addRecordSource(
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
@@ -1060,6 +1062,10 @@ public class SystemTransactions {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
             return failInvalidStreamItems(parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
+    }
+
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
     }
 
     private static Bytes parseFeeSchedules(@NonNull final InputStream in) {

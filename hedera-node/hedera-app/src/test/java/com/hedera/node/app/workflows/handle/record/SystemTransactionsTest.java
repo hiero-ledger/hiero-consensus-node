@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILE
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -38,7 +39,9 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.NodeRewardActivity;
 import com.hedera.node.app.service.token.NodeRewardAmounts;
+import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -61,8 +64,13 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -161,7 +169,6 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
-
         subject = new SystemTransactions(
                 initTrigger,
                 parentTxnFactory,
@@ -186,7 +193,7 @@ class SystemTransactionsTest {
     void testResetNextDispatchNonce() {
         // The nonce starts at 1 and should reset to 1
         subject.resetNextDispatchNonce();
-        // No exception means success - the nonce is private so we can't directly verify
+        // No exception means success - the nonce is private so we can't directly verify,
         // but we can verify the method doesn't throw
         assertDoesNotThrow(() -> subject.resetNextDispatchNonce());
     }
@@ -781,5 +788,69 @@ class SystemTransactionsTest {
         subject.maybeSubmitStartupMigrationRootHashVote(state);
 
         verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
+    }
+
+    private static NodeRewardGroups nodeRewardGroups(List<AccountID> active, List<AccountID> inactive) {
+        return new NodeRewardGroups(
+                active.stream()
+                        .map(id -> new NodeRewardActivity(id.accountNum(), id, 0, 100, 0))
+                        .collect(Collectors.toList()),
+                inactive.stream()
+                        .map(id -> new NodeRewardActivity(id.accountNum(), id, 101, 100, 0))
+                        .collect(Collectors.toList()));
+    }
+
+    private static @NonNull NodeRewardGroups emptyNodeGroups() {
+        return nodeRewardGroups(List.of(), List.of());
+    }
+
+    @Test
+    void currentBlockNumberUsesRecordBlockNumberInRecordsMode() throws Exception {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "RECORDS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new SystemTransactions(
+                initTrigger,
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
+
+        final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertNull(method.invoke(subject));
+        verify(blockStreamManager, never()).blockNo();
+        verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void currentBlockNumberUsesBlockStreamNumberInBlocksMode() throws Exception {
+        given(blockStreamManager.blockNo()).willReturn(123L);
+
+        final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertEquals(123L, method.invoke(subject));
+        verify(blockStreamManager).blockNo();
+        verify(blockRecordManager, never()).blockNo();
     }
 }
