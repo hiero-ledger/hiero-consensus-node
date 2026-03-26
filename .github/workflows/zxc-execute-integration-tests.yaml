@@ -105,10 +105,18 @@ jobs:
           path: "**/build/test-results/testIntegration/TEST-*.xml"
           retention-days: 7
 
+      - name: Detect Flaky Tests (Integration)
+        id: detect-flaky-integration-tests
+        if: ${{ !cancelled() }}
+        run: |
+          count=$(find . -path "*/build/test-results/testIntegration/TEST-*.xml" \
+            -exec grep -l "<flakyFailure" {} + 2>/dev/null | wc -l | tr -d ' ')
+          echo "has-flaky=$([[ ${count} -gt 0 ]] && echo 'true' || echo 'false')" >> "${GITHUB_OUTPUT}"
+
       - name: Upload Otter Integration Tests Turtle Logs
         id: upload-otter-turtle-integration-logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
         with:
           name: Otter Integration Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -117,7 +125,7 @@ jobs:
       - name: Upload Otter Integration Tests Container Logs
         id: upload-otter-container-integration-logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
         with:
           name: Otter Integration Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
