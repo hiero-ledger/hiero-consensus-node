@@ -172,7 +172,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                             .map(BlockTransactionalUnit::withBatchTransactionParts)
                             .peek(unit -> numStateChanges.getAndAdd(
                                     unit.stateChanges().size()))
-                            .flatMap(unit -> rfTranslator.translate(unit, blockNumber).stream());
+                            .flatMap(unit -> rfTranslator.translate(unit).stream());
                 })
                 .toList();
         final var actualEntries = roleFreeRecords.stream().map(this::asEntry).toList();
