@@ -26,6 +26,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class DataFileCollectionBench extends BaseBench {
 
+    @Override
     String benchmarkName() {
         return "DataFileCollectionBench";
     }
