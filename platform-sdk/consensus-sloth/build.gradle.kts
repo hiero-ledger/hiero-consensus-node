@@ -14,6 +14,7 @@ description = "Consensus Performance Framework"
 testFixturesModuleInfo {
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")

@@ -34,7 +34,7 @@ public class DataFileCollectionBench extends BaseBench {
     @Benchmark
     public void compaction() throws Exception {
         String storeName = "compactionBench";
-        beforeTest(storeName);
+        setTestDir(storeName);
 
         final LongListOffHeap index = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
@@ -95,9 +95,7 @@ public class DataFileCollectionBench extends BaseBench {
                     "Verified " + store.getNumOfFiles() + " file(s) in " + (System.currentTimeMillis() - start) + "ms");
         }
 
-        afterTest(() -> {
-            store.close();
-            index.close();
-        });
+        store.close();
+        index.close();
     }
 }
