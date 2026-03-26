@@ -37,7 +37,6 @@ tasks.jacocoTestReport {
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -308,7 +307,6 @@ tasks {
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -430,7 +428,6 @@ tasks.register<Test>("testSubprocess") {
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -548,7 +545,6 @@ tasks.register<Test>("testSubprocessConcurrent") {
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -655,7 +651,6 @@ tasks {
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -729,7 +724,6 @@ tasks {
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
