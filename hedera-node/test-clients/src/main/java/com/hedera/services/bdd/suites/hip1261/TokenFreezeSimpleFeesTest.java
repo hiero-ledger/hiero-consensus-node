@@ -19,32 +19,38 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFreezeFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFreezeNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnfreezeFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_FREEZE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UNFREEZE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnfreezeNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
@@ -71,6 +77,9 @@ public class TokenFreezeSimpleFeesTest {
     private static final String FREEZE_KEY = "freezeKey";
     private static final String PAYER_KEY = "payerKey";
     private static final String TOKEN = "fungibleToken";
+    private static final String freezeTxn = "freezeTxn";
+    private static final String unfreezeTxn = "unfreezeTxn";
+    private static final String DUPLICATE_TXN_ID = "duplicateFreezeTxnId";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -94,18 +103,18 @@ public class TokenFreezeSimpleFeesTest {
                             .freezeKey(FREEZE_KEY)
                             .freezeDefault(false)
                             .treasury(TREASURY)
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS),
-                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                            .payingWith(PAYER),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     tokenFreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .signedBy(PAYER, FREEZE_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("freezeTxn"),
-                    validateChargedUsdWithin(
-                            "freezeTxn",
-                            expectedTokenFreezeFullFeeUsd(2L), // 2 sigs
-                            0.001));
+                            .via(freezeTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            freezeTxn,
+                            txnSize -> expectedTokenFreezeFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(freezeTxn, PAYER));
         }
 
         @HapiTest
@@ -126,19 +135,19 @@ public class TokenFreezeSimpleFeesTest {
                             .freezeDefault(false)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .sigControl(forKey(PAYER_KEY, validSig)),
-                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     tokenFreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .signedBy(PAYER, FREEZE_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("freezeTxn"),
-                    validateChargedUsdWithin(
-                            "freezeTxn",
-                            expectedTokenFreezeFullFeeUsd(3L), // 3 sigs (2 payer + 1 freeze key)
-                            0.001));
+                            .via(freezeTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            freezeTxn,
+                            txnSize -> expectedTokenFreezeFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(freezeTxn, PAYER));
         }
 
         @HapiTest
@@ -159,19 +168,92 @@ public class TokenFreezeSimpleFeesTest {
                             .treasury(TREASURY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY, FREEZE_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
                             .sigControl(forKey(FREEZE_KEY, validSig)),
-                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     tokenFreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .signedBy(PAYER, FREEZE_KEY)
                             .sigControl(forKey(FREEZE_KEY, validSig))
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("freezeTxn"),
-                    validateChargedUsdWithin(
-                            "freezeTxn",
-                            expectedTokenFreezeFullFeeUsd(3L), // 3 sigs (1 payer + 2 freeze key)
-                            0.001));
+                            .via(freezeTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            freezeTxn,
+                            txnSize -> expectedTokenFreezeFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(freezeTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TokenFreeze with large payer key - extra processing bytes fee")
+        final Stream<DynamicTest> tokenFreezeLargeKeyExtraProcessingBytesFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(
+                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(FREEZE_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .freezeKey(FREEZE_KEY)
+                            .freezeDefault(false)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                    tokenFreeze(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, FREEZE_KEY)
+                            .via(freezeTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            freezeTxn,
+                            txnSize -> expectedTokenFreezeFullFeeUsd(
+                                    Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
+        }
+
+        @HapiTest
+        @DisplayName("TokenFreeze with very large payer key below oversize - extra processing bytes fee")
+        final Stream<DynamicTest> tokenFreezeVeryLargeKeyBelowOversizeExtraProcessingBytesFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(sigs(
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(FREEZE_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .freezeKey(FREEZE_KEY)
+                            .freezeDefault(false)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                    tokenFreeze(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, FREEZE_KEY)
+                            .via(freezeTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            freezeTxn,
+                            txnSize -> expectedTokenFreezeFullFeeUsd(
+                                    Map.of(SIGNATURES, 41L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
     }
 
@@ -190,21 +272,20 @@ public class TokenFreezeSimpleFeesTest {
                     tokenCreate(TOKEN)
                             .tokenType(FUNGIBLE_COMMON)
                             .freezeKey(FREEZE_KEY)
-                            .freezeDefault(true) // Token starts frozen
+                            .freezeDefault(true) // Token is created frozen
                             .treasury(TREASURY)
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS),
-                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                    // Account is already frozen by default
+                            .payingWith(PAYER),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     tokenUnfreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .signedBy(PAYER, FREEZE_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("unfreezeTxn"),
-                    validateChargedUsdWithin(
-                            "unfreezeTxn",
-                            expectedTokenUnfreezeFullFeeUsd(2L), // 2 sigs
-                            0.001));
+                            .via(unfreezeTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            unfreezeTxn,
+                            txnSize -> expectedTokenUnfreezeFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(unfreezeTxn, PAYER));
         }
 
         @HapiTest
@@ -225,24 +306,98 @@ public class TokenFreezeSimpleFeesTest {
                             .freezeDefault(false)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .sigControl(forKey(PAYER_KEY, validSig)),
-                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     tokenFreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
-                            .signedBy(PAYER, FREEZE_KEY)
-                            .fee(ONE_HUNDRED_HBARS),
+                            .signedBy(PAYER, FREEZE_KEY),
                     tokenUnfreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .signedBy(PAYER, FREEZE_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("unfreezeTxn"),
-                    validateChargedUsdWithin(
-                            "unfreezeTxn",
-                            expectedTokenUnfreezeFullFeeUsd(3L), // 3 sigs (2 payer + 1 freeze key)
-                            0.001));
+                            .via(unfreezeTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            unfreezeTxn,
+                            txnSize -> expectedTokenUnfreezeFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(unfreezeTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TokenUnfreeze with large payer key - extra processing bytes fee")
+        final Stream<DynamicTest> tokenUnfreezeLargeKeyExtraProcessingBytesFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(
+                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(FREEZE_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .freezeKey(FREEZE_KEY)
+                            .freezeDefault(true)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                    tokenUnfreeze(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, FREEZE_KEY)
+                            .via(unfreezeTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            unfreezeTxn,
+                            txnSize -> expectedTokenUnfreezeFullFeeUsd(
+                                    Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(unfreezeTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TokenUnfreeze with very large payer key below oversize - extra processing bytes fee")
+        final Stream<DynamicTest> tokenUnfreezeVeryLargeKeyBelowOversizeExtraProcessingBytesFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(sigs(
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(FREEZE_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .freezeKey(FREEZE_KEY)
+                            .freezeDefault(true)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                    tokenUnfreeze(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, FREEZE_KEY)
+                            .via(unfreezeTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            unfreezeTxn,
+                            txnSize -> expectedTokenUnfreezeFullFeeUsd(
+                                    Map.of(SIGNATURES, 41L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(unfreezeTxn, PAYER));
         }
     }
 
@@ -253,32 +408,6 @@ public class TokenFreezeSimpleFeesTest {
         @Nested
         @DisplayName("TokenFreeze Failures on Ingest and Handle")
         class TokenFreezeFailuresOnIngest {
-
-            @HapiTest
-            @DisplayName("TokenFreeze - missing freeze key signature fails at handle")
-            final Stream<DynamicTest> tokenFreezeMissingFreezeKeySignatureFailsAtHandle() {
-                return hapiTest(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TREASURY).balance(0L),
-                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                        newKeyNamed(FREEZE_KEY),
-                        tokenCreate(TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(false)
-                                .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                        tokenFreeze(TOKEN, ACCOUNT)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER) // Missing freeze key signature
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("freezeTxn")
-                                .hasKnownStatus(INVALID_SIGNATURE),
-                        validateChargedUsd("freezeTxn", TOKEN_FREEZE_FEE),
-                        validateChargedAccount("freezeTxn", PAYER));
-            }
 
             @HapiTest
             @DisplayName("TokenFreeze - insufficient tx fee fails on ingest - no fee charged")
@@ -293,22 +422,230 @@ public class TokenFreezeSimpleFeesTest {
                                 .freezeKey(FREEZE_KEY)
                                 .freezeDefault(false)
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, FREEZE_KEY)
                                 .fee(1L) // Fee too low
-                                .via("freezeTxn")
+                                .via(freezeTxn)
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
-                        // If there is no record no account is charged
-                        getTxnRecord("freezeTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+                        getTxnRecord(freezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
-            @DisplayName("TokenFreeze - no freeze key fails")
-            final Stream<DynamicTest> tokenFreezeNoFreezeKeyFails() {
+            @DisplayName("TokenFreeze - insufficient payer balance fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenFreezeInsufficientPayerBalanceFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS / 100_000L),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .via(freezeTxn)
+                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                        getTxnRecord(freezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenFreeze - threshold payer key with invalid signature fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenFreezeThresholdInvalidSigFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .via(freezeTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(freezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenFreeze - memo too long fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenFreezeMemoTooLongFailsOnIngest() {
+                final var LONG_MEMO = "x".repeat(1025);
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .memo(LONG_MEMO)
+                                .via(freezeTxn)
+                                .hasPrecheck(MEMO_TOO_LONG),
+                        getTxnRecord(freezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenFreeze - expired transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenFreezeExpiredTransactionFailsOnIngest() {
+                final var expiredTxnId = "expiredTxn";
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY),
+                        usableTxnIdNamed(expiredTxnId).modifyValidStart(-3_600L).payerId(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .txnId(expiredTxnId)
+                                .via(freezeTxn)
+                                .hasPrecheck(TRANSACTION_EXPIRED),
+                        getTxnRecord(freezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenFreeze - too far start time fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenFreezeTooFarStartTimeFailsOnIngest() {
+                final var futureTxnId = "futureTxn";
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY),
+                        usableTxnIdNamed(futureTxnId).modifyValidStart(3_600L).payerId(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .txnId(futureTxnId)
+                                .via(freezeTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_START),
+                        getTxnRecord(freezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenFreeze - invalid transaction duration fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenFreezeInvalidTransactionDurationFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .validDurationSecs(0)
+                                .via(freezeTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_DURATION),
+                        getTxnRecord(freezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenFreeze - duplicate transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenFreezeDuplicateTransactionFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .via("freezeTxn"),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .txnId("freezeTxn")
+                                .via(freezeTxn)
+                                .hasPrecheck(DUPLICATE_TRANSACTION));
+            }
+
+            @HapiTest
+            @DisplayName("TokenFreeze oversize transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenFreezeOversizeTxnFailsOnIngest() {
+                KeyShape keyShape = threshOf(
+                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+                SigControl allSigned = keyShape.signedWith(sigs(
+                        ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                        ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                        ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                        ON, ON, ON, ON, ON, ON, ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, allSigned))
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .via(freezeTxn)
+                                .hasPrecheck(TRANSACTION_OVERSIZE),
+                        getTxnRecord(freezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenFreeze - no freeze key - fails on handle - full fees charged")
+            final Stream<DynamicTest> tokenFreezeNoFreezeKeyFailsOnHandleFullFeesCharged() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -317,22 +654,24 @@ public class TokenFreezeSimpleFeesTest {
                                 .tokenType(FUNGIBLE_COMMON)
                                 // No freeze key
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("freezeTxn")
+                                .via(freezeTxn)
                                 .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY),
-                        validateChargedUsd("freezeTxn", TOKEN_FREEZE_FEE),
-                        validateChargedAccount("freezeTxn", PAYER));
+                        validateChargedUsdWithinWithTxnSize(
+                                freezeTxn,
+                                txnSize -> expectedTokenFreezeFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(freezeTxn, PAYER));
             }
 
             @HapiTest
-            @DisplayName("TokenFreeze - token not associated fails")
-            final Stream<DynamicTest> tokenFreezeNotAssociatedFails() {
+            @DisplayName("TokenFreeze - token not associated fails on hande - full fees charged")
+            final Stream<DynamicTest> tokenFreezeNotAssociatedFailsOnHandleFullFeesCharged() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -343,22 +682,24 @@ public class TokenFreezeSimpleFeesTest {
                                 .freezeKey(FREEZE_KEY)
                                 .freezeDefault(false)
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
+                                .payingWith(PAYER),
                         // Not associating the token
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, FREEZE_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("freezeTxn")
+                                .via(freezeTxn)
                                 .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
-                        validateChargedUsd("freezeTxn", TOKEN_FREEZE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
-                        validateChargedAccount("freezeTxn", PAYER));
+                        validateChargedUsdWithinWithTxnSize(
+                                freezeTxn,
+                                txnSize -> expectedTokenFreezeFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(freezeTxn, PAYER));
             }
 
             @HapiTest
-            @DisplayName("TokenFreeze - already frozen fails")
-            final Stream<DynamicTest> tokenFreezeAlreadyFrozenFails() {
+            @DisplayName("TokenFreeze - already frozen fails on handle - full fees charged")
+            final Stream<DynamicTest> tokenFreezeAlreadyFrozenFailsOnHandleFullFeesCharged() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -369,17 +710,84 @@ public class TokenFreezeSimpleFeesTest {
                                 .freezeKey(FREEZE_KEY)
                                 .freezeDefault(true) // Already frozen
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, FREEZE_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("freezeTxn")
+                                .via(freezeTxn)
                                 .hasKnownStatus(ACCOUNT_FROZEN_FOR_TOKEN),
-                        validateChargedUsd("freezeTxn", TOKEN_FREEZE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
-                        validateChargedAccount("freezeTxn", PAYER));
+                        validateChargedUsdWithinWithTxnSize(
+                                freezeTxn,
+                                txnSize -> expectedTokenFreezeFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(freezeTxn, PAYER));
+            }
+
+            @HapiTest
+            @DisplayName("TokenFreeze - missing freeze key signature fails on handle - full fees charged")
+            final Stream<DynamicTest> tokenFreezeMissingFreezeKeySignatureFailsOnHandleFullFeesCharged() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER) // Missing freeze key signature
+                                .via(freezeTxn)
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        validateChargedUsdWithinWithTxnSize(
+                                freezeTxn,
+                                txnSize -> expectedTokenFreezeFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(freezeTxn, PAYER));
+            }
+
+            @LeakyHapiTest
+            @DisplayName("TokenFreeze - duplicate transaction fails on handle - payer charged for first only")
+            final Stream<DynamicTest> tokenFreezeDuplicateFailsOnHandle() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(false)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "3")),
+                        usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .setNode(4)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .via(freezeTxn),
+                        tokenFreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .setNode(3)
+                                .hasPrecheck(DUPLICATE_TRANSACTION),
+                        validateChargedUsdWithinWithTxnSize(
+                                freezeTxn,
+                                txnSize -> expectedTokenFreezeFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(freezeTxn, PAYER));
             }
         }
 
@@ -403,23 +811,22 @@ public class TokenFreezeSimpleFeesTest {
                                 .tokenType(FUNGIBLE_COMMON)
                                 .freezeKey(FREEZE_KEY)
                                 .freezeDefault(false)
-                                .treasury(TREASURY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "0.0.4"))
-                                .fee(ONE_HUNDRED_HBARS),
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "4")),
                         tokenFreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .signedBy(PAYER, FREEZE_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .setNode("0.0.4")
-                                .via("freezeTxn")
+                                .setNode("4")
+                                .via(freezeTxn)
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
-                        // we should charge just the network fee for due-diligence failure
-                        validateChargedUsd("freezeTxn", NETWORK_BASE_FEE + SIGNATURE_FEE_USD * NETWORK_MULTIPLIER),
-                        // assert that the node is charged for due-diligence failure
-                        validateChargedAccount("freezeTxn", "0.0.4"));
+                        validateChargedUsdWithinWithTxnSize(
+                                freezeTxn,
+                                txnSize -> expectedTokenFreezeNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(freezeTxn, "4"));
             }
         }
     }
@@ -431,32 +838,6 @@ public class TokenFreezeSimpleFeesTest {
         @Nested
         @DisplayName("TokenUnfreeze Failures on Ingest and Handle")
         class TokenUnfreezeFailuresOnIngest {
-
-            @HapiTest
-            @DisplayName("TokenUnfreeze - missing freeze key signature fails at handle")
-            final Stream<DynamicTest> tokenUnfreezeMissingFreezeKeySignatureFailsAtHandle() {
-                return hapiTest(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TREASURY).balance(0L),
-                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                        newKeyNamed(FREEZE_KEY),
-                        tokenCreate(TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .freezeKey(FREEZE_KEY)
-                                .freezeDefault(true) // Start frozen
-                                .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                        tokenUnfreeze(TOKEN, ACCOUNT)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER) // Missing freeze key signature
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("unfreezeTxn")
-                                .hasKnownStatus(INVALID_SIGNATURE),
-                        validateChargedUsd("unfreezeTxn", TOKEN_UNFREEZE_FEE, 0.1),
-                        validateChargedAccount("unfreezeTxn", PAYER));
-            }
 
             @HapiTest
             @DisplayName("TokenUnfreeze - insufficient tx fee fails on ingest - no fee charged")
@@ -471,21 +852,258 @@ public class TokenFreezeSimpleFeesTest {
                                 .freezeKey(FREEZE_KEY)
                                 .freezeDefault(true)
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                         tokenUnfreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, FREEZE_KEY)
                                 .fee(1L) // Fee too low
-                                .via("unfreezeTxn")
+                                .via(unfreezeTxn)
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
-                        getTxnRecord("unfreezeTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+                        getTxnRecord(unfreezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
-            @DisplayName("TokenUnfreeze - no freeze key fails")
-            final Stream<DynamicTest> tokenUnfreezeNoFreezeKeyFails() {
+            @DisplayName("TokenUnfreeze - insufficient payer balance fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnfreezeInsufficientPayerBalanceFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS / 100_000L),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .via(unfreezeTxn)
+                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                        getTxnRecord(unfreezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - threshold payer key with invalid signature fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnfreezeThresholdInvalidSigFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .via(unfreezeTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(unfreezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - memo too long fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnfreezeMemoTooLongFailsOnIngest() {
+                final var LONG_MEMO = "x".repeat(1025);
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .memo(LONG_MEMO)
+                                .via(unfreezeTxn)
+                                .hasPrecheck(MEMO_TOO_LONG),
+                        getTxnRecord(unfreezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - expired transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnfreezeExpiredTransactionFailsOnIngest() {
+                final var expiredTxnId = "expiredTxn";
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY),
+                        usableTxnIdNamed(expiredTxnId).modifyValidStart(-3_600L).payerId(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .txnId(expiredTxnId)
+                                .via(unfreezeTxn)
+                                .hasPrecheck(TRANSACTION_EXPIRED),
+                        getTxnRecord(unfreezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - too far start time fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnfreezeTooFarStartTimeFailsOnIngest() {
+                final var futureTxnId = "futureTxn";
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY),
+                        usableTxnIdNamed(futureTxnId).modifyValidStart(3_600L).payerId(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .txnId(futureTxnId)
+                                .via(unfreezeTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_START),
+                        getTxnRecord(unfreezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - invalid transaction duration fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnfreezeInvalidTransactionDurationFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .validDurationSecs(0)
+                                .via(unfreezeTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_DURATION),
+                        getTxnRecord(unfreezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - duplicate transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnfreezeDuplicateTransactionFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .via("unfreezeTxn"),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .txnId("unfreezeTxn")
+                                .via(unfreezeTxn)
+                                .hasPrecheck(DUPLICATE_TRANSACTION));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze oversize transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenUnfreezeOversizeTxnFailsOnIngest() {
+                KeyShape keyShape = threshOf(
+                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+                SigControl allSigned = keyShape.signedWith(sigs(
+                        ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                        ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                        ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                        ON, ON, ON, ON, ON, ON, ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, allSigned))
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .via(unfreezeTxn)
+                                .hasPrecheck(TRANSACTION_OVERSIZE),
+                        getTxnRecord(unfreezeTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - missing freeze key signature fails at handle - full fees charged")
+            final Stream<DynamicTest> tokenUnfreezeMissingFreezeKeySignatureFailsAtHandle() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true) // Start frozen
+                                .treasury(TREASURY)
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER) // Missing freeze key signature
+                                .via(unfreezeTxn)
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        validateChargedUsdWithinWithTxnSize(
+                                unfreezeTxn,
+                                txnSize -> expectedTokenUnfreezeFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(unfreezeTxn, PAYER));
+            }
+
+            @HapiTest
+            @DisplayName("TokenUnfreeze - no freeze key fails on handle - full fees charged")
+            final Stream<DynamicTest> tokenUnfreezeNoFreezeKeyFailsOnHandle() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -494,22 +1112,24 @@ public class TokenFreezeSimpleFeesTest {
                                 .tokenType(FUNGIBLE_COMMON)
                                 // No freeze key
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                         tokenUnfreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("unfreezeTxn")
+                                .via(unfreezeTxn)
                                 .hasKnownStatus(TOKEN_HAS_NO_FREEZE_KEY),
-                        validateChargedUsd("unfreezeTxn", TOKEN_UNFREEZE_FEE),
-                        validateChargedAccount("unfreezeTxn", PAYER));
+                        validateChargedUsdWithinWithTxnSize(
+                                unfreezeTxn,
+                                txnSize -> expectedTokenUnfreezeFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(unfreezeTxn, PAYER));
             }
 
             @HapiTest
-            @DisplayName("TokenUnfreeze - token not associated fails")
-            final Stream<DynamicTest> tokenUnfreezeNotAssociatedFails() {
+            @DisplayName("TokenUnfreeze - token not associated fails on handle - full fees charged")
+            final Stream<DynamicTest> tokenUnfreezeNotAssociatedFailsOnHandle() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -520,17 +1140,95 @@ public class TokenFreezeSimpleFeesTest {
                                 .freezeKey(FREEZE_KEY)
                                 .freezeDefault(true)
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
+                                .payingWith(PAYER),
                         // Not associating the token
                         tokenUnfreeze(TOKEN, ACCOUNT)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, FREEZE_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("unfreezeTxn")
+                                .via(unfreezeTxn)
                                 .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
-                        validateChargedUsd("unfreezeTxn", TOKEN_UNFREEZE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
-                        validateChargedAccount("unfreezeTxn", PAYER));
+                        validateChargedUsdWithinWithTxnSize(
+                                unfreezeTxn,
+                                txnSize -> expectedTokenUnfreezeFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(unfreezeTxn, PAYER));
+            }
+
+            @LeakyHapiTest
+            @DisplayName("TokenUnfreeze - duplicate transaction fails on handle - payer charged for first only")
+            final Stream<DynamicTest> tokenUnfreezeDuplicateFailsOnHandle() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "3")),
+                        usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .setNode(4)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .via(unfreezeTxn),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .setNode(3)
+                                .hasPrecheck(DUPLICATE_TRANSACTION),
+                        validateChargedUsdWithinWithTxnSize(
+                                unfreezeTxn,
+                                txnSize -> expectedTokenFreezeFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(unfreezeTxn, PAYER));
+            }
+        }
+
+        @Nested
+        @DisplayName("TokenUnfreeze Failures on Pre-Handle")
+        class TokenUnfreezeFailuresOnPreHandle {
+
+            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
+            @DisplayName("TokenUnfreeze - invalid payer signature fails on pre-handle - network fee only")
+            final Stream<DynamicTest> tokenUnfreezeInvalidPayerSigFailsOnPreHandle() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .freezeKey(FREEZE_KEY)
+                                .freezeDefault(true)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "4")),
+                        tokenUnfreeze(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .signedBy(PAYER, FREEZE_KEY)
+                                .setNode("4")
+                                .via(unfreezeTxn)
+                                .hasKnownStatus(INVALID_PAYER_SIGNATURE),
+                        validateChargedUsdWithinWithTxnSize(
+                                unfreezeTxn,
+                                txnSize -> expectedTokenUnfreezeNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(unfreezeTxn, "4"));
             }
         }
     }
