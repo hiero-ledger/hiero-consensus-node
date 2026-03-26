@@ -57,7 +57,7 @@ class MerkleDbCompactionCoordinatorTest {
                 defaultConfig.longListReservedBufferSize(),
                 defaultConfig.compactionThreads(),
                 defaultConfig.gcRateThreshold(),
-                defaultConfig.maxCompactedFileSizeInKB(),
+                defaultConfig.maxCompactedFileSizeInMB(),
                 defaultConfig.maxCompactionLevel(),
                 defaultConfig.iteratorInputBufferBytes(),
                 defaultConfig.reconnectKeyLeakMitigationEnabled(),

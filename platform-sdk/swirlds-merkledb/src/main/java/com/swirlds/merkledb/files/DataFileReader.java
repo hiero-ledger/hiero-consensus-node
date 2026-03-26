@@ -323,20 +323,6 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
         }
     }
 
-    /**
-     * Updates this reader's compaction level without modifying the file on disk.
-     * This is an in-memory-only operation used for promoting files to higher levels
-     * without rewriting their data.
-     *
-     * @param newLevel the new compaction level
-     */
-    public void setCompactionLevel(final int newLevel) {
-        final DataFileMetadata current = metadataRef.get();
-        metadataRef.compareAndSet(
-                current,
-                new DataFileMetadata(current.getIndex(), current.getCreationDate(), newLevel, current.getItemsCount()));
-    }
-
     // =================================================================================================================
     // Private methods
 

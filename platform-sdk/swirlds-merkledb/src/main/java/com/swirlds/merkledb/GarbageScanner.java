@@ -38,7 +38,7 @@ import org.apache.logging.log4j.Logger;
  * <p>The scanner is a pure data collector — it computes statistics for all files but does not
  * filter or group them. Filtering (by {@code gcRateThreshold}), grouping (by projected output
  * size), and phase 2 absorption are the responsibility of
- * {@link com.swirlds.merkledb.MerkleDbCompactionCoordinator}.
+ * {@link MerkleDbCompactionCoordinator}.
  */
 public class GarbageScanner {
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.base.units.UnitConstants.KIBIBYTES_TO_BYTES;
+import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.MerkleDbDataSource.MERKLEDB_COMPONENT;
@@ -49,7 +49,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  *       and shared across all compaction tasks for the same store.</li>
  *   <li><b>Compaction tasks</b> — multiple tasks per level per store. The coordinator filters
  *       files by {@code gcRateThreshold}, partitions eligible files into groups bounded by
- *       projected output size ({@link MerkleDbConfig#maxCompactedFileSizeInKB()}), absorbs
+ *       projected output size ({@link MerkleDbConfig#maxCompactedFileSizeInMB()}), absorbs
  *       additional files into each group (phase 2), and submits each group as an independent
  *       task. Tasks at different levels and within the same level run concurrently.
  *       New groups for a level are only submitted once ALL previous tasks for that level have
@@ -251,7 +251,7 @@ class MerkleDbCompactionCoordinator {
      * <ol>
      *   <li><b>Phase 1:</b> select files whose {@code deadToAliveRatio > gcRateThreshold}.</li>
      *   <li><b>Split:</b> partition eligible files into groups bounded by
-     *       {@code maxCompactedFileSizeInKB}.</li>
+     *       {@code maxCompactedFileSizeInMB}.</li>
      *   <li><b>Phase 2:</b> for each group, absorb additional non-eligible files from a shared
      *       remaining pool. Absorbed files are removed from the pool so no other group at the
      *       same level can claim them.</li>
@@ -279,7 +279,7 @@ class MerkleDbCompactionCoordinator {
         }
 
         final double gcRateThreshold = config.gcRateThreshold();
-        final long maxProjectedBytes = config.maxCompactedFileSizeInKB() * KIBIBYTES_TO_BYTES;
+        final long maxProjectedBytes = config.maxCompactedFileSizeInMB() * MEBIBYTES_TO_BYTES;
         final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
 
         // Phase 1: separate eligible from remaining, grouped by level
@@ -400,7 +400,7 @@ class MerkleDbCompactionCoordinator {
     static List<List<DataFileReader>> splitIntoGroups(
             final @NonNull List<DataFileReader> candidates,
             final long maxProjectedBytes,
-            final @Nullable IndexedGarbageFileStats stats) {
+            final @NonNull IndexedGarbageFileStats stats) {
         if (maxProjectedBytes <= 0) {
             return List.of(candidates);
         }
@@ -410,7 +410,8 @@ class MerkleDbCompactionCoordinator {
         long currentProjectedSize = 0;
 
         for (final DataFileReader reader : candidates) {
-            final long projectedAlive = estimateAliveBytes(reader, stats);
+            final GarbageFileStats fs = lookupStats(reader, stats);
+            final long projectedAlive = fs == null ? 0 : estimateAliveBytes(reader, fs);
             if (!currentGroup.isEmpty() && currentProjectedSize + projectedAlive > maxProjectedBytes) {
                 groups.add(currentGroup);
                 currentGroup = new ArrayList<>();
@@ -460,7 +461,7 @@ class MerkleDbCompactionCoordinator {
             if (fs != null) {
                 totalLive += fs.aliveItems();
                 totalDead += fs.deadItems();
-                projectedSize += estimateAliveBytes(reader, stats);
+                projectedSize += estimateAliveBytes(reader, fs);
             }
         }
 
@@ -482,7 +483,7 @@ class MerkleDbCompactionCoordinator {
 
             final long fileLive = fs.aliveItems();
             final long fileDead = fs.deadItems();
-            final long fileProjectedAlive = estimateAliveBytes(reader, stats);
+            final long fileProjectedAlive = estimateAliveBytes(reader, fs);
 
             final long newTotalLive = totalLive + fileLive;
             final long newTotalDead = totalDead + fileDead;
@@ -520,16 +521,7 @@ class MerkleDbCompactionCoordinator {
      * Returns 0 for files with unknown item counts or files not found in the stats
      * (e.g. deleted between scan and grouping).
      */
-    static long estimateAliveBytes(
-            final @NonNull DataFileReader reader, final @Nullable IndexedGarbageFileStats stats) {
-        if (stats == null) {
-            return 0;
-        }
-        final int idx = reader.getIndex() - stats.offset();
-        if (idx < 0 || idx >= stats.garbageFileStats().length) {
-            return 0;
-        }
-        final GarbageFileStats fileStats = stats.garbageFileStats()[idx];
+    static long estimateAliveBytes(final @NonNull DataFileReader reader, final @Nullable GarbageFileStats fileStats) {
         if (fileStats == null || fileStats.totalItems() == 0) {
             return 0;
         }

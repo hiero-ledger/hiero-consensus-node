@@ -207,8 +207,26 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     private MerkleDbStatisticsUpdater statisticsUpdater;
 
+    /**
+     * Scanner for the {@link #hashChunkStore} (IdToHashChunk). Traverses
+     * {@link #idToDiskLocationHashChunks} to compute per-file garbage statistics.
+     * Created once during construction and reused across flushes.
+     */
     private final GarbageScanner chunkStoreScanner;
+    /**
+     * Scanner for the {@link #keyValueStore} (PathToKeyValue). Traverses
+     * {@link #pathToDiskLocationLeafNodes} to compute per-file garbage statistics.
+     * Created once during construction and reused across flushes.
+     */
     private final GarbageScanner pathToKeyValueStoreScanner;
+    /**
+     * Scanner for the {@link #keyToPath} store (ObjectKeyToPath). Traverses the
+     * bucket index ({@link HalfDiskHashMap#getBucketIndexToBucketLocation()}) to compute
+     * per-file garbage statistics. Constructed with {@code deduplicateMirroredEntries = true}
+     * to handle {@link HalfDiskHashMap} bucket index doubling, where unsanitized entries at
+     * {@code index[x]} and {@code index[x + N/2]} may point to the same data location.
+     * Created once during construction and reused across flushes.
+     */
     private final GarbageScanner objectkeyToPathScanner;
 
     /**
@@ -471,13 +489,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             enableBackgroundCompaction();
         }
 
-        COUNT_OF_OPEN_DATABASES.increment();
         chunkStoreScanner =
                 new GarbageScanner(idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK);
         pathToKeyValueStoreScanner =
                 new GarbageScanner(pathToDiskLocationLeafNodes, keyValueStore.getFileCollection(), PATH_TO_KEY_VALUE);
         objectkeyToPathScanner = new GarbageScanner(
                 keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), OBJECT_KEY_TO_PATH, true);
+        COUNT_OF_OPEN_DATABASES.increment();
         logger.info(
                 MERKLE_DB.getMarker(),
                 "Created MerkleDB [{}] with store path '{}', initial capacity = {}, hash chunk height = {}",

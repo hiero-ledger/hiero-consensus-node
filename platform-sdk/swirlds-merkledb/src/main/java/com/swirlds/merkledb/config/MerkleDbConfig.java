@@ -35,8 +35,8 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      files are considered for absorption as long as adding each one keeps the aggregate ratio
  *      above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead
  *      item must be reclaimed.
- * @param maxCompactedFileSizeInKB
- *      Maximum projected output size (KB) per compaction task. Candidates are partitioned into
+ * @param maxCompactedFileSizeInMB
+ *      Maximum projected output size (MB) per compaction task. Candidates are partitioned into
  *      groups bounded by this size. Also used as the size cap when absorbing files in phase 2.
  *      A non-positive value disables this limit.
  * @param maxCompactionLevel max number of compaction levels, once this level is reached compactors stop increasing levels.
@@ -89,7 +89,7 @@ public record MerkleDbConfig(
         @Min(1) @ConfigProperty(defaultValue = "4") int compactionThreads,
         @ConfigProperty(defaultValue = "0.5") double gcRateThreshold,
         /*Default is 1GB*/
-        @ConfigProperty(defaultValue = "1000000") long maxCompactedFileSizeInKB,
+        @ConfigProperty(defaultValue = "1000") long maxCompactedFileSizeInMB,
         @Min(3) @ConfigProperty(defaultValue = "10") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,

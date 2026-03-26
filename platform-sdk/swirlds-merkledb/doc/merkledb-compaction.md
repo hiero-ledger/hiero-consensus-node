@@ -14,7 +14,7 @@ MerkleDb is the storage engine behind `VirtualMap`. It persists three categories
 
 - **IdToHashChunk** — hash chunks containing groups of contiguous node hashes in the virtual Merkle tree. Keys are chunk IDs derived from tree paths.
 - **PathToKeyValue** — leaf node data (keys and values). Keys are tree paths.
-- **ObjectKeyToPath** — a mapping from application keys to their current tree paths. Keys are user-provided keys (as bytes).
+- **ObjectKeyToPath** — a mapping from bucket IDs to their current tree paths. Keys are user-provided keys (as bytes).
 
 Each store consists of a set of data files on disk and an in-memory (off-heap) index that maps data item keys to data locations in those files.
 A data location encodes both the file index and the byte offset within the file where the data item is stored.
@@ -166,8 +166,10 @@ The system needs to know how much garbage each file contains in order to make co
 Rather than maintaining real-time counters on the hot path, garbage is estimated by a background scanner task.
 
 The scanner (`GarbageScanner`) traverses the in-memory (off-heap) index for a given file collection. For each index entry, the scanner
-checks which file the entry points to and increments an alive counter for that file. Index entries pointing to files
-not present in the collection (e.g. files deleted by a concurrent compaction) are silently skipped.
+checks which file the entry points to and increments an alive counter for that file. Index entries pointing to files not present
+in the scanner's collection snapshot (e.g. new files created by a concurrent flush or compaction after the snapshot was taken)
+are silently skipped. This is safe because the skipped entries represent items that have already moved to newer
+files - the old files' alive counts are unaffected.
 After the full traversal, the scanner knows how many items in each file are still referenced by the index. Two ratios
 are computed per file:
 
@@ -187,10 +189,6 @@ which is harmless), or the file was written by an older version that did not rec
 Files with zero alive items also get `deadToAliveRatio = MAX_VALUE` (nothing to copy — perfect).
 Files with zero dead items get `deadToAliveRatio = 0.0` (no garbage — never individually selected for compaction).
 
-The scanner does not filter or group files — it returns the full IndexedGarbageFileStats for all completed files.
-Filtering, grouping, and absorption are performed by the MerkleDbCompactionCoordinator when it processes scan
-results in submitCompactionTasks(). The coordinator applies a two-phase selection algorithm per level:
-
 The scanner does not filter or group files — it returns the full `IndexedGarbageFileStats` for all completed files.
 Filtering, grouping, and absorption are performed by the `MerkleDbCompactionCoordinator` when it processes scan
 results in `submitCompactionTasks()`. The coordinator applies a two-phase selection algorithm per level:
@@ -199,11 +197,11 @@ results in `submitCompactionTasks()`. The coordinator applies a two-phase select
    compaction candidates for their level. These are files with enough garbage to justify compaction on their own.
 
 2. **Split into groups:** the eligible files at each level are partitioned into non-overlapping groups bounded by
-   projected output size (`maxCompactedFileSizeInKB`).
+   projected output size (`maxCompactedFileSizeInMB`).
 
 3. **Phase 2 — Absorb remaining files (per group):** for each group, the coordinator checks if there is headroom
    in both the aggregate `Σdead / Σalive` ratio (must be above `gcRateThreshold`) and the projected output size
-   (must be below `maxCompactedFileSizeInKB`). If so, remaining files at the level (those NOT selected in **phase 1**)
+   (must be below `maxCompactedFileSizeInMB`). If so, remaining files at the level (those NOT selected in **phase 1**)
    are considered for absorption. The remaining files are pre-sorted by dead/alive ratio descending (once per level),
    and each group draws from a shared pool. Files whose addition would push the aggregate ratio below the threshold
    or the projected output size past the cap are skipped — the coordinator continues to consider subsequent files
@@ -265,7 +263,7 @@ means: for every 2 alive items copied, at least 1 dead item must be reclaimed.
 The coordinator extends the candidate set via per-group **phase 2** absorption. For each group created by partitioning
 eligible files, remaining non-eligible files are considered for absorption from a shared pool (pre-sorted by dead/alive
 ratio descending). Files that would push the group's aggregate ratio below `gcRateThreshold` or the projected output
-past `maxCompactedFileSizeInKB` are skipped. Absorbed files are removed from the pool so no other group at the same
+past `maxCompactedFileSizeInMB` are skipped. Absorbed files are removed from the pool so no other group at the same
 level can claim them. This maximizes file consolidation across all groups at a level.
 
 ### Compaction Task Submission
@@ -287,7 +285,7 @@ After each flush, the flush handler submits two kinds of tasks to the compaction
    are only submitted once the first scan for a store has completed. New tasks for a level are only submitted when
    ALL tasks from the previous batch for that level have completed (tracked by a per-level counter).
 
-**Projected output size cap.** The `maxCompactedFileSizeInKB` parameter (default 1000000 = 1 GB) limits the estimated
+**Projected output size cap.** The `maxCompactedFileSizeInMB` parameter (default 1000 = 1 GB) limits the estimated
 size of each compaction task's output. For each candidate file, the projected alive size is `fileSize × (1 - garbageRatio)`.
 Files are taken in iteration order (file index order from the scanner) and accumulated into a group until the next file would
 push the cumulative projected size over the cap; then a new group is started. At least one file per group is always included,
@@ -302,7 +300,8 @@ to process — only ~500 MB of data is copied — while a 1 GB file with 10% gar
 1. Check if compaction is still enabled (exit if disabled during shutdown).
 2. Create a `DataFileCompactor` via the factory and register it for pause/resume/interrupt.
 3. Filter out stale entries: intersect the assigned file list with the current file collection
-   (`DataFileCollection.getAllCompletedFiles()`). Files that were already compacted and deleted
+   (`DataFileCollection.getAllCompletedFiles()`). The scan is a point-in-time snapshot that may reference files already
+   consumed by a compaction cycle that completed after the scan was taken. Files that were already compacted and deleted
    by a concurrent task since the scan are removed. If no valid files remain, exit.
 4. Compact the valid files into a new output file at `level + 1` (capped at `maxCompactionLevel`).
 
@@ -510,7 +509,7 @@ The following configuration parameters in `MerkleDbConfig` control compaction be
 | `compactionThreads`        | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                                                                                                                                                                                                                                                                  |
 | `maxCompactionLevel`       | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                                                                                                                                                                                                                                                                |
 | `gcRateThreshold`          | 0.5     | Minimum dead-to-alive ratio for compaction decisions. In **phase 1**, files whose individual ratio exceeds this value are selected. In **phase 2**, remaining files are considered for absorption as long as adding each one keeps the aggregate ratio above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead item is reclaimed. |
-| `maxCompactedFileSizeInKB` | 1000000 | Maximum projected output size (KB) per compaction task. Also the size cap for per-group **phase 2** absorption. Candidates are partitioned into groups bounded by this size. 1 GB by default.                                                                                                                                                                     |
+| `maxCompactedFileSizeInMB` | 1000    | Maximum projected output size (KB) per compaction task. Also the size cap for per-group **phase 2** absorption. Candidates are partitioned into groups bounded by this size. 1 GB by default.                                                                                                                                                                     |
 
 ### Observability
 
