@@ -961,6 +961,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 .previousWrappedRecordBlockRootHash(prevWrappedRecordBlockRootHash)
                 .wrappedIntermediatePreviousBlockRootHashes(intermediateHashes)
                 .wrappedIntermediateBlockRootsLeafCount(leafCount)
+                .votingComplete(true)
                 .build();
         this.wrappedHashStateSyncedFromFinalizedVote = true;
         logger.info(

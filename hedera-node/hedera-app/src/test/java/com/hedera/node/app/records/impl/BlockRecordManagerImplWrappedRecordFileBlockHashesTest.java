@@ -1222,6 +1222,86 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     }
 
     @Test
+    void syncFinalizedMigrationHashesPropagatesVotingCompleteAcrossBlockBoundary() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .build();
+
+        // State begins with votingComplete = false, i.e. prior to vote finalization.
+        final var initialTs = new Timestamp(100, 0);
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(5)
+                                .firstConsTimeOfLastBlock(new Timestamp(98, 0))
+                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]))
+                                .consTimeOfLastHandledTxn(initialTs)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(initialTs)
+                                .lastUsedConsTime(initialTs)
+                                .lastIntervalProcessTime(initialTs)
+                                .votingComplete(false)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        final var syncedPrevHash = Bytes.wrap(new byte[] {
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+        });
+        final var syncedIntermediate = List.of(Bytes.wrap(new byte[48]));
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RESTART,
+                null)) {
+            // Phase 1-2: Open first block (EPOCH path)
+            final var t0 = InstantUtils.instant(200, 1);
+            mgr.startUserTransaction(t0, state);
+
+            // Phase 3: Simulate vote finalization — syncFinalizedMigrationHashes should propagate
+            // votingComplete = true to the cached lastBlockInfo
+            mgr.syncFinalizedMigrationHashes(syncedPrevHash, syncedIntermediate, 1);
+
+            // Phase 5: Add items and cross a block boundary. The block boundary's putLastBlockInfo
+            // writes the cached lastBlockInfo (including its votingComplete flag) to state.
+            mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+            final var t1 = InstantUtils.instant(204, 1); // crosses logPeriod boundary
+            mgr.startUserTransaction(t1, state);
+
+            // Phase 6: Freeze persistence — should persist the synced wrapped hash state
+            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+        }
+
+        final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get();
+        // Verify voting completion was recorded
+        assertTrue(requireNonNull(blockInfo).votingComplete());
+    }
+
+    @Test
     void syncFinalizedMigrationHashesIsNoopWhenLiveWriteDisabled() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
