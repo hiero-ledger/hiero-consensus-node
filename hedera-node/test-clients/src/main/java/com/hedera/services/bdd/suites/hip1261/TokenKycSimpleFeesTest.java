@@ -28,6 +28,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenRevokeKycFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -68,6 +69,8 @@ public class TokenKycSimpleFeesTest {
     private static final String KYC_KEY = "kycKey";
     private static final String PAYER_KEY = "payerKey";
     private static final String TOKEN = "fungibleToken";
+    private static final String grantKycTxn = "grantKycTxn";
+    private static final String revokeKycTxn = "revokeKycTxn";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -90,16 +93,14 @@ public class TokenKycSimpleFeesTest {
                             .tokenType(FUNGIBLE_COMMON)
                             .kycKey(KYC_KEY)
                             .treasury(TREASURY)
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS),
+                            .payingWith(PAYER),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
                     grantTokenKyc(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .signedBy(PAYER, KYC_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("grantKycTxn"),
+                            .via(grantKycTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "grantKycTxn",
+                            grantKycTxn,
                             txnSize -> expectedTokenGrantKycFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
@@ -122,17 +123,15 @@ public class TokenKycSimpleFeesTest {
                             .kycKey(KYC_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .sigControl(forKey(PAYER_KEY, validSig)),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
                     grantTokenKyc(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .signedBy(PAYER, KYC_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("grantKycTxn"),
+                            .via(grantKycTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "grantKycTxn",
+                            grantKycTxn,
                             txnSize -> expectedTokenGrantKycFullFeeUsd(
                                     Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
@@ -155,19 +154,88 @@ public class TokenKycSimpleFeesTest {
                             .treasury(TREASURY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY, KYC_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
                             .sigControl(forKey(KYC_KEY, validSig)),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
                     grantTokenKyc(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .signedBy(PAYER, KYC_KEY)
                             .sigControl(forKey(KYC_KEY, validSig))
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("grantKycTxn"),
+                            .via(grantKycTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "grantKycTxn",
+                            grantKycTxn,
                             txnSize -> expectedTokenGrantKycFullFeeUsd(
                                     Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
+        }
+
+        @HapiTest
+        @DisplayName("TokenGrantKyc with large payer key - extra processing bytes fee")
+        final Stream<DynamicTest> tokenGrantKycLargeKeyExtraProcessingBytesFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(
+                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(KYC_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .kycKey(KYC_KEY)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                    grantTokenKyc(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, KYC_KEY)
+                            .via(grantKycTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            grantKycTxn,
+                            txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                    Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
+        }
+
+        @HapiTest
+        @DisplayName("TokenGrantKyc with very large payer key below oversize - extra processing bytes fee")
+        final Stream<DynamicTest> tokenGrantKycVeryLargeKeyBelowOversizeFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(sigs(
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(KYC_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .kycKey(KYC_KEY)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                    grantTokenKyc(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, KYC_KEY)
+                            .via(grantKycTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            grantKycTxn,
+                            txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                    Map.of(SIGNATURES, 41L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
     }
@@ -188,20 +256,15 @@ public class TokenKycSimpleFeesTest {
                             .tokenType(FUNGIBLE_COMMON)
                             .kycKey(KYC_KEY)
                             .treasury(TREASURY)
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS),
+                            .payingWith(PAYER),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                    grantTokenKyc(TOKEN, ACCOUNT)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER, KYC_KEY)
-                            .fee(ONE_HUNDRED_HBARS),
+                    grantTokenKyc(TOKEN, ACCOUNT).payingWith(PAYER).signedBy(PAYER, KYC_KEY),
                     revokeTokenKyc(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .signedBy(PAYER, KYC_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("revokeKycTxn"),
+                            .via(revokeKycTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "revokeKycTxn",
+                            revokeKycTxn,
                             txnSize -> expectedTokenRevokeKycFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
@@ -224,24 +287,101 @@ public class TokenKycSimpleFeesTest {
                             .kycKey(KYC_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .sigControl(forKey(PAYER_KEY, validSig)),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
                     grantTokenKyc(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
-                            .signedBy(PAYER, KYC_KEY)
-                            .fee(ONE_HUNDRED_HBARS),
+                            .signedBy(PAYER, KYC_KEY),
                     revokeTokenKyc(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .signedBy(PAYER, KYC_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("revokeKycTxn"),
+                            .via(revokeKycTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "revokeKycTxn",
+                            revokeKycTxn,
                             txnSize -> expectedTokenRevokeKycFullFeeUsd(
                                     Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
+        }
+
+        @HapiTest
+        @DisplayName("TokenRevokeKyc with large payer key - extra processing bytes fee")
+        final Stream<DynamicTest> tokenRevokeKycLargeKeyExtraProcessingBytesFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(
+                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(KYC_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .kycKey(KYC_KEY)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                    grantTokenKyc(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, KYC_KEY)
+                            .via(grantKycTxn),
+                    revokeTokenKyc(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, KYC_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(revokeKycTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            revokeKycTxn,
+                            txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                    Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
+        }
+
+        @HapiTest
+        @DisplayName("TokenRevokeKyc with very large payer key below oversize - extra processing bytes fee")
+        final Stream<DynamicTest> tokenRevokeKycVeryLargeKeyBelowOversizeFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(
+                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(KYC_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .kycKey(KYC_KEY)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                    tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                    grantTokenKyc(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, KYC_KEY)
+                            .via(grantKycTxn),
+                    revokeTokenKyc(TOKEN, ACCOUNT)
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER, KYC_KEY)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via(revokeKycTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            revokeKycTxn,
+                            txnSize -> expectedTokenGrantKycFullFeeUsd(
+                                    Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
     }
@@ -253,6 +393,81 @@ public class TokenKycSimpleFeesTest {
         @Nested
         @DisplayName("TokenGrantKyc Failures on Ingest and Handle")
         class TokenGrantKycFailuresOnIngest {
+
+            @HapiTest
+            @DisplayName("TokenGrantKyc - insufficient tx fee fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenGrantKycInsufficientTxFeeFailsOnIngest() {
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(KYC_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .kycKey(KYC_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        grantTokenKyc(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, KYC_KEY)
+                                .fee(1L) // Fee too low
+                                .via(grantKycTxn)
+                                .hasPrecheck(INSUFFICIENT_TX_FEE),
+                        getTxnRecord(grantKycTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenGrantKyc - threshold payer key with invalid signature fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenGrantKycThresholdKeyInvalidSigFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(KYC_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .kycKey(KYC_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig)),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        grantTokenKyc(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .signedBy(PAYER, KYC_KEY)
+                                .via(grantKycTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(grantKycTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenGrantKyc - insufficient payer balance fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenGrantKycInsufficientPayerBalanceFailsOnIngest() {
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS / 100_000L),
+                        cryptoCreate(TREASURY).balance(0L),
+                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(KYC_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .kycKey(KYC_KEY)
+                                .treasury(TREASURY),
+                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
+                        grantTokenKyc(TOKEN, ACCOUNT)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, KYC_KEY)
+                                .via(grantKycTxn)
+                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                        getTxnRecord(grantKycTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
 
             @HapiTest
             @DisplayName("TokenGrantKyc - missing kyc key signature fails at handle")
@@ -274,44 +489,19 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing KYC key signature
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("grantKycTxn")
+                                .via(grantKycTxn)
                                 .hasKnownStatus(INVALID_SIGNATURE),
                         validateChargedUsdFromRecordWithTxnSize(
-                                "grantKycTxn",
+                                grantKycTxn,
                                 txnSize -> expectedTokenGrantKycFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
-                        validateChargedAccount("grantKycTxn", PAYER));
+                        validateChargedAccount(grantKycTxn, PAYER));
             }
 
             @HapiTest
-            @DisplayName("TokenGrantKyc - insufficient tx fee fails on ingest - no fee charged")
-            final Stream<DynamicTest> tokenGrantKycInsufficientTxFeeFailsOnIngest() {
-
-                return hapiTest(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TREASURY).balance(0L),
-                        cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
-                        newKeyNamed(KYC_KEY),
-                        tokenCreate(TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .kycKey(KYC_KEY)
-                                .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT).fee(ONE_HUNDRED_HBARS),
-                        grantTokenKyc(TOKEN, ACCOUNT)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER, KYC_KEY)
-                                .fee(1L) // Fee too low
-                                .via("grantKycTxn")
-                                .hasPrecheck(INSUFFICIENT_TX_FEE),
-                        getTxnRecord("grantKycTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
-            }
-
-            @HapiTest
-            @DisplayName("TokenGrantKyc - no kyc key fails")
-            final Stream<DynamicTest> tokenGrantKycNoKycKeyFails() {
+            @DisplayName("TokenGrantKyc - no kyc key fails on handle - full fees charged")
+            final Stream<DynamicTest> tokenGrantKycNoKycKeyFailsOnHandle() {
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -328,19 +518,19 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("grantKycTxn")
+                                .via(grantKycTxn)
                                 .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
                         validateChargedUsdFromRecordWithTxnSize(
-                                "grantKycTxn",
+                                grantKycTxn,
                                 txnSize -> expectedTokenGrantKycFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
-                        validateChargedAccount("grantKycTxn", PAYER));
+                        validateChargedAccount(grantKycTxn, PAYER));
             }
 
             @HapiTest
-            @DisplayName("TokenGrantKyc - token not associated fails")
-            final Stream<DynamicTest> tokenGrantKycNotAssociatedFails() {
+            @DisplayName("TokenGrantKyc - token not associated fails on handle - full fees charged")
+            final Stream<DynamicTest> tokenGrantKycNotAssociatedFailsOnHandle() {
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -358,14 +548,14 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, KYC_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("grantKycTxn")
+                                .via(grantKycTxn)
                                 .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                         validateChargedUsdFromRecordWithTxnSize(
-                                "grantKycTxn",
+                                grantKycTxn,
                                 txnSize -> expectedTokenGrantKycFullFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
-                        validateChargedAccount("grantKycTxn", PAYER));
+                        validateChargedAccount(grantKycTxn, PAYER));
             }
         }
 
@@ -445,14 +635,14 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing KYC key signature
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("revokeKycTxn")
+                                .via(revokeKycTxn)
                                 .hasKnownStatus(INVALID_SIGNATURE),
                         validateChargedUsdFromRecordWithTxnSize(
-                                "revokeKycTxn",
+                                revokeKycTxn,
                                 txnSize -> expectedTokenRevokeKycFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
-                        validateChargedAccount("revokeKycTxn", PAYER));
+                        validateChargedAccount(revokeKycTxn, PAYER));
             }
 
             @HapiTest
@@ -478,9 +668,9 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, KYC_KEY)
                                 .fee(1L) // Fee too low
-                                .via("revokeKycTxn")
+                                .via(revokeKycTxn)
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
-                        getTxnRecord("revokeKycTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+                        getTxnRecord(revokeKycTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
@@ -501,14 +691,14 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("revokeKycTxn")
+                                .via(revokeKycTxn)
                                 .hasKnownStatus(TOKEN_HAS_NO_KYC_KEY),
                         validateChargedUsdFromRecordWithTxnSize(
-                                "revokeKycTxn",
+                                revokeKycTxn,
                                 txnSize -> expectedTokenRevokeKycFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
-                        validateChargedAccount("revokeKycTxn", PAYER));
+                        validateChargedAccount(revokeKycTxn, PAYER));
             }
 
             @HapiTest
@@ -530,14 +720,14 @@ public class TokenKycSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, KYC_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("revokeKycTxn")
+                                .via(revokeKycTxn)
                                 .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                         validateChargedUsdFromRecordWithTxnSize(
-                                "revokeKycTxn",
+                                revokeKycTxn,
                                 txnSize -> expectedTokenRevokeKycFullFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
-                        validateChargedAccount("revokeKycTxn", PAYER));
+                        validateChargedAccount(revokeKycTxn, PAYER));
             }
         }
     }
