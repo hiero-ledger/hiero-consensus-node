@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.visibleNonSyntheticItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -218,7 +217,7 @@ public class NaturalDispatchOrderingTest {
             @Account(centBalance = 7, maxAutoAssociations = UNLIMITED_AUTO_ASSOCIATION_SLOTS)
                     SpecAccount insolventPayer) {
         return hapiTest(
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(reversibleScheduleValidator(), "committed", "rolledBack")),
                 firstToken.treasury().transferUnitsTo(solventPayer, 10, firstToken),
                 secondToken.treasury().transferUnitsTo(insolventPayer, 10, secondToken),
@@ -268,7 +267,7 @@ public class NaturalDispatchOrderingTest {
         final var startChainFn = new Function("startChain(bytes)");
         final var emptyMessage = new byte[0];
         return hapiTest(
-                recordStreamMustIncludePassFrom(
+                recordStreamMustIncludeNoFailuresFrom(
                         visibleNonSyntheticItems(removableChildValidator(), "nestedCreations", "revertedCreations")),
                 outerCreatorContract.call("startChain", emptyMessage).with(txn -> txn.gas(5_000_000)
                         .via("nestedCreations")),
@@ -302,7 +301,7 @@ public class NaturalDispatchOrderingTest {
     @DisplayName("irreversible preceding stream items are as expected")
     final Stream<DynamicTest> irreversiblePrecedingItemsAsExpected() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(visibleNonSyntheticItems(
+                recordStreamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
                         irreversiblePrecedingValidator(), "finalizationBySuccess", "finalizationByFailure")),
                 tokenCreate("unassociatedToken"),
                 // Create two hollow accounts to finalize, first by a top-level success and second by failure
