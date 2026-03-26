@@ -12,12 +12,9 @@ import org.hiero.consensus.model.node.NodeId;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 @BenchmarkMode(Mode.AverageTime)
@@ -105,10 +102,14 @@ public class ReconnectBench extends VirtualMapBaseBench {
         };
     }
 
-    /** Generate a state and save it to disk once for the entire benchmark. */
-    @Setup
-    public void setupBenchmark() {
-        beforeTest("reconnect");
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onTrialSetup() {
+        super.onTrialSetup();
+
+        setTestDir("reconnect");
 
         final Random random = new Random(randomSeed);
 
@@ -145,9 +146,13 @@ public class ReconnectBench extends VirtualMapBaseBench {
         releaseAndCloseMap(learnerMap);
     }
 
-    /** Restore the saved state from disk as a new test on-disk copy for each iteration. */
-    @Setup(Level.Invocation)
-    public void setupInvocation() {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onInvocationSetup() {
+        super.onInvocationSetup();
+
         teacherMap = restoreMap(TEACHER_MAP_NAME);
         if (teacherMap == null) {
             throw new RuntimeException("Failed to restore the 'teacher' map");
@@ -170,8 +175,11 @@ public class ReconnectBench extends VirtualMapBaseBench {
         }
     }
 
-    @TearDown(Level.Invocation)
-    public void tearDownInvocation() throws Exception {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onInvocationTearDown() throws Exception {
         try {
             if (!learnerMap.isHashed()) {
                 throw new IllegalStateException("Learner root node must be hashed");
@@ -183,26 +191,24 @@ public class ReconnectBench extends VirtualMapBaseBench {
             teacherMapCopy.release();
         }
 
-        afterTest(() -> {
-            // Close all data sources
-            teacherMap.getDataSource().close();
-            learnerMap.getDataSource().close();
+        // Close all data sources
+        teacherMap.getDataSource().close();
+        learnerMap.getDataSource().close();
 
-            // release()/close() would delete the DB files eventually but not right away.
-            // The files/directories can even be re-created in background (see a comment at
-            // beforeTest(String name) above.)
-            // Add a short sleep to help prevent irrelevant warning messages from being printed
-            // when the BaseBench.afterTest() deletes test files recursively right after
-            // this current runnable finishes executing.
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException ignore) {
-            }
-        });
+        // release()/close() would delete the DB files eventually but not right away.
+        // Add a short sleep to help prevent irrelevant warning messages from being printed
+        // when the Tear Down deletes test files recursively right after
+        // this current runnable finishes executing.
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException ignore) {
+        }
 
         teacherMap = null;
         learnerMap = null;
         teacherData = null;
+
+        super.onInvocationTearDown();
     }
 
     @Benchmark
@@ -223,15 +229,10 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     public static void main(String[] args) throws Exception {
         final ReconnectBench bench = new ReconnectBench();
-        bench.setup();
-        bench.createLocal();
-        bench.setupBenchmark();
-        bench.beforeTest();
+        bench.setupTrial();
         bench.setupInvocation();
         bench.reconnect();
         bench.tearDownInvocation();
-        bench.afterTest();
-        bench.destroyLocal();
-        bench.destroy();
+        bench.tearDownTrial();
     }
 }
