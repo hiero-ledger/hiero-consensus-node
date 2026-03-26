@@ -30,7 +30,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -73,11 +72,10 @@ public class BlockBufferService {
      */
     private final AtomicLong highestAckedBlockNumber = new AtomicLong(Long.MIN_VALUE);
     /**
-     * Lock to prevent concurrent persist operations from racing. Without this, a periodic persist's
-     * cleanup phase can delete files written by a concurrent freeze persist (or vice versa), causing
-     * block data loss on restore.
+     * Guard to skip redundant concurrent persist operations. When a periodic persist and a freeze
+     * persist overlap, the second one is skipped since the first is already writing the same data.
      */
-    private final ReentrantLock persistLock = new ReentrantLock();
+    private final AtomicBoolean isPersistInProgress = new AtomicBoolean(false);
     /**
      * Executor that is used to schedule buffer pruning and triggering backpressure if needed.
      */
@@ -555,10 +553,11 @@ public class BlockBufferService {
             return;
         }
 
-        // Serialize persist operations to prevent a concurrent persist's cleanup phase from
-        // deleting files written by this persist (or vice versa). This race was observed when
-        // a periodic persist and a freeze persist ran simultaneously, causing block data loss.
-        persistLock.lock();
+        if (!isPersistInProgress.compareAndSet(false, true)) {
+            logger.debug("Persistence request skipped; another persist is already in progress");
+            return;
+        }
+
         try {
             // collect all closed blocks which are not acked yet
             final List<BlockState> blocksToPersist = blockBuffer.values().stream()
@@ -576,7 +575,7 @@ public class BlockBufferService {
         } catch (final RuntimeException | IOException e) {
             logger.error("Failed to write block buffer to disk!", e);
         } finally {
-            persistLock.unlock();
+            isPersistInProgress.set(false);
         }
     }
 
