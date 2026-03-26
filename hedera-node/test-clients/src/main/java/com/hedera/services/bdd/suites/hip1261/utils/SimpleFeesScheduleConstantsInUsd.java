@@ -102,6 +102,8 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long CONS_UPDATE_TOPIC_INCLUDED_KEYS = 1L;
 
     public static final double SUBMIT_MESSAGE_FULL_FEE_USD = 0.0008;
+    public static final double SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_INCLUDED = 100;
+    public static final double SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTE_USD = 0.0001;
     public static final double SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BASE_USD = 0.05;
 
     public static final double CONS_DELETE_TOPIC_BASE_FEE_USD = 0.0049;

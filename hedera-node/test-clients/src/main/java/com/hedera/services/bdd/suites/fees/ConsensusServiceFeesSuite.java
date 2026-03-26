@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
@@ -24,6 +23,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.QUERY_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_FULL_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_INCLUDED;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOPIC_CREATE_WITH_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
@@ -126,7 +127,7 @@ public class ConsensusServiceFeesSuite {
                         .payingWith(PAYER)
                         .message(new String(messageBytes100))
                         .hasRetryPrecheckFrom(BUSY)
-                        .via("submitMessage"),
+                        .via("submitMessage100"),
                 submitMessageTo(TOPIC_NAME)
                         .blankMemo()
                         .payingWith(PAYER)
@@ -140,15 +141,31 @@ public class ConsensusServiceFeesSuite {
                         .hasRetryPrecheckFrom(BUSY)
                         .via("submitMessage1024"),
                 sleepFor(1000),
-                validateChargedUsd("submitMessage", SUBMIT_MESSAGE_FULL_FEE_USD),
-                safeValidateChargedUsd("submitMessage500", 0.00088, SUBMIT_MESSAGE_FULL_FEE_USD),
                 withOpContext((spec, log) -> allRunFor(
                         spec,
+                        safeValidateChargedUsdWithin(
+                                "submitMessage100",
+                                0.001,
+                                1.0,
+                                SUBMIT_MESSAGE_FULL_FEE_USD + expectedFeeFromBytesFor(spec, log, "submitMessage100"),
+                                3.0),
+                        safeValidateChargedUsdWithin(
+                                "submitMessage500",
+                                0.00088,
+                                1.0,
+                                SUBMIT_MESSAGE_FULL_FEE_USD
+                                        + (500 - SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_INCLUDED)
+                                                * SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTE_USD
+                                        + expectedFeeFromBytesFor(spec, log, "submitMessage500"),
+                                3.0),
                         safeValidateChargedUsdWithin(
                                 "submitMessage1024",
                                 0.001,
                                 1.0,
-                                SUBMIT_MESSAGE_FULL_FEE_USD + expectedFeeFromBytesFor(spec, log, "submitMessage1024"),
+                                SUBMIT_MESSAGE_FULL_FEE_USD
+                                        + (1000 - SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_INCLUDED)
+                                                * SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTE_USD
+                                        + expectedFeeFromBytesFor(spec, log, "submitMessage1024"),
                                 3.0))));
     }
 
