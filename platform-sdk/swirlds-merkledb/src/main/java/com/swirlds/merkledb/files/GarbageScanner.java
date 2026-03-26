@@ -231,9 +231,9 @@ public class GarbageScanner {
                 final double newRatio = newTotalDead == 0 ? Double.MAX_VALUE : (double) newTotalLive / newTotalDead;
                 final long newProjectedSize = projectedSize + fileProjectedAlive;
 
-                // Stop if adding this file would breach either limit
+                // Skipping if adding this file would breach either limit
                 if (newRatio >= gcRateThreshold || newProjectedSize >= maxProjectedBytes) {
-                    break;
+                    continue;
                 }
 
                 selected.add(reader);
