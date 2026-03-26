@@ -37,7 +37,6 @@ tasks.jacocoTestReport {
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -299,7 +298,6 @@ tasks {
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -416,14 +414,11 @@ tasks.register<Test>("testSubprocess") {
         "--add-reads=org.testcontainers=org.apache.commons.codec",
     )
     maxParallelForks = 1
-    // temporary fix for logging
-    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -536,14 +531,11 @@ tasks.register<Test>("testSubprocessConcurrent") {
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
-    // temporary fix for logging
-    modularity.inferModulePath.set(false)
 }
 
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -650,7 +642,6 @@ tasks {
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -697,8 +688,6 @@ tasks.register<Test>("testEmbedded") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-    // temporary fix for logging
-    modularity.inferModulePath.set(false)
 }
 
 val repeatableBaseTags = mapOf("hapiTestMiscRepeatable" to "REPEATABLE&!CRYPTO")
@@ -726,7 +715,6 @@ tasks {
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -755,8 +743,6 @@ tasks.register<Test>("testRepeatable") {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
-    // temporary fix for logging
-    modularity.inferModulePath.set(false)
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
