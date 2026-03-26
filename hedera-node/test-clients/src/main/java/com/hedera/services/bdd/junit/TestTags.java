@@ -22,6 +22,7 @@ public class TestTags {
     public static final String SIMPLE_FEES = "SIMPLE_FEES";
     public static final String ATOMIC_BATCH = "ATOMIC_BATCH";
     public static final String WRAPS = "WRAPS";
+    public static final String WRAPS_DOWNLOAD = "WRAPS_DOWNLOAD";
     public static final String CUTOVER = "CUTOVER";
     /**
      * Tags a embedded tests run as part of the default {@code Test} to provide efficient
