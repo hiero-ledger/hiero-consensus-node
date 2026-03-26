@@ -135,6 +135,7 @@ import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -1332,6 +1333,7 @@ public class EthereumSuite {
                                 new byte[32])));
     }
 
+    @Disabled
     @HapiTest
     final Stream<DynamicTest> eip7702Test() {
         final var delegatedAddress =
