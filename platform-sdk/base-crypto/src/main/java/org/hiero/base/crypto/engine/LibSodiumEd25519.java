@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto.engine;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -8,7 +10,9 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 
 /**
  * Panama Foreign Function &amp; Memory API binding to libsodium's Ed25519 detached signature operations.
@@ -148,28 +152,33 @@ public final class LibSodiumEd25519 {
     }
 
     /**
-     * Load the native libsodium library. Tries the standard OS library search first, then
-     * falls back to well-known installation paths.
+     * Load the native libsodium library. Tries in order:
+     * <ol>
+     *   <li>Standard OS library search ({@code dlopen("sodium")})</li>
+     *   <li>Well-known system installation paths</li>
+     *   <li>Bundled native library extracted from classpath resources</li>
+     * </ol>
      */
     private static SymbolLookup loadLibrary() {
-        // Try standard OS library search (works when libsodium is on LD_LIBRARY_PATH / system dirs)
+        // 1. Try standard OS library search (works when libsodium is on LD_LIBRARY_PATH / system dirs)
         try {
             return SymbolLookup.libraryLookup("sodium", Arena.global());
         } catch (final IllegalArgumentException ignored) {
-            // Not found via standard search — try well-known paths
+            // Not found via standard search
         }
 
-        final String[] fallbackPaths = {
+        // 2. Try well-known system installation paths
+        final String[] systemPaths = {
             "/opt/homebrew/lib/libsodium.dylib", // macOS ARM (Homebrew)
             "/usr/local/lib/libsodium.dylib", // macOS x86 (Homebrew)
-            "/usr/lib/x86_64-linux-gnu/libsodium.so", // Debian/Ubuntu x86_64 (with -dev)
-            "/usr/lib/aarch64-linux-gnu/libsodium.so", // Debian/Ubuntu ARM64 (with -dev)
+            "/usr/lib/x86_64-linux-gnu/libsodium.so", // Debian/Ubuntu x86_64
+            "/usr/lib/aarch64-linux-gnu/libsodium.so", // Debian/Ubuntu ARM64
             "/usr/lib/x86_64-linux-gnu/libsodium.so.23", // Debian/Ubuntu x86_64 (runtime only)
             "/usr/lib/aarch64-linux-gnu/libsodium.so.23", // Debian/Ubuntu ARM64 (runtime only)
             "/usr/lib/libsodium.so", // Generic Linux
         };
 
-        for (final String path : fallbackPaths) {
+        for (final String path : systemPaths) {
             try {
                 return SymbolLookup.libraryLookup(Path.of(path), Arena.global());
             } catch (final IllegalArgumentException ignored) {
@@ -177,8 +186,59 @@ public final class LibSodiumEd25519 {
             }
         }
 
-        throw new UnsatisfiedLinkError(
-                "Could not load libsodium. Install it with: "
-                        + "brew install libsodium (macOS) or apt-get install libsodium-dev (Linux)");
+        // 3. Extract bundled native library from classpath (e.g. from lazysodium-java JAR)
+        return loadBundledLibrary();
+    }
+
+    /**
+     * Extracts the platform-appropriate libsodium native library from the classpath to a temp
+     * file and loads it via Panama FFM. The bundled libraries are provided by the lazysodium-java
+     * JAR which packages pre-compiled binaries for all major platforms.
+     */
+    private static SymbolLookup loadBundledLibrary() {
+        final String resourcePath = getBundledLibraryResource();
+        final String suffix = resourcePath.substring(resourcePath.lastIndexOf('.'));
+
+        try (InputStream in = LibSodiumEd25519.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                throw new UnsatisfiedLinkError(
+                        "Could not load libsodium: not found on system and bundled resource '"
+                                + resourcePath + "' not available on classpath. "
+                                + "Install with: brew install libsodium (macOS) or apt-get install libsodium-dev (Linux)");
+            }
+
+            final Path tempFile = Files.createTempFile("libsodium-", suffix);
+            tempFile.toFile().deleteOnExit();
+            Files.copy(in, tempFile, StandardCopyOption.REPLACE_EXISTING);
+            return SymbolLookup.libraryLookup(tempFile, Arena.global());
+        } catch (final IOException e) {
+            throw new UnsatisfiedLinkError("Failed to extract bundled libsodium: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Returns the classpath resource path for the bundled libsodium native library matching the
+     * current OS and architecture. Resource paths follow the lazysodium-java JAR layout.
+     */
+    private static String getBundledLibraryResource() {
+        final String os = System.getProperty("os.name", "").toLowerCase();
+        final String arch = System.getProperty("os.arch", "").toLowerCase();
+
+        if (os.contains("mac") || os.contains("darwin")) {
+            return arch.contains("aarch64") || arch.contains("arm") ? "mac_arm/libsodium.dylib" : "mac/libsodium.dylib";
+        } else if (os.contains("win")) {
+            return arch.contains("64") ? "windows64/libsodium.dll" : "windows/libsodium.dll";
+        } else {
+            // Linux and others
+            if (arch.contains("aarch64") || arch.contains("arm64")) {
+                return "arm64/libsodium.so";
+            } else if (arch.contains("arm")) {
+                return "armv6/libsodium.so";
+            } else if (arch.contains("64")) {
+                return "linux64/libsodium.so";
+            } else {
+                return "linux/libsodium.so";
+            }
+        }
     }
 }
