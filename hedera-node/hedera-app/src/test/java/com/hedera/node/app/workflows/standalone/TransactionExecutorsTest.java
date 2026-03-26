@@ -121,6 +121,7 @@ import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.operation.AbstractOperation;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.tracing.OpCodeTracerConfigBuilder;
+import org.hyperledger.besu.evm.tracing.OpCodeTracerConfigBuilder.OpCodeTracerConfig;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.tracing.StreamingOperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
@@ -213,15 +214,15 @@ public class TransactionExecutorsTest {
         // the executor now expects ActionSidecarContentTracer instances.
         final var stringWriter = new StringWriter();
         final var printWriter = new PrintWriter(stringWriter);
-        final var opCodeTracerConfig = OpCodeTracerConfigBuilder.create()
+        final var opCodeTracerConfig = OpCodeTracerConfigBuilder.createFrom(OpCodeTracerConfig.DEFAULT)
                 .traceMemory(false)
                 .traceStack(false)
                 .traceReturnData(false)
                 .traceStorage(false)
                 .eip3155Strict(false)
                 .build();
-        final var jsonTracer = new StreamingOperationTracer(printWriter, opCodeTracerConfig);
-        final var addOnTracer = new OperationTracerAdapter(jsonTracer);
+        final var streamingOperationTracer = new StreamingOperationTracer(printWriter, opCodeTracerConfig);
+        final var addOnTracer = new OperationTracerAdapter(streamingOperationTracer);
         final var callOutput = executor.execute(contractCallMultipurposePickFunction(), Instant.EPOCH, addOnTracer);
         final var callRecord = callOutput.getFirst().transactionRecord();
         final var callResult = callRecord.contractCallResultOrThrow().contractCallResult();
