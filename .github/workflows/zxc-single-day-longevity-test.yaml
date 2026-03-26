@@ -26,7 +26,7 @@ on:
         type: string
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: "720"
+        default: "840"
         description: "Test execution time, mins (3, 9, 21, 180, 330)"
         type: string
       add-app-props:
