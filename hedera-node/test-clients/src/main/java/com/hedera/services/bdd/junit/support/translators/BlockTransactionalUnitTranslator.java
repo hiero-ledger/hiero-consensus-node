@@ -105,7 +105,6 @@ import com.hedera.services.bdd.junit.support.translators.impl.TopicCreateTransla
 import com.hedera.services.bdd.junit.support.translators.impl.UtilPrngTranslator;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.LinkedList;
@@ -200,7 +199,6 @@ public class BlockTransactionalUnitTranslator {
 
     /**
      * Constructs a new {@link BlockTransactionalUnitTranslator}.
-     *
      * @param shard the shard number
      * @param realm the realm number
      */
@@ -214,7 +212,6 @@ public class BlockTransactionalUnitTranslator {
 
     /**
      * Scans a block for genesis information and returns true if found.
-     *
      * @param block the block to scan
      * @return true if genesis information was found
      */
@@ -224,23 +221,10 @@ public class BlockTransactionalUnitTranslator {
 
     /**
      * Translates the given {@link BlockTransactionalUnit} into a list of {@link SingleTransactionRecord}s.
-     *
      * @param unit the unit to translate
      * @return the translated records
      */
     public List<SingleTransactionRecord> translate(@NonNull final BlockTransactionalUnit unit) {
-        return translate(unit, null);
-    }
-
-    /**
-     * Translates the given {@link BlockTransactionalUnit} into a list of {@link SingleTransactionRecord}s.
-     *
-     * @param unit the unit to translate
-     * @param blockNumber the enclosing block number, if known
-     * @return the translated records
-     */
-    public List<SingleTransactionRecord> translate(
-            @NonNull final BlockTransactionalUnit unit, @Nullable final Long blockNumber) {
         requireNonNull(unit);
         baseTranslator.prepareForUnit(unit);
         final List<ScopedTraceData> followingTraces =
@@ -271,7 +255,7 @@ public class BlockTransactionalUnitTranslator {
                 if (blockTransactionParts.functionality() != STATE_SIGNATURE_TRANSACTION
                         && blockTransactionParts.hasResult()
                         && blockTransactionParts.transactionParts() != null) {
-                    var translation = translator.translate(
+                    final var translation = translator.translate(
                             blockTransactionParts,
                             baseTranslator,
                             remainingStateChanges,
@@ -279,23 +263,6 @@ public class BlockTransactionalUnitTranslator {
                             followingTraces,
                             executingHookId,
                             hookMetadata);
-
-                    if (blockNumber != null) {
-                        final var record = translation.transactionRecord();
-                        final var receipt = record.receipt();
-                        if (receipt != null && blockNumber.equals(receipt.blockNumber())) {
-                            translation = new SingleTransactionRecord(
-                                    translation.transaction(),
-                                    record.copyBuilder()
-                                            .receipt(receipt.copyBuilder()
-                                                    .blockNumber(blockNumber)
-                                                    .build())
-                                            .build(),
-                                    translation.transactionSidecarRecords(),
-                                    translation.transactionOutputs());
-                        }
-                    }
-
                     translatedRecords.add(translation);
                 }
             }
