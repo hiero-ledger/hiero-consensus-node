@@ -67,7 +67,7 @@ public class DataFileCollectionBench extends BaseBench {
                 index.put(id, store.storeDataItem(record::serialize, record.getSizeInBytes()));
                 if (verify) map[(int) id] = record;
             }
-            store.updateValidKeyRange(0, maxKey);
+            store.updateValidKeyRange(0, maxKey - 1);
             store.endWriting();
         }
         System.out.println("Created " + numFiles + " files in " + (System.currentTimeMillis() - start) + "ms");
