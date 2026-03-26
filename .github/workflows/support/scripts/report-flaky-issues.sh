@@ -98,12 +98,14 @@ echo '[]' > "${OUTPUT_FILE}"
 # unlike `gh search issues` which suffers from search-index delay and
 # caused duplicate issue creation.
 echo "Fetching existing flaky-test issues..."
-ALL_FLAKY_ISSUES=$(gh issue list \
-    --repo "${REPO}" \
-    --label "flaky-test" \
-    --state all \
-    --json number,state,title,url,closedAt \
-    --limit 500 2>/dev/null || echo '[]')
+ALL_FLAKY_ISSUES=$(gh api \
+    --paginate \
+    "/repos/${REPO}/issues" \
+    -f labels="flaky-test" \
+    -f state="all" \
+    -f per_page=100 \
+    --jq '[.[] | select(.pull_request == null) | {number: .number, state: (.state | ascii_upcase), title: .title, url: .html_url, closedAt: .closed_at}]' \
+    2>/dev/null | jq -s 'add // []')
 echo "Found $(echo "${ALL_FLAKY_ISSUES}" | jq 'length') existing flaky-test issue(s)"
 
 # Process each flaky test
