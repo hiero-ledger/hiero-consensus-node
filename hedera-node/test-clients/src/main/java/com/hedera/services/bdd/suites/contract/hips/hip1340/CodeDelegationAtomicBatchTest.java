@@ -100,6 +100,7 @@ public class CodeDelegationAtomicBatchTest {
                         .exposingAddressTo(DELEGATION_TARGET_2::set));
     }
 
+    // 1.1: atomicBatch(type-4 sets delegation on A, valid transfer) - batch succeeds
     @HapiTest
     final Stream<DynamicTest> testDelegationCommitedInSuccessfulAtomicBatch() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -127,6 +128,7 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress))));
     }
 
+    // 1.2: atomicBatch(type-4 sets delegation on A, invalid transfer) - batch fails
     @HapiTest
     final Stream<DynamicTest> testDelegationSurvivesAtomicBatchRollback() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -160,6 +162,7 @@ public class CodeDelegationAtomicBatchTest {
                 ));
     }
 
+    // 1.3: atomicBatch(type-4 sets delegation + calls contract that reverts) - batch fails due to CONTRACT_REVERT_EXECUTED
     @HapiTest
     final Stream<DynamicTest> testDelegationSurvivesRevertingType4InAtomicBatch() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -190,6 +193,7 @@ public class CodeDelegationAtomicBatchTest {
                 ));
     }
 
+    // 1.4: atomicBatch(invalid transfer, type-4 sets delegation on A) - batch fails before type-4 tx is dispatched
     @HapiTest
     final Stream<DynamicTest> testNoDelegationWhenBatchFailsBeforeType4TxDispatched() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -219,44 +223,7 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation())));
     }
 
-    @HapiTest
-    final Stream<DynamicTest> testAtomicBatchRevertsAllDelegationTransactionsOnInnerTxFailure() {
-        final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
-        final var delegationTargetAddress = DELEGATION_TARGET.get();
-        final var batchTxn = "BatchDelegationRollback";
-        return hapiTest(
-                createHollowAccounts(DELEGATING_ACCOUNT),
-                createFundedAccount(CRYPTO_CREATE_DELEGATING_ACCOUNT),
-                getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        sourcing(() -> atomicBatch(
-                                cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
-                                        .delegationAddress(initialDelegationAddress)
-                                        .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
-                                        .signingWith(DELEGATING_ACCOUNT)
-                                        .payingWith(RELAYER)
-                                        .type(EthTransactionType.EIP7702)
-                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(2_000_000L)
-                                        .via(DELEGATION_SET)
-                                        .batchKey(RELAYER),
-                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                        .batchKey(RELAYER))
-                                .payingWith(RELAYER)
-                                .via(batchTxn)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
-                        getTxnRecord(batchTxn).andAllChildRecords().logged(),
-                        getTxnRecord(DELEGATION_SET).andAllChildRecords().logged(),
-                        // Verify rollback: native delegation update was not persisted.
-                        getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
-                        // Verify rollback: type 4 delegation to delegationTargetAddress was not applied.
-                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation())));
-    }
-
+    // 2.1: atomicBatch(CryptoCreate(A), type-4 delegates A) - batch succeeds
     @HapiTest
     final Stream<DynamicTest> testAtomicBatchCryptoCreateThenType4DelegatesInSameBatch() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -286,6 +253,7 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress))));
     }
 
+    // 2.2: atomicBatch(CryptoCreate(A), type-4 delegates A, invalid transfer) - batch fails
     @HapiTest
     final Stream<DynamicTest> testAtomicBatchCryptoCreateAndType4DelegateRolledBackOnFailure() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -327,6 +295,39 @@ public class CodeDelegationAtomicBatchTest {
                         )));
     }
 
+    // 2.3: atomicBatch(CryptoCreate(A, initialDelegation=D1), type-4 updates A delegation to D2) - batch succeeds
+    @HapiTest
+    final Stream<DynamicTest> testAtomicBatchCryptoCreateSetsDelegationThenType4UpdatesIt() {
+        final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var accountInBatch = DELEGATING_ACCOUNT + "CreateThenUpdateInBatch";
+        final var type4Txn = "type4UpdatesDelegationInBatch";
+        return hapiTest(
+                newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                cryptoCreate(accountInBatch)
+                                        .key(accountInBatch)
+                                        .withMatchingEvmAddress()
+                                        .balance(ONE_HUNDRED_HBARS)
+                                        .delegationAddress(initialDelegationAddress)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(accountInBatch)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(2_000_000L)
+                                        .via(type4Txn)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)),
+                        getTxnRecord(type4Txn).andAllChildRecords().logged(),
+                        // Type 4 update should override the delegation set by native create in the same batch.
+                        getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress))));
+    }
+
+    // 3.1: Account A exists with no delegation. atomicBatch(type-4 delegates to A, invalid transfer) - batch fails
     @HapiTest
     final Stream<DynamicTest> testExistingAccountDelegationSurvivesRollback() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -362,6 +363,7 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(authorityAccount).hasNoDelegation())));
     }
 
+    // 3.2: Account A exists with delegation D1. atomicBatch(type-4 changes A delegation to D2, invalid transfer) - batch fails
     @HapiTest
     final Stream<DynamicTest> testExistingDelegationUpdatedByType4SurvivesRollback() {
         final var d1 = DELEGATION_TARGET.get();
@@ -398,6 +400,7 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d1))));
     }
 
+    // 4.1: Account A has delegation. atomicBatch(type-4 sets A delegation to zero address, valid transfer) - batch succeeds
     @HapiTest
     final Stream<DynamicTest> testDelegationClearedByZeroAddress() {
         final var d1 = DELEGATION_TARGET.get();
@@ -430,6 +433,7 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(authorityAccount).hasNoDelegation())));
     }
 
+    // 4.2: Account A has delegation. atomicBatch(type-4 sets A delegation to zero address, invalid transfer) - batch fails
     @HapiTest
     final Stream<DynamicTest> testDelegationClearedByZeroAddressSurvivesRollback() {
         final var d1 = DELEGATION_TARGET.get();
@@ -465,84 +469,7 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d1))));
     }
 
-    @HapiTest
-    final Stream<DynamicTest> testAtomicBatchCryptoCreateSetsDelegationThenType4UpdatesIt() {
-        final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
-        final var delegationTargetAddress = DELEGATION_TARGET.get();
-        final var accountInBatch = DELEGATING_ACCOUNT + "CreateThenUpdateInBatch";
-        final var type4Txn = "type4UpdatesDelegationInBatch";
-        return hapiTest(
-                newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        sourcing(() -> atomicBatch(
-                                cryptoCreate(accountInBatch)
-                                        .key(accountInBatch)
-                                        .withMatchingEvmAddress()
-                                        .balance(ONE_HUNDRED_HBARS)
-                                        .delegationAddress(initialDelegationAddress)
-                                        .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
-                                        .signingWith(accountInBatch)
-                                        .payingWith(RELAYER)
-                                        .type(EthTransactionType.EIP7702)
-                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(2_000_000L)
-                                        .via(type4Txn)
-                                        .batchKey(RELAYER))
-                                .payingWith(RELAYER)),
-                        getTxnRecord(type4Txn).andAllChildRecords().logged(),
-                        // Type 4 update should override the delegation set by native create in the same batch.
-                        getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> testAtomicBatchType4PartialCommitIsRolledBackOnInnerTxFailureAcrossAccounts() {
-        final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
-        final var delegatingAccount1 = DELEGATING_ACCOUNT + "Batch1";
-        final var delegatingAccount2 = DELEGATING_ACCOUNT + "Batch2";
-        final var delegatingAccount3 = DELEGATING_ACCOUNT + "Batch3";
-        final var delegationTargetAddress = DELEGATION_TARGET.get();
-        final var partialCommitTxn = "batchType4PartialCommitAcrossAccounts";
-        return hapiTest(
-                // Split into two calls to avoid MAX_CHILD_RECORDS_EXCEEDED
-                createHollowAccounts(DELEGATING_ACCOUNT, delegatingAccount1),
-                createHollowAccounts(delegatingAccount2, delegatingAccount3),
-                cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
-                getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        sourcing(() -> atomicBatch(
-                                cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
-                                        .delegationAddress(initialDelegationAddress)
-                                        .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
-                                        .signingWith(DELEGATING_ACCOUNT)
-                                        .payingWith(RELAYER)
-                                        .type(EthTransactionType.EIP7702)
-                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, delegatingAccount1)
-                                        .addCodeDelegationWithNonce(delegationTargetAddress, 1L, delegatingAccount2)
-                                        .addCodeDelegationWithNonce(delegationTargetAddress, 1L, delegatingAccount3)
-                                        .gasLimit(2_000_000L)
-                                        .hasKnownStatus(ResponseCodeEnum.REVERTED_SUCCESS)
-                                        .via(partialCommitTxn)
-                                        .batchKey(RELAYER),
-                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                        .batchKey(RELAYER))
-                                .payingWith(RELAYER)
-                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
-                        getTxnRecord(partialCommitTxn).andAllChildRecords().logged(),
-                        // Atomic batch failure rolls back all delegation effects from inner txns.
-                        getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
-                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
-                        getAliasedAccountInfo(delegatingAccount1).hasNoDelegation(),
-                        getAliasedAccountInfo(delegatingAccount2).hasNoDelegation(),
-                        getAliasedAccountInfo(delegatingAccount3).hasNoDelegation())));
-    }
-
+    // 6.1: atomicBatch(type-4 with 2 valid + 2 invalid auth entries) - batch succeeds
     @HapiTest
     final Stream<DynamicTest> testAtomicBatchType4PartialCommitAcrossAccountsWithInvalidAuthorization() {
         final var delegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
@@ -585,6 +512,138 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(delegatingAccount2).hasNoDelegation(),
                         getAliasedAccountInfo(delegatingAccount3).hasNoDelegation())));
     }
+
+    // 6.2: atomicBatch(type-4 with 2 valid + 2 invalid auth entries, invalid transfer) - batch fails
+    @HapiTest
+    final Stream<DynamicTest> testAtomicBatchType4PartialCommitIsRolledBackOnInnerTxFailureAcrossAccounts() {
+        final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
+        final var delegatingAccount1 = DELEGATING_ACCOUNT + "Batch1";
+        final var delegatingAccount2 = DELEGATING_ACCOUNT + "Batch2";
+        final var delegatingAccount3 = DELEGATING_ACCOUNT + "Batch3";
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var partialCommitTxn = "batchType4PartialCommitAcrossAccounts";
+        return hapiTest(
+                // Split into two calls to avoid MAX_CHILD_RECORDS_EXCEEDED
+                createHollowAccounts(DELEGATING_ACCOUNT, delegatingAccount1),
+                createHollowAccounts(delegatingAccount2, delegatingAccount3),
+                cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
+                getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
+                                        .delegationAddress(initialDelegationAddress)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(DELEGATING_ACCOUNT)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, delegatingAccount1)
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 1L, delegatingAccount2)
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 1L, delegatingAccount3)
+                                        .gasLimit(2_000_000L)
+                                        .hasKnownStatus(ResponseCodeEnum.REVERTED_SUCCESS)
+                                        .via(partialCommitTxn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(partialCommitTxn).andAllChildRecords().logged(),
+
+                        // TODO (dsinyakov): switch to below asserts when atomic batch delegation persistence is fixed
+                        // CryptoUpdate delegation should be rolled back
+                        // getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
+                        // Valid type-4 delegations (sender + delegatingAccount1) should survive rollback
+                        // getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress),
+                        // getAliasedAccountInfo(delegatingAccount1).hasDelegationAddress(delegationTargetAddress),
+                        // Invalid auth entries (wrong nonce) should still be skipped
+                        // getAliasedAccountInfo(delegatingAccount2).hasNoDelegation(),
+                        // getAliasedAccountInfo(delegatingAccount3).hasNoDelegation()
+
+                        // Current behavior: all delegation effects rolled back
+                        getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
+                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
+                        getAliasedAccountInfo(delegatingAccount1).hasNoDelegation(),
+                        getAliasedAccountInfo(delegatingAccount2).hasNoDelegation(),
+                        getAliasedAccountInfo(delegatingAccount3).hasNoDelegation())));
+    }
+
+    // 10.1: atomicBatch(CryptoUpdate sets delegation on A, invalid transfer) - batch fails
+    @HapiTest
+    final Stream<DynamicTest> testCryptoUpdateDelegationRolledBackOnBatchFailure() {
+        final var delegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
+        final var accountA = DELEGATING_ACCOUNT + "CryptoUpdate10_1";
+        final var batchTxn = "batchCryptoUpdateRollback";
+        return hapiTest(
+                createFundedAccount(accountA),
+                getAliasedAccountInfo(accountA).hasNoDelegation(),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                cryptoUpdate(accountA)
+                                        .delegationAddress(delegationAddress)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .via(batchTxn)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(batchTxn).andAllChildRecords().logged(),
+                        // CryptoUpdate delegation should be rolled back
+                        getAliasedAccountInfo(accountA).hasNoDelegation())));
+    }
+
+    // 10.2: atomicBatch(CryptoUpdate sets delegation on A, type-4 sets delegation on B, invalid transfer)
+    @HapiTest
+    final Stream<DynamicTest> testAtomicBatchRevertsAllDelegationTransactionsOnInnerTxFailure() {
+        final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var batchTxn = "BatchDelegationRollback";
+        return hapiTest(
+                createHollowAccounts(DELEGATING_ACCOUNT),
+                createFundedAccount(CRYPTO_CREATE_DELEGATING_ACCOUNT),
+                getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
+                                        .delegationAddress(initialDelegationAddress)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(DELEGATING_ACCOUNT)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(2_000_000L)
+                                        .via(DELEGATION_SET)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .via(batchTxn)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(batchTxn).andAllChildRecords().logged(),
+                        getTxnRecord(DELEGATION_SET).andAllChildRecords().logged(),
+
+                        // TODO (dsinyakov): switch to below asserts when atomic batch delegation persistence is fixed
+                        // CryptoUpdate delegation should be rolled back
+                        // getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
+                        // Type-4 delegation should survive rollback
+                        // getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress)
+
+                        // Current behavior: all delegation effects rolled back
+                        getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
+                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation())));
+    }
+
 
     private static SpecOperation createFundedAccount(@NonNull final String name) {
         return blockingOrder(
