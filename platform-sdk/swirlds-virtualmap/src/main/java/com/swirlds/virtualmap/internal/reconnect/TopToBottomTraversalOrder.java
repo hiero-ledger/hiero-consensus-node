@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.swirlds.virtualmap.internal.Path;
 import java.util.Queue;
@@ -89,6 +88,8 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     private volatile int chunkRootRank;
     /** Node path of the currently processed chunk */
     private volatile long chunkRootPath;
+    /** The highest rank of the current chunk at which chunk's internal nodes are sent to the teacher */
+    private volatile int chunkFirstCheckedRank;
     /** The last rank of the current chunk. It may be either firstLeafRank or lastLeafRank */
     private volatile int chunkLastRank;
     /** The last leaf path in the currently processed chunk */
@@ -161,6 +162,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     private void addInitialChunkInternals() {
         final int chunkHeight = chunkLastRank - chunkRootRank;
         final int skipRanks = chunkHeight / 2;
+        chunkFirstCheckedRank = chunkRootRank + skipRanks;
         final long firstPath = Path.getLeftGrandChildPath(chunkRootPath, skipRanks);
         final long lastPath = Path.getRightGrandChildPath(chunkRootPath, skipRanks);
         for (long path = firstPath; path <= lastPath; path++) {
@@ -303,24 +305,24 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      */
     private long skipCleanPaths(final long path) {
         assert path > 0;
+        final int rank = Path.getRank(path);
         long parent = Path.getParentPath(path);
+        int parentRank = rank - 1;
         long cleanParent = Path.INVALID_PATH;
-        int parentRanksAbove = 1;
-        int cleanParentRanksAbove = 1;
-        while (parent != ROOT_PATH) {
+        while (parentRank >= chunkFirstCheckedRank) {
             if (cleanPaths.contains(parent)) {
                 cleanParent = parent;
-                cleanParentRanksAbove = parentRanksAbove;
+                break;
             }
-            parentRanksAbove++;
             parent = Path.getParentPath(parent);
+            parentRank--;
         }
         final long result;
         if (cleanParent == Path.INVALID_PATH) {
             // no clean parent found
             result = path;
         } else {
-            result = Path.getRightGrandChildPath(cleanParent, cleanParentRanksAbove) + 1;
+            result = Path.getRightGrandChildPath(cleanParent, rank - parentRank) + 1;
         }
         assert result >= path;
         return result;
