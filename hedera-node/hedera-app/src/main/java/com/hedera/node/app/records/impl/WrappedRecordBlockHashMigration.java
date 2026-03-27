@@ -282,7 +282,7 @@ public class WrappedRecordBlockHashMigration {
                 foundError = true;
             }
         }
-        return foundError;
+        return !foundError;
     }
 
     private void computeHashes(
