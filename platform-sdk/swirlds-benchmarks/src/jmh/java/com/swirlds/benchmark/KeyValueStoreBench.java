@@ -22,6 +22,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class KeyValueStoreBench extends BaseBench {
 
+    @Override
     String benchmarkName() {
         return "KeyValueStoreBench";
     }
@@ -29,7 +30,7 @@ public class KeyValueStoreBench extends BaseBench {
     @Benchmark
     public void merge() throws Exception {
         String storeName = "mergeBench";
-        beforeTest(storeName);
+        setTestDir(storeName);
 
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
         LongListOffHeap keyToDiskLocationIndex = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
@@ -80,6 +81,6 @@ public class KeyValueStoreBench extends BaseBench {
             System.out.println("Verified key-value store in " + (System.currentTimeMillis() - start) + "ms");
         }
 
-        afterTest(store::close);
+        store.close();
     }
 }

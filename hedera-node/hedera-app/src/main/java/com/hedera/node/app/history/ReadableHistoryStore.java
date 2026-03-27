@@ -3,6 +3,7 @@ package com.hedera.node.app.history;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -31,7 +32,8 @@ public interface ReadableHistoryStore {
      * @param proofKey the proof key itself
      * @param adoptionTime the time at which the key was adopted
      */
-    record ProofKeyPublication(long nodeId, @NonNull Bytes proofKey, @NonNull Instant adoptionTime) {
+    record ProofKeyPublication(
+            long nodeId, @NonNull Bytes proofKey, @NonNull Instant adoptionTime) {
         public ProofKeyPublication {
             requireNonNull(proofKey);
             requireNonNull(adoptionTime);
@@ -46,8 +48,10 @@ public interface ReadableHistoryStore {
      * @param nodeId the node ID submitting the WRAPS message
      */
     record WrapsMessagePublication(
-            long nodeId, @NonNull Bytes message, @NonNull WrapsPhase phase, @NonNull Instant receiptTime)
-            implements Comparable<WrapsMessagePublication> {
+            long nodeId,
+            @NonNull Bytes message,
+            @NonNull WrapsPhase phase,
+            @NonNull Instant receiptTime) implements Comparable<WrapsMessagePublication> {
         public WrapsMessagePublication {
             requireNonNull(message);
             requireNonNull(phase);
@@ -88,6 +92,12 @@ public interface ReadableHistoryStore {
     Bytes getLedgerId();
 
     /**
+     * Returns the expected WRAPS proving key hash, if set; otherwise null.
+     */
+    @Nullable
+    Bytes getWrapsProvingKeyHash();
+
+    /**
      * Gets the construction with the given ID, throwing if it does not exist.
      */
     @NonNull
@@ -107,12 +117,16 @@ public interface ReadableHistoryStore {
 
     /**
      * Returns whether the give roster hash is ready to be adopted.
+     *
      * @param rosterHash the roster hash
+     * @param wrapsEnabled whether WRAPS is enabled in the TSS configuration
      * @return whether the give roster hash is ready to be adopted
      */
-    default boolean isReadyToAdopt(@NonNull final Bytes rosterHash) {
+    default boolean isReadyToAdopt(@NonNull final Bytes rosterHash, final boolean wrapsEnabled) {
         final var construction = getNextConstruction();
-        return construction.hasTargetProof() && construction.targetRosterHash().equals(rosterHash);
+        return construction.hasTargetProof()
+                && (isWrapsExtensible(construction.targetProofOrThrow()) == wrapsEnabled)
+                && construction.targetRosterHash().equals(rosterHash);
     }
 
     /**

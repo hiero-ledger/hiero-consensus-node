@@ -26,6 +26,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class DataFileCollectionBench extends BaseBench {
 
+    @Override
     String benchmarkName() {
         return "DataFileCollectionBench";
     }
@@ -33,9 +34,10 @@ public class DataFileCollectionBench extends BaseBench {
     @Benchmark
     public void compaction() throws Exception {
         String storeName = "compactionBench";
-        beforeTest(storeName);
+        setTestDir(storeName);
 
         final LongListOffHeap index = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
+        index.updateValidRange(0, maxKey - 1);
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final var store =
@@ -51,7 +53,7 @@ public class DataFileCollectionBench extends BaseBench {
                         }
                     }
                 };
-        store.updateValidKeyRange(0, maxKey);
+
         final var compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
         System.out.println();
 
@@ -66,6 +68,7 @@ public class DataFileCollectionBench extends BaseBench {
                 index.put(id, store.storeDataItem(record::serialize, record.getSizeInBytes()));
                 if (verify) map[(int) id] = record;
             }
+            store.updateValidKeyRange(0, maxKey - 1);
             store.endWriting();
         }
         System.out.println("Created " + numFiles + " files in " + (System.currentTimeMillis() - start) + "ms");
@@ -94,9 +97,7 @@ public class DataFileCollectionBench extends BaseBench {
                     "Verified " + store.getNumOfFiles() + " file(s) in " + (System.currentTimeMillis() - start) + "ms");
         }
 
-        afterTest(() -> {
-            store.close();
-            index.close();
-        });
+        store.close();
+        index.close();
     }
 }

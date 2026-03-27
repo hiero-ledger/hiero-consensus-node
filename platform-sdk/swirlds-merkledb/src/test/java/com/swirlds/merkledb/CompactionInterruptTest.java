@@ -154,9 +154,9 @@ class CompactionInterruptTest {
             Thread.sleep(delayMs);
             stopCompactionAndVerifyItsStopped(coordinator, compactingExecutor, initialCompletedTaskCount);
         } finally {
-            dataSource.close();
             exec.shutdown();
             assertTrue(exec.awaitTermination(10, TimeUnit.SECONDS), "Should not timeout");
+            dataSource.close();
         }
         return true;
     }

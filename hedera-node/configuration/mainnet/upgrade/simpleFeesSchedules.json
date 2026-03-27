@@ -415,9 +415,9 @@
         },
         {
           "name": "TokenAirdrop",
-          "baseFee": 1000000000,
+          "baseFee": 0,
           "extras": [
-            { "name": "AIRDROPS", "includedCount": 1 }
+            { "name": "AIRDROPS", "includedCount": 0 }
           ],
           "highVolumeRates": {
             "maxMultiplier": 100000,
@@ -635,7 +635,8 @@
         {
           "name": "ContractCall",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "nodeNetworkFeeExempt": true
         },
         {
           "name": "ContractUpdate",
@@ -765,6 +766,21 @@
         },
         {
           "name": "NodeDelete",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeCreate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeUpdate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeDelete",
           "baseFee": 9000000,
           "extras": []
         }

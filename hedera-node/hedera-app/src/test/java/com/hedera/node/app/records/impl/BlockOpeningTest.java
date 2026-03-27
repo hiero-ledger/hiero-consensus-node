@@ -144,7 +144,6 @@ class BlockOpeningTest {
         given(readableStates.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID))
                 .willReturn(runningHashesState);
         given(runningHashesState.get()).willReturn(RunningHashes.DEFAULT);
-
         subject = new BlockRecordManagerImpl(
                 configProvider,
                 state,
@@ -153,6 +152,7 @@ class BlockOpeningTest {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
-                InitTrigger.RESTART);
+                InitTrigger.RESTART,
+                null);
     }
 }
