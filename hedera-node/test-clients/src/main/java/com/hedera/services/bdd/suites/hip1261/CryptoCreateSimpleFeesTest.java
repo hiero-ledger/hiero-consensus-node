@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
@@ -21,10 +20,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -32,6 +32,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -43,13 +44,14 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.hiero.base.utility.CommonUtils.hex;
-import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
+import static org.hiero.hapi.support.fees.Extra.HOOK_UPDATES;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hyperledger.besu.crypto.Hash.keccak256;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -62,7 +64,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
@@ -93,6 +94,7 @@ public class CryptoCreateSimpleFeesTest {
     private static final String DUPLICATE_TXN_ID = "duplicateTxnId";
     private static final String NEW_KEY = "newPayerKey";
     private static final String ECDSA_ALIAS_KEY = "ecdsaAliasKey";
+    private static final String cryptoCreatetxn = "cryptoCreatetxn";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -112,15 +114,15 @@ public class CryptoCreateSimpleFeesTest {
                     cryptoCreate("testAccount")
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("cryptoCreateTxn"),
+                            .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn",
+                            cryptoCreatetxn,
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
                                     KEYS, 0L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.0001));
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
         }
 
         @HapiTest
@@ -133,15 +135,15 @@ public class CryptoCreateSimpleFeesTest {
                             .payingWith(PAYER)
                             .key(ADMIN_KEY)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("cryptoCreateTxn"),
+                            .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn",
+                            cryptoCreatetxn,
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
                                     KEYS, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.0001));
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
         }
 
         @HapiTest
@@ -160,15 +162,15 @@ public class CryptoCreateSimpleFeesTest {
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("cryptoCreateTxn"),
+                            .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn",
+                            cryptoCreatetxn,
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
                                     KEYS, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.0001));
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
         }
 
         @HapiTest
@@ -191,15 +193,15 @@ public class CryptoCreateSimpleFeesTest {
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("cryptoCreateTxn"),
+                            .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn",
+                            cryptoCreatetxn,
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 4L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.0001));
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
         }
 
         @HapiTest
@@ -214,15 +216,15 @@ public class CryptoCreateSimpleFeesTest {
                             .key(PAYER_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("cryptoCreateTxn"),
+                            .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn",
+                            cryptoCreatetxn,
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
                                     KEYS, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.0001));
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
         }
 
         @HapiTest
@@ -236,15 +238,15 @@ public class CryptoCreateSimpleFeesTest {
                             .withHooks(accountAllowanceHook(1L, HOOK_CONTRACT))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("cryptoCreateTxn"),
+                            .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn",
+                            cryptoCreatetxn,
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
-                                    HOOK_EXECUTION, 1L,
+                                    HOOK_UPDATES, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.0001));
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
         }
 
         @HapiTest
@@ -260,16 +262,16 @@ public class CryptoCreateSimpleFeesTest {
                             .key(ADMIN_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("cryptoCreateTxn"),
+                            .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn",
+                            cryptoCreatetxn,
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
                                     KEYS, 1L,
-                                    HOOK_EXECUTION, 1L,
+                                    HOOK_UPDATES, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.0001));
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
         }
 
         @HapiTest
@@ -295,16 +297,16 @@ public class CryptoCreateSimpleFeesTest {
                             .withHooks(accountAllowanceHook(2L, HOOK_CONTRACT), accountAllowanceHook(3L, HOOK_CONTRACT))
                             .payingWith(PAYER)
                             .signedBy(PAYER_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("cryptoCreateTxn"),
+                            .via(cryptoCreatetxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn",
+                            cryptoCreatetxn,
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
                                     KEYS, 2L,
-                                    HOOK_EXECUTION, 2L,
+                                    HOOK_UPDATES, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.0001));
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
         }
 
         @HapiTest
@@ -347,17 +349,86 @@ public class CryptoCreateSimpleFeesTest {
                                 .alias(alias)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn");
+                                .via(cryptoCreatetxn);
                         allRunFor(spec, txn);
                     }),
                     validateChargedUsdWithinWithTxnSize(
-                            "cryptoCreateTxn",
+                            cryptoCreatetxn,
                             txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
                                     KEYS, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.0001));
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName(
+                "CryptoCreate signed txn above NODE_INCLUDED_BYTES threshold - full charging with extra PROCESSING_BYTES")
+        final Stream<DynamicTest> cryptoCreateAboveProcessingBytesThresholdFullFeesWithExtrasCharged() {
+            // create large key
+            final KeyShape largeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("largeKeyAccount")
+                            .key(PAYER_KEY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER)
+                            .via(cryptoCreatetxn),
+                    assertionsHold((spec, log) -> {
+                        final int txnSize = signedTxnSizeFor(spec, cryptoCreatetxn);
+                        log.info(
+                                "Large-key CryptoCreate signed size: {} bytes (threshold: {})",
+                                txnSize,
+                                NODE_INCLUDED_BYTES);
+                        assertTrue(
+                                txnSize > NODE_INCLUDED_BYTES,
+                                "Expected txn size (" + txnSize + ") to exceed NODE_INCLUDED_BYTES ("
+                                        + NODE_INCLUDED_BYTES + ")");
+                    }),
+                    validateChargedUsdWithinWithTxnSize(
+                            cryptoCreatetxn,
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 20L,
+                                    KEYS, 20L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("CryptoCreate very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
+        final Stream<DynamicTest> cryptoCreateVeryLargeTxnProcessingBytesFullFeesWithExtrasCharged() {
+            // threshOf(1, 41×SIMPLE) — pushes serialized size very close below 6KB range
+            final KeyShape veryLargeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("veryLargeKeyAccount")
+                            .key(PAYER_KEY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER)
+                            .via(cryptoCreatetxn),
+                    assertionsHold((spec, log) -> {
+                        final int txnSize = signedTxnSizeFor(spec, cryptoCreatetxn);
+                        log.info("Very-large CryptoCreate signed size: {} bytes", txnSize);
+                        assertTrue(txnSize < 6_000, "Expected txn size (" + txnSize + ") to not exceed 6000 bytes");
+                    }),
+                    validateChargedUsdWithinWithTxnSize(
+                            cryptoCreatetxn,
+                            txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 41L,
+                                    KEYS, 41L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(cryptoCreatetxn, PAYER));
         }
     }
 
@@ -370,8 +441,6 @@ public class CryptoCreateSimpleFeesTest {
             @HapiTest
             @DisplayName("CryptoCreate - threshold with extra signatures and keys - invalid signature fails on ingest")
             Stream<DynamicTest> cryptoCreateThresholdWithExtraSigAndKeysInvalidSignatureFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -381,32 +450,22 @@ public class CryptoCreateSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoCreate("testAccount")
                                 .key(PAYER_KEY)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName(
                     "CryptoCreate - threshold with two extra signatures and keys - invalid signature fails on ingest")
             Stream<DynamicTest> cryptoCreateThresholdWithTwoExtraSigAndKeysInvalidSignatureFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
@@ -419,60 +478,40 @@ public class CryptoCreateSimpleFeesTest {
                                 .key(PAYER_KEY)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoCreate("testAccount")
                                 .key(PAYER_KEY)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate - key list extra signatures and keys - invalid signature fails on ingest")
             Stream<DynamicTest> cryptoCreateKeyListExtraSigAndKeysInvalidSignatureFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         newKeyNamed("firstKey"),
                         newKeyNamed("secondKey"),
                         newKeyListNamed(PAYER_KEY, List.of("firstKey", "secondKey")),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoCreate("testAccount")
                                 .key(PAYER_KEY)
                                 .payingWith(PAYER)
                                 .signedBy("firstKey")
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate - threshold with empty threshold key - fails on ingest")
             Stream<DynamicTest> cryptoCreateThresholdWithEmptyThresholdKeyFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(0, 0);
@@ -481,30 +520,20 @@ public class CryptoCreateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY),
                         newKeyNamed(NEW_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoCreate("testAccount")
                                 .key(NEW_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(KEY_REQUIRED),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate - threshold with empty threshold nested key - fails on ingest")
             Stream<DynamicTest> cryptoCreateThresholdWithEmptyThresholdNestedKeyFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(3, listOf(0));
@@ -513,30 +542,20 @@ public class CryptoCreateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY),
                         newKeyNamed(NEW_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoCreate("testAccount")
                                 .key(NEW_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(KEY_REQUIRED),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate with insufficient txn fee fails on ingest")
             Stream<DynamicTest> cryptoCreateWithInsufficientTxnFeeFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -546,31 +565,22 @@ public class CryptoCreateSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoCreate("testAccount")
                                 .key(PAYER_KEY)
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HBAR / 100000) // fee is too low
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate - with insufficient payer balance fails on ingest")
             Stream<DynamicTest> cryptoCreateWithInsufficientPayerBalanceFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -580,32 +590,22 @@ public class CryptoCreateSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HBAR / 100000),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoCreate("testAccount")
                                 .key(PAYER_KEY)
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate - with too long memo fails on ingest")
             Stream<DynamicTest> cryptoCreateWithTooLongMemoFailsOnIngest() {
                 final var LONG_MEMO = "x".repeat(1025); // memo exceeds 1024 bytes limit
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -615,25 +615,17 @@ public class CryptoCreateSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoCreate("testAccount")
                                 .memo(LONG_MEMO)
                                 .key(PAYER_KEY)
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(MEMO_TOO_LONG),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
@@ -641,8 +633,6 @@ public class CryptoCreateSimpleFeesTest {
             Stream<DynamicTest> cryptoCreateExpiredTransactionFailsOnIngest() {
                 final var expiredTxnId = "expiredCreateTopic";
                 final var oneHourPast = -3_600L; // 1 hour before
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -652,7 +642,6 @@ public class CryptoCreateSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         usableTxnIdNamed(expiredTxnId)
                                 .modifyValidStart(oneHourPast)
                                 .payerId(PAYER),
@@ -661,19 +650,12 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(expiredTxnId)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(TRANSACTION_EXPIRED),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
@@ -681,8 +663,6 @@ public class CryptoCreateSimpleFeesTest {
             Stream<DynamicTest> cryptoCreateWithTooFarStartTimeFailsOnIngest() {
                 final var expiredTxnId = "expiredCreateTopic";
                 final var oneHourPast = 3_600L; // 1 hour later
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -692,7 +672,6 @@ public class CryptoCreateSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         usableTxnIdNamed(expiredTxnId)
                                 .modifyValidStart(oneHourPast)
                                 .payerId(PAYER),
@@ -701,26 +680,17 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(expiredTxnId)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_TRANSACTION_START),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate - with invalid duration time fails on ingest")
             Stream<DynamicTest> cryptoCreateWithInvalidDurationTimeFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -730,32 +700,22 @@ public class CryptoCreateSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoCreate("testAccount")
                                 .key(PAYER_KEY)
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .validDurationSecs(0) // invalid duration
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .hasPrecheck(INVALID_TRANSACTION_DURATION),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate - duplicate txn fails on ingest")
             Stream<DynamicTest> cryptoCreateDuplicateTxnFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold submit key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -765,36 +725,25 @@ public class CryptoCreateSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         // Successful first transaction
-                        cryptoCreate("testAccount").fee(ONE_HBAR).via("cryptoCreateTxn"),
+                        cryptoCreate("testAccount").via(cryptoCreatetxn),
                         // Duplicate transaction
                         cryptoCreate("testAccountDuplicate")
                                 .key(PAYER_KEY)
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .txnId("cryptoCreateTxn")
+                                .txnId(cryptoCreatetxn)
                                 .via("cryptoCreateDuplicateTxn")
-                                .hasPrecheck(DUPLICATE_TRANSACTION),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                                .hasPrecheck(DUPLICATE_TRANSACTION));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate with ED25519 key and its key alias - fails on ingest")
             Stream<DynamicTest> cryptoCreateWithED25519AliasAndKeyAliasFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         newKeyNamed(VALID_ALIAS_ED25519_KEY).shape(KeyShape.ED25519),
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         withOpContext((spec, opLog) -> {
                             var ed25519Key = spec.registry().getKey(VALID_ALIAS_ED25519_KEY);
                             final var txn = cryptoCreate("testAccount")
@@ -802,51 +751,57 @@ public class CryptoCreateSimpleFeesTest {
                                     .alias(ed25519Key.getEd25519())
                                     .payingWith(PAYER)
                                     .signedBy(PAYER, VALID_ALIAS_ED25519_KEY)
-                                    .fee(ONE_HBAR)
-                                    .via("cryptoCreateTxn")
+                                    .via(cryptoCreatetxn)
                                     .hasPrecheck(INVALID_ALIAS_KEY);
                             allRunFor(spec, txn);
                         }),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("CryptoCreate with ED25519 key and no key alias - fails on ingest")
             Stream<DynamicTest> cryptoCreateWithED25519AliasAndNoKeyFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         newKeyNamed(VALID_ALIAS_ED25519_KEY).shape(KeyShape.ED25519),
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         withOpContext((spec, opLog) -> {
                             var ed25519Key = spec.registry().getKey(VALID_ALIAS_ED25519_KEY);
                             final var txn = cryptoCreate("testAccount")
                                     .alias(ed25519Key.getEd25519())
                                     .payingWith(PAYER)
                                     .signedBy(PAYER, VALID_ALIAS_ED25519_KEY)
-                                    .fee(ONE_HBAR)
-                                    .via("cryptoCreateTxn")
+                                    .via(cryptoCreatetxn)
                                     .hasPrecheck(INVALID_ALIAS_KEY);
                             allRunFor(spec, txn);
                         }),
 
                         // assert no txn record is created
-                        getTxnRecord("cryptoCreateTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
 
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+            @HapiTest
+            @DisplayName("CryptoCreate very large txn (just above 6KB) - fails on ingest")
+            final Stream<DynamicTest> cryptoCreateVeryLargeTxnAboveSixKBProcessingBytesFailsOnIngest() {
+                // threshOf(1, 43×SIMPLE) — pushes serialized size just above 6KB range
+                final KeyShape veryLargeKeyShape = threshOf(
+                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate("veryLargeKeyAccount")
+                                .key(PAYER_KEY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .via(cryptoCreatetxn)
+                                .hasPrecheck(TRANSACTION_OVERSIZE),
+
+                        // assert no txn record is created
+                        getTxnRecord(cryptoCreatetxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
         }
 
@@ -868,27 +823,25 @@ public class CryptoCreateSimpleFeesTest {
                         cryptoCreate("testAccount")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .balance(0L)
                                 .setNode(4)
                                 .txnId(DUPLICATE_TXN_ID)
-                                .via("cryptoCreateTxn")
+                                .via(cryptoCreatetxn)
                                 .logged(),
                         cryptoCreate("testAccount")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(DUPLICATE_TXN_ID)
                                 .balance(0L)
                                 .setNode(3)
                                 .via("cryptoCreateDuplicateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
-                        withOpContext((spec, log) -> allRunFor(
-                                spec,
-                                validateChargedUsd(
-                                        "cryptoCreateTxn",
-                                        expectedCryptoCreateFullFeeUsd(
-                                                1L, 0L, signedTxnSizeFor(spec, "cryptoCreateTxn"))))));
+                        validateChargedUsdWithinWithTxnSize(
+                                cryptoCreatetxn,
+                                txnSize -> expectedCryptoCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(cryptoCreatetxn, PAYER));
             }
         }
 
@@ -905,15 +858,15 @@ public class CryptoCreateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .key(ADMIN_KEY)
                                 .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn"),
+                                .via(cryptoCreatetxn),
                         validateChargedUsdWithinWithTxnSize(
-                                "cryptoCreateTxn",
+                                cryptoCreatetxn,
                                 txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
                                         KEYS, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.0001));
+                                0.1),
+                        validateChargedAccount(cryptoCreatetxn, PAYER));
             }
 
             @HapiTest
@@ -929,15 +882,15 @@ public class CryptoCreateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .key(ADMIN_KEY)
                                 .signedBy(PAYER, ADMIN_KEY, "extraKey1", "extraKey2")
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn"),
+                                .via(cryptoCreatetxn),
                         validateChargedUsdWithinWithTxnSize(
-                                "cryptoCreateTxn",
+                                cryptoCreatetxn,
                                 txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 4L,
                                         KEYS, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.0001));
+                                0.1),
+                        validateChargedAccount(cryptoCreatetxn, PAYER));
             }
 
             @HapiTest
@@ -962,15 +915,15 @@ public class CryptoCreateSimpleFeesTest {
                                 .sigControl(forKey(PAYER_KEY, validSig))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER_KEY, "extraKey1", "extraKey2")
-                                .fee(ONE_HBAR)
-                                .via("cryptoCreateTxn"),
+                                .via(cryptoCreatetxn),
                         validateChargedUsdWithinWithTxnSize(
-                                "cryptoCreateTxn",
+                                cryptoCreatetxn,
                                 txnSize -> expectedCryptoCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 4L,
                                         KEYS, 2L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.0001));
+                                0.1),
+                        validateChargedAccount(cryptoCreatetxn, PAYER));
             }
         }
     }

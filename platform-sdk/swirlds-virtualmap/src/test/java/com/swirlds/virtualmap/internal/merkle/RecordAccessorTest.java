@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
@@ -242,6 +243,31 @@ public class RecordAccessorTest {
         final long path = records.findPath(key);
         final VirtualLeafBytes<?> record = records.findLeafRecord(path);
         assertEquals(key, record.keyBytes());
+    }
+
+    @Test
+    @DisplayName("close() closes the data source")
+    void closeClosesDataSource() throws Exception {
+        final VirtualMapMetadata state = new VirtualMapMetadata();
+        state.setLastLeafPath(2);
+        state.setFirstLeafPath(1);
+
+        final InMemoryDataSource ds = new InMemoryDataSource("closeClosesDataSource");
+        final int hashChunkHeight = ds.getHashChunkHeight();
+
+        final VirtualNodeCache cache = new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, ds::loadHashChunk);
+        cache.putLeaf(leaf(1));
+        cache.copy();
+
+        // Take a snapshot that inherits the parent's pool
+        final VirtualNodeCache snapshot = cache.snapshot();
+
+        // Wrap in RecordAccessor and close
+        final RecordAccessor accessor = new RecordAccessor(state, hashChunkHeight, snapshot, ds);
+        accessor.close();
+
+        assertTrue(ds.isClosed(), "Data source should be closed after RecordAccessor.close()");
+        cache.shutdown();
     }
 
     private static final class BreakableDataSource implements VirtualDataSource {
