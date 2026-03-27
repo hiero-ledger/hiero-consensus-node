@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -17,6 +18,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -25,6 +27,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -35,7 +38,9 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.NodeRewardActivity;
 import com.hedera.node.app.service.token.NodeRewardAmounts;
+import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -58,11 +63,13 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -130,10 +137,16 @@ class SystemTransactionsTest {
     private WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
 
     @Mock
+    private MigrationRootHashSubmissions migrationRootHashSubmissions;
+
+    @Mock
     private State state;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private NodeInfo creatorNodeInfo;
+
+    @Mock
+    private SystemTransactions.StateChangeStreaming stateChangeStreaming;
 
     private SystemTransactions subject;
 
@@ -156,7 +169,6 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
-
         subject = new SystemTransactions(
                 initTrigger,
                 parentTxnFactory,
@@ -173,14 +185,15 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
     }
 
     @Test
     void testResetNextDispatchNonce() {
         // The nonce starts at 1 and should reset to 1
         subject.resetNextDispatchNonce();
-        // No exception means success - the nonce is private so we can't directly verify
+        // No exception means success - the nonce is private so we can't directly verify,
         // but we can verify the method doesn't throw
         assertDoesNotThrow(() -> subject.resetNextDispatchNonce());
     }
@@ -230,7 +243,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -355,7 +369,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -397,7 +412,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -478,7 +494,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
@@ -513,7 +530,6 @@ class SystemTransactionsTest {
         given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
-
         // Recreate subject with updated config
         subject = new SystemTransactions(
                 initTrigger,
@@ -531,7 +547,8 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
@@ -540,7 +557,8 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void postUpgradeSetupArchivesJumpstartFileWhenMigrationResultPresent(@TempDir Path tempDir) throws IOException {
+    void postUpgradeSetupDefersArchivingJumpstartFileWhenMigrationResultPresent(@TempDir Path tempDir)
+            throws IOException {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -549,6 +567,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", false)
+                .withValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
@@ -565,11 +584,10 @@ class SystemTransactionsTest {
 
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, Bytes.EMPTY, List.of(), 0));
-        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up block info mock (values match migration so no update needed)
         @SuppressWarnings("unchecked")
-        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
         given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
         final WritableStates writableStates = mock(WritableStates.class);
         given(state.getWritableStates(BlockRecordService.NAME)).willReturn(writableStates);
@@ -591,14 +609,18 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        assertFalse(Files.exists(jumpstartFile), "Original jumpstart file should no longer exist");
-        assertTrue(Files.exists(tempDir.resolve("archived_jumpstart.bin")), "Archived jumpstart file should exist");
-        // Block info values match migration, so no update should have been made
-        verify(blockInfoSingleton, never()).put(any());
+        assertTrue(Files.exists(jumpstartFile), "Jumpstart file should remain until vote is observed in state");
+        assertFalse(
+                Files.exists(tempDir.resolve("archived_jumpstart.bin")),
+                "Archived jumpstart file should not exist yet");
+        verify(blockInfoSingleton).put(any());
+        verify(blockInfoSingleton).commit();
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test
@@ -611,6 +633,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", false)
+                .withValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
@@ -620,8 +643,12 @@ class SystemTransactionsTest {
         given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
-
-        given(wrappedRecordBlockHashMigration.result()).willReturn(null);
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
 
         subject = new SystemTransactions(
                 initTrigger,
@@ -639,16 +666,20 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
+        verify(blockInfoSingleton).put(any());
+        verify(blockInfoSingleton).commit();
         // jumpstartFilePath() should never be called when result is null
         verify(wrappedRecordBlockHashMigration, never()).jumpstartFilePath();
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test
-    void postUpgradeSetupOverwritesBlockInfoWhenMigrationDiffers(@TempDir Path tempDir) throws IOException {
+    void postUpgradeSetupOverwritesBlockInfo() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -657,6 +688,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", false)
+                .withValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
@@ -667,10 +699,6 @@ class SystemTransactionsTest {
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
 
-        // Create a real jumpstart file
-        final var jumpstartFile = tempDir.resolve("jumpstart.bin");
-        Files.writeString(jumpstartFile, "test");
-
         // Migration result with specific values
         final var migrationRootHash = Bytes.wrap(new byte[] {1, 2, 3});
         final var migrationIntermediateHashes = List.of(Bytes.wrap(new byte[] {4, 5, 6}));
@@ -678,7 +706,6 @@ class SystemTransactionsTest {
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(
                         Bytes.EMPTY, migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
-        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
 
         // Set up BlockInfo in state with DIFFERENT values than the migration
         final var staleBlockInfo = BlockInfo.newBuilder()
@@ -710,18 +737,135 @@ class SystemTransactionsTest {
                 startupNetworks,
                 stakePeriodChanges,
                 selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration);
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         subject.doPostUpgradeSetup(NOW, state);
 
-        // Verify that blockInfoSingleton.put() was called with updated values
-        final var captor = org.mockito.ArgumentCaptor.forClass(BlockInfo.class);
-        verify(blockInfoSingleton).put(captor.capture());
-        final var updatedBlockInfo = captor.getValue();
-        assertEquals(migrationRootHash, updatedBlockInfo.previousWrappedRecordBlockRootHash());
-        assertEquals(migrationIntermediateHashes, updatedBlockInfo.wrappedIntermediatePreviousBlockRootHashes());
-        assertEquals(migrationLeafCount, updatedBlockInfo.wrappedIntermediateBlockRootsLeafCount());
-        // Verify commit() was called after put()
+        // Post-upgrade setup initializes voting metadata on first upgrade.
+        verify(blockInfoSingleton).put(any());
         verify(blockInfoSingleton).commit();
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
+    }
+
+    @Test
+    void maybeSubmitStartupMigrationVoteSubmitsWhenSelfVoteAbsent() {
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(creatorNodeInfo.nodeId()).willReturn(0L);
+
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get())
+                .willReturn(BlockInfo.newBuilder().votingComplete(false).build());
+
+        given(migrationRootHashSubmissions.submitStartupVoteIfActive(any())).willReturn(true);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+
+        verify(migrationRootHashSubmissions, times(1)).submitStartupVoteIfActive(any());
+    }
+
+    @Test
+    void maybeSubmitStartupMigrationVoteSkipsWhenSelfVotePresent() throws IOException {
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(creatorNodeInfo.nodeId()).willReturn(0L);
+        final var jumpstartFile = Files.createTempFile("jumpstart-", ".bin");
+        given(wrappedRecordBlockHashMigration.jumpstartFilePath()).willReturn(jumpstartFile);
+
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get())
+                .willReturn(BlockInfo.newBuilder()
+                        .votingComplete(false)
+                        .migrationRootHashVotes(List.of(NodeMigrationRootHashVote.newBuilder()
+                                .nodeId(new com.hedera.hapi.platform.state.NodeId(0L))
+                                .vote(com.hedera.hapi.services.auxiliary.blockrecords
+                                        .MigrationRootHashVoteTransactionBody.newBuilder()
+                                        .build())
+                                .build()))
+                        .build());
+
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
+        verify(wrappedRecordBlockHashMigration, times(1)).jumpstartFilePath();
+        assertFalse(Files.exists(jumpstartFile));
+    }
+
+    private static NodeRewardGroups nodeRewardGroups(List<AccountID> active, List<AccountID> inactive) {
+        return new NodeRewardGroups(
+                active.stream()
+                        .map(id -> new NodeRewardActivity(id.accountNum(), id, 0, 100, 0))
+                        .collect(Collectors.toList()),
+                inactive.stream()
+                        .map(id -> new NodeRewardActivity(id.accountNum(), id, 101, 100, 0))
+                        .collect(Collectors.toList()));
+    }
+
+    private static @NonNull NodeRewardGroups emptyNodeGroups() {
+        return nodeRewardGroups(List.of(), List.of());
+    }
+
+    @Test
+    void currentBlockNumberUsesRecordBlockNumberInRecordsMode() throws Exception {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "RECORDS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new SystemTransactions(
+                initTrigger,
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
+
+        final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertNull(method.invoke(subject));
+        verify(blockStreamManager, never()).blockNo();
+        verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void currentBlockNumberUsesBlockStreamNumberInBlocksMode() throws Exception {
+        given(blockStreamManager.blockNo()).willReturn(123L);
+
+        final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertEquals(123L, method.invoke(subject));
+        verify(blockStreamManager).blockNo();
+        verify(blockRecordManager, never()).blockNo();
     }
 }
