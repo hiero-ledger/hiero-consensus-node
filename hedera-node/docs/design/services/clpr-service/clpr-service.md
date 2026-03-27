@@ -921,9 +921,9 @@ a valid state proof but the responses within it are out of order (e.g., R3 arriv
 source ledger's CLPR Service automatically transitions the Connection to **HALTED**
 ([§3.1.3](#313-establishing-and-updating-connections)). It does not slash — you cannot slash a peer
 ledger, only individual endpoints. The out-of-order responses are already committed in the peer's
-outbound queue and cannot be unsent. HALTED does not auto-recover. The admin must coordinate with
-the peer to fix the underlying bug (which may require a CLPR Service contract upgrade on platforms
-like Ethereum), then close the Connection. A new Connection can be registered after the fix.
+outbound queue and cannot be unsent. The admin must coordinate with the peer to fix the underlying
+bug (which may require a CLPR Service contract upgrade on platforms like Ethereum), then resume the
+Connection via `resumeConnection`.
 
 Note the distinction from bad inbound bundles: if a peer sends bundles that fail verification (bad
 hash chain, replay, oversized payloads), the CLPR Service simply rejects them — no state change.

@@ -721,9 +721,9 @@ Response ordering is tracked implicitly by walking the retained outbound Data Me
 separate counter.
 
 **HALTED recovery.** A HALTED Connection does not automatically recover. The ordering violation indicates a
-fundamental peer-side bug in response generation. The admin MUST intervene — typically by coordinating with the
-peer to fix the bug (which may require a contract upgrade on platforms like Ethereum), then closing the Connection
-(see §5.5) and re-registering if queue state is unrecoverable.
+peer-side bug in response generation. The admin MUST intervene — typically by coordinating with the peer to fix
+the bug (which may require a contract upgrade on platforms like Ethereum), then resuming the Connection via
+`resumeConnection` (see §5.5). If queue state is unrecoverable, the admin may close the Connection instead.
 
 **Distinction from bad inbound bundles.** If a peer sends bundles that fail verification (bad hash chain, replay,
 oversized payloads), the CLPR Service simply rejects them — no HALT, no state change. The Connection remains
