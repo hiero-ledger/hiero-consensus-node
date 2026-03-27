@@ -303,6 +303,11 @@ public class BlockStreamBuilder
      * This is useful to set the first hookId on the account if the head is deleted
      */
     private Long nextHookId;
+    /**
+     * The block number of the transaction. This is used to include the block number in the
+     * transaction receipt.
+     */
+    private Long blockNumber;
 
     // --- Fields used to build the TransactionOutput(s) ---
     /**
@@ -477,9 +482,12 @@ public class BlockStreamBuilder
      * {@link BlockItemsTranslator} to use.
      * @param blockItems the list of block items
      * @param translationContext the translation context
+     * @param blockNumber the block number, if known
      */
     public record Output(
-            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+            @NonNull List<BlockItem> blockItems,
+            @NonNull TranslationContext translationContext,
+            @Nullable Long blockNumber) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -496,6 +504,7 @@ public class BlockStreamBuilder
 
         /**
          * Translates the block items into a transaction record.
+         *
          * @param translator the translator to use
          * @return the transaction record
          */
@@ -506,7 +515,9 @@ public class BlockStreamBuilder
 
         /**
          * Translates the block items into a transaction receipt.
+         *
          * @param translator the translator to use
+         * is not known at the time of translation
          * @return the transaction record
          */
         public RecordSource.IdentifiedReceipt toIdentifiedReceipt(@NonNull final BlockItemsTranslator translator) {
@@ -529,10 +540,11 @@ public class BlockStreamBuilder
          *     <li>Find the {@link TransactionOutput} items, if any.</li>
          *     <li>Translate these items into a view of the requested type.</li>
          * </ol>
+         *
+         * @param <T> the Java type of the view
          * @param translator the translator to use
          * @param view the type of view to translate to
          * @return the translated view
-         * @param <T> the Java type of the view
          */
         @SuppressWarnings("unchecked")
         private <T> T toView(@NonNull final BlockItemsTranslator translator, @NonNull final View view) {
@@ -569,8 +581,9 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result, outputs));
-                            case RECORD -> translator.translateRecord(translationContext, result, logs, outputs);
+                                        translator.translateReceipt(translationContext, result, blockNumber, outputs));
+                            case RECORD ->
+                                translator.translateRecord(translationContext, result, logs, blockNumber, outputs);
                         };
             } else {
                 return (T)
@@ -578,8 +591,8 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result));
-                            case RECORD -> translator.translateRecord(translationContext, result, null);
+                                        translator.translateReceipt(translationContext, result, blockNumber));
+                            case RECORD -> translator.translateRecord(translationContext, result, null, blockNumber);
                         };
             }
         }
@@ -777,7 +790,7 @@ public class BlockStreamBuilder
                             .build())
                     .build());
         }
-        return new Output(blockItems, translationContext);
+        return new Output(blockItems, translationContext, blockNumber);
     }
 
     @Override
@@ -1202,6 +1215,13 @@ public class BlockStreamBuilder
     @Override
     public BlockStreamBuilder highVolumePricingMultiplier(final long highVolumePricingMultiplier) {
         transactionResultBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public BlockStreamBuilder blockNumber(final Long blockNumber) {
+        this.blockNumber = blockNumber;
         return this;
     }
 
