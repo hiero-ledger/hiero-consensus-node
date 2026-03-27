@@ -281,6 +281,47 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> testAtomicBatchCryptoCreateAndType4DelegateRolledBackOnFailure() {
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var accountInBatch = DELEGATING_ACCOUNT + "CreateThenDelegateRollback";
+        final var batchTxn = "batchCreateDelegateRollback";
+        return hapiTest(
+                newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
+                createFundedAccount(DELEGATING_ACCOUNT),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                cryptoCreate(accountInBatch)
+                                        .key(accountInBatch)
+                                        .withMatchingEvmAddress()
+                                        .balance(ONE_HUNDRED_HBARS)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(DELEGATING_ACCOUNT)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, accountInBatch)
+                                        .gasLimit(2_000_000L)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .via(batchTxn)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(batchTxn).andAllChildRecords().logged(),
+                        // Account A rolled back (does not exist). No delegation persisted.
+                        getAliasedAccountInfo(accountInBatch)
+                                .hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID)
+
+                        // TODO (dsinyakov): Add below assert when atomic batch delegation persistence is fixed
+                        // When delegation survives rollback, account A should exist with delegation set
+                        // getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress)
+                        )));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> testAtomicBatchCryptoCreateSetsDelegationThenType4UpdatesIt() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegationTargetAddress = DELEGATION_TARGET.get();
