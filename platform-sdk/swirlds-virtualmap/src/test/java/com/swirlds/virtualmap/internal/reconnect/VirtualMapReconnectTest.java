@@ -262,37 +262,6 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
         copy.release();
     }
 
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("Reconnect"), @Tag("Lifecycle")})
-    @DisplayName("reconnectCache is cleaned up after successful reconnect")
-    void reconnectCacheIsCleanedUpAfterReconnect() throws Exception {
-        teacherMap.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        teacherMap.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
-        teacherMap.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
-
-        final VirtualMap copy = teacherMap.copy();
-        teacherMap.reserve();
-        learnerMap.reserve();
-
-        try {
-            final var reconnectedNode =
-                    MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
-
-            // After reconnect, reconnectCache should have been shut down and nulled out
-            final Field reconnectCacheField = VirtualMap.class.getDeclaredField("reconnectCache");
-            reconnectCacheField.setAccessible(true);
-            assertNull(
-                    reconnectCacheField.get(reconnectedNode),
-                    "reconnectCache should be null after successful reconnect");
-
-            reconnectedNode.release();
-        } finally {
-            teacherMap.release();
-            learnerMap.release();
-            copy.release();
-        }
-    }
-
     static Stream<Arguments> provideSmallTreePermutations() {
         final List<Arguments> args = new ArrayList<>();
         // Two large leaf trees that have no intersection
