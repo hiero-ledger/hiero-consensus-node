@@ -44,7 +44,6 @@ import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,13 +55,11 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.bouncycastle.util.encoders.Hex;
 
 public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
-    record AuthorizationListItem(Address target, Function<HapiSpec, Long> nonceFn, String privateKeyRef) {
-    }
+    record AuthorizationListItem(Address target, Function<HapiSpec, Long> nonceFn, String privateKeyRef) {}
 
     private static final String CALL_DATA_FILE_NAME = "CallData";
     private List<String> otherSigs = Collections.emptyList();
@@ -116,8 +113,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         return this;
     }
 
-    private HapiEthereumCall() {
-    }
+    private HapiEthereumCall() {}
 
     public HapiEthereumCall(String contract) {
         this.abi = Optional.of(FALLBACK_ABI);
@@ -389,9 +385,10 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         Object[] accessListRlp = null;
         if (type != EthTransactionType.LEGACY_ETHEREUM && !accessListItems.isEmpty()) {
             accessListRlp = accessListItems.stream()
-                    .map(e -> new Object[]{e.address().toArray(),  e.storageKeys()
-                            .stream()
-                            .map(Bytes::toArray).toArray()})
+                    .map(e -> new Object[] {
+                        e.address().toArray(),
+                        e.storageKeys().stream().map(Bytes::toArray).toArray()
+                    })
                     .toArray();
             accessList = RLPEncoder.sequence(accessListRlp);
         }
@@ -446,7 +443,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
             createFile.execFor(spec);
             updateLargeFile.execFor(spec);
             ethFileID = Optional.of(TxnUtils.asFileId(CALL_DATA_FILE_NAME, spec));
-            signedEthTxData = signedEthTxData.replaceCallData(new byte[]{});
+            signedEthTxData = signedEthTxData.replaceCallData(new byte[] {});
         }
         final var finalEthTxData = signedEthTxData;
 

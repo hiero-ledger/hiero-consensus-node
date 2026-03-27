@@ -1,27 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum;
-
-import com.esaulpaugh.headlong.abi.Address;
-import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
-import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.dsl.annotations.Contract;
-import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
-import org.apache.tuweni.bytes.Bytes;
-import org.apache.tuweni.bytes.Bytes32;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -36,28 +14,51 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 
+import com.esaulpaugh.headlong.abi.Address;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
+import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
+
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
 public class AccessListTest {
 
     @Contract(contract = "AccessListCallerContract")
     static SpecContract callerContract;
-    private static final AtomicReference<Address> callerContractAddress = new AtomicReference<>();
 
     @Contract(contract = "AccessListTargetContract")
     static SpecContract targetContract;
+
     private static final AtomicReference<Address> targetContractAddress = new AtomicReference<>();
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
-                callerContract.getInfo()
-                        .andAssert(e -> e.exposingEvmAddress(address ->
-                                callerContractAddress.set(asHeadlongAddress(address)))),
-                targetContract.getInfo()
-                        .andAssert(e -> e.exposingEvmAddress(address ->
-                                targetContractAddress.set(asHeadlongAddress(address))))
-        );
+                callerContract
+                        .getInfo(),
+                targetContract
+                        .getInfo()
+                        .andAssert(e -> e.exposingEvmAddress(
+                                address -> targetContractAddress.set(asHeadlongAddress(address)))));
     }
 
     @HapiTest
@@ -79,12 +80,11 @@ public class AccessListTest {
                 // EIP1559 call with accessLists
                 ethereumCallWithAccessList(EthTxData.EthTransactionType.EIP1559, legacyGas, List.of(0)),
                 ethereumCallWithAccessList(EthTxData.EthTransactionType.EIP1559, legacyGas, List.of(1)),
-                ethereumCallWithAccessList(EthTxData.EthTransactionType.EIP1559, legacyGas, List.of(2, 3, 4))
-        );
+                ethereumCallWithAccessList(EthTxData.EthTransactionType.EIP1559, legacyGas, List.of(2, 3, 4)));
     }
 
-    private static HapiEthereumCall ethereumCallWithAccessList(final EthTxData.EthTransactionType type, final AtomicLong legacyGas,
-                                                               final List<Integer> storageKeysCount) {
+    private static HapiEthereumCall ethereumCallWithAccessList(
+            final EthTxData.EthTransactionType type, final AtomicLong legacyGas, final List<Integer> storageKeysCount) {
         // generate access list
         final List<AccessListItem> accessLists = new ArrayList<>();
         for (final Integer count : storageKeysCount) {
@@ -101,7 +101,11 @@ public class AccessListTest {
                 .withAccessList(accessLists)
                 .exposingGasTo((status, gas) -> Assertions.assertEquals(
                         legacyGas.get()
-                        + 2_400L * storageKeysCount.size()
-                        + 1_900L * storageKeysCount.stream().mapToInt(e -> e).sum(), gas));
+                                + 2_400L * storageKeysCount.size()
+                                + 1_900L
+                                * storageKeysCount.stream()
+                                .mapToInt(e -> e)
+                                .sum(),
+                        gas));
     }
 }

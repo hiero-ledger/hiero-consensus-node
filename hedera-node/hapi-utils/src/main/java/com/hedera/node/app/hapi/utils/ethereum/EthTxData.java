@@ -159,10 +159,7 @@ public record EthTxData(
     // For more information on encoding `v` see EIP-155 - https://eips.ethereum.org/EIPS/eip-155
 
     public byte[] encodeTx() {
-        // TODO Glib: support re-encoding
-//        if (accessList != null && accessList.length > 0) {
-//            throw new IllegalStateException("Re-encoding access list is unsupported");
-//        }
+        // TODO Glib: check if we can use accessList instead of accessListRlp
         return switch (type) {
             case LEGACY_ETHEREUM ->
                 RLPEncoder.list(
