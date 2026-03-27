@@ -36,7 +36,6 @@ tasks:
       - task: "install:kubectl:darwin"
       - task: "install:kubectl:linux"
       - task: "install"
-      - task: "start"
 
   install:
     desc: solo init, solo cluster-ref create, solo node keys, solo network deploy
@@ -48,7 +47,12 @@ tasks:
       - task: "solo:deployment:create"
       - task: "solo:deployment:add-cluster"
       - task: "solo:keys"
+
+  installCNs:
+    desc: solo init, solo cluster-ref create, solo node keys, solo network deploy
+    cmds:
       - task: "solo:network:deploy"
+      - task: "start"
 
   destroy:
     cmds:

@@ -215,7 +215,7 @@ jobs:
 
       - name: Install Cobertura
         run: |
-          gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/cobertura-assembly-2.1.2-SNAPSHOT.tgz "${HOME}"/cobertura-assembly-2.1.2-SNAPSHOT.tgz
+          gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/cobertura-assembly-2.1.2-SNAPSHOT25.tgz "${HOME}"/cobertura-assembly-2.1.2-SNAPSHOT.tgz
           cd "${HOME}"
           tar xfz cobertura-assembly-2.1.2-SNAPSHOT.tgz
 
@@ -519,6 +519,13 @@ jobs:
            task solo:block:add
           done
           sleep 30
+
+      - name: Start CNs
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          task installCNs
 
       - name: Restart CNs with BlockNodes defined
         run: |
