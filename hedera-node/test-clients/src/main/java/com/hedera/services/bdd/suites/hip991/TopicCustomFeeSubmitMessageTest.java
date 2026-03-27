@@ -65,7 +65,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static org.hiero.hapi.support.fees.Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
-import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -1853,7 +1852,7 @@ public class TopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     // --- Fee validations in simple fees - legacy fees dual-mode ---//
                     validateFeeModeAwareWithTxnSize(
                             "simpleSubmit",
-                            Map.of(SIGNATURES, 1L, STATE_BYTES, testMsgBytes),
+                            Map.of(SIGNATURES, 1L, CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, testMsgBytes),
                             Map.of(LEGACY_EXPECTED_USD, 0.05, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
                             simpleFeesAllowedPercentDiff,
                             submitExpectedFn),
