@@ -154,8 +154,8 @@ public class CodeDelegationAtomicBatchTest {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var batchTxn = "BatchDelegationRollback";
         return hapiTest(
-                createHollowAccount(DELEGATING_ACCOUNT),
-                cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
+                createHollowAccounts(DELEGATING_ACCOUNT),
+                createFundedAccount(CRYPTO_CREATE_DELEGATING_ACCOUNT),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
@@ -226,14 +226,9 @@ public class CodeDelegationAtomicBatchTest {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var partialCommitTxn = "batchType4PartialCommitAcrossAccounts";
         return hapiTest(
-                newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
-                newKeyNamed(delegatingAccount1).shape(SECP_256K1_SHAPE),
-                newKeyNamed(delegatingAccount2).shape(SECP_256K1_SHAPE),
-                newKeyNamed(delegatingAccount3).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS)
-                        .distributing(GENESIS, DELEGATING_ACCOUNT, delegatingAccount1)),
-                cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS)
-                        .distributing(GENESIS, delegatingAccount2, delegatingAccount3)),
+                // Split into two calls to avoid MAX_CHILD_RECORDS_EXCEEDED
+                createHollowAccounts(DELEGATING_ACCOUNT, delegatingAccount1),
+                createHollowAccounts(delegatingAccount2, delegatingAccount3),
                 cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 withOpContext((spec, opLog) -> allRunFor(
@@ -278,14 +273,9 @@ public class CodeDelegationAtomicBatchTest {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         final var partialCommitTxn = "batchType4PartialCommitAcrossAccounts";
         return hapiTest(
-                newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
-                newKeyNamed(delegatingAccount1).shape(SECP_256K1_SHAPE),
-                newKeyNamed(delegatingAccount2).shape(SECP_256K1_SHAPE),
-                newKeyNamed(delegatingAccount3).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS)
-                        .distributing(GENESIS, DELEGATING_ACCOUNT, delegatingAccount1)),
-                cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS)
-                        .distributing(GENESIS, delegatingAccount2, delegatingAccount3)),
+                // Split into two calls to avoid MAX_CHILD_RECORDS_EXCEEDED
+                createHollowAccounts(DELEGATING_ACCOUNT, delegatingAccount1),
+                createHollowAccounts(delegatingAccount2, delegatingAccount3),
                 cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 withOpContext((spec, opLog) -> allRunFor(
@@ -323,10 +313,12 @@ public class CodeDelegationAtomicBatchTest {
                 cryptoCreate(name).key(name).withMatchingEvmAddress().balance(ONE_HUNDRED_HBARS));
     }
 
-    private static SpecOperation createHollowAccount(@NonNull final String name) {
-        return blockingOrder(
-                newKeyNamed(name).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS)
-                        .distributing(GENESIS, DELEGATING_ACCOUNT, name)));
+    private static SpecOperation createHollowAccounts(@NonNull final String... names) {
+        final var ops = new java.util.ArrayList<SpecOperation>();
+        for (final var name : names) {
+            ops.add(newKeyNamed(name).shape(SECP_256K1_SHAPE));
+        }
+        ops.add(cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS).distributing(GENESIS, names)));
+        return blockingOrder(ops.toArray(SpecOperation[]::new));
     }
 }
