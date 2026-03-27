@@ -188,7 +188,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.detect-flaky-hapi-misc.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.detect-flaky-hapi-misc.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Misc) Network Logs
           path: |
@@ -207,6 +207,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-misc-records:
@@ -264,7 +267,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc Records) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc-records.conclusion == 'failure' || steps.detect-flaky-hapi-misc-records.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-misc-records.conclusion == 'failure' || steps.detect-flaky-hapi-misc-records.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Misc Records) Network Logs
           path: |
@@ -283,6 +286,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-crypto:
@@ -341,7 +347,7 @@ jobs:
 
       - name: Upload HAPI Test (Crypto) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-crypto.conclusion == 'failure' || steps.detect-flaky-hapi-crypto.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-crypto.conclusion == 'failure' || steps.detect-flaky-hapi-crypto.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Crypto) Network Logs
           path: |
@@ -360,6 +366,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-simple-fees:
@@ -418,7 +427,7 @@ jobs:
 
       - name: Upload HAPI Test (Simple Fees) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-simplefees.conclusion == 'failure' || steps.detect-flaky-hapi-simplefees.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-simplefees.conclusion == 'failure' || steps.detect-flaky-hapi-simplefees.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Simple Fees) Network Logs
           path: |
@@ -437,6 +446,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-token:
@@ -494,7 +506,7 @@ jobs:
 
       - name: Upload HAPI Test (Token) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-token.conclusion == 'failure' || steps.detect-flaky-hapi-token.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-token.conclusion == 'failure' || steps.detect-flaky-hapi-token.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Token) Network Logs
           path: |
@@ -513,6 +525,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-smart-contracts:
@@ -570,7 +585,7 @@ jobs:
 
       - name: Upload HAPI Test (Smart Contract) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-smart-contract.conclusion == 'failure' || steps.detect-flaky-hapi-smart-contract.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-smart-contract.conclusion == 'failure' || steps.detect-flaky-hapi-smart-contract.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Smart Contract) Network Logs
           path: |
@@ -589,6 +604,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-time-consuming:
@@ -646,7 +664,7 @@ jobs:
 
       - name: Upload HAPI Test (Time Consuming) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-time-consuming.conclusion == 'failure' || steps.detect-flaky-hapi-time-consuming.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-time-consuming.conclusion == 'failure' || steps.detect-flaky-hapi-time-consuming.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Time Consuming) Network Logs
           path: |
@@ -665,6 +683,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-restart:
@@ -722,7 +743,7 @@ jobs:
 
       - name: Upload HAPI Test (Restart) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-restart.conclusion == 'failure' || steps.detect-flaky-hapi-restart.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-restart.conclusion == 'failure' || steps.detect-flaky-hapi-restart.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Restart) Network Logs
           path: |
@@ -741,6 +762,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-nd-reconnect:
@@ -798,7 +822,7 @@ jobs:
 
       - name: Upload HAPI Test (Node Death Reconnect) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-nd-reconnect.conclusion == 'failure' || steps.detect-flaky-hapi-nd-reconnect.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-nd-reconnect.conclusion == 'failure' || steps.detect-flaky-hapi-nd-reconnect.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Node Death Reconnect) Network Logs
           path: |
@@ -817,6 +841,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-iss:
@@ -874,7 +901,7 @@ jobs:
 
       - name: Upload HAPI Test (ISS) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-iss.conclusion == 'failure' || steps.detect-flaky-hapi-iss.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-iss.conclusion == 'failure' || steps.detect-flaky-hapi-iss.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (ISS) Network Logs
           path: |
@@ -893,6 +920,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-bn-comms:
@@ -950,7 +980,7 @@ jobs:
 
       - name: Upload HAPI Test (Block Node Communication) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-bn-communication.conclusion == 'failure' || steps.detect-flaky-hapi-bn-communication.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-bn-communication.conclusion == 'failure' || steps.detect-flaky-hapi-bn-communication.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Block Node Communication) Network Logs
           path: |
@@ -967,6 +997,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-atomic-batch:
@@ -1024,7 +1057,7 @@ jobs:
 
       - name: Upload HAPI Test (Atomic Batch) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-atomic-batch.conclusion == 'failure' || steps.detect-flaky-hapi-atomic-batch.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-atomic-batch.conclusion == 'failure' || steps.detect-flaky-hapi-atomic-batch.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (Atomic Batch) Network Logs
           path: |
@@ -1043,6 +1076,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   hapi-tests-state-throttling:
@@ -1100,7 +1136,7 @@ jobs:
 
       - name: Upload HAPI Test (State Throttling) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-state-throttling.conclusion == 'failure' || steps.detect-flaky-hapi-state-throttling.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-state-throttling.conclusion == 'failure' || steps.detect-flaky-hapi-state-throttling.outputs.has-flaky == 'true') }}
         with:
           name: HAPI Test (State Throttling) Network Logs
           path: |
@@ -1119,6 +1155,9 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
   set-failure-mode:
