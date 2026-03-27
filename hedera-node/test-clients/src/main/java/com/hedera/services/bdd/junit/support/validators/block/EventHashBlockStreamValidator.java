@@ -255,27 +255,90 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     static PcesEventHashReader.PcesData readPcesDataFromSpec(@NonNull final HapiSpec spec) {
         final var mergedHashes = new java.util.HashSet<Hash>();
         final var mergedBirthRounds = new HashMap<Long, TreeSet<Long>>();
-        final var nodesWithPces = new ArrayList<Long>();
-        final var nodesWithoutPces = new ArrayList<Long>();
+        final var nodesWithPces = new ArrayList<String>();
+        final var nodesWithoutPces = new ArrayList<String>();
+
+        // Read PCES from active network nodes
+        final var activeNodeIds = new java.util.HashSet<Long>();
         for (final var node : spec.getNetworkNodes()) {
-            final Path pcesDir =
-                    node.getExternalPath(ExternalPath.PCES_DIR).toAbsolutePath().normalize();
-            if (Files.exists(pcesDir)) {
-                final var nodeData = PcesEventHashReader.readPcesData(pcesDir);
-                mergedHashes.addAll(nodeData.eventHashes());
-                nodeData.birthRoundsByCreator().forEach((creator, rounds) -> mergedBirthRounds
-                        .computeIfAbsent(creator, k -> new TreeSet<>())
-                        .addAll(rounds));
-                nodesWithPces.add(node.getNodeId());
-            } else {
-                nodesWithoutPces.add(node.getNodeId());
+            activeNodeIds.add(node.getNodeId());
+            readPcesFromDir(
+                    node.getExternalPath(ExternalPath.PCES_DIR).toAbsolutePath().normalize(),
+                    "node" + node.getNodeId(),
+                    mergedHashes,
+                    mergedBirthRounds,
+                    nodesWithPces,
+                    nodesWithoutPces);
+        }
+
+        // Also scan sibling node directories for removed nodes' PCES files.
+        // When DabEnabledUpgradeTest removes nodes, their working directories (and PCES files)
+        // remain on disk, but they're no longer in spec.getNetworkNodes().
+        final var anyNode = spec.getNetworkNodes().getFirst();
+        final var testDir = anyNode.getExternalPath(ExternalPath.WORKING_DIR)
+                .toAbsolutePath()
+                .normalize()
+                .getParent();
+        if (testDir != null && Files.isDirectory(testDir)) {
+            try (final var dirs = Files.list(testDir)) {
+                dirs.filter(Files::isDirectory)
+                        .filter(d -> d.getFileName().toString().startsWith("node"))
+                        .forEach(nodeDir -> {
+                            final var dirName = nodeDir.getFileName().toString();
+                            try {
+                                final long nodeId = Long.parseLong(dirName.substring("node".length()));
+                                if (activeNodeIds.contains(nodeId)) {
+                                    return; // Already read above
+                                }
+                                // Scan all PCES subdirectories (e.g., nodeDir/data/saved/preconsensus-events/*)
+                                final var pcesParent =
+                                        nodeDir.resolve("data").resolve("saved").resolve("preconsensus-events");
+                                if (Files.isDirectory(pcesParent)) {
+                                    try (final var pcesSubDirs = Files.list(pcesParent)) {
+                                        pcesSubDirs
+                                                .filter(Files::isDirectory)
+                                                .forEach(pcesDir -> readPcesFromDir(
+                                                        pcesDir,
+                                                        dirName + "(removed)",
+                                                        mergedHashes,
+                                                        mergedBirthRounds,
+                                                        nodesWithPces,
+                                                        nodesWithoutPces));
+                                    }
+                                }
+                            } catch (final NumberFormatException | IOException e) {
+                                // Skip directories that don't match node pattern
+                            }
+                        });
+            } catch (final IOException e) {
+                logger.warn("Failed to scan test directory {} for removed node PCES", testDir, e);
             }
         }
+
         logger.info(
                 "Read {} total PCES event hashes. Nodes with PCES: {}, nodes without: {}",
                 mergedHashes.size(),
                 nodesWithPces,
                 nodesWithoutPces);
         return new PcesEventHashReader.PcesData(mergedHashes, mergedBirthRounds);
+    }
+
+    private static void readPcesFromDir(
+            @NonNull final Path pcesDir,
+            @NonNull final String label,
+            @NonNull final Set<Hash> mergedHashes,
+            @NonNull final Map<Long, TreeSet<Long>> mergedBirthRounds,
+            @NonNull final List<String> nodesWithPces,
+            @NonNull final List<String> nodesWithoutPces) {
+        if (Files.exists(pcesDir)) {
+            final var nodeData = PcesEventHashReader.readPcesData(pcesDir);
+            mergedHashes.addAll(nodeData.eventHashes());
+            nodeData.birthRoundsByCreator().forEach((creator, rounds) -> mergedBirthRounds
+                    .computeIfAbsent(creator, k -> new TreeSet<>())
+                    .addAll(rounds));
+            nodesWithPces.add(label);
+        } else {
+            nodesWithoutPces.add(label);
+        }
     }
 }
