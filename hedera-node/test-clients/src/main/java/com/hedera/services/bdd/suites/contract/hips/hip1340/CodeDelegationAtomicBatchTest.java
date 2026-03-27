@@ -322,6 +322,41 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> testExistingAccountDelegationSurvivesRollback() {
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var sender = DELEGATING_ACCOUNT + "SenderFor3_1";
+        final var authorityAccount = DELEGATING_ACCOUNT + "Authority3_1";
+        final var batchTxn = "batchExistingAccountDelegation";
+        return hapiTest(
+                createFundedAccount(sender),
+                createFundedAccount(authorityAccount),
+                getAliasedAccountInfo(authorityAccount).hasNoDelegation(),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, authorityAccount)
+                                        .gasLimit(2_000_000L)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .via(batchTxn)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(batchTxn).andAllChildRecords().logged(),
+
+                        // TODO (dsinyakov): switch to below assert when atomic batch delegation persistence is fixed
+                        // Delegation to A should survive rollback
+                        // getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress)
+                        getAliasedAccountInfo(authorityAccount).hasNoDelegation())));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> testAtomicBatchCryptoCreateSetsDelegationThenType4UpdatesIt() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegationTargetAddress = DELEGATION_TARGET.get();
