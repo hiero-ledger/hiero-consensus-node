@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -60,6 +61,7 @@ public class CodeDelegationAtomicBatchTest {
     private static final AtomicReference<Address> DELEGATION_TARGET = new AtomicReference<>();
     private static final String DELEGATING_ACCOUNT = "DelegatingAccount";
     private static final String CONTRACT = "CreateTrivial";
+    private static final String REVERTING_CONTRACT = "InternalCallee";
     private static final String DELEGATION_SET = "DelegationSet";
     private static final String CRYPTO_CREATE_DELEGATING_ACCOUNT = "CryptoCreateDelegatingAccount";
     private static final String ACCOUNT_WITH_BALANCE = "AccountWithBalance";
@@ -67,6 +69,9 @@ public class CodeDelegationAtomicBatchTest {
 
     @Contract(contract = CONTRACT, creationGas = 5_000_000)
     static SpecContract contract;
+
+    @Contract(contract = REVERTING_CONTRACT, creationGas = 5_000_000)
+    static SpecContract revertingContract;
 
     @Account(name = ACCOUNT_WITH_BALANCE, tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount account;
@@ -81,6 +86,7 @@ public class CodeDelegationAtomicBatchTest {
     public static void setup(@NonNull final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
                 contract.getInfo(),
+                revertingContract.getInfo(),
                 account.getInfo(),
                 insufficientBalanceAccount.getInfo(),
                 relayer.getInfo(),
@@ -145,6 +151,36 @@ public class CodeDelegationAtomicBatchTest {
                         // TODO (dsinyakov): switch to below assert when atomic batch behavior is fixed
                         // getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress)
                         getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation())
+                ));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> testDelegationSurvivesRevertingType4InAtomicBatch() {
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var type4Txn = "DelegationWithRevertInBatch";
+        return hapiTest(
+                createFundedAccount(DELEGATING_ACCOUNT),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
+                                        .signingWith(DELEGATING_ACCOUNT)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(2_000_000L)
+                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .via(type4Txn)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(type4Txn).andAllChildRecords().logged(),
+
+                        // TODO (dsinyakov): switch to below assert when atomic batch behavior is fixed
+                        // getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress)
+                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation())
+
                 ));
     }
 
