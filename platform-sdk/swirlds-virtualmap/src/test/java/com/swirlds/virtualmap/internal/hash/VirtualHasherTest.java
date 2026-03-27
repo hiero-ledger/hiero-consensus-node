@@ -33,8 +33,6 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -48,20 +46,6 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 @SuppressWarnings("rawtypes")
 class VirtualHasherTest extends VirtualHasherTestBase {
-
-    private VirtualHasher hasher;
-
-    @BeforeEach
-    void setup() {
-        hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
-    }
-
-    @AfterEach
-    void tearDown() {
-        if (hasher != null) {
-            hasher.shutdown();
-        }
-    }
 
     /**
      * If chunk preloader is null, an NPE will be raised.

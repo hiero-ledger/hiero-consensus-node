@@ -860,10 +860,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             hasher.shutdown();
         }
         cache.shutdown();
-        if (reconnectCache != null) {
-            reconnectCache.shutdown();
-            reconnectCache = null;
-        }
         closeDataSource();
     }
 
@@ -1467,10 +1463,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             originalMap = null;
             metadata = new VirtualMapMetadata(reconnectState.getSize());
             postInit();
-            if (reconnectCache != null) {
-                reconnectCache.shutdown();
-                reconnectCache = null;
-            }
         } catch (ExecutionException e) {
             throw new MerkleSynchronizationException(e);
         } catch (InterruptedException e) {
