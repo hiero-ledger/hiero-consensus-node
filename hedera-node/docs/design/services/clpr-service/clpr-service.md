@@ -57,7 +57,7 @@ communicating directly*. Users only have to trust the two ledgers they send mess
 - **Response Message** — A special message generated on the destination ledger and sent back to the source ledger,
   indicating success or a specific failure condition. Every Data Message produces exactly one Response Message in order.
 - **Control Message** — A protocol-level message that manages the state of a Connection rather than carrying application
-  data. Endpoint roster updates and configuration updates are delivered as Control Messages.
+  data. Configuration updates are delivered as Control Messages.
 - **Source Ledger / Destination Ledger** — The originating and receiving ledgers for a given message, respectively.
 - **Configuration** — The chain ID and other metadata describing a ledger participating in CLPR.
 - **HashSphere** — A private or permissioned network running Hiero software, typically deployed for enterprise or
@@ -186,7 +186,7 @@ software; on Ethereum it is a smart contract deployed on-chain.
   [§3.1.3](#313-establishing-and-updating-connections) for how this ID is derived). Multiple Connections may target the
   same peer CLPR Service instance — for example, with different verifiers operating at different commitment levels. Each
   connection holds the peer's `ChainID` and `ClprServiceAddress`, the peer's last-known configuration timestamp, the
-  verifier contract used to verify inbound proofs, all message queue metadata, and the peer's endpoint roster.
+  verifier contract used to verify inbound proofs, and all message queue metadata.
 - **Locked funds** — Balances posted by endpoints (bonds held against misbehavior) and connectors (funds held to pay for
   message execution on arrival, and bonds held against misbehavior). The CLPR Service is the custodian of these funds
   and the sole authority for releasing or slashing them.
@@ -205,8 +205,8 @@ application dispatch, connector charging, endpoint reimbursement, misbehavior en
 ### 3.1.1 Ledger Identity and Configuration
 
 Each ledger participating in CLPR maintains a **configuration** describing its identity and communication parameters.
-The primary fields in the configuration are: `ChainID`, `Timestamp`, and `Throttles`. The endpoint
-roster is maintained separately and is not part of the configuration — see [§3.1.2](#312-endpoint-roster).
+The primary fields in the configuration are: `ChainID`, `Timestamp`, `Throttles`, and `Seed Endpoints`
+(up to 10 peer bootstrap endpoints for gossip-based discovery — see [§3.1.2](#312-endpoint-roster)).
 
 The *local configuration* describes *this* ledger.
 
@@ -252,8 +252,7 @@ namespace; uniqueness within the deployment is the operator's responsibility.
 
 Each configuration carries a `timestamp` set to the consensus time of the transaction that last modified the
 configuration. It is a monotonically increasing value used to determine which of two configurations is more recent. Any
-configuration update advances the timestamp. Endpoint roster changes do not affect the configuration timestamp, as the
-roster is managed separately.
+configuration update — including changes to throttles or seed endpoints — advances the timestamp.
 
 ---
 
@@ -379,9 +378,10 @@ bundle with messages requires having actual messages to send.
 
 ### 3.1.3 Establishing and Updating Connections
 
-Connection creation is **permissionless**. Anyone can register a new connection by deploying a verifier contract
-and specifying it at registration time. The verifier is fixed for the lifetime of the connection and cannot be changed.
-The CLPR Service admin retains the power to **pause or close** any connection at any time (see below).
+Connection creation is **permissionless**. Anyone can register a new connection by deploying a verifier contract,
+obtaining a configuration proof from the peer ledger, and calling `registerConnection`. The verifier is fixed for
+the lifetime of the connection and cannot be changed. The CLPR Service admin retains the power to **pause or
+close** any connection at any time (see below).
 
 ```mermaid
 sequenceDiagram
@@ -389,20 +389,15 @@ sequenceDiagram
     participant VA as Verifier (deployed on Ledger B)
     participant LB as Ledger B (CLPR Service)
 
-    Note over User,LB: Precondition: User has deployed the verifier contract on Ledger B
+    Note over User,LB: Precondition: User has deployed the verifier on Ledger B<br/>and obtained a config proof from Ledger A
 
-    User->>LB: registerConnection(connection_id, ecdsa_sig, verifier_address)
+    User->>LB: registerConnection(connection_id, ecdsa_sig, verifier, config_proof_bytes)
     LB->>LB: verify ecdsa_sig (caller controls connection_id)
-    LB->>LB: ✓ create Connection in REGISTERED state (store verifier)
+    LB->>VA: verifyConfig(config_proof_bytes)
+    VA-->>LB: ClprLedgerConfiguration (ChainID, throttles, seed endpoints)
+    LB->>LB: ✓ create Connection in ACTIVE state (store verifier + verified peer config)
 
-    Note over User,LB: Connection exists but is not yet operational
-
-    User->>LB: setPeerConfig(connection_id, state_proof_bytes)
-    LB->>VA: verifyConfig(state_proof_bytes)
-    VA-->>LB: ClprLedgerConfiguration (ChainID, throttles)
-    LB->>LB: ✓ store peer config, transition to ACTIVE
-
-    Note over User,LB: Connection is now operational — syncing may begin
+    Note over User,LB: Connection is immediately operational — syncing may begin
     Note over User,LB: Repeat in reverse on Ledger A for bidirectional communication
 ```
 
@@ -420,78 +415,56 @@ Ethereum has the `ecrecover` precompile, Solana has the secp256k1 program, and H
    caller controls the identity keypair.
 2. The address of a **verifier contract** already deployed on the local ledger. The verifier is fixed for the
    lifetime of the Connection and cannot be changed.
+3. **Configuration proof bytes** (`config_proof_bytes`) — an opaque proof from the peer ledger.
 
-The CLPR Service verifies the ECDSA signature (confirming the caller controls the Connection ID), records the
-Connection ID, and stores the verifier contract address and its code fingerprint.
+The CLPR Service verifies the ECDSA signature (confirming the caller controls the Connection ID), calls
+`verifyConfig(config_proof_bytes)` on the specified verifier to obtain the peer's verified configuration
+(ChainID, service address, throttles, seed endpoints, timestamp), stores the Connection with its verified peer
+config, and stores the verifier contract address and its code fingerprint. The Connection is immediately `ACTIVE`.
 
-**Peer configuration.** After registration, the Connection is in the `REGISTERED` state — it
-exists but is not yet operational. Before syncing can begin, the peer's configuration (ChainID,
-throttles) must be established via an explicit `setPeerConfig` call that provides a state proof
-from the peer ledger. The Connection's verifier validates the proof via `verifyConfig`
-([§3.1.5](#315-verifier-contracts)), extracting the peer's configuration. Once verified, the
-Connection transitions to `ACTIVE` and syncing may begin. Subsequent configuration changes are
-propagated via the messaging layer's Control Message mechanism
-([§3.2.2](#322-message-storage)), which ensures total ordering with data messages.
+Subsequent configuration changes from the peer are propagated via the messaging layer's `ConfigUpdate` Control
+Message mechanism ([§3.2.2](#322-message-storage)), which ensures total ordering with data messages.
 
 **Multiple Connections to the same peer.** Because Connections are keyed by Connection ID (not by the peer's identity),
 multiple Connections may exist between the same pair of ledgers. This is useful when a peer ledger supports multiple
 commitment levels in its state proofs — for example, Ethereum offers `latest`, `safe`, and `finalized` block
 confirmations. Each Connection uses a different verifier tuned to a specific commitment level, giving applications a
-choice between lower latency and stronger finality guarantees. Each Connection has its own independent queue, endpoint
-roster, and Connector set. See [§3.4](#34-application-layer) for application-layer patterns that leverage this.
+choice between lower latency and stronger finality guarantees. Each Connection has its own independent queue. See 
+[§3.4](#34-application-layer) for application-layer patterns that leverage this.
 
-**Connection lifecycle.** A Connection has five states:
+**Connection lifecycle.** A Connection has four states:
 
-- **REGISTERED** — The Connection has been created but peer configuration has not yet been
-  verified. No messages can be enqueued and no syncs occur. The Connection transitions to
-  `ACTIVE` when a valid peer configuration is submitted via `setPeerConfig`.
-- **ACTIVE** — Normal operation. Messages are enqueued, syncs occur, bundles are processed.
-- **PAUSED** — Temporarily halted by the CLPR Service admin. No new outbound messages are accepted,
-  and syncs are suspended. Existing queue state is preserved. This state is for investigation — the
-  admin can inspect the Connection and decide whether to resume (return to ACTIVE) or close (move to
-  CLOSING).
-- **CLOSING** — Irreversible wind-down initiated by the CLPR Service admin. No new outbound
-  messages are accepted. A `ConnectionClosing` Control Message is enqueued on the Connection's
-  outbound queue and delivered to the peer via the normal sync mechanism. When the remote CLPR
-  Service processes this Control Message, it automatically transitions its own side of the
-  Connection to CLOSING as well. During the grace period, **syncs continue in both directions**:
-  outbound messages already in the queue (including the `ConnectionClosing`) are still transmitted,
-  and inbound bundles are still processed — so responses to already-sent messages can flow back. The
-  grace period is bounded by a configurable timeout which does not have to be the same on both
-  ledgers, but SHOULD be generous.
-- **CLOSED** — The grace period timeout has expired. All remaining enqueued outbound messages
-  receive a synthetic `UNRESOLVED` response delivered to local applications — meaning "this message
-  may or may not have been processed on the remote side; the outcome is unknown." Endpoints stop
-  responding to inbound syncs for this Connection. Connection state may be retained or deleted at
-  the implementation's discretion.
+- **ACTIVE** — Normal operation. Messages are enqueued, syncs occur, bundles are processed. This is the
+  initial state after successful registration.
+- **PAUSED** — Temporarily halted by the CLPR Service admin. No new outbound messages are accepted.
+  Inbound bundles are still processed (acknowledgements continue flowing so the peer's queue does not
+  stall). This state is for investigation — the admin can inspect the Connection and decide whether to
+  resume (return to ACTIVE) or close.
+- **HALTED** — Triggered automatically when a response ordering violation is detected during inbound
+  bundle processing ([§3.2.7](#327-response-ordering-and-correlation)). Indicates a fundamental
+  peer-side bug. Inbound bundles are rejected. Does not auto-recover — requires admin intervention
+  (close the Connection).
+- **CLOSED** — Terminal state. All processing stops. Endpoints stop syncing for this Connection.
 
 **State transitions:**
 
-- REGISTERED → ACTIVE (`setPeerConfig` succeeds)
-- REGISTERED → CLOSING (CLPR Service admin decides to shut down before activation)
-- ACTIVE → PAUSED (CLPR Service admin action, or automatic on protocol violation — see
-  [§3.2.7](#327-response-ordering-and-correlation))
+- (new) → ACTIVE (`registerConnection` succeeds)
+- ACTIVE → PAUSED (CLPR Service admin action)
+- ACTIVE → CLOSED (CLPR Service admin action)
+- ACTIVE → HALTED (response ordering violation detected)
 - PAUSED → ACTIVE (CLPR Service admin resumes — issue resolved)
-- PAUSED → CLOSING (CLPR Service admin decides to shut down)
-- ACTIVE → CLOSING (CLPR Service admin skips pause, goes straight to wind-down)
-- CLOSING → CLOSED (grace period timeout expires)
+- PAUSED → CLOSED (CLPR Service admin action)
+- PAUSED → HALTED (response ordering violation detected during inbound bundle processing)
+- HALTED → CLOSED (CLPR Service admin action — the only exit from HALTED)
 
 **Who can pause and close.** Only the **CLPR Service admin** (governing council on Hiero, contract
 governance on Ethereum) can pause or close any Connection. Connections have no per-connection admin
 authority — the registrant has no special privileges after creation. The ECDSA keypair used for
 registration exists solely to coordinate cross-ledger registration and has no further protocol role.
 
-> ‼️ **`UNRESOLVED` is an honest status.** Applications MUST treat `UNRESOLVED` as "unknown outcome
-> on the remote side" and design recovery paths for it. For example, a token bridge that escrowed
-> assets on the source ledger and may or may not have minted on the destination must be able to
-> query the remote ledger's state out-of-band, determine what happened, and reconcile — potentially
-> using admin powers to unlock or mint as needed. This ambiguity is inherent to cross-ledger
-> communication when one side becomes unreachable, and no protocol can eliminate it. It is the same
-> situation as a remote ledger dying unexpectedly — the protocol cannot resolve what it cannot
-> reach.
-
-**Verifier immutability.** The verifier contract is fixed at registration time and cannot be changed. This simplifies
-the trust model: applications can evaluate a Connection's verifier once and know it will not change underneath them.
+**Verifier immutability.** The verifier contract is fixed at registration time and cannot be changed. If the source
+ledger upgrades its proof format, a new Connection must be registered with a new verifier. This simplifies the trust
+model: applications can evaluate a Connection's verifier once and know it will not change underneath them.
 
 ### 3.1.4 Endpoint Communication Protocol
 
@@ -1224,7 +1197,7 @@ should be used as the basis for integration and fault-tolerance testing.
 | R3  | **Endpoints rotated, proof format unchanged.** Sync channel broken, but existing verifier can still read proofs.                            | Broken               | Endpoint discovery (R1), then ConfigUpdate flows normally once syncs resume.                                                                                                                                                                                                  | **Works.**                                       |
 | R4  | **Endpoints rotated AND proof format changed.** Sync channel broken, existing verifier cannot read new proofs.                              | Broken               | Register a new Connection with a new verifier. Endpoint discovery (R1) on the new Connection. Old Connection closed by admin. Applications migrate to the new Connection.                                                                                                     | **Works** (requires new Connection).             |
 | R5  | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                                    | Suspect              | CLPR Service admin pauses the Connection. Since the verifier is immutable, the Connection must be closed — in-flight messages receive `UNRESOLVED`. A new Connection with a correct verifier can be registered.                                                               | **Works** (`UNRESOLVED` for in-flight messages). |
-| R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection is automatically paused ([§3.2.7](#327-response-ordering-and-correlation)). CLPR Service admin coordinates with peer to fix the bug, then closes and re-registers. In-flight messages receive `UNRESOLVED`; applications reconcile out-of-band.                   | **Works** (`UNRESOLVED` for in-flight messages). |
+| R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection is automatically HALTED ([§3.2.7](#327-response-ordering-and-correlation)). CLPR Service admin coordinates with peer to fix the bug, then closes and re-registers.                                                                                                | **Works** (requires admin intervention).         |
 | R7  | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints.                                                 | Temporarily broken   | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed.                                                                                                                                               | **Works.**                                       |
 | R8  | **Peer ledger down entirely.** The remote ledger is offline.                                                                                | Broken               | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off.                                                                                                                                   | **Works.**                                       |
 | R9  | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints.                                                  | Broken on both sides | Endpoints on both sides discover new peers via gossip once any connectivity is restored.                                                                                                                                                                                      | **Works.**                                       |
