@@ -185,9 +185,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
             learnerMap.release();
         }
 
-
-            // Close all data sources
-            learnerMap.getDataSource().close();
+        // Close all data sources
+        learnerMap.getDataSource().close();
 
         // release()/close() would delete the DB files eventually but not right away.
         // Add a short sleep to help prevent irrelevant warning messages from being printed
@@ -199,10 +198,15 @@ public class ReconnectBench extends VirtualMapBaseBench {
         }
 
         learnerMap = null;
+
+        super.onInvocationTearDown();
     }
 
-    @TearDown
-    public void tearDownBenchmark() throws Exception {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onTrialTearDown() throws Exception {
         teacherMap.release();
         teacherMapCopy.release();
 
@@ -221,7 +225,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
         teacherMap = null;
         teacherData = null;
 
-        super.onInvocationTearDown();
+        super.onTrialTearDown();
     }
 
     @Benchmark

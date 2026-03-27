@@ -71,7 +71,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
      * {@inheritDoc}
      */
     @Override
-    protected void onTrialTearDown() {
+    protected void onTrialTearDown() throws Exception {
         releaseAndCloseMap(virtualMapP);
         virtualMapP = null;
         hasher.shutdown();
