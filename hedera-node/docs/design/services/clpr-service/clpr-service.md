@@ -666,9 +666,9 @@ The messaging layer defines three classes of messages that share a single ordere
   cross-ledger communication.
 - **Response Messages** — Generated on the destination ledger after processing a Data Message. Every Data Message
   produces exactly one Response Message, indicating success or a specific failure condition.
-- **Control Messages** — Protocol-level messages that manage the state of a Connection. Configuration updates and
-  endpoint roster changes are delivered as Control Messages, sequenced alongside data messages to ensure total ordering.
-  Control Messages do not involve Connectors, are not dispatched to applications, and do not generate responses.
+- **Control Messages** — Protocol-level messages that manage the state of a Connection. Configuration updates are
+  delivered as Control Messages, sequenced alongside data messages to ensure total ordering. Control Messages do not
+  involve Connectors, are not dispatched to applications, and do not generate responses.
 
 ### 3.2.1 Message Queue Metadata
 
@@ -923,18 +923,18 @@ to `Ma2` (correct order), deletes `Ma2`. In a subsequent sync, `B` acks through 
 
 **Protocol violation.** The ordering guarantee is verified by the source ledger. If a peer ledger sends
 a valid state proof but the responses within it are out of order (e.g., R3 arrives before R2), the
-source ledger's CLPR Service automatically transitions the Connection to PAUSED
+source ledger's CLPR Service automatically transitions the Connection to **HALTED**
 ([§3.1.3](#313-establishing-and-updating-connections)). It does not slash — you cannot slash a peer
 ledger, only individual endpoints. The out-of-order responses are already committed in the peer's
-outbound queue and cannot be unsent. The admin must coordinate with the peer to fix the underlying
-bug (which may require a CLPR Service contract upgrade on platforms like Ethereum), then close and
-re-register the Connection.
+outbound queue and cannot be unsent. HALTED does not auto-recover. The admin must coordinate with
+the peer to fix the underlying bug (which may require a CLPR Service contract upgrade on platforms
+like Ethereum), then close the Connection. A new Connection can be registered after the fix.
 
 Note the distinction from bad inbound bundles: if a peer sends bundles that fail verification (bad
-hash chain, replay, oversized payloads), the CLPR Service simply rejects them without pausing. The
-Connection remains ACTIVE and will accept valid bundles as soon as the peer fixes the issue.
-Automatic pausing is reserved exclusively for response ordering violations, which indicate corruption
-in the peer's response generation logic.
+hash chain, replay, oversized payloads), the CLPR Service simply rejects them — no state change.
+The Connection remains ACTIVE and will accept valid bundles as soon as the peer fixes the issue.
+HALTED is reserved exclusively for response ordering violations, which indicate corruption in the
+peer's response generation logic.
 
 ---
 
