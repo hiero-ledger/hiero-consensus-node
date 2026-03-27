@@ -252,6 +252,35 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> testAtomicBatchCryptoCreateThenType4DelegatesInSameBatch() {
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var accountInBatch = DELEGATING_ACCOUNT + "CreateThenDelegateInBatch";
+        final var type4Txn = "type4DelegatesNewAccountInBatch";
+        return hapiTest(
+                newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                cryptoCreate(accountInBatch)
+                                        .key(accountInBatch)
+                                        .withMatchingEvmAddress()
+                                        .balance(ONE_HUNDRED_HBARS)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(accountInBatch)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(2_000_000L)
+                                        .via(type4Txn)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)),
+                        getTxnRecord(type4Txn).andAllChildRecords().logged(),
+                        // Account A exists and delegation is set
+                        getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress))));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> testAtomicBatchCryptoCreateSetsDelegationThenType4UpdatesIt() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegationTargetAddress = DELEGATION_TARGET.get();
