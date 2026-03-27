@@ -159,7 +159,6 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(ONLY_EMBEDDED)
 @HapiTestLifecycle
-@Disabled
 public class KitchenSinkFeeComparisonSuite {
     private static final Logger LOG = LogManager.getLogger(KitchenSinkFeeComparisonSuite.class);
     private static final Map<String, String> FEE_SETUP_OVERRIDES =

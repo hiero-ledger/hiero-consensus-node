@@ -148,6 +148,14 @@ tasks.register<JavaExec>("run") {
     args = listOf("-local", "0")
 }
 
+tasks.register<JavaExec>("runFeeCalculatorCLI") {
+    group = "application"
+    description = "Run the StandaloneFeeCalculatorCLI tool."
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.hedera.node.app.fees.StandaloneFeeCalculatorCLI")
+    args = project.findProperty("args")?.toString()?.split(",") ?: emptyList()
+}
+
 val cleanRun =
     tasks.register<Delete>("cleanRun") {
         val prjDir = layout.projectDirectory.dir("..")

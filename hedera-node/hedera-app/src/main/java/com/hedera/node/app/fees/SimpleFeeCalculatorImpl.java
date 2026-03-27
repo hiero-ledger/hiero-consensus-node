@@ -21,6 +21,10 @@ import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -49,6 +53,8 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
     private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
     private final CongestionMultipliers congestionMultipliers;
+    private final JSONFormatter custom_logger;
+
 
     public SimpleFeeCalculatorImpl(
             @NonNull FeeSchedule feeSchedule,
@@ -61,6 +67,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         this.queryFeeCalculators = queryFeeCalculators.stream()
                 .collect(Collectors.toMap(QueryFeeCalculator::getQueryType, Function.identity()));
         this.congestionMultipliers = congestionMultipliers;
+        try {
+            this.custom_logger = new JSONFormatter(new FileWriter(Path.of("/Users/josh/Documents/GitHub/hiero-consensus-node/simplefees.log.json").toFile()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @VisibleForTesting
@@ -138,6 +149,9 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
+        if(serviceFeeCalculator == null) {
+            System.out.println("no calc for " + txnBody.data().kind());
+        }
         serviceFeeCalculator.accumulateServiceFee(txnBody, simpleFeeContext, result, feeSchedule);
         final var isHighVolumeFunction = HIGH_VOLUME_PRICING_FUNCTIONS.contains(functionality);
 
@@ -151,7 +165,40 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             applyCongestionMultiplier(txnBody, simpleFeeContext, result, functionality);
         }
 
+        try {
+            this.logResult(result, txnBody);
+        } catch (IOException e) {
+            System.out.println("exception " + e);
+//            throw new RuntimeException(e);
+        }
         return result;
+    }
+
+    private void logResult(FeeResult result, TransactionBody txnBody) throws IOException {
+        this.custom_logger.startRecord();
+        this.custom_logger.key("name", txnBody.data().kind().name());
+        this.custom_logger.startObject("transactionId");
+        final var txnId = txnBody.transactionID();
+        this.custom_logger.key("accountNum",txnId.accountID().accountNum());
+        this.custom_logger.key("realmNum",txnId.accountID().realmNum());
+        this.custom_logger.key("sharedNum",txnId.accountID().shardNum());
+        this.custom_logger.key("seconds",txnId.transactionValidStart().seconds());
+        this.custom_logger.key("nanos", txnId.transactionValidStart().nanos());
+        this.custom_logger.key("nonce", txnId.nonce());
+        this.custom_logger.endObject();
+        this.custom_logger.startObject("simpleFee");
+        this.custom_logger.key("totalFee",result.totalTinycents());
+        this.custom_logger.key("serviceBaseFee",result.getServiceBaseFeeTinycents());
+        this.custom_logger.key("serviceTotal",result.getServiceTotalTinycents());
+        this.custom_logger.key("serviceExtras",result.getServiceExtraDetails().stream().<Map<String,Object>>map(d -> Map.of("name",d.name(),"perUnit",d.perUnit(),"used",d.used(),"included",d.included(),"charged",d.charged())).toList());
+        this.custom_logger.key("nodeBaseFee",result.getNodeBaseFeeTinycents());
+        this.custom_logger.key("nodeTotal",result.getNodeTotalTinycents());
+        this.custom_logger.key("nodeExtras",result.getNodeExtraDetails().stream().<Map<String,Object>>map(d -> Map.of("name",d.name(),"perUnit",d.perUnit(),"used",d.used(),"included",d.included(),"charged",d.charged())).toList());
+        this.custom_logger.key("networkMultiplier",result.getNetworkMultiplier());
+        this.custom_logger.key("networkTotal",result.getNetworkTotalTinycents());
+        this.custom_logger.key("highVolumeMultiplier",result.getHighVolumeMultiplier());
+        this.custom_logger.endObject();
+        this.custom_logger.endRecord();
     }
 
     /**
@@ -261,5 +308,92 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
         queryFeeCalculator.accumulateNodePayment(query, simpleFeeContext, result, feeSchedule);
         return result;
+    }
+
+    private class JSONFormatter {
+
+        private final FileWriter writer;
+        private boolean start;
+
+        public JSONFormatter(FileWriter writer) {
+            this.writer = writer;
+            this.start = false;
+        }
+
+        public void startRecord() throws IOException {
+            writer.write("{ ");
+            this.start = true;
+        }
+
+        public void key(String name, String value) throws IOException {
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\":\"%s\"", name, value.replaceAll("\n", " ")));
+            this.start = false;
+        }
+
+        public void startObject(String name) throws IOException {
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\": {", name));
+            this.start = true;
+        }
+
+        public void endObject() throws IOException {
+            writer.append(" }");
+            this.start = false;
+        }
+
+        public void endRecord() throws IOException {
+            writer.write("}\n");
+        }
+
+        public void key(String name, long value) throws IOException {
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\" : %s ", name, "" + value));
+            this.start = false;
+        }
+
+        public void key(String name, double value) throws IOException {
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\" : %.5f", name, value));
+            this.start = false;
+        }
+
+        public void key(String name, List<Map<String, Object>> value) throws IOException {
+            if (!this.start) {
+                writer.append(", ");
+            }
+            writer.append(String.format("\"%s\" : [", name));
+            for (int i = 0; i < value.size(); i++) {
+                if (i > 0) writer.append(", ");
+                writer.append("{ ");
+                boolean first = true;
+                for (var entry : value.get(i).entrySet()) {
+                    if (!first) writer.append(", ");
+                    Object v = entry.getValue();
+                    if (v instanceof String s) {
+                        writer.append(String.format("\"%s\":\"%s\"", entry.getKey(), s.replaceAll("\n", " ")));
+                    } else {
+                        writer.append(String.format("\"%s\":%s", entry.getKey(), v));
+                    }
+                    first = false;
+                }
+                writer.append(" }");
+            }
+            writer.append("]");
+            this.start = false;
+        }
+
+        public void close() throws IOException {
+            this.writer.flush();
+            this.writer.close();
+        }
     }
 }

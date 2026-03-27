@@ -83,13 +83,13 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
         }
 
         if (input.recordStreamItems().isEmpty()) {
-            logger.warn(
-                    "Skipping wrapped record-file block hashes append for block {} because recordStreamItems is empty; "
-                            + "input{startRunningHashLen={}, endRunningHashLen={}, sidecars={}}",
-                    input.blockNumber(),
-                    input.startRunningHash().length(),
-                    input.endRunningHash().length(),
-                    input.sidecarRecords().size());
+//            logger.warn(
+//                    "Skipping wrapped record-file block hashes append for block {} because recordStreamItems is empty; "
+//                            + "input{startRunningHashLen={}, endRunningHashLen={}, sidecars={}}",
+//                    input.blockNumber(),
+//                    input.startRunningHash().length(),
+//                    input.endRunningHash().length(),
+//                    input.sidecarRecords().size());
             return CompletableFuture.completedFuture(null);
         }
 
@@ -109,10 +109,10 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                             }
 
                             if (index.contains(entry.blockNumber())) {
-                                logger.info(
-                                        "Skipping wrapped record-file block hashes append for block {} because it is already present in {}",
-                                        entry.blockNumber(),
-                                        DEFAULT_FILE_NAME);
+//                                logger.info(
+//                                        "Skipping wrapped record-file block hashes append for block {} because it is already present in {}",
+//                                        entry.blockNumber(),
+//                                        DEFAULT_FILE_NAME);
                                 return;
                             }
 

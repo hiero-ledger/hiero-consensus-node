@@ -42,5 +42,5 @@ module org.hiero.consensus.pcli {
     requires info.picocli;
     requires io.github.classgraph;
     requires org.apache.logging.log4j;
-    requires static com.github.spotbugs.annotations;
+    requires static com.github.spotbugs.annotations; requires com.hedera.node.app.service.entityid.impl;
 }
