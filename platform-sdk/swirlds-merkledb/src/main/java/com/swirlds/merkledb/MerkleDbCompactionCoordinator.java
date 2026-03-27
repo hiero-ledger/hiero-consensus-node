@@ -115,7 +115,7 @@ class MerkleDbCompactionCoordinator {
      * Used for {@link #awaitForCurrentCompactionsToComplete(long)} and
      * {@link #isCompactionRunning(String)}.
      */
-    private final Set<String> tasks = new HashSet<>(20);
+    private final Set<String> taskKeys = new HashSet<>(20);
 
     /**
      * Number of outstanding (queued + running) compaction tasks per level key.
@@ -194,7 +194,7 @@ class MerkleDbCompactionCoordinator {
             compactor.interruptCompaction();
         }
         awaitForCurrentCompactionsToComplete(SHUTDOWN_TIMEOUT_MILLIS);
-        if (!tasks.isEmpty()) {
+        if (!taskKeys.isEmpty()) {
             logger.warn(MERKLE_DB.getMarker(), "Timed out waiting to stop all compaction tasks");
         }
     }
@@ -207,7 +207,7 @@ class MerkleDbCompactionCoordinator {
      */
     synchronized void awaitForCurrentCompactionsToComplete(long timeoutMillis) {
         final long deadline = timeoutMillis > 0 ? System.currentTimeMillis() + timeoutMillis : Long.MAX_VALUE;
-        while (!tasks.isEmpty()) {
+        while (!taskKeys.isEmpty()) {
             final long remaining = deadline - System.currentTimeMillis();
             if (remaining <= 0) break;
 
@@ -234,11 +234,11 @@ class MerkleDbCompactionCoordinator {
         }
 
         final String scanTaskKey = scanTaskKey(storeName);
-        if (tasks.contains(scanTaskKey)) {
+        if (taskKeys.contains(scanTaskKey)) {
             return;
         }
 
-        tasks.add(scanTaskKey);
+        taskKeys.add(scanTaskKey);
         getCompactionExecutor(merkleDbConfig).submit(new ScannerTask(scanTaskKey, storeName, scanner));
     }
 
@@ -279,7 +279,8 @@ class MerkleDbCompactionCoordinator {
         }
 
         final double gcRateThreshold = config.gcRateThreshold();
-        final long maxProjectedBytes = config.maxCompactedFileSizeInMB() * MEBIBYTES_TO_BYTES;
+        final long maxCompactedFileSize = config.maxCompactedFileSizeInMB() * MEBIBYTES_TO_BYTES;
+        final long maxProjectedBytes = maxCompactedFileSize == 0 ? Long.MAX_VALUE : maxCompactedFileSize;
         final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
 
         // Phase 1: separate eligible from remaining, grouped by level
@@ -333,7 +334,7 @@ class MerkleDbCompactionCoordinator {
             compactionTaskCounts.put(levelKey, groups.size());
             for (int i = 0; i < groups.size(); i++) {
                 final String taskKey = levelKey + "_" + i;
-                tasks.add(taskKey);
+                taskKeys.add(taskKey);
                 executor.submit(new CompactionTask(taskKey, levelKey, level, groups.get(i), compactorFactory, config));
             }
 
@@ -359,7 +360,7 @@ class MerkleDbCompactionCoordinator {
      */
     synchronized boolean isCompactionRunning(final @NonNull String storeName) {
         final String prefix = storeName + "_compact_";
-        for (final String key : tasks) {
+        for (final String key : taskKeys) {
             if (key.startsWith(prefix)) {
                 return true;
             }
@@ -401,7 +402,7 @@ class MerkleDbCompactionCoordinator {
             final @NonNull List<DataFileReader> candidates,
             final long maxProjectedBytes,
             final @NonNull IndexedGarbageFileStats stats) {
-        if (maxProjectedBytes <= 0) {
+        if (maxProjectedBytes == Long.MAX_VALUE) {
             return List.of(candidates);
         }
 
@@ -468,7 +469,7 @@ class MerkleDbCompactionCoordinator {
         final double aggregateRatio = totalLive == 0 ? Double.MAX_VALUE : (double) totalDead / totalLive;
 
         // No headroom — skip absorption for this group
-        if (aggregateRatio <= gcRateThreshold || (maxProjectedBytes > 0 && projectedSize >= maxProjectedBytes)) {
+        if (aggregateRatio <= gcRateThreshold || projectedSize >= maxProjectedBytes) {
             return;
         }
 
@@ -491,7 +492,7 @@ class MerkleDbCompactionCoordinator {
             final long newProjectedSize = projectedSize + fileProjectedAlive;
 
             // Skip this file if it would breach either limit
-            if (newRatio <= gcRateThreshold || (maxProjectedBytes > 0 && newProjectedSize >= maxProjectedBytes)) {
+            if (newRatio <= gcRateThreshold || newProjectedSize >= maxProjectedBytes) {
                 continue;
             }
 
@@ -574,7 +575,7 @@ class MerkleDbCompactionCoordinator {
                 logger.error(EXCEPTION.getMarker(), "[{}] Garbage scan failed", taskKey, e);
             } finally {
                 synchronized (MerkleDbCompactionCoordinator.this) {
-                    tasks.remove(taskKey);
+                    taskKeys.remove(taskKey);
                     MerkleDbCompactionCoordinator.this.notifyAll();
                 }
             }
@@ -657,7 +658,7 @@ class MerkleDbCompactionCoordinator {
             } finally {
                 synchronized (MerkleDbCompactionCoordinator.this) {
                     compactorsByName.remove(taskKey);
-                    tasks.remove(taskKey);
+                    taskKeys.remove(taskKey);
                     final int remaining = compactionTaskCounts.merge(levelKey, -1, Integer::sum);
                     if (remaining <= 0) {
                         compactionTaskCounts.remove(levelKey);

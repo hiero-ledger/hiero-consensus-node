@@ -209,15 +209,14 @@ public class GarbageScanner {
      * @param garbageFileStats array of per-file statistics; entries may be {@code null} for
      *                         gaps in the file index sequence
      */
-    public record IndexedGarbageFileStats(
-            int offset, @NonNull GarbageFileStats[] garbageFileStats) {}
+    record IndexedGarbageFileStats(int offset, @NonNull GarbageFileStats[] garbageFileStats) {}
 
     /**
      * Per-file garbage statistics. Tracks total items (from file metadata) and alive items
      * (counted during index traversal). Not thread-safe — intended for use within a single
      * scanner thread.
      */
-    public static final class GarbageFileStats {
+    static final class GarbageFileStats {
 
         @NonNull
         final DataFileReader fileReader;
