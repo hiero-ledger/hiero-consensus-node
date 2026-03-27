@@ -430,7 +430,7 @@ Connection {
   verifier_fingerprint    : bytes       // code hash of verifier_contract at registration time (informational)
 
   // --- Status ---
-  status                 : enum { ACTIVE, PAUSED, CLOSED, HALTED }
+  status                 : enum { ACTIVE, HALTED, CLOSED }
   // See §2.1.1 for status transition rules.
 
   // --- Config Propagation ---
@@ -465,19 +465,15 @@ and propagated via ConfigUpdate control messages.
 | From      | To        | Trigger                                          | Notes                                                       |
 |-----------|-----------|--------------------------------------------------|-------------------------------------------------------------|
 | (new)     | `ACTIVE`  | `registerConnection` succeeds                    | Initial state after registration.                           |
-| `ACTIVE`  | `PAUSED`  | Admin calls `pauseConnection`                    | Outbound enqueue rejected. Inbound bundles still processed. |
+| `ACTIVE`  | `HALTED`  | Admin calls `haltConnection`, or response ordering violation detected (§4.5) | Outbound enqueue rejected. Inbound bundles still processed. |
 | `ACTIVE`  | `CLOSED`  | Admin calls `closeConnection`                    | Terminal state. All processing stops.                       |
-| `ACTIVE`  | `HALTED`  | Response ordering violation detected (§4.5)      | Protocol-triggered. Requires admin intervention.            |
-| `PAUSED`  | `HALTED`  | Response ordering violation detected during inbound bundle processing (§4.5) | Inbound bundles are still processed while paused. |
-| `PAUSED`  | `ACTIVE`  | Admin calls `resumeConnection`                   |                                                             |
-| `PAUSED`  | `CLOSED`  | Admin calls `closeConnection`                    | Terminal state.                                             |
-| `HALTED`  | `CLOSED`  | Admin calls `closeConnection`                    | Only valid transition out of HALTED.                        |
+| `HALTED`  | `ACTIVE`  | Admin calls `resumeConnection`                   | Issue resolved.                                             |
+| `HALTED`  | `CLOSED`  | Admin calls `closeConnection`                    | Terminal state.                                             |
 
 **Status behavior for incoming bundles:**
 - **`ACTIVE`**: Bundles accepted and processed normally.
-- **`PAUSED`**: Inbound bundles are still accepted and processed (the pause only prevents new outbound messages). This ensures acknowledgements continue flowing and the peer's queue does not stall.
+- **`HALTED`**: Inbound bundles are still accepted and processed (the halt only prevents new outbound messages). This ensures acknowledgements continue flowing and the peer's queue does not stall.
 - **`CLOSED`**: All bundle submissions are rejected. No further processing occurs.
-- **`HALTED`**: Inbound bundles are rejected. The Connection is frozen pending admin action.
 
 ## 2.2 Connector
 
@@ -824,8 +820,8 @@ peers. This naturally converges on efficient pairings where both sides do useful
 The CLPR Service admin can:
 
 - **Close** a Connection — permanently close it, immediately stopping all message processing.
-- **Pause** a Connection — temporarily halt processing without closing it.
-- **Resume** a paused Connection — return it to `ACTIVE` status.
+- **Halt** a Connection — suspend processing without closing it.
+- **Resume** a halted Connection — return it to `ACTIVE` status.
 - **Update the local configuration** — change throttles. Changes are propagated to peers via ConfigUpdate
   Control Messages, lazily enqueued on each Connection at its next interaction (see §1.3).
 - **Redact** a message — mark a queued outbound message as redacted (see §6.4).
@@ -890,14 +886,15 @@ closeConnection(
   connection_id: bytes(32)
 ) → success | error
 
-// Pause a Connection (temporarily halt processing).
+// Halt a Connection (suspend processing).
 // Authority: CLPR Service admin only.
-pauseConnection(
+// Also triggered automatically by the protocol on response ordering violations (§4.5).
+haltConnection(
   [auth] admin,
   connection_id: bytes(32)
 ) → success | error
 
-// Resume a paused Connection.
+// Resume a halted Connection.
 // Authority: CLPR Service admin only.
 resumeConnection(
   [auth] admin,
@@ -1166,7 +1163,7 @@ queue fills.
 | R2  | Source ledger upgrades proof format                 | Breaks when source switches | Register new Connection with new verifier. Applications migrate. Admin closes old Connection.                    | Works (requires new Connection) |
 | R3  | Endpoints rotated (proof format unchanged)          | Broken               | Endpoint discovery (R1), then ConfigUpdate flows normally.                                                              | Works                         |
 | R4  | Endpoints rotated AND proof format changed           | Broken               | Register new Connection with new verifier. Endpoint discovery (R1) on new Connection. Admin closes old Connection.     | Works (requires new Connection) |
-| R5  | Verifier compromised or broken                      | Suspect              | Admin pauses/closes. Since verifier is immutable, register new Connection with correct verifier.                       | Works (data loss on close)    |
+| R5  | Verifier compromised or broken                      | Suspect              | Admin halts/closes. Since verifier is immutable, register new Connection with correct verifier.                        | Works (data loss on close)    |
 | R6  | Queue state permanently corrupted on peer           | Working              | Connection halts (§4.5). Admin closes. Applications need out-of-band reconciliation.                                   | **Open question** (see below) |
 | R7  | Network partition (endpoints unchanged)             | Temporarily broken   | Syncs resume automatically. Monotonic IDs and running hash verify integrity.                                           | Works                         |
 | R8  | Peer ledger down entirely                           | Broken               | Messages queue up to `max_queue_depth`, then backpressure. Syncs resume when peer returns.                             | Works                         |
