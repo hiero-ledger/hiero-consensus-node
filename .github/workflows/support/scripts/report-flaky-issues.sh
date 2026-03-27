@@ -100,10 +100,7 @@ echo '[]' > "${OUTPUT_FILE}"
 echo "Fetching existing flaky-test issues..."
 ALL_FLAKY_ISSUES=$(gh api \
     --paginate \
-    "/repos/${REPO}/issues" \
-    -f labels="flaky-test" \
-    -f state="all" \
-    -f per_page=100 \
+    "/repos/${REPO}/issues?labels=flaky-test&state=all&per_page=100" \
     --jq '[.[] | select(.pull_request == null) | {number: .number, state: (.state | ascii_upcase), title: .title, url: .html_url, closedAt: .closed_at}]' \
     | jq -s 'add // []' || echo '[]')
 echo "Found $(echo "${ALL_FLAKY_ISSUES}" | jq 'length') existing flaky-test issue(s)"
