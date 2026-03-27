@@ -878,8 +878,10 @@ public class HandleWorkflow {
                 dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
                 updateWorkflowMetrics(parentTxn);
             }
-            final var handleOutput =
-                    parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
+            final var blockNumber = currentBlockNumber();
+            final var handleOutput = parentTxn
+                    .stack()
+                    .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),
@@ -922,9 +924,10 @@ public class HandleWorkflow {
         stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
             dispatchProcessor.processDispatch(dispatch);
+            final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
                     .stack()
-                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates());
+                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
@@ -936,6 +939,15 @@ public class HandleWorkflow {
             return HandleOutput.failInvalidStreamItems(
                     scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
+    }
+
+    /**
+     * Helper method to get the current block number only when the block stream owns receipt block numbers.
+     *
+     * @return the current block number, or null outside {@link StreamMode#BLOCKS}
+     */
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
     }
 
     /**
