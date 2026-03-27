@@ -39,7 +39,7 @@ A comment is left on the PR by the `github-actions` bot. The content of the comm
 
 - **New flaky test (no existing ticket):** A new ticket is automatically created on the flaky test project board and linked in the PR comment. The CI run is also linked in the new ticket. The PR author is expected to **investigate whether the flakiness was introduced by their changes**. If the flake is unrelated to the PR, no further action is required from the author — the ticket will be triaged by the assigned team.
 
-### On MATs / XTS
+### On MATS / XTS
 
 When a new flaky test is detected during a MAT or XTS run:
 
