@@ -168,7 +168,7 @@ jobs:
           LANG: en_US.UTF-8
         # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestMisc           ${GRADLE_EXEC} hapiTestMisc --no-daemon
           run_tracked hapiTestMiscEmbedded   ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon
           run_tracked hapiTestMiscRepeatable ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon
@@ -225,8 +225,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -273,7 +276,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestMiscRecords       ${GRADLE_EXEC} hapiTestMiscRecords
           run_tracked hapiTestMiscRecordsSerial ${GRADLE_EXEC} hapiTestMiscRecordsSerial
 
@@ -328,8 +331,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -377,7 +383,7 @@ jobs:
           LANG: en_US.UTF-8
         # Crypto uses same task for PR and MATS (no MATS suffix)
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestCrypto         ${GRADLE_EXEC} hapiTestCrypto --no-daemon
           run_tracked hapiTestCryptoEmbedded ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon
           run_tracked hapiTestCryptoSerial   ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon
@@ -433,8 +439,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -482,7 +491,7 @@ jobs:
           LANG: en_US.UTF-8
         # Simple Fees uses same task for PR and MATS (no MATS suffix)
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestSimpleFees       ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon
           run_tracked hapiEmbeddedSimpleFees   ${GRADLE_EXEC} hapiEmbeddedSimpleFees --no-daemon
           run_tracked hapiTestSimpleFeesSerial ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
@@ -538,8 +547,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -586,7 +598,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestToken       ${GRADLE_EXEC} hapiTestToken --no-daemon
           run_tracked hapiTestTokenSerial ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon
 
@@ -641,8 +653,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -689,7 +704,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestSmartContract       ${GRADLE_EXEC} hapiTestSmartContract --no-daemon
           run_tracked hapiTestSmartContractSerial ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon
 
@@ -744,8 +759,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -792,7 +810,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestTimeConsuming       ${GRADLE_EXEC} hapiTestTimeConsuming
           run_tracked hapiTestTimeConsumingSerial ${GRADLE_EXEC} hapiTestTimeConsumingSerial
 
@@ -847,8 +865,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -895,7 +916,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestRestart ${GRADLE_EXEC} hapiTestRestart
 
       - name: Publish HAPI Test (Restart) Report
@@ -949,8 +970,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -997,7 +1021,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestNDReconnect ${GRADLE_EXEC} hapiTestNDReconnect
 
       - name: Publish HAPI Test (Node Death Reconnect) Report
@@ -1051,8 +1075,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -1099,7 +1126,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestIss ${GRADLE_EXEC} hapiTestIss
 
       - name: Publish HAPI Test (ISS) Report
@@ -1153,8 +1180,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -1201,7 +1231,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestBlockNodeCommunication ${GRADLE_EXEC} hapiTestBlockNodeCommunication
 
       - name: Publish HAPI Test (Block Node Communication) Report
@@ -1253,8 +1283,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -1301,7 +1334,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestAtomicBatch         ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon
           run_tracked hapiTestAtomicBatchSerial   ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon
           run_tracked hapiTestAtomicBatchEmbedded ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon
@@ -1357,8 +1390,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
@@ -1405,7 +1441,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
-          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked() { local l=$1; shift; echo "start=$(date +%s)" > "/tmp/time_${l}.txt"; "$@"; local rc=$?; echo "end=$(date +%s)" >> "/tmp/time_${l}.txt"; return $rc; }
           run_tracked hapiTestStateThrottling ${GRADLE_EXEC} hapiTestStateThrottling
 
       - name: Publish HAPI Test (State Throttling) Report
@@ -1459,8 +1495,11 @@ jobs:
               [ -f "$f" ] || continue
               task="${f#/tmp/time_}"
               task="${task%.txt}"
-              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
-              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+              start=$(grep "^start=" "$f" | cut -d= -f2)
+              end=$(grep "^end=" "$f" | cut -d= -f2)
+              peak_kb=$(awk -F',' -v s="$start" -v e="$end" \
+                'NR>0 && $1>=s && $1<=e && $2>m{m=$2}END{print m+0}' /tmp/mem_runner.csv)
+              echo "task:${task}:peak_mb=$((peak_kb / 1024))"
             done
           } > /tmp/mem_report.txt
 
