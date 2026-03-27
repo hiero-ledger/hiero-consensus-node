@@ -152,13 +152,27 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Misc)
         id: gradle-hapi-misc
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon && ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon && ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestMisc           ${GRADLE_EXEC} hapiTestMisc --no-daemon
+          run_tracked hapiTestMiscEmbedded   ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon
+          run_tracked hapiTestMiscRepeatable ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon
+          run_tracked hapiTestMiscSerial     ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon
 
       - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -198,6 +212,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-misc
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-misc-records:
     name: "HAPI Tests (Misc Records)"
     if: ${{ inputs.enable-hapi-tests-misc-records == 'true' }}
@@ -218,12 +258,24 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Misc Records)
         id: gradle-hapi-misc-records
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestMiscRecords && ${GRADLE_EXEC} hapiTestMiscRecordsSerial
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestMiscRecords       ${GRADLE_EXEC} hapiTestMiscRecords
+          run_tracked hapiTestMiscRecordsSerial ${GRADLE_EXEC} hapiTestMiscRecordsSerial
 
       - name: Publish HAPI Test (Misc Records) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -263,6 +315,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-misc-records
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-crypto:
     name: "HAPI Tests (Crypto)"
     if: ${{ inputs.enable-hapi-tests-crypto == 'true' }}
@@ -283,13 +361,26 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Crypto)
         id: gradle-hapi-crypto
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Crypto uses same task for PR and MATS (no MATS suffix)
-        run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon && ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestCrypto         ${GRADLE_EXEC} hapiTestCrypto --no-daemon
+          run_tracked hapiTestCryptoEmbedded ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon
+          run_tracked hapiTestCryptoSerial   ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon
 
       - name: Publish HAPI Test (Crypto) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -329,6 +420,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-crypto
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-simple-fees:
     name: "HAPI Tests (Simple Fees)"
     if: ${{ inputs.enable-hapi-tests-simplefees == 'true' }}
@@ -349,13 +466,26 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Simple Fees)
         id: gradle-hapi-simplefees
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Simple Fees uses same task for PR and MATS (no MATS suffix)
-        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon && ${GRADLE_EXEC} hapiEmbeddedSimpleFees --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestSimpleFees       ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon
+          run_tracked hapiEmbeddedSimpleFees   ${GRADLE_EXEC} hapiEmbeddedSimpleFees --no-daemon
+          run_tracked hapiTestSimpleFeesSerial ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
 
       - name: Publish HAPI Test (Simple Fees) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -395,6 +525,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-simple-fees
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-token:
     name: "HAPI Tests (Token)"
     if: ${{ inputs.enable-hapi-tests-token == 'true' }}
@@ -415,12 +571,24 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Token)
         id: gradle-hapi-token
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestToken --no-daemon && ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestToken       ${GRADLE_EXEC} hapiTestToken --no-daemon
+          run_tracked hapiTestTokenSerial ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon
 
       - name: Publish HAPI Test (Token) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -460,6 +628,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-token
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-smart-contracts:
     name: "HAPI Tests (Smart Contracts)"
     if: ${{ inputs.enable-hapi-tests-smart-contract == 'true' }}
@@ -480,12 +674,24 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Smart Contract)
         id: gradle-hapi-smart-contract
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSmartContract --no-daemon && ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestSmartContract       ${GRADLE_EXEC} hapiTestSmartContract --no-daemon
+          run_tracked hapiTestSmartContractSerial ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon
 
       - name: Publish HAPI Test (Smart Contract) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -525,6 +731,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-smart-contracts
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-time-consuming:
     name: "HAPI Tests (Time Consuming)"
     if: ${{ inputs.enable-hapi-tests-time-consuming == 'true' }}
@@ -545,12 +777,24 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Time Consuming)
         id: gradle-hapi-time-consuming
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestTimeConsuming && ${GRADLE_EXEC} hapiTestTimeConsumingSerial
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestTimeConsuming       ${GRADLE_EXEC} hapiTestTimeConsuming
+          run_tracked hapiTestTimeConsumingSerial ${GRADLE_EXEC} hapiTestTimeConsumingSerial
 
       - name: Publish HAPI Test (Time Consuming) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -590,6 +834,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-time-consuming
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-restart:
     name: "HAPI Tests (Restart)"
     if: ${{ inputs.enable-hapi-tests-restart == 'true' }}
@@ -610,12 +880,23 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Restart)
         id: gradle-hapi-restart
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestRestart
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestRestart ${GRADLE_EXEC} hapiTestRestart
 
       - name: Publish HAPI Test (Restart) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -655,6 +936,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-restart
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-nd-reconnect:
     name: "HAPI Tests (ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-nd-reconnect == 'true' }}
@@ -675,12 +982,23 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Node Death Reconnect)
         id: gradle-hapi-nd-reconnect
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestNDReconnect
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestNDReconnect ${GRADLE_EXEC} hapiTestNDReconnect
 
       - name: Publish HAPI Test (Node Death Reconnect) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -720,6 +1038,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-nd-reconnect
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-iss:
     name: "HAPI Tests (ISS)"
     if: ${{ inputs.enable-hapi-tests-iss == 'true' }}
@@ -740,12 +1084,23 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (ISS)
         id: gradle-hapi-iss
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestIss
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestIss ${GRADLE_EXEC} hapiTestIss
 
       - name: Publish HAPI Test (ISS) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -783,7 +1138,33 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
-          retention-days: 7`
+          retention-days: 7
+
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-iss
+          path: /tmp/mem_report.txt
+          retention-days: 7
 
   hapi-tests-bn-comms:
     name: "HAPI Tests (BN Comms)"
@@ -805,12 +1186,23 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Block Node Communication)
         id: gradle-hapi-bn-communication
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestBlockNodeCommunication
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestBlockNodeCommunication ${GRADLE_EXEC} hapiTestBlockNodeCommunication
 
       - name: Publish HAPI Test (Block Node Communication) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -848,6 +1240,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-bn-comms
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
     if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
@@ -868,12 +1286,25 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (Atomic Batch)
         id: gradle-hapi-atomic-batch
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestAtomicBatch         ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon
+          run_tracked hapiTestAtomicBatchSerial   ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon
+          run_tracked hapiTestAtomicBatchEmbedded ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon
 
       - name: Publish HAPI Test (Atomic Batch) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -913,6 +1344,32 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-atomic-batch
+          path: /tmp/mem_report.txt
+          retention-days: 7
+
   hapi-tests-state-throttling:
     name: "HAPI Tests (State Throttling)"
     if: ${{ inputs.enable-hapi-tests-state-throttling == 'true' }}
@@ -933,12 +1390,23 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
+      - name: Start Memory Monitor
+        run: |
+          while true; do
+            used=$(awk '/MemTotal/{t=$2}/MemAvailable/{a=$2}END{print t-a}' /proc/meminfo)
+            echo "$(date +%s),$used" >> /tmp/mem_runner.csv
+            sleep 1
+          done &
+          echo $! > /tmp/mem_monitor.pid
+
       - name: HAPI Testing (State Throttling)
         id: gradle-hapi-state-throttling
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestStateThrottling
+        run: |
+          run_tracked() { local l=$1; shift; /usr/bin/time -v "$@" 2>"/tmp/time_${l}.txt"; }
+          run_tracked hapiTestStateThrottling ${GRADLE_EXEC} hapiTestStateThrottling
 
       - name: Publish HAPI Test (State Throttling) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -976,6 +1444,32 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
+          retention-days: 7
+
+      - name: Save Memory Report
+        if: always()
+        run: |
+          kill "$(cat /tmp/mem_monitor.pid)" 2>/dev/null || true
+          peak_runner_kb=$(awk -F',' '{if($2>m)m=$2}END{print m+0}' /tmp/mem_runner.csv)
+          total_kb=$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)
+          {
+            echo "runner_peak_mb=$((peak_runner_kb / 1024))"
+            echo "runner_total_mb=$((total_kb / 1024))"
+            for f in /tmp/time_*.txt; do
+              [ -f "$f" ] || continue
+              task="${f#/tmp/time_}"
+              task="${task%.txt}"
+              peak_kb=$(grep "Maximum resident" "$f" | awk '{print $NF}')
+              [ -n "$peak_kb" ] && echo "task:${task}:peak_mb=$((peak_kb / 1024))"
+            done
+          } > /tmp/mem_report.txt
+
+      - name: Upload Memory Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: memory-report-state-throttling
+          path: /tmp/mem_report.txt
           retention-days: 7
 
   set-failure-mode:
@@ -1037,3 +1531,49 @@ jobs:
           fi
 
           echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+
+  summarize-memory-usage:
+    name: "Summarize Memory Usage"
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - hapi-tests-misc
+      - hapi-tests-misc-records
+      - hapi-tests-crypto
+      - hapi-tests-simple-fees
+      - hapi-tests-token
+      - hapi-tests-smart-contracts
+      - hapi-tests-time-consuming
+      - hapi-tests-restart
+      - hapi-tests-nd-reconnect
+      - hapi-tests-iss
+      - hapi-tests-bn-comms
+      - hapi-tests-atomic-batch
+      - hapi-tests-state-throttling
+    if: ${{ !cancelled() && always() }}
+    steps:
+      - name: Download Memory Reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: memory-report-*
+          path: memory-reports
+          merge-multiple: false
+
+      - name: Generate Memory Summary
+        run: |
+          {
+            echo "## HAPI Test Memory Usage"
+            echo ""
+            echo "| Job | Task | Peak RSS | Runner Peak | Runner Total |"
+            echo "| --- | --- | ---: | ---: | ---: |"
+            for report in memory-reports/memory-report-*/mem_report.txt; do
+              [ -f "$report" ] || continue
+              dir="${report%/mem_report.txt}"
+              job_slug="${dir#memory-reports/memory-report-}"
+              runner_peak=$(grep "^runner_peak_mb=" "$report" | cut -d= -f2)
+              runner_total=$(grep "^runner_total_mb=" "$report" | cut -d= -f2)
+              while IFS= read -r line; do
+                [[ "$line" =~ ^task:(.+):peak_mb=([0-9]+)$ ]] || continue
+                echo "| $job_slug | ${BASH_REMATCH[1]} | ${BASH_REMATCH[2]} MB | ${runner_peak} MB | ${runner_total} MB |"
+              done < "$report"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
