@@ -34,8 +34,11 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecKey;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -64,13 +67,29 @@ public class CodeDelegationAtomicBatchTest {
     @Contract(contract = CONTRACT, creationGas = 5_000_000)
     static SpecContract contract;
 
+//    @Account(name = DELEGATING_ACCOUNT, tinybarBalance = ONE_HUNDRED_HBARS, keyType = SpecKey.Type.SECP_256K1)
+//    static SpecAccount delegatingAccount;
+
+    @Account(name = ACCOUNT_WITH_BALANCE, tinybarBalance = ONE_HUNDRED_HBARS)
+    static SpecAccount account;
+
+    @Account(name = INSUFFICIENT_BALANCE_ACCOUNT)
+    static SpecAccount insufficientBalanceAccount;
+
+    @Account(name = RELAYER, tinybarBalance = ONE_MILLION_HBARS)
+    static SpecAccount relayer;
+
+
     @BeforeAll
     public static void setup(@NonNull final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
+//                delegatingAccount.getInfo(),
                 contract.getInfo(),
+                account.getInfo(),
+                insufficientBalanceAccount.getInfo(),
+                relayer.getInfo(),
                 uploadInitCode(CODE_DELEGATION_CONTRACT),
-                contractCreate(CODE_DELEGATION_CONTRACT).exposingAddressTo(DELEGATION_TARGET::set),
-                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS));
+                contractCreate(CODE_DELEGATION_CONTRACT).exposingAddressTo(DELEGATION_TARGET::set));
     }
 
     @HapiTest
@@ -83,13 +102,8 @@ public class CodeDelegationAtomicBatchTest {
                         .key(DELEGATING_ACCOUNT)
                         .withMatchingEvmAddress()
                         .balance(ONE_HUNDRED_HBARS),
-                newKeyNamed(ACCOUNT_WITH_BALANCE).shape(SECP_256K1_SHAPE),
-                cryptoCreate(ACCOUNT_WITH_BALANCE)
-                        .key(ACCOUNT_WITH_BALANCE)
-                        .balance(ONE_HUNDRED_HBARS),
                 getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
-                withOpContext((spec, opLog) -> {
-                    allRunFor(
+                withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         sourcing(() -> atomicBatch(
                                 ethereumCall(CONTRACT, "create")
@@ -106,8 +120,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .batchKey(RELAYER))
                                 .payingWith(RELAYER)),
                         getTxnRecord(type4Txn).andAllChildRecords().logged(),
-                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress));
-                }));
+                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasDelegationAddress(delegationTargetAddress))));
     }
 
     @HapiTest
@@ -120,10 +133,6 @@ public class CodeDelegationAtomicBatchTest {
                         .key(DELEGATING_ACCOUNT)
                         .withMatchingEvmAddress()
                         .balance(ONE_HUNDRED_HBARS),
-                newKeyNamed(INSUFFICIENT_BALANCE_ACCOUNT).shape(SECP_256K1_SHAPE),
-                cryptoCreate(INSUFFICIENT_BALANCE_ACCOUNT)
-                        .key(INSUFFICIENT_BALANCE_ACCOUNT)
-                        .balance(0L),
                 getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
@@ -160,7 +169,6 @@ public class CodeDelegationAtomicBatchTest {
                 newKeyNamed(DELEGATING_ACCOUNT).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS).between(GENESIS, DELEGATING_ACCOUNT)),
                 cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(INSUFFICIENT_BALANCE_ACCOUNT).key(RELAYER).balance(0L),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
@@ -239,7 +247,6 @@ public class CodeDelegationAtomicBatchTest {
                         .distributing(GENESIS, DELEGATING_ACCOUNT, delegatingAccount1)),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS)
                         .distributing(GENESIS, delegatingAccount2, delegatingAccount3)),
-                cryptoCreate(INSUFFICIENT_BALANCE_ACCOUNT).key(RELAYER).balance(0L),
                 cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 withOpContext((spec, opLog) -> allRunFor(
