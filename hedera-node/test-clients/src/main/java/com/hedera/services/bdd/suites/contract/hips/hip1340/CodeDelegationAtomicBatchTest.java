@@ -185,6 +185,35 @@ public class CodeDelegationAtomicBatchTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> testNoDelegationWhenBatchFailsBeforeType4TxDispatched() {
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var batchTxn = "BatchFailsBeforeType4";
+        return hapiTest(
+                createFundedAccount(DELEGATING_ACCOUNT),
+                getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation(),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(DELEGATING_ACCOUNT)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(2_000_000L)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .via(batchTxn)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(batchTxn).andAllChildRecords().logged(),
+
+                        getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation())));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> testAtomicBatchRevertsAllDelegationTransactionsOnInnerTxFailure() {
         final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get()));
         final var delegationTargetAddress = DELEGATION_TARGET.get();
