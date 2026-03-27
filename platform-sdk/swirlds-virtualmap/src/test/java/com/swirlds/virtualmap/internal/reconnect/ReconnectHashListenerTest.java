@@ -128,6 +128,7 @@ class ReconnectHashListenerTest {
             assertEquals(expected, path, "Path did not match expectation. path=" + path + ", expected=" + expected);
             expected++;
         }
+        hasher.shutdown();
     }
 
     private VirtualLeafBytes leaf(long path) {

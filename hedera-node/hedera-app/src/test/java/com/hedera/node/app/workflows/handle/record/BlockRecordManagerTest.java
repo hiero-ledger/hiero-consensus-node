@@ -225,8 +225,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
-                InitTrigger.RESTART,
-                null)) {
+                InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             }
@@ -324,8 +323,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
-                InitTrigger.RESTART,
-                null)) {
+                InitTrigger.RESTART)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
             int transactionCount = 0;
@@ -516,8 +514,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
-                InitTrigger.RESTART,
-                null);
+                InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(CONSENSUS_TIME));
@@ -543,8 +540,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
-                InitTrigger.RESTART,
-                null);
+                InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
         Assertions.assertThat(result).isEqualTo(fromTimestamp(EPOCH));
@@ -634,8 +630,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                     quiescedHeartbeat,
                     platform,
                     diskWriter,
-                    trigger,
-                    null);
+                    trigger);
         }
 
         private void processBlock(BlockRecordManagerImpl manager, State state, int blockIndex) {
