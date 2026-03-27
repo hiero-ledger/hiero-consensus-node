@@ -58,7 +58,9 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class CodeDelegationAtomicBatchTest {
     private static final String CODE_DELEGATION_CONTRACT = "CodeDelegationContract";
+    private static final String CODE_DELEGATION_CONTRACT_2 = "CodeDelegationContract2";
     private static final AtomicReference<Address> DELEGATION_TARGET = new AtomicReference<>();
+    private static final AtomicReference<Address> DELEGATION_TARGET_2 = new AtomicReference<>();
     private static final String DELEGATING_ACCOUNT = "DelegatingAccount";
     private static final String CONTRACT = "CreateTrivial";
     private static final String REVERTING_CONTRACT = "InternalCallee";
@@ -91,7 +93,10 @@ public class CodeDelegationAtomicBatchTest {
                 insufficientBalanceAccount.getInfo(),
                 relayer.getInfo(),
                 uploadInitCode(CODE_DELEGATION_CONTRACT),
-                contractCreate(CODE_DELEGATION_CONTRACT).exposingAddressTo(DELEGATION_TARGET::set));
+                contractCreate(CODE_DELEGATION_CONTRACT).exposingAddressTo(DELEGATION_TARGET::set),
+                contractCreate(CODE_DELEGATION_CONTRACT_2)
+                        .bytecode(CODE_DELEGATION_CONTRACT)
+                        .exposingAddressTo(DELEGATION_TARGET_2::set));
     }
 
     @HapiTest
@@ -354,6 +359,45 @@ public class CodeDelegationAtomicBatchTest {
                         // Delegation to A should survive rollback
                         // getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress)
                         getAliasedAccountInfo(authorityAccount).hasNoDelegation())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> testExistingDelegationUpdatedByType4SurvivesRollback() {
+        final var d1 = DELEGATION_TARGET.get();
+        final var d1Bytes = ByteString.copyFrom(explicitFromHeadlong(d1));
+        final var d2 = DELEGATION_TARGET_2.get();
+        final var sender = DELEGATING_ACCOUNT + "SenderFor3_2";
+        final var authorityAccount = DELEGATING_ACCOUNT + "Authority3_2";
+        final var batchTxn = "batchUpdateDelegationRollback";
+        return hapiTest(
+                createFundedAccount(sender),
+                createFundedAccount(authorityAccount),
+                // Set initial delegation D1 on account A
+                cryptoUpdate(authorityAccount).delegationAddress(d1Bytes),
+                getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d1),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(d2, authorityAccount)
+                                        .gasLimit(2_000_000L)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .via(batchTxn)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(batchTxn).andAllChildRecords().logged(),
+
+                        // TODO (dsinyakov): switch to below assert when atomic batch delegation persistence is fixed
+                        // Delegation on A should be D2 (survives rollback). Original D1 is NOT restored.
+                        // getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d2)
+                        getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d1))));
     }
 
     @HapiTest
