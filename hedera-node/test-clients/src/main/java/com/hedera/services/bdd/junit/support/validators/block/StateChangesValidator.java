@@ -343,9 +343,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                         .orElseThrow();
         final IncrementalStreamingHasher incrementalBlockHashes =
                 new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+        boolean hashChainBroken = false;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
-            final var shouldVerifyProof = i == 0
+            var shouldVerifyProof = i == 0
                     || i == lastVerifiableIndex
                     || indirectProofSeq != null
                     || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
@@ -435,16 +436,37 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
             assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + i);
 
-            if (i <= lastVerifiableIndex) {
+            // An incomplete block (missing footer/proof) can appear in the middle of the list
+            // when nodes are restarted and all nodes wrote the block before the async proof arrived
+            final long blockNumber =
+                    block.items().getFirst().blockHeaderOrThrow().number();
+            final boolean blockHasProof = block.items().getLast().hasBlockProof();
+            if (i <= lastVerifiableIndex && blockHasProof) {
                 final var footer = block.items().get(block.items().size() - 2);
-                assertTrue(footer.hasBlockFooter());
+                assertTrue(
+                        footer.hasBlockFooter(),
+                        "Field blockFooter is null for block #" + blockNumber + " at index " + i);
                 final var lastBlockItem = block.items().getLast();
                 assertTrue(lastBlockItem.hasBlockProof());
                 final var blockProof = lastBlockItem.blockProofOrThrow();
-                assertEquals(
-                        previousBlockHash,
-                        footer.blockFooterOrThrow().previousBlockRootHash(),
-                        "Previous block hash mismatch for block " + blockProof.block());
+
+                if (hashChainBroken) {
+                    // An incomplete block broke the hash chain; we cannot verify
+                    // previousBlockHash or do full proof verification for this block.
+                    // Force shouldVerifyProof off so we resume the chain from the
+                    // next block's footer instead.
+                    // But we must still add the skipped block's hash to the incremental
+                    // hasher so the chain stays in sync for future proof verifications.
+                    final var skippedBlockHash = footer.blockFooterOrThrow().previousBlockRootHash();
+                    incrementalBlockHashes.addNodeByHash(skippedBlockHash.toByteArray());
+                    shouldVerifyProof = false;
+                    hashChainBroken = false;
+                } else {
+                    assertEquals(
+                            previousBlockHash,
+                            footer.blockFooterOrThrow().previousBlockRootHash(),
+                            "Previous block hash mismatch for block " + blockProof.block());
+                }
 
                 if (shouldVerifyProof) {
                     final var lastStateChange = lastStateChanges.stateChanges().getLast();
@@ -486,15 +508,21 @@ public class StateChangesValidator implements BlockStreamValidator {
                     previousBlockHash = expectedBlockHash;
                 } else {
                     final var nextBlock = blocks.get(i + 1);
-                    final var nextBlockFooterIndex = nextBlock.items().size() - 2;
-                    previousBlockHash = nextBlock
-                            .items()
-                            .get(nextBlockFooterIndex)
-                            .blockFooterOrThrow()
-                            .previousBlockRootHash();
+                    final var nextBlockItems = nextBlock.items();
+                    final var nextBlockFooterIndex = nextBlockItems.size() - 2;
+                    if (nextBlockFooterIndex >= 0
+                            && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter()) {
+                        previousBlockHash = nextBlockItems
+                                .get(nextBlockFooterIndex)
+                                .blockFooterOrThrow()
+                                .previousBlockRootHash();
+                    }
                 }
 
                 incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
+            } else if (i <= lastVerifiableIndex) {
+                logger.warn("Skipping proof verification for incomplete block #{} at index {}", blockNumber, i);
+                hashChainBroken = true;
             }
         }
         logger.info("Summary of changes by service:\n{}", stateChangesSummary);

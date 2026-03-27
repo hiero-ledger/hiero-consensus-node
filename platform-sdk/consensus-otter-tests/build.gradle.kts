@@ -49,6 +49,7 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requiresStatic("com.github.spotbugs.annotations")
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
 }
 
 testIntegrationModuleInfo { //
@@ -56,6 +57,7 @@ testIntegrationModuleInfo { //
 }
 
 extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
     runtimeOnly("io.grpc.netty.shaded")
 }
 

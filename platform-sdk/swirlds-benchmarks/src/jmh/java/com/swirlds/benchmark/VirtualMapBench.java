@@ -26,6 +26,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class VirtualMapBench extends VirtualMapBaseBench {
 
+    @Override
     String benchmarkName() {
         return "VirtualMapBench";
     }
@@ -35,7 +36,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void update() throws Exception {
-        beforeTest("update");
+        setTestDir("update");
 
         logger.info(RUN_DELIMITER);
 
@@ -81,10 +82,8 @@ public class VirtualMapBench extends VirtualMapBaseBench {
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     /**
@@ -92,7 +91,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void create() throws Exception {
-        beforeTest("create");
+        setTestDir("create");
 
         logger.info(RUN_DELIMITER);
 
@@ -123,10 +122,8 @@ public class VirtualMapBench extends VirtualMapBaseBench {
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     /**
@@ -134,7 +131,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void delete() throws Exception {
-        beforeTest("delete");
+        setTestDir("delete");
 
         logger.info(RUN_DELIMITER);
 
@@ -192,18 +189,17 @@ public class VirtualMapBench extends VirtualMapBaseBench {
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     /**
      * Read from a pre-created map. Parallel.
      */
     @Benchmark
-    public void read() throws Exception {
-        beforeTest("read");
+    public void read() {
+        setTestDir("read");
+        preserveTestDir();
 
         logger.info(RUN_DELIMITER);
 
@@ -245,7 +241,5 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 (long) numRecords * numThreads,
                 numThreads,
                 System.currentTimeMillis() - start);
-
-        afterTest(true);
     }
 }
