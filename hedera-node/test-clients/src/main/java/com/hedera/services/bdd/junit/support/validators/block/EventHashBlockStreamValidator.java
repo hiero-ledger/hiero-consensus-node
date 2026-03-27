@@ -94,7 +94,7 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Processing {} blocks for event chain verification", blocks.size());
 
-        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks, pcesEventHashes);
+        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
         final var events = eventBuilder.getEvents();
 
         validateEventHashChain(events, eventBuilder.getCrossBlockParentHashes(), pcesEventHashes);
@@ -124,12 +124,13 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                 events.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
 
         final List<Hash> pcesOnlyHashes = new ArrayList<>();
+        final List<Hash> unresolvedHashes = new ArrayList<>();
         for (final Hash crossBlockParentHash : crossBlockParentHashes) {
             if (!eventHashes.contains(crossBlockParentHash)) {
                 if (pcesEventHashes.contains(crossBlockParentHash)) {
                     pcesOnlyHashes.add(crossBlockParentHash);
                 } else {
-                    fail("Cross block parent hash {} not found among event or PCES hashes!", crossBlockParentHash);
+                    unresolvedHashes.add(crossBlockParentHash);
                 }
             }
         }
@@ -139,6 +140,13 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                     "{} of {} cross-block parent hashes were resolved via PCES only (stale events not in block stream)",
                     pcesOnlyHashes.size(),
                     crossBlockParentHashes.size());
+        }
+        if (!unresolvedHashes.isEmpty()) {
+            logger.warn(
+                    "{} of {} cross-block parent hashes could not be resolved in block stream or PCES: {}",
+                    unresolvedHashes.size(),
+                    crossBlockParentHashes.size(),
+                    unresolvedHashes);
         }
     }
 

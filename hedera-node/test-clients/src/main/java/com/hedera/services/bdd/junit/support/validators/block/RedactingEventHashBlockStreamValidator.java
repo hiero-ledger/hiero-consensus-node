@@ -288,7 +288,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         }
 
         // Reconstruct events from all blocks and validate hash chain
-        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(reloadedBlocks, pcesEventHashes);
+        final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(reloadedBlocks);
         EventHashBlockStreamValidator.validateEventHashChain(
                 eventBuilder.getEvents(), eventBuilder.getCrossBlockParentHashes(), pcesEventHashes);
     }
