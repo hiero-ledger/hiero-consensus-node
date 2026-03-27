@@ -23,7 +23,7 @@ The plugin is active in the following CI workflows:
 3. **If the test passes on any retry**, it is marked as flaky. The overall workflow run is **not** failed.
 4. **If the test fails on all retries**, it is treated as a genuine failure. The workflow run fails as it normally would.
 
-This means flaky tests will no longer block PR merges or cause MAT/XTS runs to report failure, as long as the test succeeds within the allowed retries. Note that passing MAT/XTS runs on the main branch will still send a Slack message confirming the run passed, but noting that flaky tests were detected.
+This means flaky tests will no longer block PR merges or cause MATS/XTS runs to report failure, as long as the test succeeds within the allowed retries. Note that passing MATS/XTS runs on the main branch will still send a Slack message confirming the run passed, but noting that flaky tests were detected.
 
 > **Fail-safe:** If the number of flaky tests detected in a single run exceeds a configured threshold, the overall run will fail regardless of retry outcomes. This prevents situations where a large number of flaky tests mask a systemic issue.
 
