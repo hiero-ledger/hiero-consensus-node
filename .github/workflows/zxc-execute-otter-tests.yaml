@@ -123,7 +123,7 @@ jobs:
 
       - name: Upload Full Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && steps.gradle-full-otter-tests.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-full-otter-tests && steps.gradle-full-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
@@ -176,7 +176,7 @@ jobs:
 
       - name: Upload Fast Otter Tests Turtle Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -184,7 +184,7 @@ jobs:
 
       - name: Upload Fast Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
@@ -237,7 +237,7 @@ jobs:
 
       - name: Upload Chaos Otter Tests Turtle Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -245,7 +245,7 @@ jobs:
 
       - name: Upload Chaos Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
