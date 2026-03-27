@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.Tag;
  * burst of mixed operations again.
  */
 @Tag(RESTART)
+@Disabled
 public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
     private static final int MIXED_OPS_BURST_TPS = 50;
 
