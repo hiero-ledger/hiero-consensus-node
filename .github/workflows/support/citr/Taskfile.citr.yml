@@ -47,11 +47,12 @@ tasks:
       - task: "solo:deployment:create"
       - task: "solo:deployment:add-cluster"
       - task: "solo:keys"
+      - task: "solo:network:deploy"
 
   installCNs:
     desc: solo init, solo cluster-ref create, solo node keys, solo network deploy
     cmds:
-      - task: "solo:network:deploy"
+      - task: "solo:node:setup"
       - task: "start"
 
   destroy:
@@ -257,7 +258,6 @@ tasks:
         else
           SOLO_HOME_DIR=${SOLO_HOME_DIR} solo network deploy --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${VALUES_FLAG} ${SETTINGS_FLAG} ${LOG4J2_FLAG} ${APPLICATION_PROPERTIES_FLAG} ${APPLICATION_ENVIRONMENT_FLAG} ${GENESIS_THROTTLES_FLAG} ${DEBUG_NODE_FLAG} ${SOLO_CHARTS_DIR_FLAG} ${LOAD_BALANCER_FLAG} ${NETWORK_DEPLOY_EXTRA_FLAGS} -q --dev
         fi
-      - task: "solo:node:setup"
 
   solo:node:setup:
     silent: true
