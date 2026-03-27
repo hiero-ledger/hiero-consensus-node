@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
@@ -128,7 +127,6 @@ class TokenClaimAirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Can claim 10 fungible airdrops")
-    @Tag(MATS)
     public Stream<DynamicTest> claim10Airdrops(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
@@ -176,7 +174,6 @@ class TokenClaimAirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Can claim 3 fungible airdrops")
-    @Tag(MATS)
     public Stream<DynamicTest> claim3Airdrops(
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
