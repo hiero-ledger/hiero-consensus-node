@@ -70,6 +70,8 @@ public interface ServiceFeeCalculator {
                 long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
                 result.addServiceExtraFeeTinycents(ref.name().name(), extraFee, amount, included);
             }
+            return;
         }
+        throw new IllegalArgumentException("Extra not defined " + extra.name());
     }
 }
