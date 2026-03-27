@@ -578,7 +578,7 @@ public class CodeDelegationAtomicBatchTest {
 
     // 8.1: atomicBatch(type-4 tx, valid transfer) - batch succeeds. Nonces incremented.
     @HapiTest
-    final Stream<DynamicTest> atomicBatchType4GasAndNoncesOnSuccessTest() {
+    final Stream<DynamicTest> testAtomicBatchType4NoncesOnSuccess() {
         final var sender = DELEGATING_ACCOUNT + "GasSender";
         final var authAccount1 = DELEGATING_ACCOUNT + "GasAuth1";
         final var authAccount2 = DELEGATING_ACCOUNT + "GasAuth2";
@@ -636,7 +636,7 @@ public class CodeDelegationAtomicBatchTest {
 
     // 8.2: atomicBatch(type-4 tx, invalid transfer) - batch fails. Nonces and delegations should survive.
     @HapiTest
-    final Stream<DynamicTest> atomicBatchType4GasAndNoncesOnRollbackTest() {
+    final Stream<DynamicTest> testAtomicBatchType4NoncesOnRollback() {
         final var sender = DELEGATING_ACCOUNT + "GasRollbackSender";
         final var authAccount1 = DELEGATING_ACCOUNT + "GasRollbackAuth1";
         final var authAccount2 = DELEGATING_ACCOUNT + "GasRollbackAuth2";
