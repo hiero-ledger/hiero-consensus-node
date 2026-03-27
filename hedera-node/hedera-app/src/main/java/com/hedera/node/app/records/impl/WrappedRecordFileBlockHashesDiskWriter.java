@@ -145,6 +145,9 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                         executor)
                 .exceptionally(ex -> {
                     // Swallow to keep the chain alive; errors are logged in-task.
+                    logger.info(
+                            "Error in wrapped record-file block hashes append task; skipping. Error: {}",
+                            ex.getMessage());
                     return null;
                 }));
     }
