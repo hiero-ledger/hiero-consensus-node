@@ -97,7 +97,7 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
         final var events = eventBuilder.getEvents();
 
-        validateEventHashChain(events, eventBuilder.getCrossBlockParentHashes(), pcesEventHashes);
+        validateEventHashChain(events, eventBuilder.getCrossBlockParentRefs(), pcesEventHashes);
 
         logger.info("Successfully processed and verified {} events in {} blocks", events.size(), blocks.size());
     }
@@ -105,15 +105,16 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     /**
      * Validates the event hash chain by looking up all events that have a parent reference to an event in another
      * block. A cross-block parent hash is valid if it is found either among reconstructed block stream events or
-     * among PCES event hashes (for events that were gossiped but never reached consensus).
+     * among PCES event hashes (for stale events that were gossiped but never reached consensus). If a parent hash
+     * is not found in either source, the validation fails.
      *
      * @param events the list of reconstructed events
-     * @param crossBlockParentHashes the set of parent hashes referencing events in other blocks
+     * @param crossBlockParentRefs cross-block parent references with context about parent and child events
      * @param pcesEventHashes known-valid event hashes from PCES files
      */
     static void validateEventHashChain(
             @NonNull final List<PlatformEvent> events,
-            @NonNull final Set<Hash> crossBlockParentHashes,
+            @NonNull final List<BlockStreamEventBuilder.CrossBlockParentRef> crossBlockParentRefs,
             @NonNull final Set<Hash> pcesEventHashes) {
         if (events.isEmpty()) {
             fail("No events found in the block stream");
@@ -123,30 +124,50 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         final Set<Hash> eventHashes =
                 events.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
 
-        final List<Hash> pcesOnlyHashes = new ArrayList<>();
-        final List<Hash> unresolvedHashes = new ArrayList<>();
-        for (final Hash crossBlockParentHash : crossBlockParentHashes) {
-            if (!eventHashes.contains(crossBlockParentHash)) {
-                if (pcesEventHashes.contains(crossBlockParentHash)) {
-                    pcesOnlyHashes.add(crossBlockParentHash);
+        final List<BlockStreamEventBuilder.CrossBlockParentRef> pcesOnlyRefs = new ArrayList<>();
+        final List<BlockStreamEventBuilder.CrossBlockParentRef> unresolvedRefs = new ArrayList<>();
+        for (final var ref : crossBlockParentRefs) {
+            if (!eventHashes.contains(ref.parentHash())) {
+                if (pcesEventHashes.contains(ref.parentHash())) {
+                    pcesOnlyRefs.add(ref);
                 } else {
-                    unresolvedHashes.add(crossBlockParentHash);
+                    unresolvedRefs.add(ref);
                 }
             }
         }
 
-        if (!pcesOnlyHashes.isEmpty()) {
+        if (!pcesOnlyRefs.isEmpty()) {
             logger.warn(
-                    "{} of {} cross-block parent hashes were resolved via PCES only (stale events not in block stream)",
-                    pcesOnlyHashes.size(),
-                    crossBlockParentHashes.size());
+                    "{} of {} cross-block parent hashes were resolved via PCES only (stale events not in block stream):",
+                    pcesOnlyRefs.size(),
+                    crossBlockParentRefs.size());
+            for (final var ref : pcesOnlyRefs) {
+                logger.warn(
+                        "  Stale parent: creator={}, birthRound={}, hash={} | referenced by child: creator={}, birthRound={}, block={}",
+                        ref.parentDescriptor().creatorNodeId(),
+                        ref.parentDescriptor().birthRound(),
+                        ref.parentHash(),
+                        ref.childCreatorId(),
+                        ref.childBirthRound(),
+                        ref.childBlockIndex());
+            }
         }
-        if (!unresolvedHashes.isEmpty()) {
-            logger.warn(
-                    "{} of {} cross-block parent hashes could not be resolved in block stream or PCES: {}",
-                    unresolvedHashes.size(),
-                    crossBlockParentHashes.size(),
-                    unresolvedHashes);
+
+        if (!unresolvedRefs.isEmpty()) {
+            final var sb = new StringBuilder();
+            for (final var ref : unresolvedRefs) {
+                sb.append(String.format(
+                        "%n  Parent creator=%d, birthRound=%d, hash=%s -> Child creator=%d, birthRound=%d, block=%d",
+                        ref.parentDescriptor().creatorNodeId(),
+                        ref.parentDescriptor().birthRound(),
+                        ref.parentHash(),
+                        ref.childCreatorId(),
+                        ref.childBirthRound(),
+                        ref.childBlockIndex()));
+            }
+            fail(
+                    "%d of %d cross-block parent hashes not found in block stream or PCES:%s",
+                    unresolvedRefs.size(), crossBlockParentRefs.size(), sb);
         }
     }
 
