@@ -29,6 +29,7 @@ final class ApiPermissionConfigTest {
                 "HOOK_DISPATCH",
                 "NODE_STAKE_UPDATE",
                 "LEDGER_ID_PUBLICATION",
+                "MIGRATION_ROOT_HASH_VOTE",
             })
     void internalDispatchTypesAreExplicitlyProhibited(@NonNull final HederaFunctionality function) {
         final var config = HederaTestConfigBuilder.create()

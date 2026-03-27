@@ -30,6 +30,7 @@ buildNumber.properties
 *.pidb
 *.resources
 test-results/
+hedera-node/docker/small-memory-output/
 
 ### NotepadPP template
 # Notepad++ backups #
@@ -1087,4 +1088,6 @@ hedera-state-validator/state-analysis.log
 snyk-code.html
 snyk-code.json
 snyk/
-/hedera-node/docker/small-memory-output/
+
+### Claude Code
+.claude/
