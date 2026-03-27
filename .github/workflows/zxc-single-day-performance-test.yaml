@@ -496,6 +496,13 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
+
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+             task solo:block:add
+          done
+          exit 0
+
           mv block-node-values.yaml block-node-values.yaml.orig
           export BLOCK_NODE_VERSION="${{ inputs.bnref }}"  #"${{ env.BlockNode_version }}"
 
