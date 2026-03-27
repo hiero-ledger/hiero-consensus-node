@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hips.hip1340;
 
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -364,16 +365,13 @@ public class CodeDelegationAtomicBatchTest {
     @HapiTest
     final Stream<DynamicTest> testExistingDelegationUpdatedByType4SurvivesRollback() {
         final var d1 = DELEGATION_TARGET.get();
-        final var d1Bytes = ByteString.copyFrom(explicitFromHeadlong(d1));
         final var d2 = DELEGATION_TARGET_2.get();
         final var sender = DELEGATING_ACCOUNT + "SenderFor3_2";
         final var authorityAccount = DELEGATING_ACCOUNT + "Authority3_2";
         final var batchTxn = "batchUpdateDelegationRollback";
         return hapiTest(
                 createFundedAccount(sender),
-                createFundedAccount(authorityAccount),
-                // Set initial delegation D1 on account A
-                cryptoUpdate(authorityAccount).delegationAddress(d1Bytes),
+                createFundedAccountWithDelegation(authorityAccount, d1),
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d1),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
@@ -397,6 +395,73 @@ public class CodeDelegationAtomicBatchTest {
                         // TODO (dsinyakov): switch to below assert when atomic batch delegation persistence is fixed
                         // Delegation on A should be D2 (survives rollback). Original D1 is NOT restored.
                         // getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d2)
+                        getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d1))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> testDelegationClearedByZeroAddress() {
+        final var d1 = DELEGATION_TARGET.get();
+        final var sender = DELEGATING_ACCOUNT + "SenderFor4_2";
+        final var authorityAccount = DELEGATING_ACCOUNT + "Authority4_2";
+        final var batchTxn = "batchClearDelegationRollback";
+        return hapiTest(
+                createFundedAccount(sender),
+                createFundedAccountWithDelegation(authorityAccount, d1),
+                getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d1),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, authorityAccount)
+                                        .gasLimit(2_000_000L)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .via(batchTxn)
+                                .hasKnownStatus(SUCCESS)),
+                        getTxnRecord(batchTxn).andAllChildRecords().logged(),
+
+                        getAliasedAccountInfo(authorityAccount).hasNoDelegation())));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> testDelegationClearedByZeroAddressSurvivesRollback() {
+        final var d1 = DELEGATION_TARGET.get();
+        final var sender = DELEGATING_ACCOUNT + "SenderFor4_2";
+        final var authorityAccount = DELEGATING_ACCOUNT + "Authority4_2";
+        final var batchTxn = "batchClearDelegationRollback";
+        return hapiTest(
+                createFundedAccount(sender),
+                createFundedAccountWithDelegation(authorityAccount, d1),
+                getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d1),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, authorityAccount)
+                                        .gasLimit(2_000_000L)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .via(batchTxn)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)),
+                        getTxnRecord(batchTxn).andAllChildRecords().logged(),
+
+                        // TODO (dsinyakov): switch to below assert when atomic batch delegation persistence is fixed
+                        // Delegation clearing should survive rollback
+                        // getAliasedAccountInfo(authorityAccount).hasNoDelegation()
                         getAliasedAccountInfo(authorityAccount).hasDelegationAddress(d1))));
     }
 
@@ -525,6 +590,17 @@ public class CodeDelegationAtomicBatchTest {
         return blockingOrder(
                 newKeyNamed(name).shape(SECP_256K1_SHAPE),
                 cryptoCreate(name).key(name).withMatchingEvmAddress().balance(ONE_HUNDRED_HBARS));
+    }
+
+    private static SpecOperation createFundedAccountWithDelegation(
+            @NonNull final String name, @NonNull final Address delegation) {
+        return blockingOrder(
+                newKeyNamed(name).shape(SECP_256K1_SHAPE),
+                cryptoCreate(name)
+                        .key(name)
+                        .withMatchingEvmAddress()
+                        .balance(ONE_HUNDRED_HBARS)
+                        .delegationAddress(ByteString.copyFrom(explicitFromHeadlong(delegation))));
     }
 
     private static SpecOperation createHollowAccounts(@NonNull final String... names) {
