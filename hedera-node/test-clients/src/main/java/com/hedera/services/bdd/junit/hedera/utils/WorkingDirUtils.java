@@ -109,14 +109,19 @@ public class WorkingDirUtils {
         requireNonNull(workingDir);
         requireNonNull(network);
 
-        // If a previous run exists, preserve it under a "-prev-run" sibling directory so that
-        // flaky-test investigations can access logs from both the first (failing) and the retry
-        // (passing) runs. The CI upload globs already cover both because they use "**" patterns.
+        // If a previous run exists, archive it under a numbered sibling directory (e.g.
+        // "node0-run-1", "node0-run-2") so that every retry's logs, block streams, and record
+        // streams are preserved without overwriting each other. The CI upload globs cover all
+        // archived directories automatically because they use "**" patterns.
         if (Files.exists(workingDir)) {
-            final Path prevRunDir = workingDir.resolveSibling(workingDir.getFileName() + "-prev-run");
-            rm(prevRunDir);
+            int runNumber = 1;
+            Path archivedDir;
+            do {
+                archivedDir = workingDir.resolveSibling(workingDir.getFileName() + "-run-" + runNumber);
+                runNumber++;
+            } while (Files.exists(archivedDir));
             try {
-                Files.move(workingDir, prevRunDir);
+                Files.move(workingDir, archivedDir);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
