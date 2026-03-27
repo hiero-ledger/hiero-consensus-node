@@ -21,11 +21,9 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
 
 /**
@@ -47,7 +45,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
     private static final Logger logger = LogManager.getLogger();
 
     private final Path outputDirectory;
-    private final Set<Hash> pcesEventHashes;
+    private final PcesEventHashReader.PcesData pcesData;
 
     /**
      * Factory for creating RedactingBlockStreamValidator instances. Reads PCES files from the spec's
@@ -63,21 +61,21 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
             final Path outputDir = Path.of(".", "redacted-blocks", spec.getName());
-            final Set<Hash> pcesHashes = EventHashBlockStreamValidator.readPcesHashesFromSpec(spec);
-            return new RedactingEventHashBlockStreamValidator(outputDir, pcesHashes);
+            final var pcesData = EventHashBlockStreamValidator.readPcesDataFromSpec(spec);
+            return new RedactingEventHashBlockStreamValidator(outputDir, pcesData);
         }
     };
 
     /**
-     * Creates a new RedactingBlockStreamValidator with the specified output directory and PCES hashes.
+     * Creates a new RedactingBlockStreamValidator with the specified output directory and PCES data.
      *
      * @param outputDirectory the directory where redacted blocks will be written
-     * @param pcesEventHashes known-valid event hashes from PCES files
+     * @param pcesData PCES event hashes and per-creator birth round data
      */
     public RedactingEventHashBlockStreamValidator(
-            @NonNull final Path outputDirectory, @NonNull final Set<Hash> pcesEventHashes) {
+            @NonNull final Path outputDirectory, @NonNull final PcesEventHashReader.PcesData pcesData) {
         this.outputDirectory = outputDirectory;
-        this.pcesEventHashes = pcesEventHashes;
+        this.pcesData = pcesData;
         try {
             // Ensure output directory exists
             Files.createDirectories(outputDirectory);
@@ -290,6 +288,6 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         // Reconstruct events from all blocks and validate hash chain
         final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(reloadedBlocks);
         EventHashBlockStreamValidator.validateEventHashChain(
-                eventBuilder.getEvents(), eventBuilder.getCrossBlockParentRefs(), pcesEventHashes);
+                eventBuilder.getEvents(), eventBuilder.getCrossBlockParentRefs(), pcesData);
     }
 }

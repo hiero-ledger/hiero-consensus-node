@@ -12,8 +12,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,9 +26,9 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
- * Reads PCES (Pre-Consensus Event Stream) files from disk and extracts event hashes. These hashes
- * serve as the source of truth for validating cross-block parent references in the block stream,
- * since some events may exist in PCES but never reach consensus (stale events).
+ * Reads PCES (Pre-Consensus Event Stream) files from disk and extracts event hashes and metadata.
+ * These hashes serve as the source of truth for validating cross-block parent references in the
+ * block stream, since some events may exist in PCES but never reach consensus (stale events).
  */
 public final class PcesEventHashReader {
 
@@ -37,19 +40,29 @@ public final class PcesEventHashReader {
     private PcesEventHashReader() {}
 
     /**
-     * Reads all PCES files from the given directory (recursively) and returns the set of event
-     * hashes found.
+     * Result of reading PCES files: event hashes and per-creator birth round sets for diagnostics.
+     *
+     * @param eventHashes all event hashes found in PCES
+     * @param birthRoundsByCreator mapping from creator node ID to the set of birth rounds found in PCES
+     */
+    public record PcesData(
+            @NonNull Set<Hash> eventHashes, @NonNull Map<Long, TreeSet<Long>> birthRoundsByCreator) {}
+
+    /**
+     * Reads all PCES files from the given directory (recursively) and returns event hashes
+     * and per-creator birth round data.
      *
      * @param pcesDirectory the root directory containing PCES files
-     * @return the set of event hashes from all PCES events
+     * @return PCES data containing event hashes and per-creator birth rounds
      */
     @NonNull
-    public static Set<Hash> readEventHashes(@NonNull final Path pcesDirectory) {
+    public static PcesData readPcesData(@NonNull final Path pcesDirectory) {
         final Set<Hash> hashes = new HashSet<>();
+        final Map<Long, TreeSet<Long>> birthRoundsByCreator = new HashMap<>();
         try (final Stream<Path> paths = Files.walk(pcesDirectory)) {
             paths.filter(p -> p.toString().endsWith(".pces")).sorted().forEach(pcesFile -> {
                 try {
-                    readEventHashesFromFile(pcesFile, hashes);
+                    readEventsFromFile(pcesFile, hashes, birthRoundsByCreator);
                 } catch (final IOException e) {
                     logger.warn("Failed to read PCES file {}", pcesFile, e);
                 }
@@ -58,13 +71,16 @@ public final class PcesEventHashReader {
             logger.warn("Failed to walk PCES directory {}", pcesDirectory, e);
         }
         logger.info("Read {} event hashes from PCES files in {}", hashes.size(), pcesDirectory);
-        return hashes;
+        return new PcesData(hashes, birthRoundsByCreator);
     }
 
     /**
-     * Reads events from a single PCES file and adds their hashes to the given set.
+     * Reads events from a single PCES file and populates hashes and birth round tracking.
      */
-    private static void readEventHashesFromFile(@NonNull final Path pcesFile, @NonNull final Set<Hash> hashes)
+    private static void readEventsFromFile(
+            @NonNull final Path pcesFile,
+            @NonNull final Set<Hash> hashes,
+            @NonNull final Map<Long, TreeSet<Long>> birthRoundsByCreator)
             throws IOException {
         final PbjStreamHasher hasher = new PbjStreamHasher();
         try (final DataInputStream dis =
@@ -89,11 +105,14 @@ public final class PcesEventHashReader {
                     final PlatformEvent event = new PlatformEvent(gossipEvent, EventOrigin.STORAGE);
                     hasher.hashEvent(event);
                     hashes.add(event.getHash());
+                    final long creator = event.getEventCore().creatorNodeId();
+                    final long birthRound = event.getBirthRound();
+                    birthRoundsByCreator
+                            .computeIfAbsent(creator, k -> new TreeSet<>())
+                            .add(birthRound);
                 } catch (final EOFException e) {
                     break;
                 } catch (final ParseException | NullPointerException e) {
-                    // Partial or corrupted event - PlatformEvent constructor can throw NPE
-                    // if the GossipEvent is malformed (e.g., missing eventCore or timeCreated)
                     logger.warn("Failed to parse event in PCES file {}", pcesFile, e);
                     break;
                 }

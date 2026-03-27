@@ -15,9 +15,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,22 +37,25 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final Set<Hash> pcesEventHashes;
+    /** Number of nearby birth rounds to show around a gap in diagnostics. */
+    private static final int CONTEXT_WINDOW = 5;
+
+    private final PcesEventHashReader.PcesData pcesData;
 
     /**
-     * Constructor for standalone use (e.g., from main method) without PCES hashes.
+     * Constructor for standalone use (e.g., from main method) without PCES data.
      */
     public EventHashBlockStreamValidator() {
-        this(Set.of());
+        this(new PcesEventHashReader.PcesData(Set.of(), Map.of()));
     }
 
     /**
-     * Constructor with PCES event hashes for parent hash validation.
+     * Constructor with PCES data for parent hash validation and diagnostics.
      *
-     * @param pcesEventHashes known-valid event hashes from PCES files
+     * @param pcesData PCES event hashes and per-creator birth round data
      */
-    public EventHashBlockStreamValidator(@NonNull final Set<Hash> pcesEventHashes) {
-        this.pcesEventHashes = pcesEventHashes;
+    public EventHashBlockStreamValidator(@NonNull final PcesEventHashReader.PcesData pcesData) {
+        this.pcesData = pcesData;
     }
 
     /**
@@ -85,8 +91,8 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         @Override
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
-            final Set<Hash> pcesHashes = readPcesHashesFromSpec(spec);
-            return new EventHashBlockStreamValidator(pcesHashes);
+            final var pcesData = readPcesDataFromSpec(spec);
+            return new EventHashBlockStreamValidator(pcesData);
         }
     };
 
@@ -97,7 +103,7 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(blocks);
         final var events = eventBuilder.getEvents();
 
-        validateEventHashChain(events, eventBuilder.getCrossBlockParentRefs(), pcesEventHashes);
+        validateEventHashChain(events, eventBuilder.getCrossBlockParentRefs(), pcesData);
 
         logger.info("Successfully processed and verified {} events in {} blocks", events.size(), blocks.size());
     }
@@ -106,16 +112,16 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
      * Validates the event hash chain by looking up all events that have a parent reference to an event in another
      * block. A cross-block parent hash is valid if it is found either among reconstructed block stream events or
      * among PCES event hashes (for stale events that were gossiped but never reached consensus). If a parent hash
-     * is not found in either source, the validation fails.
+     * is not found in either source, the validation fails with detailed diagnostics.
      *
      * @param events the list of reconstructed events
      * @param crossBlockParentRefs cross-block parent references with context about parent and child events
-     * @param pcesEventHashes known-valid event hashes from PCES files
+     * @param pcesData PCES event hashes and per-creator birth round data
      */
     static void validateEventHashChain(
             @NonNull final List<PlatformEvent> events,
             @NonNull final List<BlockStreamEventBuilder.CrossBlockParentRef> crossBlockParentRefs,
-            @NonNull final Set<Hash> pcesEventHashes) {
+            @NonNull final PcesEventHashReader.PcesData pcesData) {
         if (events.isEmpty()) {
             fail("No events found in the block stream");
             return;
@@ -124,11 +130,19 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         final Set<Hash> eventHashes =
                 events.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
 
+        // Build per-creator birth round index from block stream events for gap diagnostics
+        final Map<Long, TreeSet<Long>> blockStreamBirthRounds = new HashMap<>();
+        for (final var event : events) {
+            blockStreamBirthRounds
+                    .computeIfAbsent(event.getEventCore().creatorNodeId(), k -> new TreeSet<>())
+                    .add(event.getBirthRound());
+        }
+
         final List<BlockStreamEventBuilder.CrossBlockParentRef> pcesOnlyRefs = new ArrayList<>();
         final List<BlockStreamEventBuilder.CrossBlockParentRef> unresolvedRefs = new ArrayList<>();
         for (final var ref : crossBlockParentRefs) {
             if (!eventHashes.contains(ref.parentHash())) {
-                if (pcesEventHashes.contains(ref.parentHash())) {
+                if (pcesData.eventHashes().contains(ref.parentHash())) {
                     pcesOnlyRefs.add(ref);
                 } else {
                     unresolvedRefs.add(ref);
@@ -143,7 +157,7 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                     crossBlockParentRefs.size());
             for (final var ref : pcesOnlyRefs) {
                 logger.warn(
-                        "  Stale parent: creator={}, birthRound={}, hash={} | referenced by child: creator={}, birthRound={}, block={}",
+                        "  Stale parent: creator={}, birthRound={}, hash={} | child: creator={}, birthRound={}, block={}",
                         ref.parentDescriptor().creatorNodeId(),
                         ref.parentDescriptor().birthRound(),
                         ref.parentHash(),
@@ -156,14 +170,60 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         if (!unresolvedRefs.isEmpty()) {
             final var sb = new StringBuilder();
             for (final var ref : unresolvedRefs) {
+                final long creator = ref.parentDescriptor().creatorNodeId();
+                final long missingBirthRound = ref.parentDescriptor().birthRound();
+
                 sb.append(String.format(
                         "%n  Parent creator=%d, birthRound=%d, hash=%s -> Child creator=%d, birthRound=%d, block=%d",
-                        ref.parentDescriptor().creatorNodeId(),
-                        ref.parentDescriptor().birthRound(),
+                        creator,
+                        missingBirthRound,
                         ref.parentHash(),
                         ref.childCreatorId(),
                         ref.childBirthRound(),
                         ref.childBlockIndex()));
+
+                // Show nearby birth rounds from block stream for this creator
+                final var bsRounds = blockStreamBirthRounds.get(creator);
+                if (bsRounds != null) {
+                    sb.append(String.format(
+                            "%n    Block stream creator %d: %d total events, range [%d..%d], nearby: %s ... [missing %d] ... %s",
+                            creator,
+                            bsRounds.size(),
+                            bsRounds.first(),
+                            bsRounds.last(),
+                            nearbyRounds(bsRounds, missingBirthRound, true),
+                            missingBirthRound,
+                            nearbyRounds(bsRounds, missingBirthRound, false)));
+                } else {
+                    sb.append(String.format("%n    Block stream creator %d: no events found", creator));
+                }
+
+                // Show nearby birth rounds from PCES for this creator
+                final var pcesRounds = pcesData.birthRoundsByCreator().get(creator);
+                if (pcesRounds != null) {
+                    sb.append(String.format(
+                            "%n    PCES creator %d: %d total events, range [%d..%d], nearby: %s ... [missing %d] ... %s",
+                            creator,
+                            pcesRounds.size(),
+                            pcesRounds.first(),
+                            pcesRounds.last(),
+                            nearbyRounds(pcesRounds, missingBirthRound, true),
+                            missingBirthRound,
+                            nearbyRounds(pcesRounds, missingBirthRound, false)));
+                } else {
+                    sb.append(String.format("%n    PCES creator %d: no events found", creator));
+                }
+
+                // Show which other creators have events at the missing birth round
+                final var creatorsAtRound = new ArrayList<Long>();
+                for (final var entry : blockStreamBirthRounds.entrySet()) {
+                    if (entry.getValue().contains(missingBirthRound)) {
+                        creatorsAtRound.add(entry.getKey());
+                    }
+                }
+                sb.append(String.format(
+                        "%n    Other creators with events at birthRound %d in block stream: %s",
+                        missingBirthRound, creatorsAtRound.isEmpty() ? "(none)" : creatorsAtRound));
             }
             fail(
                     "%d of %d cross-block parent hashes not found in block stream or PCES:%s",
@@ -172,21 +232,50 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     }
 
     /**
-     * Reads PCES event hashes from all network nodes in the given spec.
+     * Returns a string showing birth rounds near the missing one (before or after).
+     *
+     * @param rounds sorted set of birth rounds
+     * @param target the missing birth round
+     * @param before true to show rounds before target, false for after
+     * @return formatted string of nearby rounds
+     */
+    private static String nearbyRounds(
+            @NonNull final NavigableSet<Long> rounds, final long target, final boolean before) {
+        final var nearby = before ? rounds.headSet(target, false).descendingSet() : rounds.tailSet(target, false);
+        final var result = nearby.stream().limit(CONTEXT_WINDOW).sorted().toList();
+        return result.isEmpty() ? "(none)" : result.toString();
+    }
+
+    /**
+     * Reads PCES data from all network nodes in the given spec.
      *
      * @param spec the HapiSpec providing access to network node paths
-     * @return the union of all PCES event hashes across all nodes
+     * @return merged PCES data from all nodes
      */
-    static Set<Hash> readPcesHashesFromSpec(@NonNull final HapiSpec spec) {
-        final Set<Hash> allHashes = new HashSet<>();
+    static PcesEventHashReader.PcesData readPcesDataFromSpec(@NonNull final HapiSpec spec) {
+        final var mergedHashes = new java.util.HashSet<Hash>();
+        final var mergedBirthRounds = new HashMap<Long, TreeSet<Long>>();
+        final var nodesWithPces = new ArrayList<Long>();
+        final var nodesWithoutPces = new ArrayList<Long>();
         for (final var node : spec.getNetworkNodes()) {
             final Path pcesDir =
                     node.getExternalPath(ExternalPath.PCES_DIR).toAbsolutePath().normalize();
             if (Files.exists(pcesDir)) {
-                allHashes.addAll(PcesEventHashReader.readEventHashes(pcesDir));
+                final var nodeData = PcesEventHashReader.readPcesData(pcesDir);
+                mergedHashes.addAll(nodeData.eventHashes());
+                nodeData.birthRoundsByCreator().forEach((creator, rounds) -> mergedBirthRounds
+                        .computeIfAbsent(creator, k -> new TreeSet<>())
+                        .addAll(rounds));
+                nodesWithPces.add(node.getNodeId());
+            } else {
+                nodesWithoutPces.add(node.getNodeId());
             }
         }
-        logger.info("Read {} total PCES event hashes from all network nodes", allHashes.size());
-        return allHashes;
+        logger.info(
+                "Read {} total PCES event hashes. Nodes with PCES: {}, nodes without: {}",
+                mergedHashes.size(),
+                nodesWithPces,
+                nodesWithoutPces);
+        return new PcesEventHashReader.PcesData(mergedHashes, mergedBirthRounds);
     }
 }
