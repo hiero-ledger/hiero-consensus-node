@@ -47,7 +47,7 @@ When a new flaky test is detected during a MATS or XTS run:
 - The ticket is **assigned to the manager** of the team responsible for that test category (e.g., HAPI tests are assigned to the HAPI team manager, Otter tests to the Otter team manager). Unit tests, which span multiple areas, are assigned to the Consensus and Foundation team manager.
 - A warning message is posted to **#continuous-integration-test-operations** on Slack.
 
-If the flaky test already has an existing ticket, no new ticket is created. Instead, the MAT/XTS run is linked in the existing ticket for tracking purposes.
+If the flaky test already has an existing ticket, no new ticket is created. Instead, the MATS/XTS run is linked in the existing ticket for tracking purposes.
 
 ### On Dry Runs
 
