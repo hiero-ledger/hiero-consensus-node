@@ -920,12 +920,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
-        logger.info(
-                "votingState {} votingComplete {} currentBlockNumber {} votingCompletionDeadlineBlockNumber {}",
-                blockInfo,
-                blockInfo != null ? blockInfo.votingComplete() : null,
-                currentBlockNumber,
-                blockInfo != null ? blockInfo.votingCompletionDeadlineBlockNumber() : null);
         if (blockInfo == null) {
             return false;
         }
