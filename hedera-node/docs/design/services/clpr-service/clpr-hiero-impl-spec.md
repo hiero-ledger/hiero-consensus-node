@@ -1051,14 +1051,10 @@ same peer ledger, so ledger ID is insufficient as a key.
 
 ### F-8: Response Ordering Recovery
 
-The design document section 3.2.7 says: "Once valid data resumes, the Connection unblocks and normal operation
-continues." The cross-platform spec section 4.5 says: "A HALTED Connection does not automatically recover. The
-admin MUST intervene by closing the Connection." These contradict each other on the recovery path from a HALTED
-state.
-
-**Resolution:** This implementation follows the cross-platform spec: HALTED is not auto-recoverable. The only
-valid transition from HALTED is to CLOSED (admin action). The design doc appears to describe an earlier design
-that was tightened in the cross-platform spec.
+**Resolved.** HALTED does not auto-recover, but it IS resumable by admin action. The admin coordinates with the
+peer to fix the bug, then calls `resumeConnection` to return the Connection to ACTIVE. If queue state is
+unrecoverable, the admin may close the Connection instead. Both the design doc and the cross-platform spec now
+agree on this model.
 
 ### F-9: Queue Metadata Naming
 
