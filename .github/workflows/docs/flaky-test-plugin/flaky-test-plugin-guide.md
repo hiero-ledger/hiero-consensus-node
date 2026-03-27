@@ -12,7 +12,7 @@ The plugin is active in the following CI workflows:
 
 - **Pull Request (PR) CI**
 - **Minimal Acceptance Test Suite (MATS) on main**
-- **XTS executions**
+- **eXtended Test Suite (XTS) executions**
 
 > **Important:** The plugin operates exclusively within the test execution step — specifically, the step that runs the `gradlew test` command. It does **not** apply to any other workflow steps. Failures that occur outside of the test step (e.g., compilation, static analysis, or other non-test stages) are unaffected by this plugin and will continue to fail the workflow as they do today.
 
