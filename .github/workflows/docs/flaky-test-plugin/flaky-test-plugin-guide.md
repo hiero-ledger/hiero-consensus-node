@@ -86,10 +86,10 @@ Below are examples of the comments the `github-actions` bot will leave on PRs.
 
 ## Summary of Responsibilities
 
-| Scenario | Ticket Created Automatically? | Who Investigates? |
-|---|---|---|
-| New flaky test on a **PR** | Yes | PR author (to determine if their changes caused the flake) |
-| Known flaky test on a **PR** | No (existing ticket linked) | Assigned team manager |
-| New flaky test on **MATS / XTS** | Yes | Assigned team manager |
-| Known flaky test on **MATS / XTS** | No (existing ticket linked) | Assigned team manager |
-| New flaky test on a **Dry Run** | No | Person who initiated the dry run |
+|              Scenario              | Ticket Created Automatically? |                     Who Investigates?                      |
+|------------------------------------|-------------------------------|------------------------------------------------------------|
+| New flaky test on a **PR**         | Yes                           | PR author (to determine if their changes caused the flake) |
+| Known flaky test on a **PR**       | No (existing ticket linked)   | Assigned team manager                                      |
+| New flaky test on **MATS / XTS**   | Yes                           | Assigned team manager                                      |
+| Known flaky test on **MATS / XTS** | No (existing ticket linked)   | Assigned team manager                                      |
+| New flaky test on a **Dry Run**    | No                            | Person who initiated the dry run                           |
