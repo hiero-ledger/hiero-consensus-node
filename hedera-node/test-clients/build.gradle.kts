@@ -37,7 +37,6 @@ tasks.jacocoTestReport {
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -77,6 +76,7 @@ val basePrCheckTags =
         "hapiTestTokenSerial" to "(TOKEN&SERIAL)",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
+        "hapiTestSmartContractSerial" to "(SMART_CONTRACT&SERIAL)",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestWraps" to "WRAPS",
         "hapiTestWrapsDownload" to "WRAPS_DOWNLOAD",
@@ -116,6 +116,8 @@ val concurrentTasks =
         "hapiTestSimpleFeesSerial",
         "hapiTestAtomicBatch",
         "hapiTestAtomicBatchSerial",
+        "hapiTestSmartContract",
+        "hapiTestSmartContractSerial",
     )
 
 val prCheckTags =
@@ -173,6 +175,7 @@ val prCheckStartPorts =
         put("hapiTestSimpleFees", "28800")
         put("hapiTestSimpleFeesSerial", "29000")
         put("hapiTestAtomicBatchSerial", "29200")
+        put("hapiTestSmartContractSerial", "29400")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -197,6 +200,7 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
+        put("hapiTestSmartContractSerial", "tss.historyEnabled=false")
         put(
             "hapiTestRestart",
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
@@ -274,6 +278,7 @@ val prCheckNetSizeOverrides =
         put("hapiTestSimpleFeesSerial", "3")
         put("hapiTestTokenSerial", "3")
         put("hapiTestSmartContract", "4")
+        put("hapiTestSmartContractSerial", "3")
         put("hapiTestAtomicBatch", "3")
         put("hapiTestAtomicBatchSerial", "3")
 
@@ -295,7 +300,8 @@ tasks {
                         taskName.contains("Misc") ||
                         taskName.contains("TimeConsuming") ||
                         taskName.contains("SimpleFees") ||
-                        taskName.contains("AtomicBatch")) && !taskName.contains("Serial")
+                        taskName.contains("AtomicBatch") ||
+                        taskName.contains("SmartContract")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
@@ -308,7 +314,6 @@ tasks {
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -430,7 +435,6 @@ tasks.register<Test>("testSubprocess") {
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -548,7 +552,6 @@ tasks.register<Test>("testSubprocessConcurrent") {
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -655,7 +658,6 @@ tasks {
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -729,7 +731,6 @@ tasks {
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     val ciTagExpression =
         gradle.startParameter.taskNames
