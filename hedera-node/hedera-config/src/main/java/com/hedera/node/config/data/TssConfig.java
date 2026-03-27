@@ -68,4 +68,17 @@ public record TssConfig(
         // Whether to force BlockProof#signed_block_proof.proof fields to SHA-384 hash of block hash; true
         // in prod until release that fully cuts over to streamMode=BLOCKS
         @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean forceMockSignatures) {}
+        boolean forceMockSignatures,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean wrapsProvingKeyDownloadEnabled,
+
+        @ConfigProperty(defaultValue = "data/keys/wraps") @NodeProperty
+        String wrapsProvingKeyPath,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyHash,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyDownloadUrl,
+
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
+        Duration wrapsProvingKeyRetryInterval) {}

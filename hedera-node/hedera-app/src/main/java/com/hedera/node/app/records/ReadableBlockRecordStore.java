@@ -4,10 +4,14 @@ package com.hedera.node.app.records;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Comparator;
+import java.util.List;
 
 public class ReadableBlockRecordStore {
 
@@ -15,7 +19,8 @@ public class ReadableBlockRecordStore {
     private final ReadableSingletonState<BlockInfo> blockInfo;
 
     public ReadableBlockRecordStore(@NonNull final ReadableStates states) {
-        this.blockInfo = requireNonNull(states.getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID));
+        requireNonNull(states);
+        this.blockInfo = states.getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
     }
 
     /**
@@ -24,5 +29,21 @@ public class ReadableBlockRecordStore {
     @NonNull
     public BlockInfo getLastBlockInfo() {
         return blockInfo.get();
+    }
+
+    public boolean isVotingComplete() {
+        return getLastBlockInfo().votingComplete();
+    }
+
+    @NonNull
+    public List<NodeMigrationRootHashVote> votes() {
+        return getLastBlockInfo().migrationRootHashVotes();
+    }
+
+    @NonNull
+    public List<MigrationWrappedHashes> wrappedHashesInOrder() {
+        return getLastBlockInfo().migrationWrappedHashes().stream()
+                .sorted(Comparator.comparingLong(MigrationWrappedHashes::blockNumber))
+                .toList();
     }
 }
