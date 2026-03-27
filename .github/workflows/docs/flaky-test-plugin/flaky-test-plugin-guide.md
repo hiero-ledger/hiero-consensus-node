@@ -90,6 +90,6 @@ Below are examples of the comments the `github-actions` bot will leave on PRs.
 |---|---|---|
 | New flaky test on a **PR** | Yes | PR author (to determine if their changes caused the flake) |
 | Known flaky test on a **PR** | No (existing ticket linked) | Assigned team manager |
-| New flaky test on **MATs / XTS** | Yes | Assigned team manager |
+| New flaky test on **MATS / XTS** | Yes | Assigned team manager |
 | Known flaky test on **MATs / XTS** | No (existing ticket linked) | Assigned team manager |
 | New flaky test on a **Dry Run** | No | Person who initiated the dry run |
