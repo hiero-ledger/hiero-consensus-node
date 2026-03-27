@@ -69,8 +69,8 @@ public interface ServiceFeeCalculator {
                 int included = ref.includedCount();
                 long extraFee = lookupExtraFee(feeSchedule, ref.name()).fee();
                 result.addServiceExtraFeeTinycents(ref.name().name(), extraFee, amount, included);
+                return;
             }
-            return;
         }
         throw new IllegalArgumentException("Extra not defined " + extra.name());
     }
