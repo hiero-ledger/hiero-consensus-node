@@ -53,7 +53,7 @@ If the flaky test already has an existing ticket, no new ticket is created. Inst
 
 The [MATS Dry Run workflow](https://github.com/hiero-ledger/hiero-consensus-node/blob/main/.github/workflows/docs/citr-test-config.md#mats) runs the same checks as the PR CI workflow but does **not** automatically create tickets for newly detected flaky tests.
 
-The [XTS Dry Run workflow](https://github.com/hiero-ledger/hiero-consensus-node/blob/main/.github/workflows/docs/citr-test-config.md#xts)executes the same checks as the standard XTS does. This dry run workflow does **not** automatically create tickets for newly detected flaky tests.
+The [XTS Dry Run workflow](https://github.com/hiero-ledger/hiero-consensus-node/blob/main/.github/workflows/docs/citr-test-config.md#xts) executes the same checks as the standard XTS does. This dry run workflow does **not** automatically create tickets for newly detected flaky tests.
 
 If you kick off a dry run, it is **your responsibility** to:
 
