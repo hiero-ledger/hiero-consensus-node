@@ -41,7 +41,7 @@ A comment is left on the PR by the `github-actions` bot. The content of the comm
 
 ### On MATS / XTS
 
-When a new flaky test is detected during a MAT or XTS run:
+When a new flaky test is detected during a MATS or XTS run:
 
 - A ticket is **automatically created** on the flaky test project board.
 - The ticket is **assigned to the manager** of the team responsible for that test category (e.g., HAPI tests are assigned to the HAPI team manager, Otter tests to the Otter team manager). Unit tests, which span multiple areas, are assigned to the Consensus and Foundation team manager.
