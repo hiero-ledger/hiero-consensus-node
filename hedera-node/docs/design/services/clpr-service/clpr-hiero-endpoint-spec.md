@@ -206,7 +206,7 @@ this ledger. The endpoint module tracks inbound sync frequency per `(connection_
 pair to detect abuse (see Section 12.1).
 
 **Connection status filtering.** Per cross-platform spec §2.1.1, Connections have four statuses. On Hiero, the
-sync orchestrator filters as follows: only ACTIVE Connections trigger outbound syncs. PAUSED Connections remain
+sync orchestrator filters as follows: only ACTIVE Connections trigger outbound syncs. HALTED Connections remain
 available as a responder for inbound syncs (the peer may still have messages to deliver). CLOSED and HALTED
 Connections are skipped entirely (see Section 13.4 for HALTED behavior).
 
@@ -776,7 +776,7 @@ No manual intervention is required for partition recovery.
 | Metric Name                            | Type  | Description                                        |
 |----------------------------------------|-------|----------------------------------------------------|
 | `clpr.connections.active`              | Gauge | Number of Connections in ACTIVE status.            |
-| `clpr.connections.paused`              | Gauge | Number of Connections in PAUSED status.            |
+| `clpr.connections.halted`              | Gauge | Number of Connections in HALTED status.            |
 | `clpr.connections.halted`              | Gauge | Number of Connections in HALTED status.            |
 | `clpr.queue.depth.{connection_id}`     | Gauge | Current outbound queue depth per Connection.       |
 | `clpr.peers.reachable.{connection_id}` | Gauge | Number of reachable peer endpoints per Connection. |
@@ -922,7 +922,7 @@ When all peer endpoints for a Connection have open circuit breakers:
 |------------------------------|----------------------------------------------------------------------------------------------------------|
 | CLPR disabled at runtime     | Endpoint module goes dormant. No syncs, no gRPC service. Existing state preserved.                       |
 | No active Connections        | Endpoint module runs but does nothing. No resource consumption beyond the tick timer.                    |
-| All Connections PAUSED       | Syncs still run (to receive inbound). Outbound enqueue rejected per spec §2.1.1.                         |
+| All Connections HALTED       | Syncs still run (to receive inbound). Outbound enqueue rejected per spec §2.1.1.                         |
 | Connection HALTED            | See HALTED handling below.                                                                               |
 | Node catching up (reconnect) | Endpoint dormant until state is recovered.                                                               |
 | Signed state unavailable     | Syncs deferred until signed state is available (startup or reconnect edge case).                         |

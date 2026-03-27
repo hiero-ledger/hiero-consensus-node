@@ -80,7 +80,7 @@ Access control uses OpenZeppelin's `AccessControl` with the following roles:
 | Role                  | Grantable By         | Purpose                                                      |
 |-----------------------|----------------------|--------------------------------------------------------------|
 | `DEFAULT_ADMIN_ROLE`  | Governance multisig  | Grant/revoke other roles. Should be behind a timelock.       |
-| `ADMIN_ROLE`          | `DEFAULT_ADMIN_ROLE` | `setLedgerConfiguration`, `closeConnection`, `pauseConnection`, `resumeConnection`, `redactMessage` |
+| `ADMIN_ROLE`          | `DEFAULT_ADMIN_ROLE` | `setLedgerConfiguration`, `closeConnection`, `haltConnection`, `resumeConnection`, `redactMessage` |
 | `UPGRADER_ROLE`       | `DEFAULT_ADMIN_ROLE` | Reserved for future use if upgrade logic moves on-chain.     |
 
 All permissionless functions (connection registration, endpoint registration, message sending, bundle submission)
@@ -167,9 +167,9 @@ interface IClprService {
 
     /// @notice Pause a Connection (temporarily halt outbound processing). ADMIN_ROLE only.
     /// @param connectionId The Connection ID.
-    function pauseConnection(bytes32 connectionId) external;
+    function haltConnection(bytes32 connectionId) external;
 
-    /// @notice Resume a paused Connection. ADMIN_ROLE only.
+    /// @notice Resume a halted Connection. ADMIN_ROLE only.
     /// @param connectionId The Connection ID.
     function resumeConnection(bytes32 connectionId) external;
 
@@ -577,7 +577,7 @@ struct Connection {
     bytes32 verifierFingerprint;       // EXTCODEHASH at registration time (informational, slot 6)
 
     // --- Status (slot 7, packed with queue metadata) ---
-    uint8 status;                      // 0=UNSET, 1=ACTIVE, 2=PAUSED, 3=CLOSED, 4=HALTED
+    uint8 status;                      // 0=UNSET, 1=ACTIVE, 2=HALTED, 3=CLOSED
 
     // --- Outbound Queue Metadata (slots 7-9) ---
     uint64 nextMessageId;              // next sequence number for outgoing messages
@@ -780,8 +780,8 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
 
   // --- Step 1: Verifier Call ---
   1. Load connection = _connections[connectionId].
-  2. Require connection.status == ACTIVE || connection.status == PAUSED.
-     (PAUSED accepts inbound bundles per Spec section 2.1.1.)
+  2. Require connection.status == ACTIVE || connection.status == HALTED.
+     (HALTED accepts inbound bundles per Spec section 2.1.1.)
   3. Call connection.verifierContract.verifyBundle(proofBytes).
      If reverts: revert entire transaction. Submitter pays gas.
      Returns: (metadata, messages) -- ABI-encoded.
@@ -831,7 +831,7 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
 
 **Verification failures do not HALT the Connection.** If any of steps 1-4 (verifier call, bundle size
 check, replay defense, running hash verification) fail, the transaction simply reverts. No Connection
-state is modified, and the Connection remains in its current status (ACTIVE or PAUSED). Only response
+state is modified, and the Connection remains in its current status (ACTIVE or HALTED). Only response
 ordering violations (see section 8.2) trigger the HALTED state.
 
 ## 5.2 Gas Budget Analysis
@@ -1090,7 +1090,7 @@ modifier nonReentrant() {
 ```
 
 Applied to: `setLedgerConfiguration`, `registerConnection`,
-`closeConnection`, `pauseConnection`, `resumeConnection`, `registerConnector`,
+`closeConnection`, `haltConnection`, `resumeConnection`, `registerConnector`,
 `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`, `sendMessage`, `submitBundle`,
 `redactMessage`, `registerEndpoint`, `deregisterEndpoint`.
 
@@ -1384,7 +1384,7 @@ The following contradictions existed in earlier revisions and have been correcte
    `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
    `registerEndpoint`, `deregisterEndpoint`, `redactMessage`, and `sendMessage`.
    Read-only query functions (`getLedgerConfiguration`, `getConnector`) are exempt. Admin operations
-   (`closeConnection`, `pauseConnection`, `resumeConnection`, `setLedgerConfiguration`) are exempt from the
+   (`closeConnection`, `haltConnection`, `resumeConnection`, `setLedgerConfiguration`) are exempt from the
    `clprEnabled` check because the admin must be able to manage the system even when disabled.
 
 All remaining platform-specific decisions fill explicit gaps designated for platform resolution.

@@ -42,7 +42,7 @@ The following new `oneof` variants are added to `TransactionBody`:
 | `setLedgerConfiguration` | `ClprSetLedgerConfiguration` | `clprSetLedgerConfiguration` | CLPR admin (council key) |
 | `registerConnection` | `ClprRegisterConnection` | `clprRegisterConnection` | Any (permissionless) |
 | `closeConnection` | `ClprCloseConnection` | `clprCloseConnection` | CLPR admin |
-| `pauseConnection` | `ClprPauseConnection` | `clprPauseConnection` | CLPR admin |
+| `haltConnection` | `ClprHaltConnection` | `clprHaltConnection` | CLPR admin |
 | `resumeConnection` | `ClprResumeConnection` | `clprResumeConnection` | CLPR admin |
 | `registerConnector` | `ClprRegisterConnector` | `clprRegisterConnector` | Any (requires initial funds) |
 | `topUpConnector` | `ClprTopUpConnector` | `clprTopUpConnector` | Connector admin |
@@ -122,12 +122,13 @@ message ClprCloseConnectionTransactionBody {
   bytes connection_id = 1;
 }
 
-// Pauses a Connection (prevents new outbound messages; inbound still processed).
-message ClprPauseConnectionTransactionBody {
+// Halts a Connection (prevents new outbound messages; inbound still processed).
+// Also triggered automatically by the protocol on response ordering violations.
+message ClprHaltConnectionTransactionBody {
   bytes connection_id = 1;
 }
 
-// Resumes a paused Connection.
+// Resumes a halted Connection.
 message ClprResumeConnectionTransactionBody {
   bytes connection_id = 1;
 }
@@ -274,7 +275,7 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 | `ClprSetLedgerConfiguration` | CLPR admin key (Hedera council key, file `0.0.150` or equivalent system key) |
 | `ClprRegisterConnection` | Transaction payer only (permissionless) |
 | `ClprCloseConnection` | CLPR admin key |
-| `ClprPauseConnection` | CLPR admin key |
+| `ClprHaltConnection` | CLPR admin key |
 | `ClprResumeConnection` | CLPR admin key |
 | `ClprRegisterConnector` | Transaction payer + Connector admin key |
 | `ClprTopUpConnector` | Connector admin key |
@@ -357,9 +358,8 @@ message ClprConnection {
 
 enum ClprConnectionStatus {
   ACTIVE = 0;
-  PAUSED = 1;
+  HALTED = 1;
   CLOSED = 2;
-  HALTED = 3;
 }
 ```
 
@@ -367,15 +367,12 @@ enum ClprConnectionStatus {
 
 | From | To | Trigger |
 |---|---|---|
-| `ACTIVE` | `PAUSED` | `ClprPauseConnection` (admin) |
+| `ACTIVE` | `HALTED`  | `ClprHaltConnection` (admin), or response ordering violation during `ClprSubmitBundle` |
 | `ACTIVE` | `CLOSED`  | `ClprCloseConnection` (admin) |
-| `ACTIVE` | `HALTED` | Response ordering violation detected during `ClprSubmitBundle` |
-| `PAUSED` | `ACTIVE` | `ClprResumeConnection` (admin) |
-| `PAUSED` | `CLOSED`  | `ClprCloseConnection` (admin) |
+| `HALTED` | `ACTIVE`  | `ClprResumeConnection` (admin) |
 | `HALTED` | `CLOSED`  | `ClprCloseConnection` (admin) |
 
-`CLOSED` is a terminal state with no outgoing transitions. `HALTED` does not automatically recover; admin
-intervention (close) is required.
+`CLOSED` is a terminal state with no outgoing transitions.
 
 ```protobuf
 // Connector state.
@@ -468,7 +465,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | `ClprSetLedgerConfigurationHandler` | `ClprSetLedgerConfiguration` | Medium (admin key check, store config). The handler sets `protocol_version` automatically from the CLPR service code version (callers do not supply it). The `chain_id` is immutable — it is determined by the ledger at CLPR activation time and cannot be modified via this transaction. |
 | `ClprRegisterConnectionHandler` | `ClprRegisterConnection` | Medium (ECDSA verify, verifyConfig call, store verifier contract and code fingerprint, Connection creation). The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
 | `ClprCloseConnectionHandler` | `ClprCloseConnection` | Low (status transition) |
-| `ClprPauseConnectionHandler` | `ClprPauseConnection` | Low (status transition) |
+| `ClprHaltConnectionHandler` | `ClprHaltConnection` | Low (status transition) |
 | `ClprResumeConnectionHandler` | `ClprResumeConnection` | Low (status transition) |
 | `ClprRegisterConnectorHandler` | `ClprRegisterConnector` | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices. |
 | `ClprTopUpConnectorHandler` | `ClprTopUpConnector` | Low (balance update) |
@@ -482,8 +479,8 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 This is the most complex handler. Its `handle()` method implements the bundle verification algorithm from
 cross-platform spec section 4.2:
 
-1. **Verify Connection status.** Reject if `CLOSED` or `HALTED`. **Note:** PAUSED connections accept inbound
-   bundles (the pause only prevents new outbound messages). This ensures acknowledgements continue flowing.
+1. **Verify Connection status.** Reject if `CLOSED`. **Note:** HALTED connections accept inbound
+   bundles (the halt only prevents new outbound messages). This ensures acknowledgements continue flowing.
 2. **Call verifier contract** via `verifyBundle(proof_bytes)`. On Hiero, verifiers are system contracts invoked
    through the `HandleContext.dispatchChildTransaction()` or a dedicated verifier dispatch mechanism (see
    [section 5](#5-verifier-integration)). If verification fails, charge the submitter and reject.
@@ -541,7 +538,7 @@ section 4.3:
 Most CLPR handlers have minimal `preHandle` work, consistent with Hiero's design principle that `preHandle` only
 verifies the payer can pay:
 
-- **Admin transactions** (`SetLedgerConfiguration`, `Close`, `Pause`, `Resume`, `Redact`): `preHandle` adds the
+- **Admin transactions** (`SetLedgerConfiguration`, `Close`, `Halt`, `Resume`, `Redact`): `preHandle` adds the
   CLPR admin key to the required keys set.
 - **Connector admin transactions** (`TopUp`, `Withdraw`, `Deregister`): `preHandle` looks up the Connector and
   adds its admin key to the required keys set.
@@ -854,7 +851,7 @@ Each handler registers a `ServiceFeeCalculator`:
 | `ClprRegisterConnection` | Fixed base + ECDSA verification cost | ECDSA verify + store verifier contract and code fingerprint |
 | `ClprUpdateEndpointRoster` | Fixed base + verification cost | |
 | `ClprCloseConnection` | Fixed base | Low; state transition only |
-| `ClprPauseConnection` | Fixed base | Low |
+| `ClprHaltConnection` | Fixed base | Low |
 | `ClprResumeConnection` | Fixed base | Low |
 | `ClprRegisterConnector` | Fixed base | |
 | `ClprTopUpConnector` | Fixed base | |

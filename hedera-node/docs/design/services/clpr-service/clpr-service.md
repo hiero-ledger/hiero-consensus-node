@@ -380,7 +380,7 @@ bundle with messages requires having actual messages to send.
 
 Connection creation is **permissionless**. Anyone can register a new connection by deploying a verifier contract,
 obtaining a configuration proof from the peer ledger, and calling `registerConnection`. The verifier is fixed for
-the lifetime of the connection and cannot be changed. The CLPR Service admin retains the power to **pause or
+the lifetime of the connection and cannot be changed. The CLPR Service admin retains the power to **halt or
 close** any connection at any time (see below).
 
 ```mermaid
@@ -432,34 +432,29 @@ confirmations. Each Connection uses a different verifier tuned to a specific com
 choice between lower latency and stronger finality guarantees. Each Connection has its own independent queue. See 
 [§3.4](#34-application-layer) for application-layer patterns that leverage this.
 
-**Connection lifecycle.** A Connection has four states:
+**Connection lifecycle.** A Connection has three states:
 
 - **ACTIVE** — Normal operation. Messages are enqueued, syncs occur, bundles are processed. This is the
   initial state after successful registration.
-- **PAUSED** — Temporarily halted by the CLPR Service admin. No new outbound messages are accepted.
-  Inbound bundles are still processed (acknowledgements continue flowing so the peer's queue does not
-  stall). This state is for investigation — the admin can inspect the Connection and decide whether to
-  resume (return to ACTIVE) or close.
-- **HALTED** — Triggered automatically when a response ordering violation is detected during inbound
-  bundle processing ([§3.2.7](#327-response-ordering-and-correlation)). Indicates a fundamental
-  peer-side bug. Inbound bundles are rejected. Does not auto-recover — requires admin intervention
-  (close the Connection).
+- **HALTED** — The Connection is suspended. No new outbound messages are accepted. Inbound bundles are
+  still processed (acknowledgements continue flowing so the peer's queue does not stall). A Connection
+  can be halted by the CLPR Service admin (`haltConnection`) for investigation or maintenance, or
+  automatically by the protocol when a response ordering violation is detected during inbound bundle
+  processing ([§3.2.7](#327-response-ordering-and-correlation)). The admin can resume the Connection
+  (return to ACTIVE) once the issue is resolved, or close it.
 - **CLOSED** — Terminal state. All processing stops. Endpoints stop syncing for this Connection.
 
 **State transitions:**
 
 - (new) → ACTIVE (`registerConnection` succeeds)
-- ACTIVE → PAUSED (CLPR Service admin action)
-- ACTIVE → CLOSED (CLPR Service admin action)
-- ACTIVE → HALTED (response ordering violation detected)
-- PAUSED → ACTIVE (CLPR Service admin resumes — issue resolved)
-- PAUSED → CLOSED (CLPR Service admin action)
-- PAUSED → HALTED (response ordering violation detected during inbound bundle processing)
-- HALTED → CLOSED (CLPR Service admin action — the only exit from HALTED)
+- ACTIVE → HALTED (admin calls `haltConnection`, or response ordering violation detected)
+- ACTIVE → CLOSED (admin calls `closeConnection`)
+- HALTED → ACTIVE (admin calls `resumeConnection` — issue resolved)
+- HALTED → CLOSED (admin calls `closeConnection`)
 
-**Who can pause and close.** Only the **CLPR Service admin** (governing council on Hiero, contract
-governance on Ethereum) can pause or close any Connection. Connections have no per-connection admin
-authority — the registrant has no special privileges after creation. The ECDSA keypair used for
+**Who can halt and close.** Only the **CLPR Service admin** (governing council on Hiero, contract
+governance on Ethereum) can halt, resume, or close any Connection. Connections have no per-connection
+admin authority — the registrant has no special privileges after creation. The ECDSA keypair used for
 registration exists solely to coordinate cross-ledger registration and has no further protocol role.
 
 **Verifier immutability.** The verifier contract is fixed at registration time and cannot be changed. If the source
@@ -1196,7 +1191,7 @@ should be used as the basis for integration and fault-tolerance testing.
 | R2  | **Source ledger upgrades proof format.** Syncs are active but the existing verifier cannot read the new format.                             | Breaks when source switches | Register a new Connection with a new verifier that understands the new proof format. Applications migrate to the new Connection. The old Connection can be closed by the CLPR Service admin. | **Works** (requires new Connection).             |
 | R3  | **Endpoints rotated, proof format unchanged.** Sync channel broken, but existing verifier can still read proofs.                            | Broken               | Endpoint discovery (R1), then ConfigUpdate flows normally once syncs resume.                                                                                                                                                                                                  | **Works.**                                       |
 | R4  | **Endpoints rotated AND proof format changed.** Sync channel broken, existing verifier cannot read new proofs.                              | Broken               | Register a new Connection with a new verifier. Endpoint discovery (R1) on the new Connection. Old Connection closed by admin. Applications migrate to the new Connection.                                                                                                     | **Works** (requires new Connection).             |
-| R5  | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                                    | Suspect              | CLPR Service admin pauses the Connection. Since the verifier is immutable, the Connection must be closed — in-flight messages receive `UNRESOLVED`. A new Connection with a correct verifier can be registered.                                                               | **Works** (`UNRESOLVED` for in-flight messages). |
+| R5  | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                                    | Suspect              | CLPR Service admin halts the Connection. Since the verifier is immutable, the Connection must be closed. A new Connection with a correct verifier can be registered.                                                                                                          | **Works.**                                       |
 | R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection is automatically HALTED ([§3.2.7](#327-response-ordering-and-correlation)). CLPR Service admin coordinates with peer to fix the bug, then closes and re-registers.                                                                                                | **Works** (requires admin intervention).         |
 | R7  | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints.                                                 | Temporarily broken   | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed.                                                                                                                                               | **Works.**                                       |
 | R8  | **Peer ledger down entirely.** The remote ledger is offline.                                                                                | Broken               | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off.                                                                                                                                   | **Works.**                                       |

@@ -327,7 +327,7 @@ are received passively — the remote peer dials this node when it has messages 
 single-threaded scheduler per Connection.
 
 Per cross-platform spec §2.1.1, Connection status determines behavior: CLOSED/HALTED Connections are skipped
-entirely, PAUSED Connections skip outbound initiation but remain available as responders, and ACTIVE Connections
+entirely, HALTED Connections skip outbound initiation but remain available as responders, and ACTIVE Connections
 proceed normally. On Besu, the sync loop implementation is:
 
 ```
@@ -875,7 +875,7 @@ After submission:
    reasons:
    - Replay: another endpoint already submitted a bundle covering the same messages. Expected and benign.
    - Verification failure: possible if the block was reorged between pre-validation and inclusion.
-   - Connection status changed: paused, closed, or HALTED (spec §2.1.1, §4.5) between estimation and inclusion.
+   - Connection status changed: halted or closed (spec §2.1.1, §4.5) between estimation and inclusion.
 
    Per spec §4.2, bundle verification failures (bad hash chain, replay, oversized payload) cause a simple revert
    with no state change. Response ordering violations (spec §4.5) transition the Connection to HALTED permanently.
