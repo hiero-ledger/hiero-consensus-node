@@ -782,7 +782,7 @@ jobs:
   hapi-tests-bn-comms:
     name: "HAPI Tests (BN Comms)"
     if: ${{ inputs.enable-hapi-tests-bn-communication == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-hapi-bn-lin-xl
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
