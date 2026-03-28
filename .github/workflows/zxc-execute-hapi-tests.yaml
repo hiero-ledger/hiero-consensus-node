@@ -180,8 +180,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -259,8 +258,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -339,8 +337,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -419,8 +416,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -498,8 +494,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -577,8 +572,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -656,8 +650,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -735,8 +728,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -814,8 +806,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -893,8 +884,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -972,8 +962,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -1049,8 +1038,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
@@ -1128,8 +1116,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find hedera-node/test-clients/build/test-results -name "TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
