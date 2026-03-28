@@ -10,11 +10,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPairTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -30,7 +29,6 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -41,26 +39,24 @@ import org.junit.jupiter.api.Tag;
  * burst of mixed operations again.
  */
 @Tag(RESTART)
-@Disabled
 public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
     private static final int MIXED_OPS_BURST_TPS = 50;
 
     @LeakyHapiTest(overrides = {"staking.periodMins", "nodes.nodeRewardsEnabled"})
     final Stream<DynamicTest> quiesceAndThenRestartMixedOps() {
         final AtomicReference<Instant> scheduleExpiry = new AtomicReference<>();
-        final AtomicReference<Instant> sleepStart = new AtomicReference<>(Instant.now());
+        final AtomicReference<Instant> logAssertionStart = new AtomicReference<>();
         return hapiTest(
-                // Override properties that interfere with the idle->QUIESCE
-                // transition and restart so they take effect with a fresh
-                // lastQuiescenceCommand in BlockStreamManagerImpl
-                overridingAllOf(Map.of(
+                // Restart with env overrides that suppress staking period transactions
+                // which would otherwise prevent the network from reaching sustained quiescence
+                LifecycleTest.restartAtNextConfigVersion(Map.of(
                         "staking.periodMins", "1440",
                         "nodes.nodeRewardsEnabled", "false")),
-                LifecycleTest.restartAtNextConfigVersion(),
                 // Ensure the network is out of quiescence before the test logic
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 // --- actual test workflow ---
                 cryptoCreate("scheduledReceiver").via("txn").balance(41 * ONE_HBAR),
+                doingContextual((ignored) -> logAssertionStart.set(Instant.now())),
                 doWithStartupDuration("quiescence.tctDuration", duration -> scheduleCreate(
                                 "schedule", cryptoTransfer(tinyBarsFromTo(GENESIS, "scheduledReceiver", ONE_HBAR)))
                         .payingWith(GENESIS)
@@ -71,14 +67,16 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 getScheduleInfo("schedule")
                         .exposingInfoTo(info -> scheduleExpiry.set(asInstant(info.getExpirationTime())))
                         .logged(),
-                withOpContext((spec, opLog) -> sleepStart.set(Instant.now())),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
-                assertHgcaaLogContainsTimeframe(
+                assertHgcaaLogContainsPairTimeframe(
                         NodeSelector.byNodeId(0),
-                        sleepStart::get,
-                        Duration.ofSeconds(15),
-                        Duration.ofSeconds(15),
-                        "to QUIESCE"),
+                        logAssertionStart::get,
+                        Duration.ofSeconds(60), // for both lines
+                        Duration.ofSeconds(60),
+                        "Started quiesced heartbeat",
+                        "Stopping quiescence heartbeat",
+                        Duration.ofSeconds(5),
+                        Duration.ofSeconds(40)),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
                 getTxnRecord("creation").scheduled().exposingTo(r -> {

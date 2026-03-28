@@ -176,13 +176,25 @@ public interface LifecycleTest {
      * @return the operation
      */
     static SpecOperation restartAtNextConfigVersion() {
+        return restartAtNextConfigVersion(Map.of());
+    }
+
+    /**
+     * Returns an operation that restarts the network at the next configuration version with the given
+     * environment overrides. The overrides are set as process environment variables on the subprocess
+     * nodes, so they survive the restart and take precedence over {@code application.properties}.
+     *
+     * @param envOverrides the environment overrides to pass to the restarted nodes
+     * @return the operation
+     */
+    static SpecOperation restartAtNextConfigVersion(@NonNull final Map<String, String> envOverrides) {
         return blockingOrder(
                 freezeOnly().startingIn(5).seconds().payingWith(GENESIS).deferStatusResolution(),
                 // Immediately submit a transaction in the same round to ensure freeze time is only
                 // reset when last frozen time matches it (i.e., in a post-upgrade transaction)
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 confirmFreezeAndShutdown(),
-                sourcing(() -> FakeNmt.restartNetwork(CURRENT_CONFIG_VERSION.incrementAndGet(), Map.of())),
+                sourcing(() -> FakeNmt.restartNetwork(CURRENT_CONFIG_VERSION.incrementAndGet(), envOverrides)),
                 waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT));
     }
 
