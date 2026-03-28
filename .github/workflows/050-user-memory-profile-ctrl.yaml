@@ -48,7 +48,7 @@ on:
         description: 'Transactions Per Second'
       versions:
         required: true
-        default: "CN_VERSION=v0.72.0-rc.4\\nMN_VERSION=v0.150.0-rc3\\nBN_VERSION=v0.30.0-rc1\\nRELAY_VERSION=latest\\nTSS_ENABLED=true\\nSOLO_VERSION=latest\\nTCK_VERSION=latest"
+        default: "export CONSENSUS_NODE_VERSION=v0.72.0-rc.4; export BLOCK_NODE_VERSION=v0.28.1"
         type: string
         description: 'Versions of containers'
 defaults:
@@ -195,7 +195,7 @@ jobs:
 
       - name: Version update
         run: |
-          /usr/bin/echo -e "${{ inputs.versions }}" > "${{ github.workspace }}"/solo/.env
+          /usr/bin/echo -e "${{ inputs.versions }}" > "${{ github.workspace }}"/solo/testenv.sh
 
       - name: Deploy K8S pod
         run: |
@@ -204,6 +204,7 @@ jobs:
           #cat .env
           #task up
           cd "${{ github.workspace }}"/solo
+          . "${{ github.workspace }}"/solo/testenv.sh
           bash ./test/e2e/dual-cluster/setup-dual-e2e.sh
           
           wait_in_minutes=$(expr ${{ inputs.nlg-time }} / 60)
@@ -238,6 +239,7 @@ jobs:
           set +x
           #cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
           #task load:up NLG_TEST_TYPE="${{ inputs.nlg-test }}" NLG_ARGS="${{ inputs.nlg-args }} -a ${{ inputs.nlg-accounts }} -tt ${{ inputs.nlg-time }}s" NLG_MAX_TPS="${{ inputs.nlg-tps }}"
+          . "${{ github.workspace }}"/solo/testenv.sh
           cd "${{ github.workspace }}"/solo
           task test-e2e-performance
 
