@@ -167,6 +167,9 @@ public class AsyncInputStream {
             if (message != null) {
                 return message;
             }
+            if (!isAlive()) {
+                return null;
+            }
             final long now = System.currentTimeMillis();
             if (currentThread.isInterrupted() || (now - start > pollTimeout.toMillis())) {
                 break;
