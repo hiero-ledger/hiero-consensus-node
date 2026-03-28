@@ -231,7 +231,7 @@ ${stack_trace}
             existing_body=$(echo "${comments}" | head -1 | jq -r '.body')
 
             # Count existing rows to determine occurrence number
-            row_count=$(echo "${existing_body}" | grep -cE '^\| [0-9]+ \|' || echo "0")
+            row_count=$(echo "${existing_body}" | grep -cE '^\| [0-9]+ \|' || true)
             next_num=$((row_count + 1))
             new_row="${new_row//\{N\}/${next_num}}"
 
