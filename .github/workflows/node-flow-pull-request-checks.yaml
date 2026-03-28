@@ -70,6 +70,7 @@ jobs:
       enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-simplefees: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-atomic-batch: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-smart-contract: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
       java-version: "25"
