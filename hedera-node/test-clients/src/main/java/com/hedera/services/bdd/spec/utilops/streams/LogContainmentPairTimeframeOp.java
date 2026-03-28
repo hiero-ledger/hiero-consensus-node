@@ -10,6 +10,7 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedReader;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
@@ -25,8 +26,9 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A {@link UtilOp} that validates that a node's log contains two patterns appearing in order
- * within a specified timeframe, with a time gap between them that falls within {@code [minGap, maxGap]}.
+ * A {@link UtilOp} that validates that the selected nodes' application or platform log contains
+ * two patterns appearing in order within a specified timeframe, with a time gap between them
+ * that falls within {@code [minGap, maxGap]}, reading the log incrementally.
  *
  * <p>This is useful for asserting that a state transition (e.g. quiescence) lasted a meaningful
  * duration, distinguishing real transitions from transient flickers that resolve in milliseconds.
@@ -49,7 +51,8 @@ public class LogContainmentPairTimeframeOp extends UtilOp {
     // State for incremental reading
     private final AtomicLong linesProcessed = new AtomicLong(0L);
     // Persists across polls so a firstPattern match on one poll can pair with a secondPattern on the next
-    private Instant candidateFirstTime = null;
+    @Nullable
+    private Instant candidateFirstTime;
 
     public LogContainmentPairTimeframeOp(
             @NonNull final NodeSelector selector,
@@ -101,19 +104,23 @@ public class LogContainmentPairTimeframeOp extends UtilOp {
                 maxGap);
 
         while (Instant.now().isBefore(timeoutDeadline)) {
-            final var result = new SearchResult();
+            // Process new log lines for all selected nodes
+            final boolean[] matched = {false};
+            final Instant[] matchedTimes = new Instant[2];
             spec.targetNetworkOrThrow().nodesFor(selector).forEach(node -> {
-                searchNodeLog(node.getExternalPath(path), startTime, endTime, result);
+                if (!matched[0]) {
+                    findMatchingPairInNodeLog(node.getExternalPath(path), startTime, endTime, matched, matchedTimes);
+                }
             });
 
-            if (result.matched) {
+            if (matched[0]) {
                 log.info(
                         "Found matching pair: '{}' at {} and '{}' at {} (gap={})",
                         firstPattern,
-                        result.firstTime,
+                        matchedTimes[0],
                         secondPattern,
-                        result.secondTime,
-                        Duration.between(result.firstTime, result.secondTime));
+                        matchedTimes[1],
+                        Duration.between(matchedTimes[0], matchedTimes[1]));
                 return false; // Success
             }
 
@@ -128,70 +135,66 @@ public class LogContainmentPairTimeframeOp extends UtilOp {
                         + "MinGap=%s, MaxGap=%s",
                 startTime, timeframe, waitTimeout, firstPattern, secondPattern, minGap, maxGap));
 
-        return false;
+        return false; // Should not be reached due to Assertions.fail
     }
 
-    private void searchNodeLog(
+    private void findMatchingPairInNodeLog(
             @NonNull final java.nio.file.Path logPath,
             @NonNull final Instant startTime,
             @NonNull final Instant endTime,
-            @NonNull final SearchResult result) {
-        if (result.matched) {
-            return;
-        }
+            @NonNull final boolean[] matched,
+            @NonNull final Instant[] matchedTimes) {
         long newLinesRead = 0;
         try (BufferedReader reader = Files.newBufferedReader(logPath)) {
+            // Skip lines already processed and process the rest
             try (var linesStream = reader.lines().skip(linesProcessed.get())) {
                 final var iterator = linesStream.iterator();
                 while (iterator.hasNext()) {
                     final String line = iterator.next();
                     newLinesRead++;
 
-                    final Instant logInstant;
+                    LocalDateTime logTime;
+                    Instant logInstant;
                     try {
+                        // Basic check for timestamp format length
                         if (line.length() < 23) continue;
                         final String timestamp = line.substring(0, 23);
-                        final LocalDateTime logTime = LocalDateTime.parse(timestamp, LOG_TIMESTAMP_FORMAT);
+                        logTime = LocalDateTime.parse(timestamp, LOG_TIMESTAMP_FORMAT);
                         logInstant = logTime.atZone(ZoneId.systemDefault()).toInstant();
                     } catch (Exception e) {
                         continue;
                     }
 
-                    if (!logInstant.isAfter(startTime) || !logInstant.isBefore(endTime)) {
-                        continue;
-                    }
-
-                    // Check for firstPattern — always update candidate to the latest match
-                    if (line.contains(firstPattern)) {
-                        candidateFirstTime = logInstant;
-                    }
-                    // Check for secondPattern only if we have a candidate firstPattern
-                    if (candidateFirstTime != null && line.contains(secondPattern)) {
-                        final Duration gap = Duration.between(candidateFirstTime, logInstant);
-                        if (gap.compareTo(minGap) >= 0 && gap.compareTo(maxGap) <= 0) {
-                            result.matched = true;
-                            result.firstTime = candidateFirstTime;
-                            result.secondTime = logInstant;
-                            break;
+                    // Check if the log entry is within the timeframe
+                    if (logInstant.isAfter(startTime) && logInstant.isBefore(endTime)) {
+                        // Check for firstPattern — always update candidate to the latest match
+                        if (line.contains(firstPattern)) {
+                            candidateFirstTime = logInstant;
                         }
-                        // Gap didn't qualify — reset candidate so we look for the next pair
-                        candidateFirstTime = null;
+                        // Check for secondPattern only if we have a candidate firstPattern
+                        if (candidateFirstTime != null && line.contains(secondPattern)) {
+                            final Duration gap = Duration.between(candidateFirstTime, logInstant);
+                            if (gap.compareTo(minGap) >= 0 && gap.compareTo(maxGap) <= 0) {
+                                matched[0] = true;
+                                matchedTimes[0] = candidateFirstTime;
+                                matchedTimes[1] = logInstant;
+                                break;
+                            }
+                            // Gap didn't qualify — reset candidate so we look for the next pair
+                            candidateFirstTime = null;
+                        }
                     }
                 }
             }
         } catch (NoSuchFileException nsfe) {
             log.warn("Log file not found: {}. Will retry.", logPath);
+            // File might appear later, do nothing and let the loop retry
         } catch (Exception e) {
-            log.error("Error reading log file {}", logPath, e);
+            log.error("Error reading log file {}. Candidate so far: {}", logPath, candidateFirstTime, e);
+            // Rethrow or handle as appropriate for the test framework
             throw new RuntimeException("Error during log processing for " + logPath, e);
         }
+        // Update the total lines processed for this file
         linesProcessed.addAndGet(newLinesRead);
-    }
-
-    /** Mutable holder for the search result across nodes. */
-    private static class SearchResult {
-        boolean matched;
-        Instant firstTime;
-        Instant secondTime;
     }
 }
