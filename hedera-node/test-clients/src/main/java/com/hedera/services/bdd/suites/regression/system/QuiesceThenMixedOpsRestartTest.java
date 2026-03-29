@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPairTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -47,11 +48,12 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
         final AtomicReference<Instant> scheduleExpiry = new AtomicReference<>();
         final AtomicReference<Instant> logAssertionStart = new AtomicReference<>();
         return hapiTest(
-                // Restart with env overrides that suppress staking period transactions
-                // which would otherwise prevent the network from reaching sustained quiescence
-                LifecycleTest.restartAtNextConfigVersion(Map.of(
+                // Update 0.0.121 before the restart so the overrides persist in saved state
+                // and survive the post-upgrade system file processing on restart
+                overridingAllOf(Map.of(
                         "staking.periodMins", "1440",
                         "nodes.nodeRewardsEnabled", "false")),
+                LifecycleTest.restartAtNextConfigVersion(),
                 // Ensure the network is out of quiescence before the test logic
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 // --- actual test workflow ---
