@@ -289,6 +289,7 @@ val prCheckNetSizeOverrides =
         put("hapiTestSmartContractSerial", "3")
         put("hapiTestAtomicBatch", "3")
         put("hapiTestAtomicBatchSerial", "3")
+        put("hapiTestQuiescence", "3")
 
         val originalEntries = toMap() // Create a snapshot of current entries
         originalEntries.forEach { (taskName: String, size: String) ->
