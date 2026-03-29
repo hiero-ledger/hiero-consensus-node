@@ -144,6 +144,8 @@ val remoteCheckTags =
                     "hapiTestIssMATS",
                     "hapiTestRestart",
                     "hapiTestRestartMATS",
+                    "hapiTestQuiescence",
+                    "hapiTestQuiescenceMATS",
                     "hapiTestWrapsDownload",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
