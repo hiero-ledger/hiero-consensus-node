@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPairTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -23,11 +22,10 @@ import static com.hedera.services.bdd.suites.regression.system.MixedOperations.b
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -38,22 +36,19 @@ import org.junit.jupiter.api.Tag;
  * <p>
  * Then submits a burst of mixed operations, freezes all nodes, shuts them down, restarts them, and submits the same
  * burst of mixed operations again.
+ * <p>
+ * Requires {@code staking.periodMins=1440} and {@code nodes.nodeRewardsEnabled=false} to be set
+ * in the Gradle task overrides so that staking period transactions do not interfere with quiescence.
  */
 @Tag(RESTART)
 public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
     private static final int MIXED_OPS_BURST_TPS = 50;
 
-    @LeakyHapiTest(overrides = {"staking.periodMins", "nodes.nodeRewardsEnabled"})
+    @HapiTest
     final Stream<DynamicTest> quiesceAndThenRestartMixedOps() {
         final AtomicReference<Instant> scheduleExpiry = new AtomicReference<>();
         final AtomicReference<Instant> logAssertionStart = new AtomicReference<>();
         return hapiTest(
-                // Update 0.0.121 before the restart so the overrides persist in saved state
-                // and survive the post-upgrade system file processing on restart
-                overridingAllOf(Map.of(
-                        "staking.periodMins", "1440",
-                        "nodes.nodeRewardsEnabled", "false")),
-                LifecycleTest.restartAtNextConfigVersion(),
                 // Ensure the network is out of quiescence before the test logic
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 // --- actual test workflow ---
@@ -73,7 +68,7 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 assertHgcaaLogContainsPairTimeframe(
                         NodeSelector.byNodeId(0),
                         logAssertionStart::get,
-                        Duration.ofSeconds(60), // for both lines
+                        Duration.ofSeconds(60),
                         Duration.ofSeconds(60),
                         "Started quiesced heartbeat",
                         "Stopping quiescence heartbeat",
