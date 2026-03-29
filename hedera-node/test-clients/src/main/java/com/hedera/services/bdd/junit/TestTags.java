@@ -15,6 +15,7 @@ public class TestTags {
     public static final String STATE_THROTTLING = "STATE_THROTTLING";
     public static final String TOKEN = "TOKEN";
     public static final String RESTART = "RESTART";
+    public static final String QUIESCENCE = "QUIESCENCE";
     public static final String ND_RECONNECT = "ND_RECONNECT";
     public static final String UPGRADE = "UPGRADE";
     public static final String ISS = "ISS";

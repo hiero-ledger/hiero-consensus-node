@@ -63,7 +63,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD|QUIESCENCE)"
 val miscTagsSerial = "$miscTags&SERIAL"
 val matsSuffix = "MATS"
 
@@ -75,6 +75,7 @@ val basePrCheckTags =
         "hapiTestToken" to "TOKEN",
         "hapiTestTokenSerial" to "(TOKEN&SERIAL)",
         "hapiTestRestart" to "RESTART|UPGRADE",
+        "hapiTestQuiescence" to "QUIESCENCE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestSmartContractSerial" to "(SMART_CONTRACT&SERIAL)",
         "hapiTestNDReconnect" to "ND_RECONNECT",
@@ -176,6 +177,7 @@ val prCheckStartPorts =
         put("hapiTestSimpleFeesSerial", "29000")
         put("hapiTestAtomicBatchSerial", "29200")
         put("hapiTestSmartContractSerial", "29400")
+        put("hapiTestQuiescence", "29600")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -203,7 +205,7 @@ val prCheckPropOverrides =
         put("hapiTestSmartContractSerial", "tss.historyEnabled=false")
         put(
             "hapiTestRestart",
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,staking.periodMins=1440,nodes.nodeRewardsEnabled=false",
+            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
         put(
             "hapiTestWrapsDownload",
@@ -231,6 +233,10 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
         )
         put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put(
+            "hapiTestQuiescence",
+            "quiescence.enabled=true,staking.periodMins=1440,nodes.nodeRewardsEnabled=false",
+        )
         put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestMiscRecords",

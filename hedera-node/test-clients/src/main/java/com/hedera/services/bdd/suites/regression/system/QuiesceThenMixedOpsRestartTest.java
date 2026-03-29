@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
-import static com.hedera.services.bdd.junit.TestTags.RESTART;
+import static com.hedera.services.bdd.junit.TestTags.QUIESCENCE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Tag;
  * Requires {@code staking.periodMins=1440} and {@code nodes.nodeRewardsEnabled=false} to be set
  * in the Gradle task overrides so that staking period transactions do not interfere with quiescence.
  */
-@Tag(RESTART)
+@Tag(QUIESCENCE)
 public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
     private static final int MIXED_OPS_BURST_TPS = 50;
 
