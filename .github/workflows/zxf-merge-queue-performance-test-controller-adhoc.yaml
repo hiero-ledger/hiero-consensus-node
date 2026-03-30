@@ -9,14 +9,18 @@ on:
         description: "Merge Queue Performance Test machine (Dallas_n10, Dallas_n11, Dallas_n12)"
         type: choice
         options:
-          - Dallas_n10
-          - Dallas_n11
-          - Dallas_n12
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHoc14
           - AdHocSD8
           - AdHocSD9
+          - MDLT3
+          - MDLT4
+          - Dallas10
+          - Dallas11
+          - Dallas12
+
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "100000"

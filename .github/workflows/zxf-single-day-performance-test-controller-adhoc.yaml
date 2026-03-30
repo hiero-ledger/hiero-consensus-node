@@ -12,6 +12,7 @@ on:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHoc14
           - AdHocSD8
           - AdHocSD9
           - MDLT3
