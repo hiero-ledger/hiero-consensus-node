@@ -1,0 +1,20 @@
+services:
+  memory-measure:
+    build: .
+    container_name: hiero-memory-measure
+    volumes:
+      - ../..:/workspace:delegated
+      - ./results:/results
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    environment:
+      - HOST_UID=${HOST_UID:-501}
+      - HOST_GID=${HOST_GID:-20}
+      - LC_ALL=en_US.UTF-8
+      - LANG=en_US.UTF-8
+    deploy:
+      resources:
+        limits:
+          memory: 16G
+    command: ["sleep", "infinity"]
