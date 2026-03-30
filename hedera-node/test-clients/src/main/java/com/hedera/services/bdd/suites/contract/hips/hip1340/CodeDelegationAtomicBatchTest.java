@@ -710,6 +710,169 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(authAccount2).hasNoDelegation())));
     }
 
+    // 9.1: atomicBatch(type-4 delegates A, valid transfer) - batch succeeds.
+    @HapiTest
+    final Stream<DynamicTest> testTx4GasChargesOnSuccessfulBatch() {
+        // Intrinsic gas components
+        final long TX_BASE_COST = 21_000L;
+        final long CALLDATA_GAS = 4 * 16L; // create() selector: 4 non-zero bytes
+        final long CODE_DELEGATION_GAS = 25_000L; // 1 auth entry (EIP-7702)
+        final long EXPECTED_INTRINSIC_GAS = TX_BASE_COST + CALLDATA_GAS + CODE_DELEGATION_GAS;
+
+        final var sender = DELEGATING_ACCOUNT + "GasChargeSender";
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var type4Txn = "type4GasChargeSuccess";
+
+        final var senderBalanceBefore = new AtomicLong();
+        final var senderBalanceAfter = new AtomicLong();
+
+        return hapiTest(
+                createFundedAccount(sender),
+                getAccountBalance(sender).exposingBalanceTo(senderBalanceBefore::set),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(type4Txn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .hasKnownStatus(SUCCESS)))),
+                getAccountBalance(sender).exposingBalanceTo(senderBalanceAfter::set),
+                withOpContext((spec, opLog) -> {
+                    final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
+
+                    final var type4Record = getTxnRecord(type4Txn);
+                    allRunFor(spec, type4Record);
+
+                    final var type4Fee = type4Record.getResponseRecord().getTransactionFee();
+                    final var gasUsed = type4Record.getResponseRecord()
+                            .getContractCallResult().getGasUsed();
+                    final var executionGas = gasUsed - EXPECTED_INTRINSIC_GAS;
+                    final var expectedGasCharge = gasUsed * gasPriceTinybars;
+
+                    final var senderDelta = senderBalanceBefore.get() - senderBalanceAfter.get();
+
+                    opLog.info("=== 9.1 GAS CHARGES: SUCCESS PATH ===");
+                    opLog.info("Gas breakdown: intrinsic={} (base=21000 + calldata=64 + delegation=25000)"
+                            + " + execution={} = total gasUsed={}", EXPECTED_INTRINSIC_GAS, executionGas, gasUsed);
+                    opLog.info("Fee: gasUsed={} * gasPrice={}tb/gas = {} tinybar",
+                            gasUsed, gasPriceTinybars, expectedGasCharge);
+                    opLog.info("Sender  charged: {} (expected: {})", senderDelta, expectedGasCharge);
+
+                    // gasUsed must exceed intrinsic gas (execution of create() costs extra)
+                    assertTrue(gasUsed > EXPECTED_INTRINSIC_GAS,
+                            "gasUsed must exceed intrinsic gas (create() deploys a contract)");
+                    // Sender pays exactly gasUsed * gasPrice (EVM gas)
+                    assertEquals(expectedGasCharge, senderDelta,
+                            "Sender must be charged gasUsed * gasPriceTinybars");
+                    // The type4 fee in the record should match the sender's balance change
+                    assertEquals(type4Fee, senderDelta,
+                            "Type4 record fee must equal sender balance change");
+
+                }));
+    }
+
+    // 9.1.1: Compare sender gas charges between successful and failed batch.
+    @HapiTest
+    final Stream<DynamicTest> testSenderGasChargesSameOnSuccessAndRollback() {
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+
+        final var successSender = DELEGATING_ACCOUNT + "GasCompareSuccess";
+        final var rollbackSender = DELEGATING_ACCOUNT + "GasCompareRollback";
+        final var successType4Txn = "type4GasCompareSuccess";
+        final var rollbackType4Txn = "type4GasCompareRollback";
+
+        final var successSenderBefore = new AtomicLong();
+        final var successSenderAfter = new AtomicLong();
+        final var rollbackSenderBefore = new AtomicLong();
+        final var rollbackSenderAfter = new AtomicLong();
+
+        return hapiTest(
+                createFundedAccount(successSender),
+                createFundedAccount(rollbackSender),
+
+                // Rollback
+                getAccountBalance(rollbackSender).exposingBalanceTo(rollbackSenderBefore::set),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(rollbackSender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(rollbackType4Txn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED)))),
+                getAccountBalance(rollbackSender).exposingBalanceTo(rollbackSenderAfter::set),
+
+                // Success
+                getAccountBalance(successSender).exposingBalanceTo(successSenderBefore::set),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(successSender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(successType4Txn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                        .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .hasKnownStatus(SUCCESS)))),
+                getAccountBalance(successSender).exposingBalanceTo(successSenderAfter::set),
+
+                // Compare gas charges between success and rollback paths
+                withOpContext((spec, opLog) -> {
+                    final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
+
+                    final var successRecord = getTxnRecord(successType4Txn);
+                    final var rollbackRecord = getTxnRecord(rollbackType4Txn);
+                    allRunFor(spec, successRecord, rollbackRecord);
+
+                    final var successGasUsed = successRecord.getResponseRecord()
+                            .getContractCallResult().getGasUsed();
+                    final var rollbackGasUsed = rollbackRecord.getResponseRecord()
+                            .getContractCallResult().getGasUsed();
+
+                    final var successSenderDelta = successSenderBefore.get() - successSenderAfter.get();
+                    final var rollbackSenderDelta = rollbackSenderBefore.get() - rollbackSenderAfter.get();
+
+                    final var expectedSuccessCharge = successGasUsed * gasPriceTinybars;
+                    final var expectedRollbackCharge = rollbackGasUsed * gasPriceTinybars;
+
+                    assertEquals(successGasUsed, rollbackGasUsed,
+                            "gasUsed must be identical for same contract call on fresh contracts");
+                    // Both paths should charge the sender gasUsed * gasPrice
+                    assertEquals(expectedSuccessCharge, successSenderDelta,
+                            "Success sender charge must equal gasUsed * gasPriceTinybars");
+                    // TODO(dsinyakov): add below assert when atomic batch when issue with replay of fees for atomic
+                    //  batch is fixed
+                    // assertEquals(expectedRollbackCharge, rollbackSenderDelta,
+                    //        "Rollback sender charge must equal gasUsed * gasPriceTinybars");
+                }));
+    }
+
     // 10.1: atomicBatch(CryptoUpdate sets delegation on A, invalid transfer) - batch fails
     @HapiTest
     final Stream<DynamicTest> testCryptoUpdateDelegationRolledBackOnBatchFailure() {
@@ -780,95 +943,6 @@ public class CodeDelegationAtomicBatchTest {
                         // Current behavior: all delegation effects rolled back
                         getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                         getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation())));
-    }
-
-
-
-    // 9.1: atomicBatch(type-4 delegates A, valid transfer) - batch succeeds.
-    // Assert gas charges are applied and break down costs per account.
-    //
-    // Gas breakdown for a type-4 (EIP-7702) ethereumCall:
-    //   TX_BASE_COST                    = 21,000  (base tx gas)
-    //   Calldata: 4 non-zero bytes      = 4 * 16 = 64 (create() selector)
-    //   Code delegation: 1 auth entry   = 1 * 25,000 = 25,000 (PER_CONTRACT_CODE_DELEGATION_COST)
-    //   Intrinsic gas                   = 46,064
-    //   EVM execution of create()       = variable (deploys Trivial contract via CREATE opcode)
-    //   Total gasUsed                   = intrinsic + execution
-    //
-    // Fee conversion:
-    //   Gas price in tinybars from spec.ratesProvider().currentTinybarGasPrice()
-    //   (derived from feeSchedules.json ContractCall service gas / FEE_DIVISOR_FACTOR / exchange rate)
-    //   Sender pays: gasUsed * gasPriceTinybars (EVM gas charged via CustomGasCharging)
-    //   Relayer pays: batch wrapper fee + cryptoTransfer fee + 1 HBAR transfer
-    @HapiTest
-    final Stream<DynamicTest> testTx4GasChargesOnSuccessfulBatch() {
-        // Intrinsic gas components
-        final long TX_BASE_COST = 21_000L;
-        final long CALLDATA_GAS = 4 * 16L; // create() selector: 4 non-zero bytes
-        final long CODE_DELEGATION_GAS = 25_000L; // 1 auth entry (EIP-7702)
-        final long EXPECTED_INTRINSIC_GAS = TX_BASE_COST + CALLDATA_GAS + CODE_DELEGATION_GAS;
-
-        final var sender = DELEGATING_ACCOUNT + "GasChargeSender";
-        final var delegationTargetAddress = DELEGATION_TARGET.get();
-        final var type4Txn = "type4GasChargeSuccess";
-
-        final var senderBalanceBefore = new AtomicLong();
-        final var senderBalanceAfter = new AtomicLong();
-
-        return hapiTest(
-                createFundedAccount(sender),
-                getAccountBalance(sender).exposingBalanceTo(senderBalanceBefore::set),
-                // Execute batch: type-4 ethereum call + valid transfer
-                withOpContext((spec, opLog) -> allRunFor(
-                        spec,
-                        sourcing(() -> atomicBatch(
-                                ethereumCall(CONTRACT, "create")
-                                        .signingWith(sender)
-                                        .payingWith(RELAYER)
-                                        .type(EthTransactionType.EIP7702)
-                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(GAS_LIMIT_2M)
-                                        .via(type4Txn)
-                                        .batchKey(RELAYER),
-                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
-                                        .hasKnownStatus(SUCCESS)
-                                        .batchKey(RELAYER))
-                                .payingWith(RELAYER)
-                                .hasKnownStatus(SUCCESS)))),
-                getAccountBalance(sender).exposingBalanceTo(senderBalanceAfter::set),
-                withOpContext((spec, opLog) -> {
-                    final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
-
-                    final var type4Record = getTxnRecord(type4Txn);
-                    allRunFor(spec, type4Record);
-
-                    final var type4Fee = type4Record.getResponseRecord().getTransactionFee();
-                    final var gasUsed = type4Record.getResponseRecord()
-                            .getContractCallResult().getGasUsed();
-                    final var executionGas = gasUsed - EXPECTED_INTRINSIC_GAS;
-                    final var expectedGasCharge = gasUsed * gasPriceTinybars;
-
-                    final var senderDelta = senderBalanceBefore.get() - senderBalanceAfter.get();
-
-                    opLog.info("=== 9.1 GAS CHARGES: SUCCESS PATH ===");
-                    opLog.info("Gas breakdown: intrinsic={} (base=21000 + calldata=64 + delegation=25000)"
-                            + " + execution={} = total gasUsed={}", EXPECTED_INTRINSIC_GAS, executionGas, gasUsed);
-                    opLog.info("Fee: gasUsed={} * gasPrice={}tb/gas = {} tinybar",
-                            gasUsed, gasPriceTinybars, expectedGasCharge);
-                    opLog.info("Sender  charged: {} (expected: {})", senderDelta, expectedGasCharge);
-
-                    // gasUsed must exceed intrinsic gas (execution of create() costs extra)
-                    assertTrue(gasUsed > EXPECTED_INTRINSIC_GAS,
-                            "gasUsed must exceed intrinsic gas (create() deploys a contract)");
-                    // Sender pays exactly gasUsed * gasPrice (EVM gas)
-                    assertEquals(expectedGasCharge, senderDelta,
-                            "Sender must be charged gasUsed * gasPriceTinybars");
-                    // The type4 fee in the record should match the sender's balance change
-                    assertEquals(type4Fee, senderDelta,
-                            "Type4 record fee must equal sender balance change");
-
-                }));
     }
 
     private static SpecOperation createFundedAccount(@NonNull final String name) {
