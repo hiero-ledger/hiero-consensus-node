@@ -86,7 +86,7 @@ public class QuiescedHeartbeat {
                         log.warn("Unhandled exception in quiesced heartbeat", e);
                     }
                 },
-                0,
+                heartbeatInterval.toMillis(),
                 heartbeatInterval.toMillis(),
                 TimeUnit.MILLISECONDS);
         log.info("Started quiesced heartbeat at interval {}", heartbeatInterval);
