@@ -251,7 +251,7 @@ public class HevmTransactionFactory {
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 null,
-                ethTxData.extractAccessLists(),
+                ethTxData.extractAccessList(),
                 ethTxData.extractCodeDelegations(),
                 null,
                 null);
@@ -274,7 +274,7 @@ public class HevmTransactionFactory {
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData),
-                ethTxData.extractAccessLists(),
+                ethTxData.extractAccessList(),
                 ethTxData.extractCodeDelegations(),
                 null,
                 null);

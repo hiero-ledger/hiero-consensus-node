@@ -145,7 +145,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
 
     private static List<AccessListItem> parseAccessLists(final EthTxData ethTxData) throws PreCheckException {
         try {
-            return ethTxData.extractAccessLists();
+            return ethTxData.extractAccessList();
         } catch (final IllegalArgumentException e) {
             throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
         }

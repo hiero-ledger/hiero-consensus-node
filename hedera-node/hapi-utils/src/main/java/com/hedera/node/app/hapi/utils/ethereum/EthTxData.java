@@ -480,7 +480,7 @@ public record EthTxData(
      * @throws IllegalArgumentException if RLP item of the Access list storage key is not 32 bytes length
      */
     @NonNull
-    public List<AccessListItem> extractAccessLists() throws IllegalArgumentException {
+    public List<AccessListItem> extractAccessList() throws IllegalArgumentException {
         if (accessList() != null) {
             final List<AccessListItem> accessLists = new ArrayList<>();
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(accessList());
