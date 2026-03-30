@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import org.hiero.consensus.model.node.NodeId;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -87,23 +85,6 @@ public class ReconnectBench extends VirtualMapBaseBench {
     }
 
     /**
-     * Builds a VirtualMap populator that is able to add/update, as well as remove nodes (when the value is null.)
-     * Note that it doesn't support explicitly adding null values under a key.
-     *
-     * @param mapRef a reference to a VirtualMap instance
-     * @return a populator for the map
-     */
-    private static BiConsumer<Bytes, BenchmarkValue> buildVMPopulator(final AtomicReference<VirtualMap> mapRef) {
-        return (k, v) -> {
-            if (v == null) {
-                mapRef.get().remove(k, BenchmarkValueCodec.INSTANCE);
-            } else {
-                mapRef.get().put(k, v, BenchmarkValueCodec.INSTANCE);
-            }
-        };
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -127,8 +108,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
                         teacherAddProbability,
                         teacherRemoveProbability,
                         teacherModifyProbability,
-                        buildVMPopulator(teacherRef),
-                        buildVMPopulator(learnerRef),
+                        StateBuilder.buildVMPopulator(teacherRef),
+                        StateBuilder.buildVMPopulator(learnerRef),
                         i -> {
                             if (i % numRecords == 0) {
                                 System.err.printf("Copying files for i=%,d\n", i);
