@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.DEMO_INFO;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.utility.InstantUtils;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -16,6 +17,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.statistics.AverageAndMax;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -47,6 +49,9 @@ public class BenchmarkService implements SlothService {
     /** The ID of this node */
     private NodeId selfId;
 
+    /** The metric used to track the latency */
+    private AverageAndMax latencyMetric;
+
     /**
      * {@inheritDoc}
      */
@@ -73,6 +78,13 @@ public class BenchmarkService implements SlothService {
             @NonNull final Metrics metrics,
             @NonNull final VirtualMapState state) {
         this.selfId = selfId;
+        this.latencyMetric = new AverageAndMax(
+                metrics,
+                "platform",
+                "slothLatency",
+                "the latency of sloth transaction in microseconds",
+                FloatFormats.FORMAT_16_2
+        );
     }
 
     /**
@@ -112,5 +124,9 @@ public class BenchmarkService implements SlothService {
                 latencyMicros,
                 InstantUtils.instantToMicros(submissionTime),
                 InstantUtils.instantToMicros(handleTime));
+
+        if(latencyMetric != null){
+            latencyMetric.update(latencyMicros);
+        }
     }
 }
