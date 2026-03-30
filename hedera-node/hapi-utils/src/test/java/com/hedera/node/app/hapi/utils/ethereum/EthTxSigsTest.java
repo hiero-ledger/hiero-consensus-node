@@ -214,8 +214,7 @@ class EthTxSigsTest {
         final long value = 987654321L;
         final var callData = fillBytes(3, 0x55);
 
-        final Object[] accessList =
-                new Object[] {new Object[] {fillBytes(20, 0x10), new Object[] {fillBytes(32, 0x01)}}};
+        final Object[] accessList = {new Object[] {fillBytes(20, 0x10), new Object[] {fillBytes(32, 0x01)}}};
 
         when(ethTx.chainId()).thenReturn(chainId);
         when(ethTx.nonce()).thenReturn(nonce);

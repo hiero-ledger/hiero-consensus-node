@@ -195,6 +195,7 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
+                null,
                 null);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         assertAbortsWith(invalidCreation, INVALID_CONTRACT_ID);
@@ -219,6 +220,7 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
+                null,
                 null);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
@@ -237,7 +239,8 @@ class TransactionProcessorTest {
                         expectedToAddress,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR))
+                        GAS_CALCULATOR,
+                        List.of()))
                 .willReturn(initialFrame);
         given(frameRunner.runToCompletion(
                         transaction.gasLimit(),
@@ -276,6 +279,7 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
+                null,
                 null);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
@@ -294,7 +298,8 @@ class TransactionProcessorTest {
                         expectedToAddress,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR))
+                        GAS_CALCULATOR,
+                        List.of()))
                 .willReturn(initialFrame);
         given(senderAccount.hederaId()).willReturn(SENDER_ID);
         given(frameRunner.runToCompletion(
@@ -335,6 +340,7 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
+                null,
                 null);
         given(messageCallProcessor.isImplicitCreationEnabled()).willReturn(true);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
@@ -353,7 +359,8 @@ class TransactionProcessorTest {
                         expectedToAddress,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR))
+                        GAS_CALCULATOR,
+                        List.of()))
                 .willReturn(initialFrame);
         given(senderAccount.hederaId()).willReturn(SENDER_ID);
         given(frameRunner.runToCompletion(
@@ -390,6 +397,7 @@ class TransactionProcessorTest {
                 null,
                 null,
                 null,
+                null,
                 null);
         final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(null);
@@ -414,6 +422,7 @@ class TransactionProcessorTest {
                 GAS_LIMIT,
                 USER_OFFERED_GAS_PRICE,
                 MAX_GAS_ALLOWANCE,
+                null,
                 null,
                 null,
                 null,
@@ -469,7 +478,8 @@ class TransactionProcessorTest {
                         expectedToAddress,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR))
+                        GAS_CALCULATOR,
+                        List.of()))
                 .willReturn(initialFrame);
         given(senderAccount.getNonce()).willReturn(NONCE);
         given(frameRunner.runToCompletion(
@@ -504,7 +514,8 @@ class TransactionProcessorTest {
                         expectedToAddress,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR);
+                        GAS_CALCULATOR,
+                        List.of());
         inOrder.verify(frameRunner)
                 .runToCompletion(
                         transaction.gasLimit(),
@@ -553,7 +564,8 @@ class TransactionProcessorTest {
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         transaction.gasLimit() - NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR))
+                        GAS_CALCULATOR,
+                        List.of()))
                 .willReturn(initialFrame);
         given(frameRunner.runToCompletion(
                         transaction.gasLimit(),
@@ -583,7 +595,8 @@ class TransactionProcessorTest {
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         transaction.gasLimit() - NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR);
+                        GAS_CALCULATOR,
+                        List.of());
         inOrder.verify(frameRunner)
                 .runToCompletion(
                         transaction.gasLimit(),
@@ -629,7 +642,8 @@ class TransactionProcessorTest {
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR))
+                        GAS_CALCULATOR,
+                        List.of()))
                 .willReturn(initialFrame);
         given(frameRunner.runToCompletion(
                         eq(transaction.gasLimit()),
@@ -658,7 +672,8 @@ class TransactionProcessorTest {
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR);
+                        GAS_CALCULATOR,
+                        List.of());
         inOrder.verify(frameRunner)
                 .runToCompletion(
                         transaction.gasLimit(),
@@ -709,7 +724,8 @@ class TransactionProcessorTest {
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR))
+                        GAS_CALCULATOR,
+                        List.of()))
                 .willReturn(initialFrame);
         given(senderAccount.hederaId()).willReturn(SENDER_ID);
         given(frameRunner.runToCompletion(
@@ -741,7 +757,8 @@ class TransactionProcessorTest {
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR);
+                        GAS_CALCULATOR,
+                        List.of());
         inOrder.verify(frameRunner)
                 .runToCompletion(
                         transaction.gasLimit(),
@@ -789,7 +806,8 @@ class TransactionProcessorTest {
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         transaction.gasLimit() - CHARGING_RESULT.intrinsicGas(),
                         CODE_FACTORY,
-                        GAS_CALCULATOR))
+                        GAS_CALCULATOR,
+                        List.of()))
                 .willReturn(initialFrame);
         given(frameRunner.runToCompletion(
                         eq(transaction.gasLimit()),

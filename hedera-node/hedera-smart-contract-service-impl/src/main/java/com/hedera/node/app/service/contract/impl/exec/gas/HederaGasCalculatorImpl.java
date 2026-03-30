@@ -7,8 +7,12 @@ import static com.swirlds.base.units.UnitConstants.HOURS_TO_MINUTES;
 import static com.swirlds.base.units.UnitConstants.MINUTES_TO_SECONDS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.config.data.CacheConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
@@ -40,9 +44,13 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
 
     @Override
     public GasCharges transactionGasRequirements(
-            @NonNull final Bytes payload, final boolean isContractCreate, final long baselineCost) {
+            @NonNull final Bytes payload,
+            final boolean isContractCreate,
+            @Nullable final List<AccessListItem> accessLists,
+            @Nullable final List<CodeDelegation> codeDelegations) {
         final int zeros = payloadZeroBytes(payload);
-        final long intrinsicGas = transactionIntrinsicGas(payload, zeros, isContractCreate, baselineCost);
+        final long intrinsicGas =
+                transactionIntrinsicGas(payload, zeros, isContractCreate, accessLists, codeDelegations);
         // gasUsed described at https://eips.ethereum.org/EIPS/eip-7623
         final long floorGas = transactionFloorCost(payload, zeros);
         return new GasCharges(intrinsicGas, Math.max(intrinsicGas, floorGas), 0L);
@@ -59,9 +67,25 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
     }
 
     protected long transactionIntrinsicGas(
-            @NonNull final Bytes payload, final int zeros, final boolean isContractCreate, final long baselineCost) {
+            @NonNull final Bytes payload,
+            final int zeros,
+            final boolean isContractCreate,
+            @Nullable final List<AccessListItem> accessLists,
+            @Nullable final List<CodeDelegation> codeDelegations) {
         final int nonZeros = payload.size() - zeros;
-        long cost = TX_BASE_COST + TX_DATA_ZERO_COST * zeros + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros + baselineCost;
+        final long cost = TX_BASE_COST
+                + TX_DATA_ZERO_COST * zeros
+                + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros
+                // accessList part of intrinsic gas
+                + accessListGasCost(
+                        accessLists != null ? accessLists.size() : 0,
+                        accessLists != null
+                                ? accessLists.stream()
+                                        .mapToInt(e -> e.storageKeys().size())
+                                        .sum()
+                                : 0)
+                // authorizationList part of intrinsic gas
+                + delegateCodeGasCost(codeDelegations != null ? codeDelegations.size() : 0);
         return isContractCreate ? (cost + contractCreationCost(payload.size())) : cost;
     }
 

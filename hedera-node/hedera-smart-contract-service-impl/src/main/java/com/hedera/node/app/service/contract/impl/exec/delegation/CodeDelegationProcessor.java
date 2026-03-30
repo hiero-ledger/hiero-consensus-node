@@ -20,6 +20,7 @@ import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.config.data.EntitiesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,7 +45,9 @@ public record CodeDelegationProcessor(long chainId) {
 
     private static final int MAX_Y_PARITY = 256;
 
-    /** The size of the delegated code */
+    /**
+     * The size of the delegated code.
+     */
     public static final int DELEGATED_CODE_SIZE = CODE_DELEGATION_PREFIX.size() + Address.SIZE;
 
     /**
@@ -64,9 +67,9 @@ public record CodeDelegationProcessor(long chainId) {
      *   <li>Increase the nonce of `authority` by one.
      * </ol>
      *
-     * @param worldUpdater The world state updater which is aware of code delegation.
+     * @param worldUpdater             The world state updater which is aware of code delegation.
      * @param lazyCreationGasAvailable gas amount available for charing Hedera-specific lazy account creation cost
-     * @param codeDelegations code delegations to process
+     * @param codeDelegations          code delegations to process
      * @return The result of the code delegation processing.
      */
     public CodeDelegationResult process(
@@ -88,6 +91,13 @@ public record CodeDelegationProcessor(long chainId) {
         return state.toResult();
     }
 
+    /**
+     * Process each code delegation item.
+     *
+     * @param proxyWorldUpdater The world updater to handle state changes and records for code delegations
+     * @param codeDelegation    The code delegation to handle
+     * @param state             The code delegation processing state
+     */
     @SuppressWarnings("java:S3776")
     private void processCodeDelegation(
             final ProxyWorldUpdater proxyWorldUpdater,
@@ -122,9 +132,9 @@ public record CodeDelegationProcessor(long chainId) {
         }
         final var authorizer = maybeAuthorizer.get();
 
-        final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.address()));
+        final var authorityAddress = Address.wrap(Bytes.wrap(authorizer.address()));
         final Optional<MutableAccount> maybeAuthorityAccount =
-                Optional.ofNullable(proxyWorldUpdater.getAccount(authorizerAddress));
+                Optional.ofNullable(proxyWorldUpdater.getAccount(authorityAddress));
 
         final var delegatedContractAddress =
                 Address.fromHexString(Bytes.wrap(codeDelegation.address()).toString());
@@ -134,13 +144,14 @@ public record CodeDelegationProcessor(long chainId) {
             // only create an account if nonce is valid
             if (codeDelegation.nonce() != 0) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
+                state.addAccessedAddress(authorityAddress);
                 return;
             }
 
             // The base gas defined in EIP-7702 (PER_EMPTY_ACCOUNT_COST = 25000) is already included
             // in the transaction intrinsic gas.
             // Here we're only charging the Hedera-specific lazy account creation cost.
-            final var lazyCreationCost = proxyWorldUpdater.lazyCreationCostInGas(authorizerAddress);
+            final var lazyCreationCost = proxyWorldUpdater.lazyCreationCostInGas(authorityAddress);
             if (state.remainingLazyCreationGasAvailable() >= lazyCreationCost) {
                 state.addHollowAccountCreationGasCharge(lazyCreationCost);
             } else {
@@ -155,20 +166,23 @@ public record CodeDelegationProcessor(long chainId) {
                         proxyWorldUpdater.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, CRYPTO_CREATE);
                 failedRecord.status(INSUFFICIENT_GAS);
                 failedRecord.signedTx(synthCreateTransactionBody(
-                        authorizerAddress, delegatedContractAddress, unlimitedAutoAssociations));
+                        authorityAddress, delegatedContractAddress, unlimitedAutoAssociations));
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.InsufficientGasForLazyCreation);
+                state.addAccessedAddress(authorityAddress);
                 return;
             }
 
             if (!proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(
-                    authorizerAddress, authorizer.publicKey(), delegatedContractAddress)) {
+                    authorityAddress, authorizer.publicKey(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+                state.addAccessedAddress(authorityAddress);
                 return;
             }
 
-            authority = proxyWorldUpdater.getAccount(authorizerAddress);
+            authority = proxyWorldUpdater.getAccount(authorityAddress);
             if (authority == null) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+                state.addAccessedAddress(authorityAddress);
                 return;
             }
         } else {
@@ -176,23 +190,27 @@ public record CodeDelegationProcessor(long chainId) {
 
             if (!canSetCodeDelegation(authority)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.AccountAlreadyHasCode);
+                state.addAccessedAddress(authorityAddress);
                 return;
             }
 
             if (codeDelegation.nonce() != authority.getNonce()) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
+                state.addAccessedAddress(authorityAddress);
                 return;
             }
 
             // Ensure that the account is a regular account
             if (!((HederaEvmAccount) authority).isRegularAccount()) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+                state.addAccessedAddress(authorityAddress);
                 return;
             }
 
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
+                state.addAccessedAddress(authorityAddress);
                 return;
             }
             state.incrementAuthorizationsEligibleForRefund();
@@ -200,6 +218,7 @@ public record CodeDelegationProcessor(long chainId) {
 
         state.incrementSuccessfullyProcessedAuthorizations();
         authority.incrementNonce();
+        state.addAccessedAddress(authorityAddress);
     }
 
     @NonNull
@@ -232,6 +251,7 @@ public record CodeDelegationProcessor(long chainId) {
         private int numAuthorizationsEligibleForRefund;
         private int successfullyProcessedAuthorizations;
         private final Map<CodeDelegationResult.EntryIgnoreReason, Integer> numIgnoredEntriesByReason = new HashMap<>();
+        private final List<Address> accessedAddresses = new ArrayList<>();
 
         CodeDelegationProcessingState(final long lazyCreationGasAvailable) {
             this.remainingLazyCreationGasAvailable = lazyCreationGasAvailable;
@@ -258,12 +278,17 @@ public record CodeDelegationProcessor(long chainId) {
             this.successfullyProcessedAuthorizations += 1;
         }
 
-        CodeDelegationResult toResult() {
+        void addAccessedAddress(Address accessedAddress) {
+            accessedAddresses.add(accessedAddress);
+        }
+
+        public CodeDelegationResult toResult() {
             return new CodeDelegationResult(
                     totalLazyCreationGasCharged,
                     numAuthorizationsEligibleForRefund,
                     successfullyProcessedAuthorizations,
-                    numIgnoredEntriesByReason);
+                    numIgnoredEntriesByReason,
+                    accessedAddresses);
         }
     }
 }

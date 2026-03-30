@@ -169,6 +169,7 @@ public class HevmTransactionFactory {
                 body,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -198,6 +199,7 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
+                null,
                 body);
     }
 
@@ -215,6 +217,7 @@ public class HevmTransactionFactory {
                 body.gas(),
                 NOT_APPLICABLE,
                 NOT_APPLICABLE,
+                null,
                 null,
                 null,
                 null,
@@ -248,6 +251,7 @@ public class HevmTransactionFactory {
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 null,
+                ethTxData.extractAccessList(),
                 ethTxData.extractCodeDelegations(),
                 null,
                 null);
@@ -270,6 +274,7 @@ public class HevmTransactionFactory {
                 ethTxData.effectiveOfferedGasPriceInTinybars(hederaEvmContext.gasPrice()),
                 maxGasAllowance,
                 synthEthTxCreation(ledgerConfig.autoRenewPeriodMinDuration(), ethTxData),
+                ethTxData.extractAccessList(),
                 ethTxData.extractCodeDelegations(),
                 null,
                 null);
@@ -319,6 +324,7 @@ public class HevmTransactionFactory {
                 NOT_APPLICABLE,
                 null,
                 null,
+                null,
                 exception,
                 body.hookDispatch());
     }
@@ -336,7 +342,7 @@ public class HevmTransactionFactory {
 
     private void assertValidCall(@NonNull final ContractCallTransactionBody body) {
         // baselineCost is 0 for contract calls as neither access list nor EIP-7702 authorizations are supported
-        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, 0L);
+        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, null, null);
         validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         validateTrue(body.amount() >= 0, CONTRACT_NEGATIVE_VALUE);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
