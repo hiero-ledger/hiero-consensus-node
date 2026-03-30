@@ -135,7 +135,7 @@ jobs:
   hapi-tests-misc:
     name: "HAPI Tests (Misc)"
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-hapi-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -201,7 +201,7 @@ jobs:
   hapi-tests-misc-records:
     name: "HAPI Tests (Misc Records)"
     if: ${{ inputs.enable-hapi-tests-misc-records == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-hapi-lin-xl
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -332,7 +332,7 @@ jobs:
   hapi-tests-simple-fees:
     name: "HAPI Tests (Simple Fees)"
     if: ${{ inputs.enable-hapi-tests-simplefees == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-hapi-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -398,7 +398,7 @@ jobs:
   hapi-tests-token:
     name: "HAPI Tests (Token)"
     if: ${{ inputs.enable-hapi-tests-token == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-hapi-lin-xl
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -658,7 +658,7 @@ jobs:
   hapi-tests-nd-reconnect:
     name: "HAPI Tests (ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-nd-reconnect == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-hapi-lin-xl
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -723,7 +723,7 @@ jobs:
   hapi-tests-iss:
     name: "HAPI Tests (ISS)"
     if: ${{ inputs.enable-hapi-tests-iss == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-hapi-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -788,7 +788,7 @@ jobs:
   hapi-tests-bn-comms:
     name: "HAPI Tests (BN Comms)"
     if: ${{ inputs.enable-hapi-tests-bn-communication == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-hapi-bn-lin-xl
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -916,7 +916,7 @@ jobs:
   hapi-tests-state-throttling:
     name: "HAPI Tests (State Throttling)"
     if: ${{ inputs.enable-hapi-tests-state-throttling == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-hapi-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
