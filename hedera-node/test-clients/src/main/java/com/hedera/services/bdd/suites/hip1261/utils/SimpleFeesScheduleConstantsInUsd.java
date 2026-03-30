@@ -11,7 +11,7 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double NODE_BASE_FEE_USD = 0.00001;
     public static final long NODE_INCLUDED_SIGNATURES = 1L;
-    public static final long NODE_INCLUDED_BYTES = 1024L;
+    public static final long NODE_INCLUDED_BYTES = 1350L;
 
     public static final int NETWORK_MULTIPLIER = 9;
     public static final double NETWORK_BASE_FEE = NODE_BASE_FEE_USD * NETWORK_MULTIPLIER;
@@ -55,8 +55,9 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_TRANSFER_BASE_FEE_USD = 0.0009;
     public static final double TOKEN_TRANSFER_BASE_CUSTOM_FEES_USD = 0.0019;
 
-    public static final double CONS_SUBMIT_MESSAGE_BASE_FEE_USD = 0.0007;
+    public static final double CONS_SUBMIT_MESSAGE_BASE_FEE_USD = 0.00007;
     public static final long CONS_SUBMIT_MESSAGE_INCLUDED_BYTES = 100L;
+    public static final double CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES = 0.000_000_6800;
     public static final long CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_INCLUDED_COUNT = 0L;
     public static final double CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD = 1.99;
     public static final double CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD = 0.0492;
