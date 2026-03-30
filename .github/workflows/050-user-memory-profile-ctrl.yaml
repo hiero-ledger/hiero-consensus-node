@@ -219,10 +219,11 @@ jobs:
 
       - name: Start Memory capturing
         run: |
-          cd "${{ github.workspace }}"/
-          cat <<'EOF' > heapInfoByPod.sh
+          cd "${{ github.workspace }}"/solo
+          cat <<'EOF' > "${{ github.workspace }}"/solo/heapInfoByPod.sh
           set +e
           set +x
+          cd "${{ github.workspace }}"/solo
           for i in `kubectl get namespaces | grep 'solo-' | awk '{print $1}' | grep -v 'solo-setup'`;\
           do \
             kubectl -n ${i} exec network-node1-0  -- \
@@ -230,11 +231,11 @@ jobs:
               if [ \"\$jpid\" != \"\" ]; then echo \"pod $i:\"; \
                 jcmd \$jpid GC.heap_info; echo \"\"; \
                 jmap -dump:live,format=b,file=/tmp/test.hprof \$jpid; fi"; \
-            kubectl -n ${i} cp network-node1-0:/tmp/test.hprof "${{ github.workspace }}"/$i.hprof 2>/dev/null
-          done 2>/dev/null
+            kubectl -n ${i} cp network-node1-0:/tmp/test.hprof "${{ github.workspace }}"/solo/$i.hprof 2>/dev/null
+          done
           EOF
           wait_time=$(expr ${{ inputs.nlg-time }} / 10 \* 9)
-          nohup bash -c "sleep 360; sleep ${wait_time}; sh heapInfoByPod.sh" > heapInfoByPod.log 2>&1 &
+          nohup bash -c "sleep 300; sleep ${wait_time}; sh "${{ github.workspace }}"/solo/heapInfoByPod.sh" > "${{ github.workspace }}"/solo/heapInfoByPod.log 2>&1 &
 
       - name: Run NLG test
         run: |
@@ -267,7 +268,7 @@ jobs:
         run: |
           set +e
           set +x
-          cd "${{ github.workspace }}"/
+          cd "${{ github.workspace }}"/solo
           cat heapInfoByPod.log
 
       - name: Analyze Java heaps
@@ -275,7 +276,7 @@ jobs:
         run: |
           set +e
           set +x
-          cd "${{ github.workspace }}"/
+          cd "${{ github.workspace }}"/solo
           #process hprof-s
           for i in `ls -1 *.hprof`;\
           do \
@@ -286,13 +287,16 @@ jobs:
               mv ../$i.hprof ./$i.hprof
               bash ${HOME}/mat/ParseHeapDump.sh ./$i.hprof org.eclipse.mat.api:overview
               unzip -d "${{ github.workspace }}"/report/$i ${i}_System_Overview.zip
-              cd "${{ github.workspace }}"/
+              cd "${{ github.workspace }}"/solo
             fi
           done
 
       - name: Publish logs
         if: ${{ !cancelled() }}
         run: |
+          set +e
+          set +x
           cp -r $HOME/.solo "${{ github.workspace }}"/report/
+          cp "${{ github.workspace }}"/solo/*.log  "${{ github.workspace }}"/report
           gcloud --no-user-output-enabled storage cp --recursive "${{ github.workspace }}"/report "${{ env.GS_ROOT_DIR }}/MemoryProfile_${{ github.run_number }}"/report
           echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/MemoryProfile_${{ github.run_number }}"/report
