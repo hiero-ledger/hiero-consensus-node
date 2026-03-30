@@ -290,5 +290,6 @@ jobs:
       - name: Publish logs
         if: ${{ !cancelled() }}
         run: |
+          cp -r $HOME/.solo "${{ github.workspace }}"/report/
           gcloud --no-user-output-enabled storage cp --recursive "${{ github.workspace }}"/report "${{ env.GS_ROOT_DIR }}/MemoryProfile_${{ github.run_number }}"/report
           echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/MemoryProfile_${{ github.run_number }}"/report
