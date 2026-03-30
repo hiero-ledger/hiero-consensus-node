@@ -497,24 +497,16 @@ jobs:
           set +e
           cd "${{ github.workspace}}"/solo
 
-          export BLOCK_NODE_VERSION="${{ inputs.bnref }}"  #"${{ env.BlockNode_version }}"
-          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
-          do
-             task solo:block:add
-          done
-          exit 0
-
           mv block-node-values.yaml block-node-values.yaml.orig
           export BLOCK_NODE_VERSION="${{ inputs.bnref }}"  #"${{ env.BlockNode_version }}"
 
           #create local-path-storage
-          sed -i -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
-          echo "kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
+          #sed -i -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
+          #echo "kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml"
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" apply -f "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
 
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
           do
-
            #create PVC values.yaml from template
            for pvc_name in archive-storage logging-storage live-storage verification-storage plugins-storage
            do
