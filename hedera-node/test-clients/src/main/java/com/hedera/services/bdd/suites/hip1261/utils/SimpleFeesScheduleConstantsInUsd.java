@@ -54,7 +54,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES = 0.000_000_6800;
     public static final long CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_INCLUDED_COUNT = 0L;
     public static final double CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD = 1.99;
-    public static final double CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD = 0.0492;
+    public static final double CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD = 0.04983;
     public static final double SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE_USD = 0.0499;
 
     /* ---------- Crypto service ---------- */
