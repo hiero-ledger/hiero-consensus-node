@@ -99,6 +99,7 @@ import "services/auxiliary/history/history_proof_key_publication.proto";
 import "services/auxiliary/history/history_proof_vote.proto";
 
 import "services/auxiliary/tss/ledger_id_publication.proto";
+import "services/auxiliary/blockrecords/migration_root_hash_vote.proto";
 
 import "services/hook_store.proto";
 import "services/hook_dispatch.proto";
@@ -696,6 +697,11 @@ message TransactionBody {
          * deleted.
          */
         com.hedera.hapi.node.addressbook.RegisteredNodeDeleteTransactionBody registeredNodeDelete = 80;
+
+        /**
+         * A transaction body for voting on migration wrapped record root hash state.
+         */
+        com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody migration_root_hash_vote = 81;
     }
 
     /**

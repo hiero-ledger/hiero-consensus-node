@@ -50,6 +50,8 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
@@ -83,6 +85,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -313,6 +316,12 @@ public class HandleWorkflow {
             }
             logger.info(SYSTEM_ENTITIES_CREATED_MSG);
             requireNonNull(systemEntitiesCreatedFlag).set(true);
+        } else {
+            try {
+                systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
+            } catch (Exception e) {
+                logger.error("Failed to submit startup migration root-hash vote", e);
+            }
         }
 
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
@@ -404,6 +413,19 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
+                // Persist live wrapped record block hashes to state before the freeze.
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .liveWritePrevWrappedRecordHashes()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+                }
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .writeWrappedRecordFileBlockHashesToDisk()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
@@ -586,6 +608,19 @@ public class HandleWorkflow {
                             new WritableStakingInfoStore(
                                     writableTokenStates, new WritableEntityIdStoreImpl(writableEntityIdStates)),
                             new WritableNetworkStakingRewardsStore(writableTokenStates)));
+            final var writableNodeStates = state.getWritableStates(AddressBookService.NAME);
+            final var entityIdStore = new WritableEntityIdStoreImpl(writableEntityIdStates);
+            final var nodeStore = new WritableNodeStore(writableNodeStates, entityIdStore);
+            doStreamingOnlyKvChanges(writableNodeStates, writableEntityIdStates, () -> {
+                final var nextNodeId = entityIdStore.peekAtNextNodeId();
+                for (int i = 0; i < nextNodeId; i++) {
+                    final var node = nodeStore.get(i);
+                    if (node != null && node.deleted() && !networkInfo.containsNode(node.nodeId())) {
+                        nodeStore.remove(node.nodeId());
+                        logger.info("Node {} was removed from state", node.nodeId());
+                    }
+                }
+            });
             if (streamMode == RECORDS) {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
                 blockRecordManager.markMigrationRecordsStreamed();
@@ -836,14 +871,17 @@ public class HandleWorkflow {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
                 stakePeriodChanges.advanceTimeTo(parentTxn, true);
                 logPreDispatch(parentTxn);
-                hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+                final var hollowAccountCompletionsDetails =
+                        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
                 // In case a TSS callback needs access to the current dispatch's savepoint stack
                 this.inFlightDispatch = dispatch;
-                dispatchProcessor.processDispatch(dispatch);
+                dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
                 updateWorkflowMetrics(parentTxn);
             }
-            final var handleOutput =
-                    parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
+            final var blockNumber = currentBlockNumber();
+            final var handleOutput = parentTxn
+                    .stack()
+                    .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),
@@ -886,9 +924,10 @@ public class HandleWorkflow {
         stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
             dispatchProcessor.processDispatch(dispatch);
+            final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
                     .stack()
-                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates());
+                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
@@ -900,6 +939,15 @@ public class HandleWorkflow {
             return HandleOutput.failInvalidStreamItems(
                     scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
+    }
+
+    /**
+     * Helper method to get the current block number only when the block stream owns receipt block numbers.
+     *
+     * @return the current block number, or null outside {@link StreamMode#BLOCKS}
+     */
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
     }
 
     /**
@@ -1100,6 +1148,7 @@ public class HandleWorkflow {
             final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
             final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
             final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
+            final var readableHistoryStore = new ReadableHistoryStoreImpl(historyWritableStates);
             final var activeRosters = ActiveRosters.from(
                     rosterStore,
                     tssConfig.historyEnabled(),
@@ -1109,8 +1158,7 @@ public class HandleWorkflow {
                     !tssConfig.historyEnabled()
                             ? null
                             : () -> {
-                                final var activeConstruction =
-                                        new ReadableHistoryStoreImpl(historyWritableStates).getActiveConstruction();
+                                final var activeConstruction = readableHistoryStore.getActiveConstruction();
                                 return !activeConstruction.hasTargetProof()
                                         || (tssConfig.wrapsEnabled()
                                                 != isWrapsExtensible(activeConstruction.targetProofOrThrow()));
@@ -1124,7 +1172,10 @@ public class HandleWorkflow {
                         crsWritableStates,
                         null,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters),
+                                workTime,
+                                isActive,
+                                networkInfo));
                 doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,

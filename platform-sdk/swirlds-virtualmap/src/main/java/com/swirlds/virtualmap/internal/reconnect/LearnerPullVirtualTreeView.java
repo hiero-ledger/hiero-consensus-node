@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -134,16 +135,17 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             final Runnable completeListener) {
         final AtomicLong expectedResponses = new AtomicLong(0);
         // FUTURE WORK: configurable number of tasks
-        for (int i = 0; i < 32; i++) {
+        for (int i = 0; i < 16; i++) {
             final LearnerPullVirtualTreeReceiveTask learnerReceiveTask = new LearnerPullVirtualTreeReceiveTask(
                     reconnectConfig, workGroup, in, this, expectedResponses, completeListener);
             learnerReceiveTask.exec();
         }
 
         final AtomicBoolean rootRequestSent = new AtomicBoolean(false);
-        final AtomicBoolean lastPathSent = new AtomicBoolean(false);
         // FUTURE WORK: configurable number of tasks
-        for (int i = 0; i < 4; i++) {
+        final int learnerSendTasks = 16;
+        final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
+        for (int i = 0; i < learnerSendTasks; i++) {
             final LearnerPullVirtualTreeSendTask learnerSendTask = new LearnerPullVirtualTreeSendTask(
                     reconnectConfig,
                     workGroup,
@@ -152,7 +154,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
                     rootResponseReceived,
                     expectedResponses,
                     rootRequestSent,
-                    lastPathSent);
+                    tasksDone);
             learnerSendTask.exec();
         }
     }
@@ -205,7 +207,8 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             assert firstNodeResponse.compareAndSet(true, false)
                     : "Root node must be the first node received from the teacher";
             reconnectState.setPaths(firstLeafPath, lastLeafPath);
-            traversalOrder.start(firstLeafPath, lastLeafPath);
+            traversalOrder.start(
+                    originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
             map.prepareReconnectHashing(firstLeafPath, lastLeafPath);
             rootResponseReceived.countDown();
             // setPathInformation() below may take a while
