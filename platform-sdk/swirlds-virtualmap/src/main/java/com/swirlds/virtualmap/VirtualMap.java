@@ -34,6 +34,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
+import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -1409,8 +1410,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
     public void prepareReconnectHashing(final long firstLeafPath, final long lastLeafPath) {
         assert reconnectFlusher != null : "Cannot prepare reconnect hashing, since reconnect is not started";
+        final DataSourceHashChunkPreloader hashChunkPreloader = new DataSourceHashChunkPreloader(dataSource);
         // The hash listener will be responsible for flushing stuff to the reconnect data source
-        final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher);
+        final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher, hashChunkPreloader);
 
         // This background thread will be responsible for hashing the tree and sending the
         // data to the hash listener to flush.
@@ -1419,7 +1421,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 .setThreadName("hasher")
                 .setRunnable(() -> reconnectHashingFuture.complete(hasher.hash(
                         dataSource.getHashChunkHeight(),
-                        hashListener,
+                        hashChunkPreloader,
                         reconnectIterator,
                         firstLeafPath,
                         lastLeafPath,
