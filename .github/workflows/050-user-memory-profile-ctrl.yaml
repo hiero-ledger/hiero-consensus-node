@@ -224,6 +224,7 @@ jobs:
           set +e
           set +x
           cd "${{ github.workspace }}"/solo
+          kubectl get namespaces
           for i in `kubectl get namespaces | grep 'solo-' | awk '{print $1}' | grep -v 'solo-setup'`;\
           do \
             kubectl -n ${i} exec network-node1-0  -- \
