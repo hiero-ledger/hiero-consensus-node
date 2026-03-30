@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
+import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -82,6 +83,9 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                             Duration.between(expected, actual).compareTo(maxDelay) < 0,
                             "Execution time " + actual + " was more than " + maxDelay + " after scheduled expiry "
                                     + expected);
-                }));
+                }),
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                LifecycleTest.restartAtNextConfigVersion(),
+                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION));
     }
 }

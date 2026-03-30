@@ -104,12 +104,7 @@ public class TctProbe {
         if (nearestTct == null) {
             requireNonNull(nextFreezeTime);
             requireNonNull(nextStakePeriodStart);
-            // EPOCH is used as a sentinel for "not applicable" — filter it out so only
-            // real target consensus times participate in the comparison
-            final var candidates = List.of(nextStakePeriodStart, nextFreezeTime).stream()
-                    .filter(t -> !Instant.EPOCH.equals(t))
-                    .toList();
-            nearestTct = candidates.isEmpty() ? null : Collections.min(candidates);
+            nearestTct = Collections.min(List.of(nextStakePeriodStart, nextFreezeTime));
         }
         return nearestTct;
     }
