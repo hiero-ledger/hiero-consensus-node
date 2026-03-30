@@ -193,14 +193,15 @@ val prCheckPropOverrides =
             "hapiTestCrypto",
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         )
-        // TODO Add 'hedera.transaction.maximumPermissibleUnhealthySeconds=5' for all tasks using
-        // 'subprocessConcurrent'
         put(
             "hapiTestCryptoSerial",
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
-        put("hapiTestSmartContract", "tss.historyEnabled=false")
-        put("hapiTestSmartContractSerial", "tss.historyEnabled=false")
+        put("hapiTestToken", "hedera.transaction.maximumPermissibleUnhealthySeconds=5")
+        put(
+            "hapiTestSmartContract",
+            "tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        )
         put(
             "hapiTestRestart",
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
@@ -217,7 +218,10 @@ val prCheckPropOverrides =
             "hapiTestMiscSerial",
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
-        put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put(
+            "hapiTestTimeConsuming",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        )
         put(
             "hapiTestWraps",
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=16",
@@ -240,13 +244,19 @@ val prCheckPropOverrides =
             "hapiTestMiscRecordsSerial",
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
-        put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
+        put(
+            "hapiTestSimpleFees",
+            "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        )
         put("hapiTestSimpleFeesSerial", "fees.simpleFeesEnabled=true")
         put(
             "hapiTestNDReconnect",
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         )
-        put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
+        put(
+            "hapiTestAtomicBatch",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        )
         put("hapiTestAtomicBatchSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
 
         val originalEntries = toMap() // Create a snapshot of current entries
