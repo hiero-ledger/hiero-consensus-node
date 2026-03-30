@@ -9,6 +9,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.LongStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A utility class to help build random states.
@@ -18,6 +20,8 @@ public record StateBuilder(
         Function<Long, Bytes> keyBuilder,
         // Build a value for key index 1..size.
         Function<Long, BenchmarkValue> valueBuilder) {
+
+    private static final Logger logger = LogManager.getLogger(StateBuilder.class);
 
     /** Return {@code true} with the given probability. */
     private static boolean isRandomOutcome(final Random random, final double probability) {
@@ -60,7 +64,7 @@ public record StateBuilder(
             final BiConsumer<Bytes, BenchmarkValue> teacherPopulator,
             final BiConsumer<Bytes, BenchmarkValue> learnerPopulator,
             final Consumer<Long> storageOptimizer) {
-        System.err.printf("Building a state of size %,d\n", size);
+        logger.info("Building a state of size {}", size);
 
         LongStream.range(1, size).forEach(i -> {
             storageOptimizer.accept(i);

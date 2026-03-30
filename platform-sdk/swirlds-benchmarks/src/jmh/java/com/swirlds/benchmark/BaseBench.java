@@ -35,8 +35,6 @@ public abstract class BaseBench {
 
     private static final Logger logger = LogManager.getLogger(BaseBench.class);
 
-    protected static final String RUN_DELIMITER = "--------------------------------";
-
     @Param({"100"})
     public int numFiles = 500;
 
