@@ -4,6 +4,7 @@ package com.swirlds.merkledb;
 import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats.estimateAliveBytes;
 import static com.swirlds.merkledb.MerkleDbDataSource.MERKLEDB_COMPONENT;
 import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static java.util.Objects.requireNonNull;
@@ -16,7 +17,6 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.ArrayList;
@@ -139,11 +139,9 @@ class MerkleDbCompactionCoordinator {
     /**
      * Creates a new instance of {@link MerkleDbCompactionCoordinator}.
      *
-     * @param tableName      the name of the table
      * @param merkleDbConfig platform config for MerkleDbDataSource
      */
-    public MerkleDbCompactionCoordinator(@NonNull String tableName, @NonNull MerkleDbConfig merkleDbConfig) {
-        requireNonNull(tableName);
+    public MerkleDbCompactionCoordinator(@NonNull MerkleDbConfig merkleDbConfig) {
         requireNonNull(merkleDbConfig);
         this.merkleDbConfig = merkleDbConfig;
     }
@@ -274,7 +272,8 @@ class MerkleDbCompactionCoordinator {
         }
 
         final IndexedGarbageFileStats stats = scanStatsByStore.get(storeName);
-        if (stats == null || stats.garbageFileStats().length == 0) {
+        List<GarbageFileStats> fileStats = stats.getNonNullGarbageStats();
+        if (fileStats.isEmpty()) {
             return;
         }
 
@@ -286,10 +285,7 @@ class MerkleDbCompactionCoordinator {
         // Phase 1: separate eligible from remaining, grouped by level
         final Map<Integer, List<DataFileReader>> eligibleByLevel = new HashMap<>();
         final Map<Integer, List<DataFileReader>> remainingByLevel = new HashMap<>();
-        for (final GarbageFileStats fs : stats.garbageFileStats()) {
-            if (fs == null) {
-                continue;
-            }
+        for (final GarbageFileStats fs : fileStats) {
             final int level = fs.compactionLevel();
             if (fs.deadToAliveRatio() > gcRateThreshold) {
                 eligibleByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(fs.fileReader);
@@ -321,7 +317,7 @@ class MerkleDbCompactionCoordinator {
                 // Sort once by dead/alive descending — files that least worsen the aggregate first
                 final List<DataFileReader> sortedPool = new ArrayList<>(remainingPool);
                 sortedPool.sort(Comparator.<DataFileReader>comparingDouble(r -> {
-                            final GarbageFileStats fs = lookupStats(r, stats);
+                            final GarbageFileStats fs = stats.lookupStats(r);
                             return fs != null ? fs.deadToAliveRatio() : 0.0;
                         })
                         .reversed());
@@ -411,7 +407,7 @@ class MerkleDbCompactionCoordinator {
         long currentProjectedSize = 0;
 
         for (final DataFileReader reader : candidates) {
-            final GarbageFileStats fs = lookupStats(reader, stats);
+            final GarbageFileStats fs = stats.lookupStats(reader);
             final long projectedAlive = fs == null ? 0 : estimateAliveBytes(reader, fs);
             if (!currentGroup.isEmpty() && currentProjectedSize + projectedAlive > maxProjectedBytes) {
                 groups.add(currentGroup);
@@ -458,7 +454,7 @@ class MerkleDbCompactionCoordinator {
         long totalDead = 0;
         long projectedSize = 0;
         for (final DataFileReader reader : group) {
-            final GarbageFileStats fs = lookupStats(reader, stats);
+            final GarbageFileStats fs = stats.lookupStats(reader);
             if (fs != null) {
                 totalLive += fs.aliveItems();
                 totalDead += fs.deadItems();
@@ -477,7 +473,7 @@ class MerkleDbCompactionCoordinator {
         final Iterator<DataFileReader> it = remainingPool.iterator();
         while (it.hasNext()) {
             final DataFileReader reader = it.next();
-            final GarbageFileStats fs = lookupStats(reader, stats);
+            final GarbageFileStats fs = stats.lookupStats(reader);
             if (fs == null) {
                 continue;
             }
@@ -515,28 +511,6 @@ class MerkleDbCompactionCoordinator {
                     finalRatio,
                     formatSizeBytes(projectedSize));
         }
-    }
-
-    /**
-     * Estimates the projected alive bytes for a single file based on scan statistics.
-     * Returns 0 for files with unknown item counts or files not found in the stats
-     * (e.g. deleted between scan and grouping).
-     */
-    static long estimateAliveBytes(final @NonNull DataFileReader reader, final @Nullable GarbageFileStats fileStats) {
-        if (fileStats == null || fileStats.totalItems() == 0) {
-            return 0;
-        }
-        return (long) (reader.getSize() * (1.0 - fileStats.garbageRatio()));
-    }
-
-    @Nullable
-    private static GarbageFileStats lookupStats(
-            final @NonNull DataFileReader reader, final @NonNull IndexedGarbageFileStats stats) {
-        final int idx = reader.getIndex() - stats.offset();
-        if (idx < 0 || idx >= stats.garbageFileStats().length) {
-            return null;
-        }
-        return stats.garbageFileStats()[idx];
     }
 
     // ========================================================================

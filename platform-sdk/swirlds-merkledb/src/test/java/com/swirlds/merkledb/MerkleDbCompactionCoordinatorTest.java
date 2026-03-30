@@ -71,7 +71,7 @@ class MerkleDbCompactionCoordinatorTest {
                 defaultConfig.maxFileChannelsPerFileReader(),
                 defaultConfig.maxThreadsPerFileChannel(),
                 defaultConfig.useDiskIndices());
-        coordinator = new MerkleDbCompactionCoordinator("test", config);
+        coordinator = new MerkleDbCompactionCoordinator(config);
         coordinator.enableBackgroundCompaction();
     }
 
@@ -401,50 +401,6 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     // ========================================================================
-    // estimateAliveBytes tests
-    // ========================================================================
-
-    @Test
-    void testEstimateAliveBytesNormalCase() {
-        // 100 items, 75 alive, size = 1000 → garbageRatio = 0.25 → alive bytes = 750
-        final DataFileReader reader = mockFileReader(1, 0, 100, 1000);
-        final GarbageFileStats fs = new GarbageFileStats(reader, 75);
-
-        assertEquals(750, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, fs));
-    }
-
-    @Test
-    void testEstimateAliveBytesAllAlive() {
-        final DataFileReader reader = mockFileReader(1, 0, 100, 1000);
-        final GarbageFileStats fs = new GarbageFileStats(reader, 100);
-
-        assertEquals(1000, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, fs));
-    }
-
-    @Test
-    void testEstimateAliveBytesAllDead() {
-        final DataFileReader reader = mockFileReader(1, 0, 100, 1000);
-        final GarbageFileStats fs = new GarbageFileStats(reader, 0);
-
-        assertEquals(0, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, fs));
-    }
-
-    @Test
-    void testEstimateAliveBytesZeroTotalItems() {
-        final DataFileReader reader = mockFileReader(1, 0, 0, 1000);
-        final GarbageFileStats fs = new GarbageFileStats(reader, 0);
-
-        assertEquals(0, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, fs));
-    }
-
-    @Test
-    void testEstimateAliveBytesNullStats() {
-        final DataFileReader reader = mockFileReader(1, 0, 100, 1000);
-
-        assertEquals(0, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, null));
-    }
-
-    // ========================================================================
     // absorbIntoGroup tests
     // ========================================================================
 
@@ -628,7 +584,8 @@ class MerkleDbCompactionCoordinatorTest {
 
         final GarbageFileStats[] arr = new GarbageFileStats[maxIndex - minIndex + 1];
         for (final StatsEntry e : entries) {
-            arr[e.reader.getIndex() - minIndex] = new GarbageFileStats(e.reader, e.aliveItems);
+            arr[e.reader.getIndex() - minIndex] = new GarbageFileStats(e.reader);
+            arr[e.reader.getIndex() - minIndex].incrementAliveItemsBy(e.aliveItems);
         }
         return new IndexedGarbageFileStats(minIndex, arr);
     }

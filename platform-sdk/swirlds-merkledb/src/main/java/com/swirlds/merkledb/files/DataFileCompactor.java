@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
+import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
@@ -12,6 +13,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -195,20 +197,13 @@ public class DataFileCompactor {
         }
 
         final int filesCount = filesToCompact.size();
+        final long start = System.currentTimeMillis();
+        final long filesToCompactSize = getSizeOfFiles(filesToCompact);
         logger.info(
                 MERKLE_DB.getMarker(),
-                "[{}] Starting compaction to level {} of {} files ",
+                "[{}] Starting compaction to level {} of {} files of size {} Mb ",
                 storeName,
                 targetLevel,
-                filesCount);
-
-        final long start = System.currentTimeMillis();
-
-        final long filesToCompactSize = getSizeOfFiles(filesToCompact);
-        logger.debug(
-                MERKLE_DB.getMarker(),
-                "[{}] Starting compacting {} files / {}",
-                storeName,
                 filesCount,
                 formatSizeBytes(filesToCompactSize));
 
@@ -272,15 +267,10 @@ public class DataFileCompactor {
      * @throws InterruptedException If the compaction thread was interrupted
      */
     List<Path> compactFiles(
-            final CASableLongIndex index,
-            final List<? extends DataFileReader> filesToCompact,
+            @NonNull final CASableLongIndex index,
+            @NonNull final List<? extends DataFileReader> filesToCompact,
             final int targetCompactionLevel)
             throws IOException, InterruptedException {
-        if (filesToCompact.isEmpty()) {
-            logger.debug(MERKLE_DB.getMarker(), "No files were available for compaction [{}]", storeName);
-            return Collections.emptyList();
-        }
-
         if (interruptFlag) {
             return Collections.emptyList();
         }
@@ -532,7 +522,7 @@ public class DataFileCompactor {
                     .collect(Collectors.groupingBy(r -> r.getMetadata().getCompactionLevel()));
             for (final Map.Entry<Integer, List<DataFileReader>> entry : readersByLevel.entrySet()) {
                 reportFileSizeByLevelMetricFunction.accept(
-                        entry.getKey(), getSizeOfFiles(entry.getValue()) * UnitConstants.BYTES_TO_MEBIBYTES);
+                        entry.getKey(), getSizeOfFiles(entry.getValue()) * BYTES_TO_MEBIBYTES);
             }
         }
     }

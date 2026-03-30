@@ -484,7 +484,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         statisticsUpdater = new MerkleDbStatisticsUpdater(merkleDbConfig, tableName);
 
         // File compactions
-        compactionCoordinator = new MerkleDbCompactionCoordinator(tableName, merkleDbConfig);
+        compactionCoordinator = new MerkleDbCompactionCoordinator(merkleDbConfig);
         if (compactionEnabled) {
             enableBackgroundCompaction();
         }

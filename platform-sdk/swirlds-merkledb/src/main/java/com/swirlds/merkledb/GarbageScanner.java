@@ -11,6 +11,7 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -194,8 +195,8 @@ public class GarbageScanner {
         }
         final int firstIndex = allCompletedFiles.getFirst().getIndex();
         final int lastIndex = allCompletedFiles.getLast().getIndex();
-        final int size = lastIndex - firstIndex;
-        final GarbageFileStats[] statsByFileIndex = new GarbageFileStats[size + 1];
+        final int size = lastIndex - firstIndex + 1;
+        final GarbageFileStats[] statsByFileIndex = new GarbageFileStats[size];
         for (final DataFileReader fileReader : allCompletedFiles) {
             statsByFileIndex[fileReader.getIndex() - firstIndex] = new GarbageFileStats(fileReader);
         }
@@ -210,7 +211,40 @@ public class GarbageScanner {
      * @param garbageFileStats array of per-file statistics; entries may be {@code null} for
      *                         gaps in the file index sequence
      */
-    record IndexedGarbageFileStats(int offset, @NonNull GarbageFileStats[] garbageFileStats) {}
+    record IndexedGarbageFileStats(int offset, @NonNull GarbageFileStats[] garbageFileStats) {
+        @NonNull
+        List<GarbageFileStats> getNonNullGarbageStats() {
+            final List<GarbageFileStats> nonNullStats = new ArrayList<>();
+            for (final GarbageFileStats stats : garbageFileStats) {
+                if (stats != null) {
+                    nonNullStats.add(stats);
+                }
+            }
+            return nonNullStats;
+        }
+
+        /**
+         * Estimates the projected alive bytes for a single file based on scan statistics.
+         * Returns 0 for files with unknown item counts or files not found in the stats
+         * (e.g. deleted between scan and grouping).
+         */
+        static long estimateAliveBytes(
+                final @NonNull DataFileReader reader, final @Nullable GarbageFileStats fileStats) {
+            if (fileStats == null || fileStats.totalItems() == 0) {
+                return 0;
+            }
+            return (long) (reader.getSize() * (1.0 - fileStats.garbageRatio()));
+        }
+
+        @Nullable
+        GarbageFileStats lookupStats(final @NonNull DataFileReader reader) {
+            final int idx = reader.getIndex() - this.offset();
+            if (idx < 0 || idx >= this.garbageFileStats().length) {
+                return null;
+            }
+            return garbageFileStats()[idx];
+        }
+    }
 
     /**
      * Per-file garbage statistics. Tracks total items (from file metadata) and alive items
@@ -230,18 +264,7 @@ public class GarbageScanner {
          * @param fileReader the data file this stats object tracks
          */
         public GarbageFileStats(@NonNull final DataFileReader fileReader) {
-            this(fileReader, 0);
-        }
-
-        /**
-         * Creates stats with a known alive item count. Useful for testing.
-         *
-         * @param fileReader the data file this stats object tracks
-         * @param aliveItems initial alive item count
-         */
-        public GarbageFileStats(@NonNull final DataFileReader fileReader, final long aliveItems) {
             this.fileReader = requireNonNull(fileReader);
-            this.aliveItems = aliveItems;
         }
 
         /** @return compaction level */
@@ -256,7 +279,13 @@ public class GarbageScanner {
 
         /** @return number of items still referenced by the index */
         public long aliveItems() {
-            return aliveItems;
+            // This `min` is to address the rare case of subsequent doubling of bucket count in HDHM.
+            // Even though the scanner is designed to deduplicate mirrored entries, it is possible that
+            // some buckets are still double-counted because they were not updated since the previous doubling.
+            // In this case, alive items count may slightly exceed the total items count, which would lead to negative
+            // dead items and garbage ratio below 0.
+            // The `min` caps alive items at total items, ensuring that the garbage ratio is always between 0 and 1.
+            return Math.min(totalItems(), aliveItems);
         }
 
         /** @return {@code totalItems - aliveItems} */
@@ -266,6 +295,10 @@ public class GarbageScanner {
 
         void incrementAliveItems() {
             aliveItems++;
+        }
+
+        void incrementAliveItemsBy(long count) {
+            aliveItems += count;
         }
 
         /**
@@ -289,16 +322,11 @@ public class GarbageScanner {
          * @return dead-to-alive ratio
          */
         public double deadToAliveRatio() {
-            if (totalItems() == 0) {
-                return Double.MAX_VALUE;
-            }
             if (aliveItems == 0) {
                 return Double.MAX_VALUE;
             }
             final long dead = deadItems();
-            if (dead == 0) {
-                return 0.0;
-            }
+
             return (double) dead / aliveItems;
         }
     }

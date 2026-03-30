@@ -251,7 +251,7 @@ public final class DataFileCommon {
     }
 
     /**
-     * Get total size fo a collection of files.
+     * Get total size for a collection of files.
      *
      * @param fileReaders collection of paths to files
      * @return total number of bytes take for all the files in fileReaders

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -98,7 +99,7 @@ class DataFileCompactorSingleLevelTest {
         @Override
         List<Path> compactFiles(
                 final CASableLongIndex index,
-                final List<? extends DataFileReader> filesToCompact,
+                @NonNull final List<? extends DataFileReader> filesToCompact,
                 final int targetCompactionLevel) {
             capturedFiles = new ArrayList<>(filesToCompact);
             capturedTargetLevel = targetCompactionLevel;

@@ -120,6 +120,8 @@ class GarbageFileStatsTest {
         when(reader.getIndex()).thenReturn(1);
         when(reader.getMetadata()).thenReturn(metadata);
 
-        return new GarbageScanner.GarbageFileStats(reader, aliveItems);
+        GarbageScanner.GarbageFileStats fileStats = new GarbageScanner.GarbageFileStats(reader);
+        fileStats.incrementAliveItemsBy(aliveItems);
+        return fileStats;
     }
 }
