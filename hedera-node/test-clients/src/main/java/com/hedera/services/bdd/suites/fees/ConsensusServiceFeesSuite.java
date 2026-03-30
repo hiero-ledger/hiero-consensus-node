@@ -19,12 +19,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdW
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.QUERY_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_FULL_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_INCLUDED;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOPIC_CREATE_WITH_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
@@ -147,25 +145,22 @@ public class ConsensusServiceFeesSuite {
                                 "submitMessage100",
                                 0.001,
                                 1.0,
-                                SUBMIT_MESSAGE_FULL_FEE_USD + expectedFeeFromBytesFor(spec, log, "submitMessage100"),
+                                expectedTopicSubmitMessageFullFeeUsd(
+                                        1, 100, signedTxnSizeFor(spec, "submitMessage100")),
                                 3.0),
                         safeValidateChargedUsdWithin(
                                 "submitMessage500",
                                 0.00088,
                                 1.0,
-                                SUBMIT_MESSAGE_FULL_FEE_USD
-                                        + (500 - SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_INCLUDED)
-                                                * SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTE_USD
-                                        + expectedFeeFromBytesFor(spec, log, "submitMessage500"),
+                                expectedTopicSubmitMessageFullFeeUsd(
+                                        1, 500, signedTxnSizeFor(spec, "submitMessage500")),
                                 3.0),
                         safeValidateChargedUsdWithin(
                                 "submitMessage1024",
                                 0.001,
                                 1.0,
-                                SUBMIT_MESSAGE_FULL_FEE_USD
-                                        + (1000 - SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_INCLUDED)
-                                                * SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTE_USD
-                                        + expectedFeeFromBytesFor(spec, log, "submitMessage1024"),
+                                expectedTopicSubmitMessageFullFeeUsd(
+                                        1, 1024, signedTxnSizeFor(spec, "submitMessage1024")),
                                 3.0))));
     }
 
