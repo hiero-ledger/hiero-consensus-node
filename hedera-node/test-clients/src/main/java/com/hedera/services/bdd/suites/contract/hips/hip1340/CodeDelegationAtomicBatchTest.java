@@ -51,7 +51,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
-import org.junit.jupiter.api.Assertions;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -73,6 +74,7 @@ public class CodeDelegationAtomicBatchTest {
     private static final String CRYPTO_CREATE_DELEGATING_ACCOUNT = "CryptoCreateDelegatingAccount";
     private static final String ACCOUNT_WITH_BALANCE = "AccountWithBalance";
     private static final String INSUFFICIENT_BALANCE_ACCOUNT = "InsufficientBalanceAccount";
+    private static final long GAS_LIMIT_2M = 2_000_000L;
 
     @Contract(contract = CONTRACT, creationGas = 5_000_000)
     static SpecContract contract;
@@ -120,7 +122,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .via(type4Txn)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
@@ -148,7 +150,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .via(failedBatchTxn)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
@@ -182,7 +184,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                         .via(type4Txn)
                                         .batchKey(RELAYER))
@@ -217,7 +219,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .batchKey(RELAYER))
                                 .payingWith(RELAYER)
                                 .via(batchTxn)
@@ -248,7 +250,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .via(type4Txn)
                                         .batchKey(RELAYER))
                                 .payingWith(RELAYER)),
@@ -279,7 +281,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addCodeDelegationWithSpecNonce(delegationTargetAddress, accountInBatch)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
                                         .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
@@ -322,7 +324,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .via(type4Txn)
                                         .batchKey(RELAYER))
                                 .payingWith(RELAYER)),
@@ -350,7 +352,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addCodeDelegationWithSpecNonce(delegationTargetAddress, authorityAccount)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
                                         .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
@@ -387,7 +389,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addCodeDelegationWithSpecNonce(d2, authorityAccount)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
                                         .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
@@ -423,7 +425,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, authorityAccount)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
                                         .between(ACCOUNT_WITH_BALANCE, RELAYER))
@@ -456,7 +458,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, authorityAccount)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
                                         .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
@@ -502,7 +504,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .addCodeDelegationWithSpecNonce(delegationTargetAddress, delegatingAccount1)
                                         .addCodeDelegationWithNonce(delegationTargetAddress, 1L, delegatingAccount2)
                                         .addCodeDelegationWithNonce(delegationTargetAddress, 1L, delegatingAccount3)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .hasKnownStatus(SUCCESS)
                                         .via(partialCommitTxn)
                                         .batchKey(RELAYER))
@@ -546,7 +548,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .addCodeDelegationWithSpecNonce(delegationTargetAddress, delegatingAccount1)
                                         .addCodeDelegationWithNonce(delegationTargetAddress, 1L, delegatingAccount2)
                                         .addCodeDelegationWithNonce(delegationTargetAddress, 1L, delegatingAccount3)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .hasKnownStatus(ResponseCodeEnum.REVERTED_SUCCESS)
                                         .via(partialCommitTxn)
                                         .batchKey(RELAYER),
@@ -606,7 +608,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
                                         .addCodeDelegationWithSpecNonce(delegationTargetAddress, authAccount1)
                                         .addCodeDelegationWithSpecNonce(delegationTargetAddress, authAccount2)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .via(type4Txn)
                                         .batchKey(RELAYER))
                                 .payingWith(RELAYER)
@@ -616,15 +618,15 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceAfter::set),
                         getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceAfter::set),
                         withOpContext((spec2, opLog2) -> {
-                            Assertions.assertEquals(
+                            assertEquals(
                                     senderNonceBefore.get() + 2,
                                     senderNonceAfter.get(),
                                     "Sender nonce should increment by 2 (tx + auth)");
-                            Assertions.assertEquals(
+                            assertEquals(
                                     auth1NonceBefore.get() + 1,
                                     auth1NonceAfter.get(),
                                     "Auth1 nonce should increment by 1 (auth only)");
-                            Assertions.assertEquals(
+                            assertEquals(
                                     auth2NonceBefore.get() + 1,
                                     auth2NonceAfter.get(),
                                     "Auth2 nonce should increment by 1 (auth only)");
@@ -665,7 +667,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
                                         .addCodeDelegationWithSpecNonce(delegationTargetAddress, authAccount1)
                                         .addCodeDelegationWithSpecNonce(delegationTargetAddress, authAccount2)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .via(type4Txn)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
@@ -681,16 +683,16 @@ public class CodeDelegationAtomicBatchTest {
                         getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceAfter::set),
                         getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceAfter::set),
                         withOpContext((spec2, opLog2) -> {
-                            Assertions.assertEquals(
+                            assertEquals(
                                     senderNonceBefore.get() + 2,
                                     senderNonceAfter.get(),
                                     "Sender nonce should increment by 2 (tx + auth)");
                             // TODO (dsinyakov): add below asserts when atomic batch nonce persistence if fixed
-//                            Assertions.assertEquals(
+//                            assertEquals(
 //                                    auth1NonceBefore.get() + 1,
 //                                    auth1NonceAfter.get(),
 //                                    "Auth1 nonce should increment by 1 (auth only)");
-//                            Assertions.assertEquals(
+//                            assertEquals(
 //                                    auth2NonceBefore.get() + 1,
 //                                    auth2NonceAfter.get(),
 //                                    "Auth2 nonce should increment by 1 (auth only)");
@@ -756,7 +758,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
                                         .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                        .gasLimit(2_000_000L)
+                                        .gasLimit(GAS_LIMIT_2M)
                                         .via(DELEGATION_SET)
                                         .batchKey(RELAYER),
                                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
@@ -778,6 +780,95 @@ public class CodeDelegationAtomicBatchTest {
                         // Current behavior: all delegation effects rolled back
                         getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                         getAliasedAccountInfo(DELEGATING_ACCOUNT).hasNoDelegation())));
+    }
+
+
+
+    // 9.1: atomicBatch(type-4 delegates A, valid transfer) - batch succeeds.
+    // Assert gas charges are applied and break down costs per account.
+    //
+    // Gas breakdown for a type-4 (EIP-7702) ethereumCall:
+    //   TX_BASE_COST                    = 21,000  (base tx gas)
+    //   Calldata: 4 non-zero bytes      = 4 * 16 = 64 (create() selector)
+    //   Code delegation: 1 auth entry   = 1 * 25,000 = 25,000 (PER_CONTRACT_CODE_DELEGATION_COST)
+    //   Intrinsic gas                   = 46,064
+    //   EVM execution of create()       = variable (deploys Trivial contract via CREATE opcode)
+    //   Total gasUsed                   = intrinsic + execution
+    //
+    // Fee conversion:
+    //   Gas price in tinybars from spec.ratesProvider().currentTinybarGasPrice()
+    //   (derived from feeSchedules.json ContractCall service gas / FEE_DIVISOR_FACTOR / exchange rate)
+    //   Sender pays: gasUsed * gasPriceTinybars (EVM gas charged via CustomGasCharging)
+    //   Relayer pays: batch wrapper fee + cryptoTransfer fee + 1 HBAR transfer
+    @HapiTest
+    final Stream<DynamicTest> testTx4GasChargesOnSuccessfulBatch() {
+        // Intrinsic gas components
+        final long TX_BASE_COST = 21_000L;
+        final long CALLDATA_GAS = 4 * 16L; // create() selector: 4 non-zero bytes
+        final long CODE_DELEGATION_GAS = 25_000L; // 1 auth entry (EIP-7702)
+        final long EXPECTED_INTRINSIC_GAS = TX_BASE_COST + CALLDATA_GAS + CODE_DELEGATION_GAS;
+
+        final var sender = DELEGATING_ACCOUNT + "GasChargeSender";
+        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var type4Txn = "type4GasChargeSuccess";
+
+        final var senderBalanceBefore = new AtomicLong();
+        final var senderBalanceAfter = new AtomicLong();
+
+        return hapiTest(
+                createFundedAccount(sender),
+                getAccountBalance(sender).exposingBalanceTo(senderBalanceBefore::set),
+                // Execute batch: type-4 ethereum call + valid transfer
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        sourcing(() -> atomicBatch(
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(type4Txn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
+                                .payingWith(RELAYER)
+                                .hasKnownStatus(SUCCESS)))),
+                getAccountBalance(sender).exposingBalanceTo(senderBalanceAfter::set),
+                withOpContext((spec, opLog) -> {
+                    final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
+
+                    final var type4Record = getTxnRecord(type4Txn);
+                    allRunFor(spec, type4Record);
+
+                    final var type4Fee = type4Record.getResponseRecord().getTransactionFee();
+                    final var gasUsed = type4Record.getResponseRecord()
+                            .getContractCallResult().getGasUsed();
+                    final var executionGas = gasUsed - EXPECTED_INTRINSIC_GAS;
+                    final var expectedGasCharge = gasUsed * gasPriceTinybars;
+
+                    final var senderDelta = senderBalanceBefore.get() - senderBalanceAfter.get();
+
+                    opLog.info("=== 9.1 GAS CHARGES: SUCCESS PATH ===");
+                    opLog.info("Gas breakdown: intrinsic={} (base=21000 + calldata=64 + delegation=25000)"
+                            + " + execution={} = total gasUsed={}", EXPECTED_INTRINSIC_GAS, executionGas, gasUsed);
+                    opLog.info("Fee: gasUsed={} * gasPrice={}tb/gas = {} tinybar",
+                            gasUsed, gasPriceTinybars, expectedGasCharge);
+                    opLog.info("Sender  charged: {} (expected: {})", senderDelta, expectedGasCharge);
+
+                    // gasUsed must exceed intrinsic gas (execution of create() costs extra)
+                    assertTrue(gasUsed > EXPECTED_INTRINSIC_GAS,
+                            "gasUsed must exceed intrinsic gas (create() deploys a contract)");
+                    // Sender pays exactly gasUsed * gasPrice (EVM gas)
+                    assertEquals(expectedGasCharge, senderDelta,
+                            "Sender must be charged gasUsed * gasPriceTinybars");
+                    // The type4 fee in the record should match the sender's balance change
+                    assertEquals(type4Fee, senderDelta,
+                            "Type4 record fee must equal sender balance change");
+
+                }));
     }
 
     private static SpecOperation createFundedAccount(@NonNull final String name) {
