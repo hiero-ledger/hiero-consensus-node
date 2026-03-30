@@ -20,6 +20,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapIterator;
+import com.swirlds.virtualmap.VirtualMapReconnect;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -127,9 +128,9 @@ public final class MerkleTestUtils {
             final LearningSynchronizer learner;
             final TeachingSynchronizer teacher;
 
-            final VirtualMap newRoot = startingMap.newReconnectRoot();
+            final VirtualMapReconnect reconnect = VirtualMapReconnect.create(startingMap);
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
+            final LearnerTreeView learnerView = reconnect.buildLearnerView(reconnectConfig, mapStats);
 
             if (latencyMilliseconds == 0) {
                 learner =
@@ -137,7 +138,7 @@ public final class MerkleTestUtils {
                                 getStaticThreadManager(),
                                 streams.getLearnerInput(),
                                 streams.getLearnerOutput(),
-                                newRoot,
+                                reconnect,
                                 learnerView,
                                 streams::disconnect,
                                 reconnectConfig) {
@@ -182,7 +183,7 @@ public final class MerkleTestUtils {
                         new LaggingLearningSynchronizer(
                                 streams.getLearnerInput(),
                                 streams.getLearnerOutput(),
-                                newRoot,
+                                reconnect,
                                 learnerView,
                                 latencyMilliseconds,
                                 streams::disconnect,
@@ -245,7 +246,7 @@ public final class MerkleTestUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            final VirtualMap generatedTree = newRoot;
+            final VirtualMap generatedTree = reconnect.getVirtualMap();
 
             assertReconnectValidity(startingTree, desiredTree, generatedTree);
 
