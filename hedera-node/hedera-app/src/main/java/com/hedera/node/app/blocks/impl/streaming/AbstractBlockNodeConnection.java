@@ -3,15 +3,18 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.EnumMap;
-import java.util.Map;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.URL;
+import java.time.Instant;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,34 +26,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AbstractBlockNodeConnection.class);
 
-    enum ConnectionType {
-        /**
-         * Denotes a connection that intends to stream block data to a block node.
-         */
-        BLOCK_STREAMING("STR"), // block STReaming
-        /**
-         * Denotes a connection that intends to query server information from a block node.
-         */
-        SERVER_STATUS("SVC"); // block node SerViCe
-
-        private final String key;
-
-        ConnectionType(final String key) {
-            this.key = key;
-        }
-    }
-
-    /**
-     * Connection ID counters for each type of connection.
-     */
-    private static final Map<ConnectionType, AtomicInteger> connIdCtrByType = new EnumMap<>(ConnectionType.class);
-
-    static {
-        for (final ConnectionType type : ConnectionType.values()) {
-            connIdCtrByType.put(type, new AtomicInteger(0));
-        }
-    }
-
     /**
      * The block node configuration.
      */
@@ -58,7 +33,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     /**
      * The unique (for the life of the JVM) connection identifier.
      */
-    private final String connectionId;
+    private final ConnectionId connectionId;
     /**
      * Mechanism to retrieve configuration data.
      */
@@ -71,6 +46,14 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * The type of connection this instance represents.
      */
     private final ConnectionType type;
+
+    private final Instant createTimestamp;
+    private final AtomicReference<Instant> activeTimestampRef = new AtomicReference<>();
+    private final AtomicReference<Instant> closeTimestampRef = new AtomicReference<>();
+    private final AtomicReference<CloseReason> closeReasonRef = new AtomicReference<>();
+
+    private volatile long ipAsInteger = -1;
+    private volatile boolean isInitialIpResolveError = true;
 
     /**
      * Initialize this connection.
@@ -87,15 +70,52 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
         this.configProvider = requireNonNull(configProvider, "configProvider is required");
         this.type = requireNonNull(type, "type is required");
 
-        connectionId =
-                String.format("%s.%06d", type.key, connIdCtrByType.get(type).incrementAndGet());
+        connectionId = ConnectionId.newConnectionId(type);
         stateRef = new AtomicReference<>(ConnectionState.UNINITIALIZED);
+        createTimestamp = Instant.now();
+    }
+
+    /**
+     * @return the IPv4 address represented as an integer, or -1 if the address could not be resolved or is not an IPv4 address
+     */
+    long ipV4AddressAsInt() {
+        if (ipAsInteger != -1) {
+            return ipAsInteger;
+        }
+
+        try {
+            final URL url = URI.create("http://" + configuration.address() + ":" + configuration.streamingPort()).toURL();
+            final InetAddress address = InetAddress.getByName(url.getHost());
+            final byte[] bytes = address.getAddress();
+
+            if (bytes.length != 4) {
+                logger.warn("Only IPv4 addresses are supported for conversion to integer");
+                return ipAsInteger;
+            }
+
+            final long octet1 = 256L * 256 * 256 * (bytes[0] & 0xFF);
+            final long octet2 = 256L * 256 * (bytes[1] & 0xFF);
+            final long octet3 = 256L * (bytes[2] & 0xFF);
+            final long octet4 = 1L * (bytes[3] & 0xFF);
+            ipAsInteger = octet1 + octet2 + octet3 + octet4;
+
+            logger.info("{} Block node address ({}:{}) resolved to IP {} (as-integer: {})", this, configuration.address(),
+                    configuration.streamingPort(), address.getHostAddress(), ipAsInteger);
+        } catch (final IOException e) {
+            if (isInitialIpResolveError) {
+                isInitialIpResolveError = false;
+                logger.warn("{} Failed to resolve block node host ({}:{})", this, configuration.address(),
+                        configuration.streamingPort(), e);
+            }
+        }
+
+        return ipAsInteger;
     }
 
     /**
      * @return the unique identifier for this connection
      */
-    final @NonNull String connectionId() {
+    final @NonNull ConnectionId connectionId() {
         return connectionId;
     }
 
@@ -148,12 +168,47 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
 
         final ConnectionState state = stateRef.get();
         if (state == ConnectionState.ACTIVE) {
+            activeTimestampRef.set(Instant.now());
             onActiveStateTransition();
         } else if (state.isTerminal()) {
+            if (state == ConnectionState.CLOSED) {
+                closeTimestampRef.set(Instant.now());
+            }
+
             onTerminalStateTransition();
         }
 
         return true;
+    }
+
+    /**
+     * @return the timestamp of when this connection was created
+     */
+    final @NonNull Instant createTimestamp() {
+        return createTimestamp;
+    }
+
+    /**
+     * @return the timestamp of when this connection transitioned to the active state, or null if it hasn't transitioned
+     */
+    final @Nullable Instant activeTimestamp() {
+        return activeTimestampRef.get();
+    }
+
+    /**
+     * @return the timestamp of when this connection transitioned to the closed state, or null if it hasn't transitioned
+     */
+    final @Nullable Instant closeTimestamp() {
+        return closeTimestampRef.get();
+    }
+
+    final void setCloseReason(@NonNull final CloseReason closeReason) {
+        requireNonNull(closeReason, "Close reason is required");
+        closeReasonRef.set(closeReason);
+    }
+
+    final @Nullable CloseReason closeReason() {
+        return closeReasonRef.get();
     }
 
     /**

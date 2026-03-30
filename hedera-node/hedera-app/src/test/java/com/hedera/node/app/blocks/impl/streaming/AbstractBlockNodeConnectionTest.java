@@ -7,7 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.node.app.blocks.impl.streaming.AbstractBlockNodeConnection.ConnectionType;
+import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,8 +29,9 @@ class AbstractBlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     void testBasics() {
         final BlockNodeConfiguration config = newBlockNodeConfig("localhost.io", 8080, 1);
         final AbstractBlockNodeConnection connection = newInstance(ConnectionType.SERVER_STATUS, config);
+        final ConnectionId connectionId = connection.connectionId();
 
-        assertThat(connection.connectionId()).startsWith("SVC.");
+        assertThat(connectionId.type()).isEqualTo(ConnectionType.BLOCK_STREAMING);
         assertThat(connection.configuration()).isEqualTo(config);
         assertThat(connection.configProvider()).isEqualTo(configProvider);
         assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);

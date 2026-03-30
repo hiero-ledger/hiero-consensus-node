@@ -45,7 +45,6 @@ public interface BlockStreamModule {
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
         final BlockNodeConnectionManager manager = new BlockNodeConnectionManager(
                 configProvider, blockBufferService, blockStreamMetrics, blockingIoExecutorSupplier);
-        blockBufferService.setBlockNodeConnectionManager(manager);
         manager.start();
         return manager;
     }
