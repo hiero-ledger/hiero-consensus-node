@@ -111,7 +111,7 @@ public class CryptoBench extends VirtualMapBench {
      */
     @Benchmark
     public void transferSerial() throws Exception {
-        beforeTest("transferSerial");
+        setTestDir("transferSerial");
 
         logger.info(RUN_DELIMITER);
 
@@ -188,15 +188,13 @@ public class CryptoBench extends VirtualMapBench {
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     @Benchmark
     public void transferPrefetch() throws Exception {
-        beforeTest("transferPrefetch");
+        setTestDir("transferPrefetch");
 
         logger.info(RUN_DELIMITER);
 
@@ -307,10 +305,8 @@ public class CryptoBench extends VirtualMapBench {
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     static class WarmupTask extends AbstractTask {
@@ -401,7 +397,7 @@ public class CryptoBench extends VirtualMapBench {
      */
     @Benchmark
     public void transferParallel() throws Exception {
-        beforeTest("transferParallel");
+        setTestDir("transferParallel");
 
         logger.info(RUN_DELIMITER);
 
@@ -466,20 +462,16 @@ public class CryptoBench extends VirtualMapBench {
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     public static void main(String[] args) throws Exception {
         final CryptoBench bench = new CryptoBench();
-        bench.setup();
-        bench.createLocal();
-        bench.beforeTest();
+        bench.setupTrial();
+        bench.setupInvocation();
         bench.transferPrefetch();
-        bench.afterTest();
-        bench.destroyLocal();
-        bench.destroy();
+        bench.tearDownInvocation();
+        bench.tearDownTrial();
     }
 }

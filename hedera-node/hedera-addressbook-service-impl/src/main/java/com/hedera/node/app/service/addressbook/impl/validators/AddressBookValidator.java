@@ -319,6 +319,10 @@ public class AddressBookValidator {
         }
     }
 
+    /**
+     * Validates that the given domain is a valid DNS hostname. Accepts both fully qualified domain
+     * names (e.g. "node0.example.com") and simple, non-FQDN hostnames (e.g. "localhost").
+     */
     private boolean isValidAsciiFqdn(@Nullable final String domain, final int maxFqdnSize) {
         if (domain == null || domain.isEmpty()) {
             return false;

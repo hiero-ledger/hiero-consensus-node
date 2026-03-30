@@ -193,8 +193,7 @@ public final class CryptoStatic {
             logger.error(EXCEPTION.getMarker(), "Exception while loading/generating keys", e);
             if (ThrowableUtilities.isRootCauseSuppliedType(e, NoSuchAlgorithmException.class)
                     || ThrowableUtilities.isRootCauseSuppliedType(e, NoSuchProviderException.class)) {
-                CommonUtils.tellUserConsolePopup(
-                        "ERROR",
+                CommonUtils.tellUserConsoleHighlighted(
                         "ERROR: This Java installation does not have the needed cryptography " + "providers installed");
             }
             SystemExitUtils.exitSystem(SystemExitCode.KEY_LOADING_FAILED);

@@ -9,10 +9,12 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -228,6 +230,41 @@ public class NodeRewardAmounts {
             }
         }
         return result;
+    }
+
+    /**
+     * Gets a list of all node rewards (both active and inactive).
+     *
+     * <p>The list is ordered by ascending node ID, guaranteed by the underlying {@link TreeMap}.
+     * Callers that apply a cap (e.g. for metric cardinality) can rely on this ordering to
+     * consistently sample the lowest-numbered nodes.
+     *
+     * @return a list containing all reward amounts, ordered by ascending node ID
+     */
+    public List<NodeRewardAmount> allNodeRewards() {
+        return nodeRewards.values().stream().flatMap(List::stream).toList();
+    }
+
+    /**
+     * Returns all rewards for the given set of node IDs, preserving the ascending node ID order.
+     *
+     * @param nodeIds the node IDs to include
+     * @return a list of rewards for the specified nodes only
+     */
+    public List<NodeRewardAmount> rewardsForNodes(@NonNull final Set<Long> nodeIds) {
+        return nodeRewards.entrySet().stream()
+                .filter(e -> nodeIds.contains(e.getKey()))
+                .flatMap(e -> e.getValue().stream())
+                .toList();
+    }
+
+    /**
+     * Returns the ordered set of distinct node IDs that have rewards, in ascending order.
+     *
+     * @return an unmodifiable ordered set of node IDs
+     */
+    public Set<Long> nodeIds() {
+        return Collections.unmodifiableSet(nodeRewards.keySet());
     }
 
     /**
