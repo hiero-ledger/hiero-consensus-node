@@ -110,7 +110,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private long maxNodeId;
     private Network network;
     private Map<NodeId, KeysAndCerts> nodeKeys;
-    private final Network genesisNetwork;
     private final long shard;
     private final long realm;
 
@@ -188,7 +187,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var networkWithKeys = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
         this.network = networkWithKeys.network();
         this.nodeKeys = networkWithKeys.keysAndCerts();
-        this.genesisNetwork = network;
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
         this.postInitWorkingDirActions.add(SubProcessNetwork::configurePlatformSettings);
     }
