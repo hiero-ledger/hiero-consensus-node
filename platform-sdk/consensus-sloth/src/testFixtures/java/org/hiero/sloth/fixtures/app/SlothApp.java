@@ -256,7 +256,7 @@ public class SlothApp implements ConsensusStateEventHandler {
         }
 
         for (final SlothService service : allServices) {
-            service.initialize(trigger, platform.getSelfId(), configuration, (VirtualMapStateImpl) state);
+            service.initialize(trigger, platform.getSelfId(), configuration, platform.getContext().getMetrics(), (VirtualMapStateImpl) state);
         }
     }
 
