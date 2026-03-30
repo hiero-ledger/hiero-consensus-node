@@ -162,9 +162,11 @@ val prCheckPropOverrides =
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=16",
         // Superseded by the entry below which adds tss.initialCrsParties=8; the original
         // buildMap had two put() calls for hapiTestCutover and the second silently overwrote the
-        // first. Kept here for reference in case tss.forceMockSignatures=false needs to be restored.
+        // first. Kept here for reference in case tss.forceMockSignatures=false needs to be
+        // restored.
         // "hapiTestCutover" to
-        //     "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,staking.periodMins=16",
+        //
+        // "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,staking.periodMins=16",
         "hapiTestCutover" to
             "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
