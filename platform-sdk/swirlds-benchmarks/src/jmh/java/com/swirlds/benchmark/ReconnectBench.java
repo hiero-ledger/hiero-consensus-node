@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import org.hiero.consensus.model.node.NodeId;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -87,23 +85,6 @@ public class ReconnectBench extends VirtualMapBaseBench {
     }
 
     /**
-     * Builds a VirtualMap populator that is able to add/update, as well as remove nodes (when the value is null.)
-     * Note that it doesn't support explicitly adding null values under a key.
-     *
-     * @param mapRef a reference to a VirtualMap instance
-     * @return a populator for the map
-     */
-    private static BiConsumer<Bytes, BenchmarkValue> buildVMPopulator(final AtomicReference<VirtualMap> mapRef) {
-        return (k, v) -> {
-            if (v == null) {
-                mapRef.get().remove(k, BenchmarkValueCodec.INSTANCE);
-            } else {
-                mapRef.get().put(k, v, BenchmarkValueCodec.INSTANCE);
-            }
-        };
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -127,8 +108,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
                         teacherAddProbability,
                         teacherRemoveProbability,
                         teacherModifyProbability,
-                        buildVMPopulator(teacherRef),
-                        buildVMPopulator(learnerRef),
+                        StateBuilder.buildVMPopulator(teacherRef),
+                        StateBuilder.buildVMPopulator(learnerRef),
                         i -> {
                             if (i % numRecords == 0) {
                                 System.err.printf("Copying files for i=%,d\n", i);
@@ -137,14 +118,24 @@ public class ReconnectBench extends VirtualMapBaseBench {
                             }
                         });
 
-        teacherMap = flushMap(teacherMap);
+        // Save learner to disk (it will be restored fresh each invocation)
         learnerMap = flushMap(learnerMap);
-
-        teacherMap = saveMap(teacherMap, TEACHER_MAP_NAME);
         learnerMap = saveMap(learnerMap, LEARNER_MAP_NAME);
-
-        releaseAndCloseMap(teacherMap);
         releaseAndCloseMap(learnerMap);
+
+        // Save teacher to disk (as a backup), but keep it alive in memory
+        teacherMap = flushMap(teacherMap);
+        teacherMap = saveMap(teacherMap, TEACHER_MAP_NAME);
+        BenchmarkMetrics.register(teacherMap::registerMetrics);
+        // Make teacher immutable by creating a copy; keep the copy as the mutable head
+        teacherMapCopy = teacherMap.copy();
+        // Pre-hash the teacher map once — it's never modified
+        teacherMap.getHash();
+        // Build the verification array once from the teacher map
+        if (verify) {
+            teacherData = new long[numRecords * numFiles * 2];
+            copyMapToArray(teacherMap, teacherData);
+        }
     }
 
     /**
@@ -154,26 +145,11 @@ public class ReconnectBench extends VirtualMapBaseBench {
     protected void onInvocationSetup() {
         super.onInvocationSetup();
 
-        teacherMap = restoreMap(TEACHER_MAP_NAME);
-        if (teacherMap == null) {
-            throw new RuntimeException("Failed to restore the 'teacher' map");
-        }
-        BenchmarkMetrics.register(teacherMap::registerMetrics);
-
         learnerMap = restoreMap(LEARNER_MAP_NAME);
         if (learnerMap == null) {
             throw new RuntimeException("Failed to restore the 'learner' map");
         }
         BenchmarkMetrics.register(learnerMap::registerMetrics);
-
-        teacherMapCopy = teacherMap.copy();
-
-        // Build the verification array from the teacher map before the benchmark runs
-        if (verify) {
-            // StateBuilder uses key indices from 1 to (2 * size - 1), where size = numRecords * numFiles.
-            teacherData = new long[numRecords * numFiles * 2];
-            copyMapToArray(teacherMap, teacherData);
-        }
     }
 
     /**
@@ -187,13 +163,10 @@ public class ReconnectBench extends VirtualMapBaseBench {
             }
         } finally {
             reconnectedMap.release();
-            teacherMap.release();
             learnerMap.release();
-            teacherMapCopy.release();
         }
 
         // Close all data sources
-        teacherMap.getDataSource().close();
         learnerMap.getDataSource().close();
 
         // release()/close() would delete the DB files eventually but not right away.
@@ -205,11 +178,35 @@ public class ReconnectBench extends VirtualMapBaseBench {
         } catch (InterruptedException ignore) {
         }
 
-        teacherMap = null;
         learnerMap = null;
-        teacherData = null;
 
         super.onInvocationTearDown();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onTrialTearDown() throws Exception {
+        teacherMap.release();
+        teacherMapCopy.release();
+
+        // Close all data sources
+        teacherMap.getDataSource().close();
+
+        // release()/close() would delete the DB files eventually but not right away.
+        // Add a short sleep to help prevent irrelevant warning messages from being printed
+        // when the Tear Down deletes test files recursively right after
+        // this current runnable finishes executing.
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException ignore) {
+        }
+
+        teacherMap = null;
+        teacherData = null;
+
+        super.onTrialTearDown();
     }
 
     @Benchmark
