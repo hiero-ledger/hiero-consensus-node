@@ -21,11 +21,11 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
@@ -39,6 +39,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOU
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -106,9 +108,10 @@ public class TokenWipeSimpleFeesTest {
                             .signedBy(PAYER, WIPE_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("wipeTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "wipeTxn",
-                            expectedTokenWipeFungibleFullFeeUsd(2L), // 2 sigs
+                            txnSize -> expectedTokenWipeFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.001));
         }
 
@@ -144,9 +147,10 @@ public class TokenWipeSimpleFeesTest {
                             .signedBy(PAYER, WIPE_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("wipeTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "wipeTxn",
-                            expectedTokenWipeFungibleFullFeeUsd(3L), // 3 sigs (2 payer + 1 wipe key)
+                            txnSize -> expectedTokenWipeFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
                             0.001));
         }
 
@@ -182,9 +186,10 @@ public class TokenWipeSimpleFeesTest {
                             .sigControl(forKey(WIPE_KEY, validSig))
                             .fee(ONE_HUNDRED_HBARS)
                             .via("wipeTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "wipeTxn",
-                            expectedTokenWipeFungibleFullFeeUsd(3L), // 3 sigs (1 payer + 2 wipe key)
+                            txnSize -> expectedTokenWipeFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
                             0.001));
         }
 
@@ -214,9 +219,10 @@ public class TokenWipeSimpleFeesTest {
                             .signedBy(PAYER, WIPE_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("wipeTxn"),
-                    validateChargedUsdWithin(
+                    validateChargedUsdWithinWithTxnSize(
                             "wipeTxn",
-                            expectedTokenWipeFungibleFullFeeUsd(2L), // 2 sigs
+                            txnSize -> expectedTokenWipeFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.001));
         }
     }

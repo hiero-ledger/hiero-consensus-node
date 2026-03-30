@@ -1386,14 +1386,23 @@ public class FeesChargingUtils {
     /**
      * Network-only fee for TokenUpdate failures in pre-handle.
      */
-    public static double expectedTokenUpdateNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenUpdateNetworkFeeOnlyUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenUpdateNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenUpdateNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenDelete simple fees utils ---------//
@@ -2049,11 +2058,11 @@ public class FeesChargingUtils {
      * service = TOKEN_WIPE_BASE
      * total   = node + network + service
      */
-    public static double expectedTokenWipeFungibleFullFeeUsd(long sigs) {
+    public static double expectedTokenWipeFullFeeUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
@@ -2062,6 +2071,15 @@ public class FeesChargingUtils {
         final double serviceFee = TOKEN_WIPE_BASE_FEE_USD;
 
         return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenWipeFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenWipeFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     /**
