@@ -119,7 +119,7 @@ class EthTxDataAccessListsTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
         // Then:
-        final var accessLists = tx.extractAccessLists();
+        final var accessLists = tx.extractAccessList();
         assertNotNull(accessLists);
         assertEquals(2, accessLists.size());
         assertEquals(Bytes.wrap(fillBytes(20, 0x10)), accessLists.getFirst().address());
@@ -151,7 +151,7 @@ class EthTxDataAccessListsTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
         // Then:
-        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists);
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessList);
         assertEquals("Access list item should be a list", thrown.getMessage());
     }
 
@@ -171,7 +171,7 @@ class EthTxDataAccessListsTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
         // Then:
-        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists);
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessList);
         assertEquals("Access list item does not contain expected number of elements", thrown.getMessage());
     }
 
@@ -192,7 +192,7 @@ class EthTxDataAccessListsTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
         // Then:
-        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists);
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessList);
         assertEquals("Access list item address is not 20 bytes length", thrown.getMessage());
     }
 
@@ -213,7 +213,7 @@ class EthTxDataAccessListsTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
         // Then:
-        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists);
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessList);
         assertEquals("Access list storage keys should be a list", thrown.getMessage());
     }
 
@@ -235,7 +235,7 @@ class EthTxDataAccessListsTest {
         final EthTxData tx = EthTxData.populateEthTxData(raw.data());
         assertNotNull(tx);
         // Then:
-        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessLists);
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessList);
         assertEquals("Expected 32 bytes but got 17", thrown.getMessage());
     }
 }

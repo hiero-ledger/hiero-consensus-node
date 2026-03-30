@@ -516,7 +516,7 @@ class EthereumTransactionHandlerTest {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
             given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
-            given(ethTxDataReturned.extractAccessLists()).willCallRealMethod();
+            given(ethTxDataReturned.extractAccessList()).willCallRealMethod();
             given(ethTxDataReturned.accessList()).willReturn(new byte[] {1, 2});
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));

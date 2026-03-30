@@ -20,10 +20,10 @@ import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.config.data.EntitiesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -79,19 +79,16 @@ public record CodeDelegationProcessor(long chainId) {
         final CodeDelegationProcessingState state = new CodeDelegationProcessingState(lazyCreationGasAvailable);
 
         if (codeDelegations == null || codeDelegations.isEmpty()) {
-            return state.toResult(List.of());
+            return state.toResult();
         }
 
         // Get a new proxy world updater to handle state changes and records for code delegations.
         final ProxyWorldUpdater proxyWorldUpdater = (ProxyWorldUpdater) worldUpdater.updater();
-        final var accessedAddresses = codeDelegations.stream()
-                .map(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, state))
-                .filter(Objects::nonNull)
-                .toList();
+        codeDelegations.forEach(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, state));
         // Commit the changes for code delegations.
         proxyWorldUpdater.commit();
 
-        return state.toResult(accessedAddresses);
+        return state.toResult();
     }
 
     /**
@@ -100,10 +97,9 @@ public record CodeDelegationProcessor(long chainId) {
      * @param proxyWorldUpdater The world updater to handle state changes and records for code delegations
      * @param codeDelegation    The code delegation to handle
      * @param state             The code delegation processing state
-     * @return authority of the processed code delegation. Returned to add to "accessed addresses"
      */
     @SuppressWarnings("java:S3776")
-    private Address processCodeDelegation(
+    private void processCodeDelegation(
             final ProxyWorldUpdater proxyWorldUpdater,
             final CodeDelegation codeDelegation,
             final CodeDelegationProcessingState state) {
@@ -111,28 +107,28 @@ public record CodeDelegationProcessor(long chainId) {
 
         if ((codeDelegation.getChainId() != 0) && (chainId != codeDelegation.getChainId())) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.ChainIdMismatch);
-            return null;
+            return;
         }
 
         if (codeDelegation.nonce() == MAX_NONCE) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
-            return null;
+            return;
         }
 
         if (codeDelegation.getS().compareTo(HALF_CURVE_ORDER) > 0) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-            return null;
+            return;
         }
 
         if (codeDelegation.getYParity() >= MAX_Y_PARITY) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-            return null;
+            return;
         }
 
         final Optional<EthTxSigs> maybeAuthorizer = EthTxSigs.extractAuthoritySignature(codeDelegation);
         if (maybeAuthorizer.isEmpty()) {
             state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-            return null;
+            return;
         }
         final var authorizer = maybeAuthorizer.get();
 
@@ -148,7 +144,8 @@ public record CodeDelegationProcessor(long chainId) {
             // only create an account if nonce is valid
             if (codeDelegation.nonce() != 0) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
-                return authorityAddress;
+                state.addAccessedAddress(authorityAddress);
+                return;
             }
 
             // The base gas defined in EIP-7702 (PER_EMPTY_ACCOUNT_COST = 25000) is already included
@@ -171,50 +168,57 @@ public record CodeDelegationProcessor(long chainId) {
                 failedRecord.signedTx(synthCreateTransactionBody(
                         authorityAddress, delegatedContractAddress, unlimitedAutoAssociations));
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.InsufficientGasForLazyCreation);
-                return authorityAddress;
+                state.addAccessedAddress(authorityAddress);
+                return;
             }
 
             if (!proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(
                     authorityAddress, authorizer.publicKey(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return authorityAddress;
+                state.addAccessedAddress(authorityAddress);
+                return;
             }
 
             authority = proxyWorldUpdater.getAccount(authorityAddress);
             if (authority == null) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return authorityAddress;
+                state.addAccessedAddress(authorityAddress);
+                return;
             }
         } else {
             authority = maybeAuthorityAccount.get();
 
             if (!canSetCodeDelegation(authority)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.AccountAlreadyHasCode);
-                return authorityAddress;
+                state.addAccessedAddress(authorityAddress);
+                return;
             }
 
             if (codeDelegation.nonce() != authority.getNonce()) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.NonceMismatch);
-                return authorityAddress;
+                state.addAccessedAddress(authorityAddress);
+                return;
             }
 
             // Ensure that the account is a regular account
             if (!((HederaEvmAccount) authority).isRegularAccount()) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return authorityAddress;
+                state.addAccessedAddress(authorityAddress);
+                return;
             }
 
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
-                return authorityAddress;
+                state.addAccessedAddress(authorityAddress);
+                return;
             }
             state.incrementAuthorizationsEligibleForRefund();
         }
 
         state.incrementSuccessfullyProcessedAuthorizations();
         authority.incrementNonce();
-        return authorityAddress;
+        state.addAccessedAddress(authorityAddress);
     }
 
     @NonNull
@@ -247,6 +251,7 @@ public record CodeDelegationProcessor(long chainId) {
         private int numAuthorizationsEligibleForRefund;
         private int successfullyProcessedAuthorizations;
         private final Map<CodeDelegationResult.EntryIgnoreReason, Integer> numIgnoredEntriesByReason = new HashMap<>();
+        private final List<Address> accessedAddresses = new ArrayList<>();
 
         CodeDelegationProcessingState(final long lazyCreationGasAvailable) {
             this.remainingLazyCreationGasAvailable = lazyCreationGasAvailable;
@@ -273,13 +278,17 @@ public record CodeDelegationProcessor(long chainId) {
             this.successfullyProcessedAuthorizations += 1;
         }
 
-        public CodeDelegationResult toResult(final List<Address> authorities) {
+        void addAccessedAddress(Address accessedAddress) {
+            accessedAddresses.add(accessedAddress);
+        }
+
+        public CodeDelegationResult toResult() {
             return new CodeDelegationResult(
                     totalLazyCreationGasCharged,
                     numAuthorizationsEligibleForRefund,
                     successfullyProcessedAuthorizations,
                     numIgnoredEntriesByReason,
-                    authorities);
+                    accessedAddresses);
         }
     }
 }
