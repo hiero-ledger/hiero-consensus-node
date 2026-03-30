@@ -38,7 +38,7 @@
     { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
     { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
-    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 492000000},
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 498300000},
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES", "fee": 1000000},
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES", "fee": 6800},
     { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
