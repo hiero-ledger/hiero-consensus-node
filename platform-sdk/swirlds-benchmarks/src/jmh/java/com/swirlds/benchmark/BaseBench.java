@@ -184,7 +184,7 @@ public abstract class BaseBench {
      * their own {@code @TearDown} annotations.
      */
     @TearDown(Level.Trial)
-    public void tearDownTrial() {
+    public void tearDownTrial() throws Exception {
         // Subclass hook — called before metrics stop and dirs are cleaned
         onTrialTearDown();
 
@@ -203,7 +203,7 @@ public abstract class BaseBench {
      * (child cleanup runs before parent cleanup, mirroring the setup order where parent
      * initializes before child).
      */
-    protected void onTrialTearDown() {
+    protected void onTrialTearDown() throws Exception {
         // no-op by default
     }
 

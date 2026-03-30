@@ -97,7 +97,6 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOPIC_CREATE_WITH_CUSTOM_FEE = TOPIC_CREATE_FEE + CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
     public static final double CONS_CREATE_TOPIC_BASE_FEE_USD = 0.0099;
     public static final long CONS_CREATE_TOPIC_INCLUDED_KEYS = 0L;
-    public static final long CONS_CREATE_TOPIC_WITH_CUSTOM_FEES = 0L;
 
     public static final double CONS_UPDATE_TOPIC_BASE_FEE_USD = 0.00012;
     public static final long CONS_UPDATE_TOPIC_INCLUDED_KEYS = 1L;
@@ -125,10 +124,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long FILE_APPEND_INCLUDED_BYTES = 1000L;
 
     public static final double FILE_DELETE_BASE_FEE_USD = 0.0069;
-    public static final long FILE_DELETE_INCLUDED_KEYS = 1L;
 
-    public static final double FILE_GET_CONTENTS_BASE_FEE_USD = 0.000000001;
-    public static final long FILE_GET_CONTENTS_INCLUDED_KEYS = 1L;
     public static final long FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES = 1000L;
     public static final double FILE_CREATE_BASE_FEE = 0.05;
     public static final double FILE_UPDATE_BASE_FEE = 0.05;
@@ -146,7 +142,6 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double TOKEN_UPDATE_BASE_FEE_USD = 0.0009;
     public static final long TOKEN_UPDATE_INCLUDED_KEYS = 1L;
-    public static final long TOKEN_UPDATE_INCLUDED_NFTS = 1L;
 
     public static final double TOKEN_DELETE_BASE_FEE_USD = 0.0009;
 
@@ -187,16 +182,12 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long TOKEN_AIRDROPS_INCLUDED_COUNT = 0L;
 
     /* ---------- Schedule service ---------- */
-
-    public static final double SCHEDULE_CREATE_BASE_FEE_USD = 0.0099;
-    public static final long SCHEDULE_CREATE_INCLUDED_KEYS = 1L;
     public static final double SCHEDULE_SIGN_FEE = 0.001;
-    public static final double SCHEDULE_DELETE_BASE_FEE_USD = 0.0009;
 
     /* ---------- Util service ---------- */
-
     public static final double ATOMIC_BATCH_BASE_FEE_USD = 0.0009;
     public static final double UTIL_PRNG_BASE_FEE_USD = 0.0009;
+
     /* ---------- Atomic Batch service ------------ */
     public static final double BATCH_BASE_FEE = 0.001;
 
