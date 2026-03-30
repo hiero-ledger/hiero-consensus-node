@@ -60,7 +60,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
@@ -98,13 +97,6 @@ public class CryptoCreateSuite {
     public static final String SHORT_KEY = "shortKey";
     public static final String EMPTY_KEY_STRING = "emptyKey";
     private static final String ED_KEY = "EDKEY";
-
-    @HapiTest
-    final Stream<DynamicTest> flakyTest() {
-        return hapiTest(cryptoCreate("broken")
-                .autoRenewSecs(1L)
-                .hasPrecheck(Math.random() < 0.5 ? AUTORENEW_DURATION_NOT_IN_RANGE : OK));
-    }
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
