@@ -2,8 +2,8 @@
 package com.hedera.node.app.quiescence;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.swirlds.platform.system.Platform;
@@ -39,8 +39,13 @@ public class QuiescedHeartbeat {
     private final QuiescenceController controller;
     private final ScheduledExecutorService scheduler;
 
+    /** Number of consecutive DONT_QUIESCE ticks before the heartbeat gives up. */
+    private static final int MAX_DONT_QUIESCE_TICKS = 3;
+
     @Nullable
     private ScheduledFuture<?> heartbeatFuture;
+
+    private int consecutiveDontQuiesceTicks;
 
     @Inject
     public QuiescedHeartbeat(@NonNull final QuiescenceController controller, Platform platform) {
@@ -76,6 +81,7 @@ public class QuiescedHeartbeat {
 
         // Cancel any existing heartbeat
         stop();
+        consecutiveDontQuiesceTicks = 0;
 
         // Schedule the heartbeat task
         heartbeatFuture = scheduler.scheduleAtFixedRate(
@@ -128,11 +134,24 @@ public class QuiescedHeartbeat {
                 controller.setNextTargetConsensusTime(tct);
             }
             final var commandNow = controller.getQuiescenceStatus();
-            // DONT_QUIESCE is transient — the pipeline count may be temporarily elevated while
-            // blocks are being signed.  Keep the heartbeat running so it can re-check on the next
-            // tick instead of stopping and relying on the block-signing callback to restart it.
-            // Only BREAK_QUIESCENCE (a pending user transaction) should end the heartbeat.
-            if (commandNow == BREAK_QUIESCENCE) {
+            if (commandNow == QUIESCE) {
+                // Reset the counter when quiescence is healthy
+                consecutiveDontQuiesceTicks = 0;
+            } else if (commandNow == DONT_QUIESCE) {
+                // DONT_QUIESCE is often transient — the pipeline count may be temporarily elevated
+                // while blocks are being signed.  Tolerate a few consecutive ticks before giving up
+                // so the heartbeat isn't restarted only by block-signing callbacks.
+                consecutiveDontQuiesceTicks++;
+                if (consecutiveDontQuiesceTicks >= MAX_DONT_QUIESCE_TICKS) {
+                    log.info(
+                            "Stopping quiescence heartbeat ({}, {} consecutive ticks)",
+                            commandNow,
+                            consecutiveDontQuiesceTicks);
+                    platform.quiescenceCommand(commandNow);
+                    stop();
+                }
+            } else {
+                // BREAK_QUIESCENCE — a pending user transaction requires ending quiescence immediately
                 log.info("Stopping quiescence heartbeat ({})", commandNow);
                 platform.quiescenceCommand(commandNow);
                 stop();

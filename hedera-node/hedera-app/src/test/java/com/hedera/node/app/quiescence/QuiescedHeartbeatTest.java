@@ -204,7 +204,7 @@ class QuiescedHeartbeatTest {
 
     @Test
     void heartbeatToleratesTransientDontQuiesce() {
-        // Given
+        // Given - single DONT_QUIESCE tick should be tolerated
         final var tct = Instant.ofEpochSecond(1_000_000L);
         given(probe.findTct()).willReturn(tct);
         given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
@@ -219,12 +219,38 @@ class QuiescedHeartbeatTest {
         verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
         runnableCaptor.getValue().run();
 
-        // Then - heartbeat should NOT stop for DONT_QUIESCE (transient state)
+        // Then - heartbeat should NOT stop for a single DONT_QUIESCE tick
         verify(probe).findTct();
         verify(controller).setNextTargetConsensusTime(tct);
         verify(controller).getQuiescenceStatus();
         verifyNoInteractions(platform);
         verify(scheduledFuture, never()).cancel(false);
+    }
+
+    @Test
+    void heartbeatStopsAfterConsecutiveDontQuiesceTicks() {
+        // Given - 3 consecutive DONT_QUIESCE ticks should stop the heartbeat
+        given(probe.findTct()).willReturn(null);
+        given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
+        given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        // When
+        subject.start(Duration.ofSeconds(1), probe);
+
+        final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
+
+        // First two ticks should be tolerated
+        runnableCaptor.getValue().run();
+        runnableCaptor.getValue().run();
+        verifyNoInteractions(platform);
+        verify(scheduledFuture, never()).cancel(false);
+
+        // Third tick should stop the heartbeat
+        runnableCaptor.getValue().run();
+        verify(platform).quiescenceCommand(DONT_QUIESCE);
+        verify(scheduledFuture).cancel(false);
     }
 
     @Test
@@ -468,10 +494,10 @@ class QuiescedHeartbeatTest {
     }
 
     @Test
-    void heartbeatContinuesThroughTransientDontQuiesceThenStopsOnBreak() {
-        // Given - first tick: DONT_QUIESCE (transient), second tick: BREAK_QUIESCENCE (stop)
+    void heartbeatResetsCounterOnQuiesceThenStopsOnBreak() {
+        // Given - DONT_QUIESCE, QUIESCE (resets counter), DONT_QUIESCE, BREAK_QUIESCENCE (stops)
         given(probe.findTct()).willReturn(null);
-        given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE, BREAK_QUIESCENCE);
+        given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE, QUIESCE, DONT_QUIESCE, BREAK_QUIESCENCE);
         given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
 
@@ -481,12 +507,19 @@ class QuiescedHeartbeatTest {
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
         verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
 
-        // First tick - DONT_QUIESCE should be tolerated
+        // Tick 1 - DONT_QUIESCE tolerated (count=1)
         runnableCaptor.getValue().run();
         verifyNoInteractions(platform);
-        verify(scheduledFuture, never()).cancel(false);
 
-        // Second tick - BREAK_QUIESCENCE should stop the heartbeat
+        // Tick 2 - QUIESCE resets counter
+        runnableCaptor.getValue().run();
+        verifyNoInteractions(platform);
+
+        // Tick 3 - DONT_QUIESCE tolerated (count=1 again, was reset)
+        runnableCaptor.getValue().run();
+        verifyNoInteractions(platform);
+
+        // Tick 4 - BREAK_QUIESCENCE stops immediately
         runnableCaptor.getValue().run();
         verify(platform).quiescenceCommand(BREAK_QUIESCENCE);
         verify(scheduledFuture).cancel(false);
