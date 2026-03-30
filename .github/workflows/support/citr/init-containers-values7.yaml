@@ -88,37 +88,11 @@ hedera:
 defaults:
   sidecars:
     recordStreamUploader:
-      resources:
-        requests:
-          cpu: 2000m
-          memory: 750Mi
-        limits:
-          cpu: 2000m
-          memory: 750Mi
+      enabled: false
     eventStreamUploader:
-      resources:
-        requests:
-          cpu: 2000m
-          memory: 750Mi
-        limits:
-          cpu: 2000m
-          memory: 750Mi
-    recordStreamSidecarUploader:
-      resources:
-        requests:
-          cpu: 2000m
-          memory: 750Mi
-        limits:
-          cpu: 2000m
-          memory: 750Mi
+      enabled: false
     blockstreamUploader:
-      resources:
-        requests:
-          cpu: 2000m
-          memory: 750Mi
-        limits:
-          cpu: 2000m
-          memory: 750Mi
+      enabled: false
   root:
     resources:
       requests:
