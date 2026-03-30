@@ -91,6 +91,12 @@ public final class HandlerUtility {
                 case NODE_CREATE -> ordinary.nodeCreate(scheduledBody.nodeCreateOrThrow());
                 case NODE_UPDATE -> ordinary.nodeUpdate(scheduledBody.nodeUpdateOrThrow());
                 case NODE_DELETE -> ordinary.nodeDelete(scheduledBody.nodeDeleteOrThrow());
+                case REGISTERED_NODE_CREATE ->
+                    ordinary.registeredNodeCreate(scheduledBody.registeredNodeCreateOrThrow());
+                case REGISTERED_NODE_UPDATE ->
+                    ordinary.registeredNodeUpdate(scheduledBody.registeredNodeUpdateOrThrow());
+                case REGISTERED_NODE_DELETE ->
+                    ordinary.registeredNodeDelete(scheduledBody.registeredNodeDeleteOrThrow());
                 case UNSET -> throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION);
             }
         }

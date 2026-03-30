@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.associations.AssociationsTranslator.ASSOCIATE_ONE;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -364,7 +363,6 @@ class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> nestedAssociateNftAndNonFungibleTokens() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         final AtomicReference<Address> nftAddress = new AtomicReference<>();
@@ -494,7 +492,6 @@ class AtomicBatchAssociatePrecompileV2SecurityModelTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> tokenAssociateFromStaticcallAndCallcode() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         final AtomicReference<Address> accountAddress = new AtomicReference<>();

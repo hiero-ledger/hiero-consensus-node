@@ -24,6 +24,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class VirtualMapBench extends VirtualMapBaseBench {
 
+    @Override
     String benchmarkName() {
         return "VirtualMapBench";
     }
@@ -33,7 +34,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void update() throws Exception {
-        beforeTest("update");
+        setTestDir("update");
 
         logger.info(RUN_DELIMITER);
 
@@ -75,14 +76,12 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         logger.info("Updated {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
+        final var finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     /**
@@ -90,7 +89,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void create() throws Exception {
-        beforeTest("create");
+        setTestDir("create");
 
         logger.info(RUN_DELIMITER);
 
@@ -117,14 +116,12 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         logger.info("Created {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
+        final var finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     /**
@@ -132,7 +129,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void delete() throws Exception {
-        beforeTest("delete");
+        setTestDir("delete");
 
         logger.info(RUN_DELIMITER);
 
@@ -186,14 +183,12 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         logger.info("Updated {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
+        final var finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     private void preCreateMap() {
@@ -217,15 +212,16 @@ public class VirtualMapBench extends VirtualMapBaseBench {
 
         logger.info("Pre-created {} records in {} ms", maxKey, System.currentTimeMillis() - start);
 
-        virtualMapP = flushMap(virtualMapP);
+        virtualMapP = flushAndOptionallySaveMap(virtualMapP);
     }
 
     /**
      * Read from a pre-created map. Parallel.
      */
     @Benchmark
-    public void read() throws Exception {
-        beforeTest("read");
+    public void read() {
+        setTestDir("read");
+        preserveTestDir();
 
         logger.info(RUN_DELIMITER);
 
@@ -248,7 +244,5 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 (long) numRecords * numThreads,
                 numThreads,
                 System.currentTimeMillis() - start);
-
-        afterTest(true);
     }
 }
