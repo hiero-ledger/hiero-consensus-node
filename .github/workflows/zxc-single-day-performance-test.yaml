@@ -336,6 +336,7 @@ jobs:
           java-version: 25.0.2
 
       - name: Compile BN
+        if: false
         run: |
           cd "${{ github.workspace }}"/target_block_node
           ./gradlew app:distTar
