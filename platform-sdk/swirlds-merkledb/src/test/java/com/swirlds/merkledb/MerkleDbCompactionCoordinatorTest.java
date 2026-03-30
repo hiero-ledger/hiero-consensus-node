@@ -16,6 +16,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.swirlds.merkledb.GarbageScanner.GarbageFileStats;
 import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
@@ -98,7 +99,7 @@ class MerkleDbCompactionCoordinatorTest {
         when(scanner.scan()).thenAnswer(_ -> {
             scanStarted.countDown();
             releaseScan.await(5, TimeUnit.SECONDS);
-            return new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0]);
+            return new IndexedGarbageFileStats(0, new GarbageFileStats[0]);
         });
 
         coordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, scanner);
@@ -140,10 +141,6 @@ class MerkleDbCompactionCoordinatorTest {
         // File with all items alive → dead/alive = 0.0 → not eligible
         final DataFileReader cleanFile = mockFileReader(1, 0, 100, 1000);
 
-        final DataFileCollection fileCollection = mock(DataFileCollection.class);
-        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(cleanFile));
-
-        // Publish stats where file has 100 alive, 0 dead
         publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(cleanFile, 100)));
 
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
@@ -306,6 +303,148 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     // ========================================================================
+    // splitIntoGroups tests
+    // ========================================================================
+
+    @Test
+    void testSplitIntoGroupsSingleGroup() {
+        // Three files, projected alive: 300, 200, 400 = 900 total
+        // Cap = 1000 → all fit in one group
+        final DataFileReader f1 = mockFileReader(1, 0, 100, 600);
+        final DataFileReader f2 = mockFileReader(2, 0, 100, 400);
+        final DataFileReader f3 = mockFileReader(3, 0, 100, 800);
+
+        final IndexedGarbageFileStats stats =
+                buildStats(new StatsEntry(f1, 50), new StatsEntry(f2, 50), new StatsEntry(f3, 50));
+
+        final List<List<DataFileReader>> groups =
+                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(f1, f2, f3), 1000, stats);
+
+        assertEquals(1, groups.size());
+        assertEquals(List.of(f1, f2, f3), groups.getFirst());
+    }
+
+    @Test
+    void testSplitIntoGroupsMultipleGroups() {
+        // f1: 50% alive, size=600 → projected = 300
+        // f2: 50% alive, size=400 → projected = 200
+        // f3: 50% alive, size=800 → projected = 400
+        // Cap = 500 → f1+f2(500) fits; adding f3 = 900 → split
+        final DataFileReader f1 = mockFileReader(1, 0, 100, 600);
+        final DataFileReader f2 = mockFileReader(2, 0, 100, 400);
+        final DataFileReader f3 = mockFileReader(3, 0, 100, 800);
+
+        final IndexedGarbageFileStats stats =
+                buildStats(new StatsEntry(f1, 50), new StatsEntry(f2, 50), new StatsEntry(f3, 50));
+
+        final List<List<DataFileReader>> groups =
+                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(f1, f2, f3), 500, stats);
+
+        assertEquals(2, groups.size());
+        assertEquals(List.of(f1, f2), groups.get(0));
+        assertEquals(List.of(f3), groups.get(1));
+    }
+
+    @Test
+    void testSplitIntoGroupsOversizedFileGetsOwnGroup() {
+        // Single file projected alive (500) exceeds cap (100)
+        // Must still be included — at least one file per group
+        final DataFileReader big = mockFileReader(1, 0, 100, 1000);
+
+        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(big, 50));
+
+        final List<List<DataFileReader>> groups =
+                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(big), 100, stats);
+
+        assertEquals(1, groups.size());
+        assertEquals(List.of(big), groups.getFirst());
+    }
+
+    @Test
+    void testSplitIntoGroupsDisabledWhenCapIsMaxValue() {
+        final DataFileReader f1 = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader f2 = mockFileReader(2, 0, 100, 1000);
+
+        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(f1, 50), new StatsEntry(f2, 50));
+
+        // Long.MAX_VALUE → no splitting
+        final List<List<DataFileReader>> groups =
+                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(f1, f2), Long.MAX_VALUE, stats);
+
+        assertEquals(1, groups.size());
+        assertEquals(2, groups.getFirst().size());
+    }
+
+    @Test
+    void testSplitIntoGroupsNullStatsEntry() {
+        // f1 in stats, f5 not (gap in array) → projected = 0 for f5
+        final DataFileReader f1 = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader f5 = mockFileReader(5, 0, 100, 1000);
+
+        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(f1, 50));
+
+        // f1 projected = 500. Cap = 400 → f1 alone in group 1 (oversized but at least one).
+        // f5 projected = 0 (not in stats) → starts group 2.
+        final List<List<DataFileReader>> groups =
+                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(f1, f5), 400, stats);
+
+        assertEquals(2, groups.size());
+    }
+
+    @Test
+    void testSplitIntoGroupsEmptyCandidates() {
+        final IndexedGarbageFileStats stats = buildStats();
+
+        final List<List<DataFileReader>> groups = MerkleDbCompactionCoordinator.splitIntoGroups(List.of(), 1000, stats);
+
+        assertTrue(groups.isEmpty());
+    }
+
+    // ========================================================================
+    // estimateAliveBytes tests
+    // ========================================================================
+
+    @Test
+    void testEstimateAliveBytesNormalCase() {
+        // 100 items, 75 alive, size = 1000 → garbageRatio = 0.25 → alive bytes = 750
+        final DataFileReader reader = mockFileReader(1, 0, 100, 1000);
+        final GarbageFileStats fs = new GarbageFileStats(reader, 75);
+
+        assertEquals(750, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, fs));
+    }
+
+    @Test
+    void testEstimateAliveBytesAllAlive() {
+        final DataFileReader reader = mockFileReader(1, 0, 100, 1000);
+        final GarbageFileStats fs = new GarbageFileStats(reader, 100);
+
+        assertEquals(1000, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, fs));
+    }
+
+    @Test
+    void testEstimateAliveBytesAllDead() {
+        final DataFileReader reader = mockFileReader(1, 0, 100, 1000);
+        final GarbageFileStats fs = new GarbageFileStats(reader, 0);
+
+        assertEquals(0, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, fs));
+    }
+
+    @Test
+    void testEstimateAliveBytesZeroTotalItems() {
+        final DataFileReader reader = mockFileReader(1, 0, 0, 1000);
+        final GarbageFileStats fs = new GarbageFileStats(reader, 0);
+
+        assertEquals(0, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, fs));
+    }
+
+    @Test
+    void testEstimateAliveBytesNullStats() {
+        final DataFileReader reader = mockFileReader(1, 0, 100, 1000);
+
+        assertEquals(0, MerkleDbCompactionCoordinator.estimateAliveBytes(reader, null));
+    }
+
+    // ========================================================================
     // absorbIntoGroup tests
     // ========================================================================
 
@@ -322,7 +461,7 @@ class MerkleDbCompactionCoordinatorTest {
         final List<DataFileReader> pool = new ArrayList<>(List.of(clean));
 
         // aggregate after absorbing clean: (90+10)/(10+90) = 100/100 = 1.0 > 0.5 → absorbed
-        MerkleDbCompactionCoordinator.absorbIntoGroup("", group, pool, stats, 0.5, 0);
+        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group, pool, stats, 0.5, Long.MAX_VALUE);
 
         assertEquals(2, group.size());
         assertTrue(group.contains(dirty));
@@ -343,7 +482,7 @@ class MerkleDbCompactionCoordinatorTest {
         final List<DataFileReader> group = new ArrayList<>(List.of(dirty));
         final List<DataFileReader> pool = new ArrayList<>(List.of(clean));
 
-        MerkleDbCompactionCoordinator.absorbIntoGroup("", group, pool, stats, 0.5, 0);
+        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group, pool, stats, 0.5, Long.MAX_VALUE);
 
         assertEquals(1, group.size(), "Clean file should not be absorbed");
         assertEquals(1, pool.size(), "Pool should be unchanged");
@@ -364,7 +503,7 @@ class MerkleDbCompactionCoordinatorTest {
         final List<DataFileReader> group1 = new ArrayList<>(List.of(dirty));
         final List<DataFileReader> pool = new ArrayList<>(List.of(small1, small2));
 
-        MerkleDbCompactionCoordinator.absorbIntoGroup("", group1, pool, stats, 0.5, 0);
+        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group1, pool, stats, 0.5, Long.MAX_VALUE);
 
         // Both should be absorbed into group1
         assertEquals(3, group1.size());
@@ -373,9 +512,84 @@ class MerkleDbCompactionCoordinatorTest {
         // A second group trying to absorb from the same pool gets nothing
         final DataFileReader dirty2 = mockFileReader(4, 0, 100, 1000);
         final List<DataFileReader> group2 = new ArrayList<>(List.of(dirty2));
-        MerkleDbCompactionCoordinator.absorbIntoGroup("", group2, pool, stats, 0.5, 0);
+        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group2, pool, stats, 0.5, Long.MAX_VALUE);
 
         assertEquals(1, group2.size(), "No files left in pool to absorb");
+    }
+
+    @Test
+    void testAbsorbIntoGroupSkipsFileThatWouldBreachSizeCap() {
+        // dirty: 10 alive, 90 dead, size=200 → projected alive = 20
+        // clean1: 80 alive, 20 dead, size=500 → projected alive = 400
+        // clean2: 90 alive, 10 dead, size=100 → projected alive = 90
+        //
+        // Size cap = 200
+        // Group starts with dirty: projectedSize = 20, headroom = 180
+        // clean1: projected alive = 400 > headroom → SKIP (size cap)
+        // clean2: projected alive = 90 < headroom → check ratio:
+        //   aggregate: (90+10)/(10+90) = 100/100 = 1.0 > 0.01 → absorb
+        final DataFileReader dirty = mockFileReader(1, 0, 100, 200);
+        final DataFileReader clean1 = mockFileReader(2, 0, 100, 500);
+        final DataFileReader clean2 = mockFileReader(3, 0, 100, 100);
+
+        final IndexedGarbageFileStats stats =
+                buildStats(new StatsEntry(dirty, 10), new StatsEntry(clean1, 80), new StatsEntry(clean2, 90));
+
+        final List<DataFileReader> group = new ArrayList<>(List.of(dirty));
+        // Pool sorted by d/a descending: clean1 (d/a=0.25) before clean2 (d/a=0.11)
+        final List<DataFileReader> pool = new ArrayList<>(List.of(clean1, clean2));
+
+        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group, pool, stats, 0.01, 200);
+
+        assertEquals(2, group.size(), "Only clean2 should be absorbed (clean1 exceeds size cap)");
+        assertTrue(group.contains(dirty));
+        assertTrue(group.contains(clean2));
+        assertFalse(group.contains(clean1));
+        assertEquals(1, pool.size(), "clean1 should remain in pool");
+    }
+
+    @Test
+    void testAbsorbIntoGroupNoAbsorptionWhenProjectedSizeAlreadyAtCap() {
+        // dirty: 50 alive, 50 dead, size=1000 → projected alive = 500
+        // clean: 90 alive, 10 dead, size=100 → projected alive = 90
+        // Size cap = 500 → group's projected size already at cap → no absorption
+        final DataFileReader dirty = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader clean = mockFileReader(2, 0, 100, 100);
+
+        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(dirty, 50), new StatsEntry(clean, 90));
+
+        final List<DataFileReader> group = new ArrayList<>(List.of(dirty));
+        final List<DataFileReader> pool = new ArrayList<>(List.of(clean));
+
+        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group, pool, stats, 0.01, 500);
+
+        assertEquals(1, group.size(), "No absorption when already at size cap");
+        assertEquals(1, pool.size(), "Pool unchanged");
+    }
+
+    @Test
+    void testCompactionTaskResetsCompactionInProgressFlagOnFailure() throws InterruptedException, IOException {
+        final DataFileReader file = mockFileReader(1, 0, 100, 1000);
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file));
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(file, 20)));
+
+        final CountDownLatch taskDone = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            throw new IOException("simulated failure");
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
+        // Flag should have been set then reset in finally
+        verify(file).setCompactionInProgress();
+        verify(file).resetCompactionInProgress();
     }
 
     // ========================================================================
@@ -402,7 +616,7 @@ class MerkleDbCompactionCoordinatorTest {
      */
     private static IndexedGarbageFileStats buildStats(final StatsEntry... entries) {
         if (entries.length == 0) {
-            return new IndexedGarbageFileStats(0, new GarbageScanner.GarbageFileStats[0]);
+            return new IndexedGarbageFileStats(0, new GarbageFileStats[0]);
         }
 
         int minIndex = Integer.MAX_VALUE;
@@ -412,9 +626,9 @@ class MerkleDbCompactionCoordinatorTest {
             maxIndex = Math.max(maxIndex, e.reader.getIndex());
         }
 
-        final GarbageScanner.GarbageFileStats[] arr = new GarbageScanner.GarbageFileStats[maxIndex - minIndex + 1];
+        final GarbageFileStats[] arr = new GarbageFileStats[maxIndex - minIndex + 1];
         for (final StatsEntry e : entries) {
-            arr[e.reader.getIndex() - minIndex] = new GarbageScanner.GarbageFileStats(e.reader, e.aliveItems);
+            arr[e.reader.getIndex() - minIndex] = new GarbageFileStats(e.reader, e.aliveItems);
         }
         return new IndexedGarbageFileStats(minIndex, arr);
     }

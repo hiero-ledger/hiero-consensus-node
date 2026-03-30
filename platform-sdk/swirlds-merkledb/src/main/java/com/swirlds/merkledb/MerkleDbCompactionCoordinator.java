@@ -648,6 +648,8 @@ class MerkleDbCompactionCoordinator {
                     return false;
                 }
 
+                // Mark files as being compacted — scanner will skip them
+                validFiles.forEach(DataFileReader::setCompactionInProgress);
                 final int targetLevel = Math.min(sourceLevel + 1, config.maxCompactionLevel());
                 return compactor.compactSingleLevel(validFiles, targetLevel);
 
@@ -656,6 +658,8 @@ class MerkleDbCompactionCoordinator {
             } catch (Exception e) {
                 logger.error(EXCEPTION.getMarker(), "[{}] Compaction failed", taskKey, e);
             } finally {
+                // Reset flag so files become visible to scanner again if compaction failed
+                assignedFiles.forEach(DataFileReader::resetCompactionInProgress);
                 synchronized (MerkleDbCompactionCoordinator.this) {
                     compactorsByName.remove(taskKey);
                     taskKeys.remove(taskKey);

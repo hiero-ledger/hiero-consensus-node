@@ -3,6 +3,9 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
+import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
+import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
+import static com.swirlds.merkledb.MerkleDbDataSource.PATH_TO_KEY_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
@@ -184,9 +187,9 @@ class CompactionInterruptTest {
 
         assertFalse(coordinator.isCompactionEnabled(), "compactionEnabled should be false");
 
-        assertFalse(coordinator.isCompactionRunning("idToHashChunk"), "idToHashChunk compaction should not run");
-        assertFalse(coordinator.isCompactionRunning("keyToPath"), "keyToPath compaction should not run");
-        assertFalse(coordinator.isCompactionRunning("pathToKeyValue"), "pathToKeyValue compaction should not run");
+        assertFalse(coordinator.isCompactionRunning(ID_TO_HASH_CHUNK), "idToHashChunk compaction should not run");
+        assertFalse(coordinator.isCompactionRunning(OBJECT_KEY_TO_PATH), "keyToPath compaction should not run");
+        assertFalse(coordinator.isCompactionRunning(PATH_TO_KEY_VALUE), "pathToKeyValue compaction should not run");
 
         synchronized (coordinator) {
             assertTrue(coordinator.compactorsByName.isEmpty(), "compactorsByName should be empty");

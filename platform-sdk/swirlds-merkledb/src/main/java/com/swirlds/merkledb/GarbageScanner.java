@@ -187,6 +187,7 @@ public class GarbageScanner {
     @NonNull
     private IndexedGarbageFileStats createStatsByFileIndexArray() {
         final List<DataFileReader> allCompletedFiles = new ArrayList<>(dataFileCollection.getAllCompletedFiles());
+        allCompletedFiles.removeIf(DataFileReader::isCompactionInProgress);
         allCompletedFiles.sort(Comparator.comparing(DataFileReader::getIndex));
         if (allCompletedFiles.isEmpty()) {
             return new IndexedGarbageFileStats(0, new GarbageFileStats[0]);

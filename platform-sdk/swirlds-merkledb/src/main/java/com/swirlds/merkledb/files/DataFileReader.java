@@ -7,6 +7,7 @@ import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.merkledb.GarbageScanner;
 import com.swirlds.merkledb.collections.IndexedObject;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
@@ -96,14 +97,22 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
     /**
      * The metadata for this file. This is an {@link AtomicReference} because metadata is updated
      * after construction — {@link DataFileCollection#endWriting()} propagates the final
-     * {@code itemsCount} from the writer, and {@link #setCompactionLevel(int)} swaps the metadata
-     * with a new compaction level. These updates happen on the flush or compaction thread while
+     * {@code itemsCount} from the writer. These updates happen on the flush or compaction thread while
      * scanner and compaction threads may concurrently read the metadata. The atomic reference
      * ensures cross-thread visibility without explicit synchronization.
      */
     private final AtomicReference<DataFileMetadata> metadataRef = new AtomicReference<>();
     /** A flag for if the underlying file is fully written and ready to be compacted. */
     private final AtomicBoolean fileCompleted = new AtomicBoolean(false);
+
+    /**
+     * Flag indicating this file is currently assigned to a compaction task. Set to {@code true}
+     * when a CompactionTask begins execution, reset to {@code false} in the task's finally block.
+     * While set, the file is invisible to {@link GarbageScanner} — it won't appear in scan
+     * results. If compaction succeeds, the file is deleted and the reset is a no-op on a dead
+     * object. If compaction fails, the reset makes the file visible to future scans.
+     */
+    private final AtomicBoolean compactionInProgress = new AtomicBoolean(false);
 
     /**
      * The size of this file in bytes, cached as need it often. This size is updated in {@link
@@ -166,6 +175,30 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
         } finally {
             fileCompleted.set(true);
         }
+    }
+
+    /**
+     * Marks this file as being actively compacted.
+     */
+    public void setCompactionInProgress() {
+        compactionInProgress.set(true);
+    }
+
+    /**
+     * Resets the compaction flag, making this file visible to future scans.
+     * Called in the compaction task's finally block.
+     */
+    public void resetCompactionInProgress() {
+        compactionInProgress.set(false);
+    }
+
+    /**
+     * Returns whether this file is currently being compacted.
+     *
+     * @return {@code true} if a compaction task is processing this file
+     */
+    public boolean isCompactionInProgress() {
+        return compactionInProgress.get();
     }
 
     /**
