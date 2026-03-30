@@ -2,8 +2,8 @@
 package com.hedera.node.app.quiescence;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.swirlds.platform.system.Platform;
@@ -113,6 +113,11 @@ public class QuiescedHeartbeat {
 
     /**
      * The heartbeat task that probes for the TCT and updates the controller.
+     *
+     * <p>The heartbeat tolerates transient {@link QuiescenceCommand#DONT_QUIESCE} states caused by
+     * the pipeline transaction count being temporarily elevated while blocks await signing. Only
+     * {@link QuiescenceCommand#BREAK_QUIESCENCE} (indicating a pending user transaction requires
+     * breaking quiescence) causes the heartbeat to stop and notify the platform.
      */
     private void heartbeat(@NonNull final TctProbe probe) {
         try {
@@ -123,8 +128,11 @@ public class QuiescedHeartbeat {
                 controller.setNextTargetConsensusTime(tct);
             }
             final var commandNow = controller.getQuiescenceStatus();
-            // Check if we should continue running
-            if (commandNow != QUIESCE) {
+            // DONT_QUIESCE is transient — the pipeline count may be temporarily elevated while
+            // blocks are being signed.  Keep the heartbeat running so it can re-check on the next
+            // tick instead of stopping and relying on the block-signing callback to restart it.
+            // Only BREAK_QUIESCENCE (a pending user transaction) should end the heartbeat.
+            if (commandNow == BREAK_QUIESCENCE) {
                 log.info("Stopping quiescence heartbeat ({})", commandNow);
                 platform.quiescenceCommand(commandNow);
                 stop();

@@ -72,7 +72,7 @@ class QuiescedHeartbeatTest {
         subject.start(interval, probe);
 
         // Then
-        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(5000L), eq(TimeUnit.MILLISECONDS));
+        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(5000L), eq(5000L), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -203,7 +203,7 @@ class QuiescedHeartbeatTest {
     }
 
     @Test
-    void heartbeatStopsWhenQuiescenceStatusChangesToDontQuiesce() {
+    void heartbeatToleratesTransientDontQuiesce() {
         // Given
         final var tct = Instant.ofEpochSecond(1_000_000L);
         given(probe.findTct()).willReturn(tct);
@@ -219,12 +219,12 @@ class QuiescedHeartbeatTest {
         verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
         runnableCaptor.getValue().run();
 
-        // Then
+        // Then - heartbeat should NOT stop for DONT_QUIESCE (transient state)
         verify(probe).findTct();
         verify(controller).setNextTargetConsensusTime(tct);
         verify(controller).getQuiescenceStatus();
-        verify(platform).quiescenceCommand(DONT_QUIESCE);
-        verify(scheduledFuture).cancel(false);
+        verifyNoInteractions(platform);
+        verify(scheduledFuture, never()).cancel(false);
     }
 
     @Test
@@ -278,10 +278,10 @@ class QuiescedHeartbeatTest {
     }
 
     @Test
-    void heartbeatSendsCommandToPlatformBeforeStopping() {
+    void heartbeatSendsBreakQuiescenceCommandToPlatformBeforeStopping() {
         // Given
         given(probe.findTct()).willReturn(null);
-        given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
+        given(controller.getQuiescenceStatus()).willReturn(BREAK_QUIESCENCE);
         given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
 
@@ -295,7 +295,7 @@ class QuiescedHeartbeatTest {
 
         // Then - verify order: platform command before stop
         final var inOrder = org.mockito.Mockito.inOrder(platform, scheduledFuture);
-        inOrder.verify(platform).quiescenceCommand(DONT_QUIESCE);
+        inOrder.verify(platform).quiescenceCommand(BREAK_QUIESCENCE);
         inOrder.verify(scheduledFuture).cancel(false);
     }
 
@@ -380,9 +380,9 @@ class QuiescedHeartbeatTest {
         // Given
         final var exception = new RuntimeException("Platform failed");
         given(probe.findTct()).willReturn(null);
-        given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
+        given(controller.getQuiescenceStatus()).willReturn(BREAK_QUIESCENCE);
         // First call throws, second call in catch block succeeds
-        doThrow(exception).doNothing().when(platform).quiescenceCommand(DONT_QUIESCE);
+        doThrow(exception).when(platform).quiescenceCommand(BREAK_QUIESCENCE);
         given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
 
@@ -396,9 +396,11 @@ class QuiescedHeartbeatTest {
         // Don't propagate the exception to the scheduler
         assertDoesNotThrow(() -> runnableCaptor.getValue().run());
 
-        // Verify that platform.quiescenceCommand was called twice (once in try, once in catch)
+        // Verify that platform.quiescenceCommand was called twice
+        // (once for BREAK_QUIESCENCE in try which threw, once for DONT_QUIESCE in catch)
         // and heartbeat was stopped
-        verify(platform, times(2)).quiescenceCommand(DONT_QUIESCE);
+        verify(platform).quiescenceCommand(BREAK_QUIESCENCE);
+        verify(platform).quiescenceCommand(DONT_QUIESCE);
         verify(scheduledFuture).cancel(false);
     }
 
@@ -442,13 +444,13 @@ class QuiescedHeartbeatTest {
         subject.start(shortInterval, probe);
 
         // Then
-        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(100L), eq(TimeUnit.MILLISECONDS));
+        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(100L), eq(100L), eq(TimeUnit.MILLISECONDS));
 
         // When - start with long interval
         subject.start(longInterval, probe);
 
         // Then
-        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(60000L), eq(TimeUnit.MILLISECONDS));
+        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(60000L), eq(60000L), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -463,5 +465,30 @@ class QuiescedHeartbeatTest {
 
         // Then
         verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(0L), eq(TimeUnit.MILLISECONDS));
+    }
+
+    @Test
+    void heartbeatContinuesThroughTransientDontQuiesceThenStopsOnBreak() {
+        // Given - first tick: DONT_QUIESCE (transient), second tick: BREAK_QUIESCENCE (stop)
+        given(probe.findTct()).willReturn(null);
+        given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE, BREAK_QUIESCENCE);
+        given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
+                .willReturn(scheduledFuture);
+
+        // When
+        subject.start(Duration.ofSeconds(1), probe);
+
+        final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
+
+        // First tick - DONT_QUIESCE should be tolerated
+        runnableCaptor.getValue().run();
+        verifyNoInteractions(platform);
+        verify(scheduledFuture, never()).cancel(false);
+
+        // Second tick - BREAK_QUIESCENCE should stop the heartbeat
+        runnableCaptor.getValue().run();
+        verify(platform).quiescenceCommand(BREAK_QUIESCENCE);
+        verify(scheduledFuture).cancel(false);
     }
 }
