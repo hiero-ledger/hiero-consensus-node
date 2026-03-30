@@ -290,6 +290,7 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                                 if (activeNodeIds.contains(nodeId)) {
                                     return; // Already read above
                                 }
+                                logger.info("Scanning {} for PCES files from removed node", dirName);
                                 // Scan all PCES subdirectories (e.g., nodeDir/data/saved/preconsensus-events/*)
                                 final var pcesParent =
                                         nodeDir.resolve("data").resolve("saved").resolve("preconsensus-events");
