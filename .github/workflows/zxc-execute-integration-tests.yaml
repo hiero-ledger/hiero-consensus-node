@@ -119,7 +119,7 @@ jobs:
       - name: Upload Otter Integration Tests Turtle Logs
         id: upload-otter-turtle-integration-logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
         with:
           name: Otter Integration Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -128,7 +128,7 @@ jobs:
       - name: Upload Otter Integration Tests Container Logs
         id: upload-otter-container-integration-logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-integration-tests.conclusion == 'failure' || steps.detect-flaky-integration-tests.outputs.has-flaky == 'true') }}
         with:
           name: Otter Integration Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
