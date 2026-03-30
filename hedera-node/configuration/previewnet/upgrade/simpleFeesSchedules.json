@@ -3,7 +3,7 @@
     "baseFee": 100000,
     "extras": [
       {
-        "name": "PROCESSING_BYTES", "includedCount": 1024
+        "name": "PROCESSING_BYTES", "includedCount": 1350
       },
       {
         "name": "SIGNATURES", "includedCount": 1
@@ -40,7 +40,7 @@
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 492000000},
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES", "fee": 1000000},
-    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES", "fee": 1000000},
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES", "fee": 6800},
     { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
     { "name":  "HOOK_EXECUTION",                            "fee": 50000000 },
     { "name":  "HOOK_SLOT_UPDATE",                          "fee": 50000000 }
