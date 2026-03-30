@@ -35,6 +35,7 @@ jobs:
       enable-hapi-tests-time-consuming: "true"
       enable-hapi-tests-state-throttling: "true"
       enable-hapi-tests-simplefees: "true"
+      enable-hapi-tests-smart-contract: "true"
       enable-otter-tests: "true"
       enable-snyk-scan: "true"
       enable-gradle-determinism: "true"

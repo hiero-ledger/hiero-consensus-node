@@ -96,7 +96,11 @@ public class ParallelSyncTraversalOrder implements NodeTraversalOrder {
     public ParallelSyncTraversalOrder() {}
 
     @Override
-    public void start(final long firstLeafPath, final long lastLeafPath) {
+    public void start(
+            final long oldFirstLeafPath,
+            final long oldLastLeafPath,
+            final long firstLeafPath,
+            final long lastLeafPath) {
         this.reconnectFirstLeafPath = firstLeafPath;
         this.reconnectLastLeafPath = lastLeafPath;
 

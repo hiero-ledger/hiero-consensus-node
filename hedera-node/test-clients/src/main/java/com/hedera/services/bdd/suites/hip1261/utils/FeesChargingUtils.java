@@ -126,29 +126,6 @@ public class FeesChargingUtils {
 
     // ------ Fees calculation utils ------//
 
-    /** tinycents -> USD */
-    public static double tinycentsToUsd(long tinycents) {
-        return tinycents / 100_000_000.0 / 100.0;
-    }
-
-    /**
-     * SimpleFees formula for node fees only:
-     * node = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
-     */
-    private static double expectedNodeFeeUsd(long sigs, int txnSize) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        return NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-    }
-
-    /**
-     * SimpleFees formula for network fees only:
-     * network = node * NETWORK_MULTIPLIER
-     */
-    private static double expectedNetworkFeeUsd(long sigs, int txnSize) {
-        return expectedNodeFeeUsd(sigs, txnSize) * NETWORK_MULTIPLIER;
-    }
-
     /**
      * SimpleFees formula for node + network fees:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
@@ -430,7 +407,7 @@ public class FeesChargingUtils {
         return expectedCryptoCreateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 extras.getOrDefault(Extra.KEYS, 0L),
-                extras.getOrDefault(Extra.HOOK_EXECUTION, 0L),
+                extras.getOrDefault(Extra.HOOK_UPDATES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
