@@ -202,6 +202,7 @@ val prCheckPropOverrides =
             "hapiTestSmartContract",
             "tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         )
+        put("hapiTestSmartContractSerial", "tss.historyEnabled=false")
         put(
             "hapiTestRestart",
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
