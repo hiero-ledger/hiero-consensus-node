@@ -237,7 +237,7 @@ val prCheckPropOverrides =
         put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
             "hapiTestQuiescence",
-            "tss.hintsEnabled=true,tss.forceHandoffs=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,staking.periodMins=1440,nodes.nodeRewardsEnabled=false",
+            "quiescence.enabled=true,staking.periodMins=1440,nodes.nodeRewardsEnabled=false",
         )
         put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
         put(
