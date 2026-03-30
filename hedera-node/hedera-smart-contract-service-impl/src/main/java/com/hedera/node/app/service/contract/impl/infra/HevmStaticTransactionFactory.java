@@ -75,6 +75,7 @@ public class HevmStaticTransactionFactory {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -106,13 +107,14 @@ public class HevmStaticTransactionFactory {
                 0L,
                 null,
                 null,
+                null,
                 exception,
                 null);
     }
 
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
         // baselineCost is 0 for contract calls as neither access list nor EIP-7702 authorizations are supported
-        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, 0);
+        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, null, null);
         validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
     }

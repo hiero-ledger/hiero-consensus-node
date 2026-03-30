@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.QueryHeader;
@@ -58,7 +59,7 @@ class HevmStaticTransactionFactoryTest {
                     b.functionParameters(CALL_DATA);
                 }))
                 .build();
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(ALIASED_SOMEBODY);
@@ -84,7 +85,7 @@ class HevmStaticTransactionFactoryTest {
                 TransactionBody.newBuilder().transactionID(transactionID).build();
         final var payment = Transaction.newBuilder().body(txBody).build();
         final var queryHeader = QueryHeader.newBuilder().payment(payment).build();
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
 
@@ -139,14 +140,14 @@ class HevmStaticTransactionFactoryTest {
 
     @Test
     void fromQueryFailsWithGasBelowFixedLowerBound() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(ResponseCodeEnum.INSUFFICIENT_GAS, builder -> builder.gas(20_999L));
     }
 
     @Test
     void fromQueryFailsOverMaxGas() {
-        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
         assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
     }

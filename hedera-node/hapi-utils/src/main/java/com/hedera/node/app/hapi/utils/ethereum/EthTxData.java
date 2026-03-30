@@ -19,6 +19,8 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import org.apache.commons.codec.binary.Hex;
+import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.util.BigIntegers;
 
@@ -42,6 +44,10 @@ public record EthTxData(
         byte[] v, // actual `v` value, incoming, recovery id (`yParity` above) (possibly) encoded with chain id
         byte[] r,
         byte[] s) {
+
+    private static final int EVM_ADDRESS_LENGTH = 20;
+    private static final int ELEMENTS_IN_ACCESS_LIST_ITEM = 2;
+    private static final int ELEMENTS_IN_AUTHORIZATION_LIST_ITEM = 6;
 
     /**
      * A "wiebar" is 10⁻¹⁸ of an hbar.  The relationship is weibar : hbar as wei : ether.  Ethereum
@@ -114,7 +120,7 @@ public record EthTxData(
                 value,
                 newCallData,
                 accessList,
-                null,
+                accessListAsRlp,
                 authorizationList,
                 authorizationListAsRlp,
                 recId,
@@ -138,7 +144,7 @@ public record EthTxData(
                 replacementValue,
                 callData,
                 accessList,
-                null,
+                accessListAsRlp,
                 authorizationList,
                 authorizationListAsRlp,
                 recId,
@@ -309,11 +315,11 @@ public record EthTxData(
         int result = Arrays.hashCode(rawTx);
         result = 31 * result + (type != null ? type.hashCode() : 0);
         result = 31 * result + Arrays.hashCode(chainId);
-        result = 31 * result + (int) (nonce ^ (nonce >>> 32));
+        result = 31 * result + Long.hashCode(nonce);
         result = 31 * result + Arrays.hashCode(gasPrice);
         result = 31 * result + Arrays.hashCode(maxPriorityGas);
         result = 31 * result + Arrays.hashCode(maxGas);
-        result = 31 * result + (int) (gasLimit ^ (gasLimit >>> 32));
+        result = 31 * result + Long.hashCode(gasLimit);
         result = 31 * result + Arrays.hashCode(to);
         result = 31 * result + (value != null ? value.hashCode() : 0);
         result = 31 * result + Arrays.hashCode(callData);
@@ -328,6 +334,7 @@ public record EthTxData(
         return result;
     }
 
+    @NonNull
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
@@ -380,7 +387,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
-                null,
+                accessListAsRlp,
                 authorizationList,
                 authorizationListAsRlp,
                 recId,
@@ -404,7 +411,7 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
-                null,
+                accessListAsRlp,
                 authorizationList,
                 authorizationListAsRlp,
                 newRecId,
@@ -461,19 +468,75 @@ public record EthTxData(
                 newS);
     }
 
+    /**
+     * Parse <a href="https://eips.ethereum.org/EIPS/eip-2930">EIP-2930</a> Access Lists from its RLP bytes.
+     *
+     * @return Parsed access lists. It is @NonNull even if HederaEvmTransaction.accessLists are @Nullable,
+     * because we do not want to deal with nulls elsewhere
+     * @throws IllegalArgumentException if RLP item of the Access list is not a list
+     * @throws IllegalArgumentException if RLP list of the Access list does not contain expected number of elements
+     * @throws IllegalArgumentException if RLP item of the Access list address is not 20 bytes length
+     * @throws IllegalArgumentException if RLP item of the Access list storage keys is not a list
+     * @throws IllegalArgumentException if RLP item of the Access list storage key is not 32 bytes length
+     */
+    @NonNull
+    public List<AccessListItem> extractAccessList() throws IllegalArgumentException {
+        if (accessList() != null) {
+            final List<AccessListItem> accessLists = new ArrayList<>();
+            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(accessList());
+            while (decoder.hasNext()) {
+                final var accessListItem = decoder.next();
+                if (!accessListItem.isList()) {
+                    throw new IllegalArgumentException("Access list item should be a list");
+                }
+                final var accessListElements = accessListItem.asRLPList().elements();
+                if (accessListElements.size() != ELEMENTS_IN_ACCESS_LIST_ITEM) {
+                    throw new IllegalArgumentException("Access list item does not contain expected number of elements");
+                }
+                final var address = accessListElements.getFirst().data();
+                if (address.length != EVM_ADDRESS_LENGTH) {
+                    throw new IllegalArgumentException("Access list item address is not 20 bytes length");
+                }
+                final var storageKeysItem = accessListElements.get(1);
+                if (!storageKeysItem.isList()) {
+                    throw new IllegalArgumentException("Access list storage keys should be a list");
+                }
+                final var storageKeys = storageKeysItem.asRLPList().elements();
+                accessLists.add(new AccessListItem(
+                        Bytes.wrap(address),
+                        storageKeys.stream()
+                                .map(RLPItem::data)
+                                // this will throw IllegalArgumentException if bytes.length != 32
+                                .map(Bytes32::wrap)
+                                .toList()));
+            }
+            return accessLists;
+        } else {
+            return List.of();
+        }
+    }
+
+    /**
+     * Parse authorization list for a code delegation <a href="https://eips.ethereum.org/EIPS/eip-7702">EIP-7702</a> transaction.
+     *
+     * @return Parsed authorization lists. It is @NonNull event if HederaEvmTransaction.codeDelegations are @Nullable,
+     * because we do not want to deal with nulls elsewhere
+     * @throws IllegalArgumentException if RLP item of the Authorization list is not a list
+     * @throws IllegalArgumentException if RLP list does not contain expected number of elements
+     */
     @NonNull
     public List<CodeDelegation> extractCodeDelegations() throws IllegalArgumentException {
-        final List<CodeDelegation> codeDelegations = new ArrayList<>();
-        if (authorizationList != null) {
-            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList);
+        if (authorizationList() != null) {
+            final List<CodeDelegation> codeDelegations = new ArrayList<>();
+            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList());
             while (decoder.hasNext()) {
                 final var rlpItem = decoder.next();
                 if (!rlpItem.isList()) {
-                    return codeDelegations;
+                    throw new IllegalArgumentException("Authorization list item should be a list");
                 }
-                if (rlpItem.asRLPList().elements().size() != 6) {
+                if (rlpItem.asRLPList().elements().size() != ELEMENTS_IN_AUTHORIZATION_LIST_ITEM) {
                     throw new IllegalArgumentException(
-                            "Code authorization does not contain expected number of elements");
+                            "Authorization list item does not contain expected number of elements");
                 }
                 final var elements = rlpItem.asRLPList().elements();
                 codeDelegations.add(new CodeDelegation(
@@ -485,8 +548,10 @@ public record EthTxData(
                         elements.get(5).data() // s
                         ));
             }
+            return codeDelegations;
+        } else {
+            return List.of();
         }
-        return codeDelegations;
     }
 
     /**
