@@ -93,11 +93,6 @@ on:
         type: string
         required: false
         default: "false"
-      mats-suffix:
-        description: "MATS Tag Suffix designation"
-        type: string
-        required: false
-        default: ""
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -314,7 +309,6 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        # Crypto uses same task for PR and MATS (no MATS suffix)
         run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon && ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon
 
       - name: Publish HAPI Test (Crypto) Report
@@ -393,8 +387,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        # Simple Fees uses same task for PR and MATS (no MATS suffix)
-        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon && ${GRADLE_EXEC} hapiEmbeddedSimpleFees --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
+        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
 
       - name: Publish HAPI Test (Simple Fees) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
