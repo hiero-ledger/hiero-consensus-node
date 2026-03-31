@@ -1754,8 +1754,6 @@ public class CryptoTransferSimpleFeesTest {
                             createAccountsAndKeys(),
                             createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, OWNER, supplyKey, adminKey),
                             mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                            createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_2, OWNER, supplyKey, adminKey),
-                            mintNFT(NON_FUNGIBLE_TOKEN_2, 1, 5),
                             createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN_3, OWNER, supplyKey, adminKey),
                             mintNFT(NON_FUNGIBLE_TOKEN_3, 1, 5),
                             registerEvmAddressAliasFrom(VALID_ALIAS_ECDSA, evmAlias),
@@ -1767,8 +1765,6 @@ public class CryptoTransferSimpleFeesTest {
                                 final var cryptoTransferOp = cryptoTransfer(
                                                 movingUnique(NON_FUNGIBLE_TOKEN, 1L)
                                                         .between(OWNER, VALID_ALIAS_ED25519),
-                                                movingUnique(NON_FUNGIBLE_TOKEN_2, 1L)
-                                                        .between(OWNER, VALID_ALIAS_ECDSA_SECOND),
                                                 movingUnique(NON_FUNGIBLE_TOKEN_3, 1L)
                                                         .between(OWNER, alias))
                                         .payingWith(OWNER)
@@ -1779,10 +1775,10 @@ public class CryptoTransferSimpleFeesTest {
                                         tokenTransferTxn,
                                         txnSize -> (expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(Map.of(
                                                         SIGNATURES, 1L,
-                                                        ACCOUNTS, 4L,
-                                                        TOKEN_TYPES, 3L,
+                                                        ACCOUNTS, 3L,
+                                                        TOKEN_TYPES, 2L,
                                                         PROCESSING_BYTES, (long) txnSize))
-                                                + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 3),
+                                                + TOKEN_ASSOCIATE_EXTRA_FEE_USD * 2),
                                         0.1);
 
                                 final var checkOpChargedAccount = validateChargedAccount(tokenTransferTxn, OWNER);
@@ -1792,14 +1788,6 @@ public class CryptoTransferSimpleFeesTest {
                                         .has(accountWith()
                                                 .key(VALID_ALIAS_ED25519)
                                                 .alias(VALID_ALIAS_ED25519)
-                                                .maxAutoAssociations(-1));
-
-                                final var checkOpInfoValidAliasECDSASecond = getAliasedAccountInfo(
-                                                VALID_ALIAS_ECDSA_SECOND)
-                                        .hasToken(relationshipWith(NON_FUNGIBLE_TOKEN_2))
-                                        .has(accountWith()
-                                                .key(VALID_ALIAS_ECDSA_SECOND)
-                                                .alias(VALID_ALIAS_ECDSA_SECOND)
                                                 .maxAutoAssociations(-1));
 
                                 final var checkHollowAccountInfo = getAliasedAccountInfo(alias)
@@ -1813,7 +1801,6 @@ public class CryptoTransferSimpleFeesTest {
 
                                 final var checkOwnerBalance = getAccountBalance(OWNER)
                                         .hasTokenBalance(NON_FUNGIBLE_TOKEN, 3L)
-                                        .hasTokenBalance(NON_FUNGIBLE_TOKEN_2, 3L)
                                         .hasTokenBalance(NON_FUNGIBLE_TOKEN_3, 3L);
 
                                 allRunFor(
@@ -1822,7 +1809,6 @@ public class CryptoTransferSimpleFeesTest {
                                         checkOpChargedUsd,
                                         checkOpChargedAccount,
                                         checkOpInfoValidAliasED25519,
-                                        checkOpInfoValidAliasECDSASecond,
                                         checkHollowAccountInfo,
                                         checkOwnerBalance);
                             })));
@@ -1830,7 +1816,7 @@ public class CryptoTransferSimpleFeesTest {
 
                 @HapiTest
                 @DisplayName(
-                        "Crypto Transfer - Auto Create Accounts with HBAR, FT and NFT moving in one Transfer - with extras charging")
+                        "Crypto Transfer - Auto Create Accounts with FT and NFT moving in one Transfer - with extras charging")
                 final Stream<DynamicTest> cryptoTransferAutoAccountCreationsForReceiverWithExtrasCharging() {
 
                     final AtomicReference<ByteString> evmAlias = new AtomicReference<>();

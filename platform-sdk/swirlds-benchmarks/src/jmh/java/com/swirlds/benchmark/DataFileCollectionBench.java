@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListOffHeap;
@@ -10,6 +12,8 @@ import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
 import java.io.IOException;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -26,6 +30,8 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class DataFileCollectionBench extends BaseBench {
 
+    private static final Logger logger = LogManager.getLogger(DataFileCollectionBench.class);
+
     @Override
     String benchmarkName() {
         return "DataFileCollectionBench";
@@ -35,6 +41,8 @@ public class DataFileCollectionBench extends BaseBench {
     public void compaction() throws Exception {
         String storeName = "compactionBench";
         setTestDir(storeName);
+
+        logger.info(RUN_DELIMITER);
 
         final LongListOffHeap index = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
         index.updateValidRange(0, maxKey - 1);
@@ -55,7 +63,6 @@ public class DataFileCollectionBench extends BaseBench {
                 };
 
         final var compactor = new DataFileCompactor(dbConfig, storeName, store, index, null, null, null, null);
-        System.out.println();
 
         // Write files
         long start = System.currentTimeMillis();
@@ -71,14 +78,13 @@ public class DataFileCollectionBench extends BaseBench {
             store.updateValidKeyRange(0, maxKey - 1);
             store.endWriting();
         }
-        System.out.println("Created " + numFiles + " files in " + (System.currentTimeMillis() - start) + "ms");
+        logger.info("Created {} files in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Merge files
         start = System.currentTimeMillis();
         final List<DataFileReader> filesToMerge = store.getAllCompletedFiles();
         compactor.compact();
-        System.out.println(
-                "Merged " + filesToMerge.size() + " files in " + (System.currentTimeMillis() - start) + "ms");
+        logger.info("Merged {} files in {} ms", filesToMerge.size(), System.currentTimeMillis() - start);
 
         // Verify merged content
         if (verify) {
@@ -93,8 +99,7 @@ public class DataFileCollectionBench extends BaseBench {
                     throw new RuntimeException("Bad value");
                 }
             }
-            System.out.println(
-                    "Verified " + store.getNumOfFiles() + " file(s) in " + (System.currentTimeMillis() - start) + "ms");
+            logger.info("Verified {} files in {} ms", store.getNumOfFiles(), System.currentTimeMillis() - start);
         }
 
         store.close();
