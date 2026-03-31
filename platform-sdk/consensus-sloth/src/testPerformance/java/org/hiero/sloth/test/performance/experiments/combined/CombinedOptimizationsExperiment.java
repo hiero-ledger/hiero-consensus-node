@@ -28,8 +28,8 @@ import org.hiero.sloth.fixtures.specs.SlothSpecs;
         jvmArgs = {
             "-XX:+UseZGC",
             "-XX:+ZGenerational",
-            //"-XX:+AlwaysPreTouch",
-            "-XX:ConcGCThreads=4",
+            "-XX:+AlwaysPreTouch",
+            "-XX:ConcGCThreads=1",
             "-Xms4g",
             "-Xmx4g"
         })
