@@ -1691,8 +1691,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         setupState(numBlockUnacked, false);
     }
 
-    void setupState(final int numBlockUnacked, final boolean realStart)
-            throws Throwable {
+    void setupState(final int numBlockUnacked, final boolean realStart) throws Throwable {
         final Configuration config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)

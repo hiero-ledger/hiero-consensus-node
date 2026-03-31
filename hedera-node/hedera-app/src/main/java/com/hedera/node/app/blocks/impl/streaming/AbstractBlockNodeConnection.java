@@ -84,7 +84,8 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
         }
 
         try {
-            final URL url = URI.create("http://" + configuration.address() + ":" + configuration.streamingPort()).toURL();
+            final URL url = URI.create("http://" + configuration.address() + ":" + configuration.streamingPort())
+                    .toURL();
             final InetAddress address = InetAddress.getByName(url.getHost());
             final byte[] bytes = address.getAddress();
 
@@ -99,13 +100,22 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
             final long octet4 = 1L * (bytes[3] & 0xFF);
             ipAsInteger = octet1 + octet2 + octet3 + octet4;
 
-            logger.info("{} Block node address ({}:{}) resolved to IP {} (as-integer: {})", this, configuration.address(),
-                    configuration.streamingPort(), address.getHostAddress(), ipAsInteger);
+            logger.info(
+                    "{} Block node address ({}:{}) resolved to IP {} (as-integer: {})",
+                    this,
+                    configuration.address(),
+                    configuration.streamingPort(),
+                    address.getHostAddress(),
+                    ipAsInteger);
         } catch (final IOException e) {
             if (isInitialIpResolveError) {
                 isInitialIpResolveError = false;
-                logger.warn("{} Failed to resolve block node host ({}:{})", this, configuration.address(),
-                        configuration.streamingPort(), e);
+                logger.warn(
+                        "{} Failed to resolve block node host ({}:{})",
+                        this,
+                        configuration.address(),
+                        configuration.streamingPort(),
+                        e);
             }
         }
 

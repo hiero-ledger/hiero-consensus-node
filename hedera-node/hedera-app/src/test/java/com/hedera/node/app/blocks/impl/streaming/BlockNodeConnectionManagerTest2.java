@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,8 +59,12 @@ public class BlockNodeConnectionManagerTest2 extends BlockNodeCommunicationTestB
             nodeStatusTaskConnectionHandle = MethodHandles.privateLookupIn(RetrieveBlockNodeStatusTask.class, lookup)
                     .findVarHandle(
                             RetrieveBlockNodeStatusTask.class, "svcConnection", BlockNodeServiceConnection.class);
-            globalActiveStreamingConnectionCountHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "globalActiveStreamingConnectionCount", AtomicInteger.class);
+            globalActiveStreamingConnectionCountHandle = MethodHandles.privateLookupIn(
+                            BlockNodeConnectionManager.class, lookup)
+                    .findVarHandle(
+                            BlockNodeConnectionManager.class,
+                            "globalActiveStreamingConnectionCount",
+                            AtomicInteger.class);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -79,13 +84,16 @@ public class BlockNodeConnectionManagerTest2 extends BlockNodeCommunicationTestB
     void beforeEach() {
         // Use a non-existent directory to prevent loading any existing block-nodes.json during tests
         final ConfigProvider configProvider = createConfigProvider(createDefaultConfigProvider()
-                .withValue("blockNode.blockNodeConnectionFileDir", tempDir.toAbsolutePath().toString()));
+                .withValue(
+                        "blockNode.blockNodeConnectionFileDir",
+                        tempDir.toAbsolutePath().toString()));
 
         bufferService = mock(BlockBufferService.class);
         metrics = mock(BlockStreamMetrics.class);
         blockingIoExecutor = mock(ExecutorService.class);
         blockingIoExecutorSupplier = () -> blockingIoExecutor;
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
+        connectionManager =
+                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
 
         // Clear any nodes that might have been loaded
         blockNodes().clear();
@@ -98,50 +106,31 @@ public class BlockNodeConnectionManagerTest2 extends BlockNodeCommunicationTestB
     }
 
     @Test
-    void testShutdown_managerNotActive() {
-
-    }
+    void testShutdown_managerNotActive() {}
 
     @Test
-    void testShutdown() {
-
-    }
+    void testShutdown() {}
 
     @Test
-    void testStart_streamingNotEnabled() {
-
-    }
+    void testStart_streamingNotEnabled() {}
 
     @Test
-    void testStart_managerAlreadyActive() {
-
-    }
+    void testStart_managerAlreadyActive() {}
 
     @Test
-    void testStart() {
-
-    }
+    void testStart() {}
 
     @Test
-    void testRetrieveBlockNodeStatusTask_failure() {
-
-    }
+    void testRetrieveBlockNodeStatusTask_failure() {}
 
     @Test
-    void testRetrieveBlockNodeStatusTask() {
-
-    }
+    void testRetrieveBlockNodeStatusTask() {}
 
     @Test
-    void testNotifyConnectionClosed_unknownNode() {
-
-    }
+    void testNotifyConnectionClosed_unknownNode() {}
 
     @Test
-    void testNotifyConnectionClosed() {
-
-    }
-
+    void testNotifyConnectionClosed() {}
 
     // Utilities
 
@@ -159,7 +148,8 @@ public class BlockNodeConnectionManagerTest2 extends BlockNodeCommunicationTestB
             final ConcurrentMap<String, BlockNode> nodes = blockNodes();
             final AtomicInteger globalActiveStreamingConnectionCount = globalActiveStreamingConnectionCount();
             nodes.clear();
-            blockNodes.forEach(bnCfg -> nodes.put(bnCfg.address(), new BlockNode(bnCfg, globalActiveStreamingConnectionCount, new BlockNodeStats())));
+            blockNodes.forEach(bnCfg -> nodes.put(
+                    bnCfg.address(), new BlockNode(bnCfg, globalActiveStreamingConnectionCount, new BlockNodeStats())));
 
         } catch (final Throwable t) {
             throw new RuntimeException("Failed to set available nodes", t);

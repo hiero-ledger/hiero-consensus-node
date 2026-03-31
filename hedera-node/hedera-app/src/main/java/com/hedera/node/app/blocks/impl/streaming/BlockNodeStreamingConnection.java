@@ -121,6 +121,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * once it is finished it will close the connection.
      */
     private final AtomicBoolean closeAtNextBlockBoundary = new AtomicBoolean(false);
+
     private final AtomicReference<CloseReason> pendingCloseReason = new AtomicReference<>();
     /**
      * Flag to indicate whether a final EndStream(RESET) message should be sent to the block node when this connection
@@ -140,6 +141,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * The
      */
     private final Instant autoResetTimestamp;
+
     private final BlockNode blockNode;
 
     /**
@@ -186,7 +188,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         autoResetTimestamp = calculateAutoResetTimestamp();
     }
 
-    @NonNull Instant autoResetTimestamp() {
+    @NonNull
+    Instant autoResetTimestamp() {
         return autoResetTimestamp;
     }
 
@@ -240,7 +243,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     @Override
     void onActiveStateTransition() {
         if (requestPipelineRef.get() == null) {
-            logger.warn("{} Connection transitioned to ACTIVE but the request pipeline has not been established; closing connection", this);
+            logger.warn(
+                    "{} Connection transitioned to ACTIVE but the request pipeline has not been established; closing connection",
+                    this);
             close(CloseReason.INTERNAL_ERROR, false);
             return;
         }
@@ -265,8 +270,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
         if (maxJitterMs > 0) {
             if (maxJitterMs >= baseDelayMs) {
-                logger.warn("{} Max auto stream reset jitter ({}ms) must be less than the base stream reset period ({}ms); ignoring jitter",
-                        this, maxJitterMs, baseDelayMs);
+                logger.warn(
+                        "{} Max auto stream reset jitter ({}ms) must be less than the base stream reset period ({}ms); ignoring jitter",
+                        this,
+                        maxJitterMs,
+                        baseDelayMs);
             } else {
                 final long jitterMs = ThreadLocalRandom.current().nextLong(maxJitterMs);
                 return Instant.now().plusMillis(baseDelayMs - jitterMs);
@@ -304,17 +312,23 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final Duration highLatencyThreshold = getHighLatencyThreshold();
         final int maxHighLatencyEventsAllowed = getHighLatencyEventsBeforeSwitching();
 
-        final HighLatencyResult result = blockNode.stats().recordAcknowledgementAndEvaluate(acknowledgedBlockNumber,
-                Instant.now(), highLatencyThreshold, maxHighLatencyEventsAllowed);
+        final HighLatencyResult result = blockNode
+                .stats()
+                .recordAcknowledgementAndEvaluate(
+                        acknowledgedBlockNumber, Instant.now(), highLatencyThreshold, maxHighLatencyEventsAllowed);
 
         if (result.isHighLatency()) {
-            logger.debug("{} A high latency event ({}ms) has been detected (consecutive events: {})",
-                    this, result.latencyMs(), result.consecutiveHighLatencyEvents());
+            logger.debug(
+                    "{} A high latency event ({}ms) has been detected (consecutive events: {})",
+                    this,
+                    result.latencyMs(),
+                    result.consecutiveHighLatencyEvents());
             blockStreamMetrics.recordHighLatencyEvent();
         }
 
         if (result.shouldSwitch()) {
-            logger.info("{} Block node has exceeded high latency threshold {} times consecutively; closing connection",
+            logger.info(
+                    "{} Block node has exceeded high latency threshold {} times consecutively; closing connection",
                     this,
                     result.consecutiveHighLatencyEvents());
             sendEndStream(TIMEOUT);
@@ -449,8 +463,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final Duration eosTimeframe = endOfStreamTimeframe();
 
         if (blockNode.stats().addEndOfStreamAndCheckLimit(Instant.now(), maxEndStreamsAllowed, eosTimeframe)) {
-            logger.info("{} Block node has exceeded the number of allowed EndOfStream responses (received={}, permitted={}, timeWindow={})",
-                    this, blockNode.stats().getEndOfStreamCount(),
+            logger.info(
+                    "{} Block node has exceeded the number of allowed EndOfStream responses (received={}, permitted={}, timeWindow={})",
+                    this,
+                    blockNode.stats().getEndOfStreamCount(),
                     maxEndStreamsAllowed,
                     eosTimeframe);
 
@@ -740,8 +756,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             } catch (final TimeoutException e) {
                 future.cancel(true); // Cancel the task if it times out
                 if (isActive()) {
-                    logger.warn(
-                            "{} Pipeline onNext() timed out after {}ms", this, pipelineOperationTimeout.toMillis());
+                    logger.warn("{} Pipeline onNext() timed out after {}ms", this, pipelineOperationTimeout.toMillis());
                     blockStreamMetrics.recordPipelineOperationTimeout();
                     close(CloseReason.CONNECTION_ERROR, true);
                 }

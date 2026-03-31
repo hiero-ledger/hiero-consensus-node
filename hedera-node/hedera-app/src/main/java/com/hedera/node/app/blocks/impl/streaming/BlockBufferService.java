@@ -622,7 +622,15 @@ public class BlockBufferService {
         blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
         blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
-        return new PruneResult(Instant.now(), maxBufferSize, numChecked, numInProgress, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
+        return new PruneResult(
+                Instant.now(),
+                maxBufferSize,
+                numChecked,
+                numInProgress,
+                numPendingAck,
+                numPruned,
+                newEarliestBlock,
+                newLatestBlock);
     }
 
     /**

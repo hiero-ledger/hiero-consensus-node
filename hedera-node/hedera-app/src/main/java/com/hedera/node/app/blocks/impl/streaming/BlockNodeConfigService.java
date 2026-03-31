@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
@@ -42,8 +43,8 @@ public class BlockNodeConfigService {
     private final AtomicReference<WatchService> watchServiceRef = new AtomicReference<>();
 
     BlockNodeConfigService(@NonNull final ConfigProvider configProvider) {
-        this.configDirectory = FileUtils.getAbsolutePath(blockNodeConnectionFileDir());
         this.configProvider = requireNonNull(configProvider, "Configuration provider is required");
+        this.configDirectory = FileUtils.getAbsolutePath(blockNodeConnectionFileDir());
     }
 
     public @Nullable VersionedBlockNodeConfigurationSet latestConfiguration() {
@@ -82,7 +83,9 @@ public class BlockNodeConfigService {
 
         try {
             watchService = configDirectory.getFileSystem().newWatchService();
-            configDirectory.register(watchService, StandardWatchEventKinds.ENTRY_CREATE,
+            configDirectory.register(
+                    watchService,
+                    StandardWatchEventKinds.ENTRY_CREATE,
                     StandardWatchEventKinds.ENTRY_MODIFY,
                     StandardWatchEventKinds.ENTRY_DELETE);
             watchServiceRef.set(watchService);
@@ -145,11 +148,14 @@ public class BlockNodeConfigService {
         }
 
         final long version = configVersionCounter.incrementAndGet();
-        final VersionedBlockNodeConfigurationSet versionedConfigSet = new VersionedBlockNodeConfigurationSet(version, nodeConfigs);
+        final VersionedBlockNodeConfigurationSet versionedConfigSet =
+                new VersionedBlockNodeConfigurationSet(version, nodeConfigs);
         latestConfig.set(versionedConfigSet);
 
         if (logger.isInfoEnabled()) {
-            final StringBuilder sb = new StringBuilder("Block node configuration loaded (version: ").append(version).append(")\n");
+            final StringBuilder sb = new StringBuilder("Block node configuration loaded (version: ")
+                    .append(version)
+                    .append(")\n");
             nodeConfigs.sort(Comparator.comparingInt(BlockNodeConfiguration::priority));
             final Iterator<BlockNodeConfiguration> it = nodeConfigs.iterator();
             while (it.hasNext()) {

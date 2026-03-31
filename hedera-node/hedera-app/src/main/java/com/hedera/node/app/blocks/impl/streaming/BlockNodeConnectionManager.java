@@ -73,6 +73,7 @@ public class BlockNodeConnectionManager {
      * processing blocks and attempting to send them to a block node.
      */
     private final AtomicBoolean isConnectionManagerActive = new AtomicBoolean(false);
+
     private final BlockNodeConfigService blockNodeConfigService;
     /**
      * Reference to the currently active connection. If this reference is null, then there is no active connection.
@@ -93,6 +94,7 @@ public class BlockNodeConnectionManager {
      * The available block nodes, based on the latest active configuration, by node address.
      */
     private final ConcurrentMap<String, BlockNode> nodes = new ConcurrentHashMap<>();
+
     private final AtomicInteger globalActiveStreamingConnectionCount = new AtomicInteger();
     private VersionedBlockNodeConfigurationSet activeConfig = null;
     private Instant globalCoolDownTimestamp = null;
@@ -228,8 +230,7 @@ public class BlockNodeConnectionManager {
      *
      * @return the next available block node
      */
-    private @Nullable BlockNode getNextPriorityBlockNode(
-            @Nullable final List<BlockNode> availableBlockNodes) {
+    private @Nullable BlockNode getNextPriorityBlockNode(@Nullable final List<BlockNode> availableBlockNodes) {
         requireNonNull(availableBlockNodes, "Available block nodes list is required");
         logger.debug("Searching for new block node connection based on node priorities.");
 
@@ -511,7 +512,9 @@ public class BlockNodeConnectionManager {
         final BlockNode node = nodes.get(config.address());
 
         if (node == null) {
-            logger.warn("{} Connection is not associated with a known block node; ignoring open and closing connection", connection);
+            logger.warn(
+                    "{} Connection is not associated with a known block node; ignoring open and closing connection",
+                    connection);
             connection.close(CloseReason.INTERNAL_ERROR, true);
         } else {
             node.onActive(connection);
@@ -575,14 +578,23 @@ public class BlockNodeConnectionManager {
             closeReason = CloseReason.PERIODIC_RESET;
         }
 
-        final boolean updateConnection = noActiveConnection || updatedConfig || bufferActionStage
-                || higherPriorityConnectionFound || stalledActiveConnection || activeConnectionAutoReset;
+        final boolean updateConnection = noActiveConnection
+                || updatedConfig
+                || bufferActionStage
+                || higherPriorityConnectionFound
+                || stalledActiveConnection
+                || activeConnectionAutoReset;
 
         if (updateConnection) {
-            logger.info("Streaming connection update requested (noActionConnection: {}, updatedConfiguration: {}, "
+            logger.info(
+                    "Streaming connection update requested (noActionConnection: {}, updatedConfiguration: {}, "
                             + "bufferActionStage: {}, higherPriorityConnectionFound: {}, stalledActiveConnection: {},"
                             + "activeConnectionAutoReset: {})",
-                    noActiveConnection, updatedConfig, bufferActionStage, higherPriorityConnectionFound, stalledActiveConnection,
+                    noActiveConnection,
+                    updatedConfig,
+                    bufferActionStage,
+                    higherPriorityConnectionFound,
+                    stalledActiveConnection,
                     activeConnectionAutoReset);
             selectNewBlockNode(noActiveConnection, closeReason); // force a connection if there is no active connection
         }
@@ -601,7 +613,8 @@ public class BlockNodeConnectionManager {
             }
             activeConfig = null;
             return true;
-        } else if (latestConfig != null && (activeConfig == null || latestConfig.versionNumber() > activeConfig.versionNumber())) {
+        } else if (latestConfig != null
+                && (activeConfig == null || latestConfig.versionNumber() > activeConfig.versionNumber())) {
             // config has changed, update connections if needed
             final List<BlockNodeConfiguration> newNodeConfigs = latestConfig.configs();
             for (final BlockNodeConfiguration newNodeConfig : newNodeConfigs) {
@@ -609,7 +622,9 @@ public class BlockNodeConnectionManager {
                 if (existingNode == null) {
                     // a new node was added
                     logger.info("Block node (address: {}) was added", newNodeConfig.address());
-                    nodes.put(newNodeConfig.address(), new BlockNode(newNodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()));
+                    nodes.put(
+                            newNodeConfig.address(),
+                            new BlockNode(newNodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()));
                 } else if (!existingNode.configuration().equals(newNodeConfig)) {
                     // the node has an updated configuration
                     logger.info("Block node (address: {}) was updated", newNodeConfig.address());
@@ -617,13 +632,14 @@ public class BlockNodeConnectionManager {
                 }
             }
 
-            final Set<String> newNodeAddresses = newNodeConfigs.stream()
-                    .map(BlockNodeConfiguration::address)
-                    .collect(Collectors.toSet());
+            final Set<String> newNodeAddresses =
+                    newNodeConfigs.stream().map(BlockNodeConfiguration::address).collect(Collectors.toSet());
             for (final BlockNode node : nodes.values()) {
                 if (!newNodeAddresses.contains(node.configuration().address())) {
                     // the node was removed from the configuration
-                    logger.info("Block node (address: {}) was removed", node.configuration().address());
+                    logger.info(
+                            "Block node (address: {}) was removed",
+                            node.configuration().address());
                     node.onTerminate(CloseReason.CONFIG_UPDATE);
                 }
             }
@@ -670,7 +686,8 @@ public class BlockNodeConnectionManager {
         return false;
     }
 
-    private boolean isActiveConnectionStalled(@NonNull final Instant now, @Nullable final BlockNodeStreamingConnection activeConnection) {
+    private boolean isActiveConnectionStalled(
+            @NonNull final Instant now, @Nullable final BlockNodeStreamingConnection activeConnection) {
         if (activeConnection == null) {
             return false;
         }
@@ -680,8 +697,12 @@ public class BlockNodeConnectionManager {
         if (lastHeartbeatTimestamp != -1) {
             final long deltaMillis = now.toEpochMilli() - lastHeartbeatTimestamp;
             if (deltaMillis >= stalledConnectionThresholdMillis) {
-                logger.warn("{} Active connection is marked as being stalled (lastHeartbeat: {}, thresholdMillis: {}, deltaMillis: {}); closing connection",
-                        activeConnection, lastHeartbeatTimestamp, stalledConnectionThresholdMillis, deltaMillis);
+                logger.warn(
+                        "{} Active connection is marked as being stalled (lastHeartbeat: {}, thresholdMillis: {}, deltaMillis: {}); closing connection",
+                        activeConnection,
+                        lastHeartbeatTimestamp,
+                        stalledConnectionThresholdMillis,
+                        deltaMillis);
                 activeConnection.close(CloseReason.CONNECTION_STALLED, true);
                 return true;
             }
@@ -690,14 +711,17 @@ public class BlockNodeConnectionManager {
         return false;
     }
 
-    private boolean isActiveConnectionAutoReset(@NonNull final Instant now, @Nullable final BlockNodeStreamingConnection activeConnection) {
+    private boolean isActiveConnectionAutoReset(
+            @NonNull final Instant now, @Nullable final BlockNodeStreamingConnection activeConnection) {
         if (activeConnection == null) {
             return false;
         }
 
         final Instant autoResetTimestamp = activeConnection.autoResetTimestamp();
         if (now.isAfter(autoResetTimestamp)) {
-            logger.info("{} Active connection has reached its auto reset time; closing connection at next block boundary", activeConnection);
+            logger.info(
+                    "{} Active connection has reached its auto reset time; closing connection at next block boundary",
+                    activeConnection);
             activeConnection.closeAtBlockBoundary(CloseReason.PERIODIC_RESET);
             return true;
         }
@@ -709,7 +733,9 @@ public class BlockNodeConnectionManager {
         pruneNodes();
 
         if (globalCoolDownTimestamp != null && Instant.now().isBefore(globalCoolDownTimestamp) && !force) {
-            logger.trace("Selecting a new block node is deferred due to cool down (coolDownUntil: {})", globalCoolDownTimestamp);
+            logger.trace(
+                    "Selecting a new block node is deferred due to cool down (coolDownUntil: {})",
+                    globalCoolDownTimestamp);
             return;
         }
 
@@ -717,12 +743,15 @@ public class BlockNodeConnectionManager {
             // log the available nodes and their connection history
             final StringBuilder sb = new StringBuilder("Available Block Nodes:\n");
             for (final BlockNode node : nodes.values()) {
-                sb.append("  Connection History (").append(node.configuration().address()).append(")");
+                sb.append("  Connection History (")
+                        .append(node.configuration().address())
+                        .append(")");
                 if (node.connectionHistory().isEmpty()) {
                     sb.append("\n    <no history>");
                 } else {
                     final List<BlockNodeConnectionHistory> sortedHistory = node.connectionHistory().values().stream()
-                            .sorted(Comparator.comparing(BlockNodeConnectionHistory::createTimestamp).reversed())
+                            .sorted(Comparator.comparing(BlockNodeConnectionHistory::createTimestamp)
+                                    .reversed())
                             .toList();
                     for (final BlockNodeConnectionHistory history : sortedHistory) {
                         sb.append("\n    ").append(history.connectionId()).append(" => ");
@@ -751,8 +780,15 @@ public class BlockNodeConnectionManager {
         if (selectedNode == null) {
             logger.warn("No available block nodes found to stream to");
         } else {
-            final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(configProvider, selectedNode, this, blockBufferService,
-                    blockStreamMetrics, blockingIoExecutor, null, clientFactory);
+            final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(
+                    configProvider,
+                    selectedNode,
+                    this,
+                    blockBufferService,
+                    blockStreamMetrics,
+                    blockingIoExecutor,
+                    null,
+                    clientFactory);
             connection.initialize();
             connection.updateConnectionState(ConnectionState.ACTIVE);
 
