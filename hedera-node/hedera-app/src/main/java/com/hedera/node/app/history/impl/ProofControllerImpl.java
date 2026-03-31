@@ -14,6 +14,7 @@ import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -115,7 +116,7 @@ public class ProofControllerImpl implements ProofController {
         }
 
         public byte[] compressedProofOrEmpty() {
-            return historyProofVote.proofOrThrow().uncompressedWrapsProof().toByteArray();
+            return historyProofVote.proofOrThrow().chainOfTrustProofOrElse(ChainOfTrustProof.DEFAULT).wrapsProofOrElse(Bytes.EMPTY).toByteArray();
         }
     }
 
@@ -297,20 +298,23 @@ public class ProofControllerImpl implements ProofController {
         final ProofVoteCategory category;
         if (explicitProofVote.isRecursive()) {
             final var ledgerId = Optional.ofNullable(historyStore.getLedgerId())
-                    .orElse(Bytes.EMPTY)
-                    .toByteArray();
+                    .orElse(Bytes.EMPTY);
             final var metadata =
-                    Optional.ofNullable(targetMetadata).orElse(Bytes.EMPTY).toByteArray();
+                    Optional.ofNullable(targetMetadata).orElse(Bytes.EMPTY);
             votes.values()
                     .forEach(v -> proofTagValidations.computeIfAbsent(
                             v.tag(),
-                            _ -> historyLibrary.verifyCompressedProof(v.compressedProofOrEmpty(), ledgerId, metadata)));
+                            _ -> {
+                                final boolean valid = historyLibrary.verifyCompressedProof(v.compressedProofOrEmpty(), ledgerId.toByteArray(), metadata.toByteArray());
+                                log.info("{} compressed proof '{}' over ('{}' || '{}')", valid ? "VALID" : "INVALID", Bytes.wrap(v.compressedProofOrEmpty()), ledgerId, metadata);
+                                return valid;
+                            }));
             category = proofTagValidations.get(explicitProofVote.tag()) ? VALID_RECURSIVE : INVALID_RECURSIVE;
             final var weightsByValidity = votes.entrySet().stream()
                     .collect(groupingBy(
                             entry -> proofTagValidations.get(entry.getValue().tag()),
                             summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
-            final long validWeight = weightsByValidity.get(Boolean.TRUE);
+            final long validWeight = Optional.ofNullable(weightsByValidity.get(Boolean.TRUE)).orElse(0L);
             thresholdCrossed = validWeight >= weights.sourceWeightThreshold();
             if (thresholdCrossed) {
                 // Votes for valid recursive proofs are treated as congruent, we pick the valid proof

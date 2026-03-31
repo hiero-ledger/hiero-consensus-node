@@ -285,5 +285,5 @@ public interface HistoryLibrary {
      * @param metadata the metadata
      * @return if the proof is valid
      */
-    boolean verifyCompressedProof(byte[] compressedProof, byte[] ledgerId, byte[] metadata);
+    boolean verifyCompressedProof(@NonNull byte[] compressedProof, @NonNull byte[] ledgerId, @NonNull byte[] metadata);
 }
