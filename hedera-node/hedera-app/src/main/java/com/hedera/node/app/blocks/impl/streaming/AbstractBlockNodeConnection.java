@@ -46,14 +46,32 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * The type of connection this instance represents.
      */
     private final ConnectionType type;
-
+    /**
+     * The timestamp of when this connection was created.
+     */
     private final Instant createTimestamp;
+    /**
+     * The timestamp of when this connection became active - else null if it hasn't transitioned to active.
+     */
     private final AtomicReference<Instant> activeTimestampRef = new AtomicReference<>();
+    /**
+     * The timestamp of when this connection became closed - else null if it hasn't transitioned to closed.
+     */
     private final AtomicReference<Instant> closeTimestampRef = new AtomicReference<>();
+    /**
+     * The reason why the connection was closed - else null if the connection wasn't closed or no reason was provided.
+     */
     private final AtomicReference<CloseReason> closeReasonRef = new AtomicReference<>();
-
+    /**
+     * An integer representation of the IP address.
+     */
     private volatile long ipAsInteger = -1;
-    private volatile boolean isInitialIpResolveError = true;
+    /**
+     * Flag indicating whether resolving the IP address failed and whether it was the first time encountering the issue.
+     * This is mainly used as a control mechanism to ensure we only log the resolution failure once, instead of every
+     * time the method to retrieve the IP fails.
+     */
+    private volatile boolean isInitialIpError = true;
 
     /**
      * Initialize this connection.
@@ -78,18 +96,22 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     /**
      * @return the IPv4 address represented as an integer, or -1 if the address could not be resolved or is not an IPv4 address
      */
-    long ipV4AddressAsInt() {
+    final long ipV4AddressAsInt() {
         if (ipAsInteger != -1) {
             return ipAsInteger;
         }
 
         try {
-            final URL url = URI.create("http://" + configuration.address() + ":" + configuration.streamingPort()).toURL();
+            final URL url = URI.create("http://" + configuration.address() + ":" + configuration.streamingPort())
+                    .toURL();
             final InetAddress address = InetAddress.getByName(url.getHost());
             final byte[] bytes = address.getAddress();
 
             if (bytes.length != 4) {
-                logger.warn("Only IPv4 addresses are supported for conversion to integer");
+                if (isInitialIpError) {
+                    isInitialIpError = false;
+                    logger.warn("Only IPv4 addresses are supported for conversion to integer");
+                }
                 return ipAsInteger;
             }
 
@@ -99,13 +121,22 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
             final long octet4 = 1L * (bytes[3] & 0xFF);
             ipAsInteger = octet1 + octet2 + octet3 + octet4;
 
-            logger.info("{} Block node address ({}:{}) resolved to IP {} (as-integer: {})", this, configuration.address(),
-                    configuration.streamingPort(), address.getHostAddress(), ipAsInteger);
+            logger.info(
+                    "{} Block node address ({}:{}) resolved to IP {} (as-integer: {})",
+                    this,
+                    configuration.address(),
+                    configuration.streamingPort(),
+                    address.getHostAddress(),
+                    ipAsInteger);
         } catch (final IOException e) {
-            if (isInitialIpResolveError) {
-                isInitialIpResolveError = false;
-                logger.warn("{} Failed to resolve block node host ({}:{})", this, configuration.address(),
-                        configuration.streamingPort(), e);
+            if (isInitialIpError) {
+                isInitialIpError = false;
+                logger.warn(
+                        "{} Failed to resolve block node host ({}:{})",
+                        this,
+                        configuration.address(),
+                        configuration.streamingPort(),
+                        e);
             }
         }
 

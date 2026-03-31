@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
@@ -29,23 +30,28 @@ public class BlockNode {
     private final AtomicInteger localActiveStreamingConnectionCount = new AtomicInteger(0);
     private final BlockNodeStats stats;
 
-    public BlockNode(@NonNull final BlockNodeConfiguration configuration,
+    public BlockNode(
+            @NonNull final BlockNodeConfiguration configuration,
             @NonNull final AtomicInteger globalActiveStreamingConnectionCount,
             @NonNull final BlockNodeStats stats) {
         this.configuration = requireNonNull(configuration, "Configuration is required");
-        this.globalActiveStreamingConnectionCount = requireNonNull(globalActiveStreamingConnectionCount, "Global active streaming connection counter is required");
+        this.globalActiveStreamingConnectionCount = requireNonNull(
+                globalActiveStreamingConnectionCount, "Global active streaming connection counter is required");
         this.stats = requireNonNull(stats, "Block node stats is required");
     }
 
-    @NonNull BlockNodeStats stats() {
+    @NonNull
+    BlockNodeStats stats() {
         return stats;
     }
 
-    @NonNull BlockNodeConfiguration configuration() {
+    @NonNull
+    BlockNodeConfiguration configuration() {
         return configuration;
     }
 
-    @NonNull Map<ConnectionId, BlockNodeConnectionHistory> connectionHistory() {
+    @NonNull
+    Map<ConnectionId, BlockNodeConnectionHistory> connectionHistory() {
         return connectionHistories;
     }
 
@@ -85,7 +91,9 @@ public class BlockNode {
 
     boolean onActive(@NonNull final BlockNodeStreamingConnection connection) {
         if (!activeStreamingConnectionRef.compareAndSet(null, connection)) {
-            logger.warn("Attempted to open multiple streaming connections to the same block node (address: {})", configuration.address());
+            logger.warn(
+                    "Attempted to open multiple streaming connections to the same block node (address: {})",
+                    configuration.address());
             return false;
         }
 
@@ -98,14 +106,18 @@ public class BlockNode {
 
         if (connectionHistories.size() > MAX_HISTORY_ENTRIES) {
             // prune the oldest entry from the connection history
-            BlockNodeConnectionHistory oldestEntry = connectionHistories.values().stream().findAny().get();
+            BlockNodeConnectionHistory oldestEntry =
+                    connectionHistories.values().stream().findAny().get();
             for (final BlockNodeConnectionHistory entry : connectionHistories.values()) {
                 if (entry.createTimestamp.isBefore(oldestEntry.createTimestamp)) {
                     oldestEntry = entry;
                 }
             }
 
-            logger.trace("Connection (id: {}) removed from node (address: {}) history", oldestEntry.connectionId, configuration.address());
+            logger.trace(
+                    "Connection (id: {}) removed from node (address: {}) history",
+                    oldestEntry.connectionId,
+                    configuration.address());
         }
 
         return true;
@@ -116,7 +128,10 @@ public class BlockNode {
 
         final BlockNodeConnectionHistory connectionInfo = connectionHistories.get(connection.connectionId());
         if (connectionInfo == null) {
-            logger.warn("Connection (address: {}, id: {}) was not tracked on connect", connection.configuration().address(), connection.connectionId());
+            logger.warn(
+                    "Connection (address: {}, id: {}) was not tracked on connect",
+                    connection.configuration().address(),
+                    connection.connectionId());
             return;
         }
 
@@ -126,7 +141,10 @@ public class BlockNode {
 
         final CloseReason closeReason = connection.closeReason();
         if (closeReason == null) {
-            logger.warn("Connection (address: {}, id: {}) was closed without a close reason", connection.configuration().address(), connection.connectionId());
+            logger.warn(
+                    "Connection (address: {}, id: {}) was closed without a close reason",
+                    connection.configuration().address(),
+                    connection.connectionId());
         } else if (closeReason.isCoolDownRequired()) {
             // the close reason indicates that likely a non-transient issue was encountered, thus mark this node
             // as being in a cool down period so don't immediately try to go back to it
@@ -148,23 +166,28 @@ public class BlockNode {
             createTimestamp = connection.createTimestamp();
         }
 
-        @NonNull ConnectionId connectionId() {
+        @NonNull
+        ConnectionId connectionId() {
             return connectionId;
         }
 
-        @NonNull Instant createTimestamp() {
+        @NonNull
+        Instant createTimestamp() {
             return createTimestamp;
         }
 
-        @Nullable Instant activeTimestamp() {
+        @Nullable
+        Instant activeTimestamp() {
             return activeTimestamp;
         }
 
-        @Nullable Instant closeTimestamp() {
+        @Nullable
+        Instant closeTimestamp() {
             return closeTimestamp;
         }
 
-        @Nullable CloseReason closeReason() {
+        @Nullable
+        CloseReason closeReason() {
             return closeReason;
         }
 

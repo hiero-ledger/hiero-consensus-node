@@ -382,8 +382,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(11); // moved to acked block + 1
 
-        verify(stats)
-                .recordAcknowledgementAndEvaluate(eq(10L), any(Instant.class), any(Duration.class), anyInt());
+        verify(stats).recordAcknowledgementAndEvaluate(eq(10L), any(Instant.class), any(Duration.class), anyInt());
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(10);
         verify(bufferService).getHighestAckedBlockNumber();
@@ -2005,7 +2004,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final RuntimeException exception = catchRuntimeException(() -> sendRequest(bisReq));
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
-        assertThat(connection.closeReason()).isNull();;
+        assertThat(connection.closeReason()).isNull();
+        ;
 
         assertThat(exception).isNotNull();
         assertThat(exception.getMessage()).contains("Error executing pipeline.onNext()");

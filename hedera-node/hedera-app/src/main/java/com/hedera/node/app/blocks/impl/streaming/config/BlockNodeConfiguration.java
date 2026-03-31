@@ -76,8 +76,8 @@ public class BlockNodeConfiguration {
             throw new IllegalArgumentException("Message size soft limit must be greater than 0");
         }
         if (messageSizeHardLimitBytes < messageSizeSoftLimitBytes) {
-            throw new IllegalArgumentException(
-                    "Message size hard limit must be greater than or equal to soft limit size");
+            throw new IllegalArgumentException("Message size hard limit (" + messageSizeHardLimitBytes
+                    + ") must be greater than or equal to soft limit size (" + messageSizeSoftLimitBytes + ")");
         }
     }
 
@@ -163,7 +163,7 @@ public class BlockNodeConfiguration {
 
         b.address(config.address());
         b.streamingPort(config.streamingPort());
-        b.servicePort(config.servicePort());
+        b.servicePort(config.servicePortOrElse(-1));
         b.priority(config.priority());
         b.messageSizeSoftLimitBytes(config.messageSizeSoftLimitBytesOrElse(DEFAULT_MESSAGE_SOFT_LIMIT_BYTES));
         b.messageSizeHardLimitBytes(config.messageSizeHardLimitBytesOrElse(defaultHardLimitBytes));
