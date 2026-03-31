@@ -36,7 +36,7 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
                     .feeContext()
                     .readableStore(ReadableTopicStore.class)
                     .getTopic(op.topicIDOrThrow());
-            hasCustomFees = (topic != null && !topic.customFees().isEmpty());
+            hasCustomFees = topic != null && !topic.customFees().isEmpty();
         }
         if (hasCustomFees) {
             addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, feeSchedule, 1);

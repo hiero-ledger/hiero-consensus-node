@@ -990,8 +990,6 @@ public class ScheduleExecutionTest {
                 cryptoCreate(schedulePayer),
                 doSeveralWithStartupConfig("consensus.message.maxBytesAllowed", value -> {
                     final var maxValidLen = parseInt(value);
-                    System.out.println("max valid len is" + maxValidLen);
-                    // max valid len is 1024
                     return specOps(
                             scheduleCreate(
                                             validSchedule,
@@ -1042,7 +1040,6 @@ public class ScheduleExecutionTest {
                                             * rate.getCentEquiv()
                                             / 100;
                             // Scheduled execution charges service-only: base + byte overage
-                            System.out.println("success USD is" + successUsd);
                             Assertions.assertEquals(
                                     expectedTopicSubmitMessageServiceOnly(1024L, false),
                                     successUsd,

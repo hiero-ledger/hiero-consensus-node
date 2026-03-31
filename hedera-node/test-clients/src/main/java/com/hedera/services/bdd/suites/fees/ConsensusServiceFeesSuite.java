@@ -150,7 +150,7 @@ public class ConsensusServiceFeesSuite {
                                 3.0),
                         safeValidateChargedUsdWithin(
                                 "submitMessage500",
-                                0.00088,
+                                0.000_88,
                                 1.0,
                                 expectedTopicSubmitMessageFullFeeUsd(
                                         1, 500, signedTxnSizeFor(spec, "submitMessage500")),

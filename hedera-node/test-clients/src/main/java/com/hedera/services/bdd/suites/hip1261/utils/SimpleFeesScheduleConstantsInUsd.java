@@ -49,12 +49,12 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_TRANSFER_BASE_FEE_USD = 0.0009;
     public static final double TOKEN_TRANSFER_BASE_CUSTOM_FEES_USD = 0.0019;
 
-    public static final double CONS_SUBMIT_MESSAGE_BASE_FEE_USD = 0.00007;
+    public static final double CONS_SUBMIT_MESSAGE_BASE_FEE_USD = 0.000_07;
     public static final long CONS_SUBMIT_MESSAGE_INCLUDED_BYTES = 100L;
-    public static final double CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES = 0.000_000_6800;
+    public static final double CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES = 0.000_000_680;
     public static final long CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_INCLUDED_COUNT = 0L;
     public static final double CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD = 1.99;
-    public static final double CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD = 0.04983;
+    public static final double CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD = 0.049_83;
     public static final double SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE_USD = 0.0499;
 
     /* ---------- Crypto service ---------- */
