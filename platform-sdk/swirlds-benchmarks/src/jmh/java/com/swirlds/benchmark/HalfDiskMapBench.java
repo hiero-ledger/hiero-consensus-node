@@ -2,12 +2,15 @@
 package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import java.util.Arrays;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -24,16 +27,21 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class HalfDiskMapBench extends BaseBench {
 
+    private static final Logger logger = LogManager.getLogger(HalfDiskMapBench.class);
+
     private static final long INVALID_PATH = -1L;
 
+    @Override
     String benchmarkName() {
-        return "KeyValueStoreBench";
+        return "HalfDiskMapBench";
     }
 
     @Benchmark
     public void merge() throws Exception {
         String storeName = "mergeBench";
         setTestDir(storeName);
+
+        logger.info(RUN_DELIMITER);
 
         final long[] map = new long[verify ? maxKey : 0];
         Arrays.fill(map, INVALID_PATH);
@@ -48,7 +56,6 @@ public class HalfDiskMapBench extends BaseBench {
                 null,
                 null,
                 null);
-        System.out.println();
 
         // Write files
         long start = System.currentTimeMillis();
@@ -64,12 +71,13 @@ public class HalfDiskMapBench extends BaseBench {
             }
             store.endWriting();
         }
-        System.out.println("Created " + numFiles + " files in " + (System.currentTimeMillis() - start) + "ms");
+
+        logger.info("Created {} files in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Merge files
         start = System.currentTimeMillis();
         dataFileCompactor.compact();
-        System.out.println("Compacted files in " + (System.currentTimeMillis() - start) + "ms");
+        logger.info("Compacted files in {} ms", System.currentTimeMillis() - start);
 
         // Verify merged content
         if (verify) {
@@ -81,7 +89,7 @@ public class HalfDiskMapBench extends BaseBench {
                     throw new RuntimeException("Bad value");
                 }
             }
-            System.out.println("Verified HalfDiskHashMap in " + (System.currentTimeMillis() - start) + "ms");
+            logger.info("Verified HalfDiskHashMap in {} ms", System.currentTimeMillis() - start);
         }
 
         store.close();

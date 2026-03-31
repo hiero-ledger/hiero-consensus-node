@@ -8,7 +8,6 @@ import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
 import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushReceiveTask;
@@ -120,7 +119,6 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
 
     @Override
     public void startTeacherTasks(
-            final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
