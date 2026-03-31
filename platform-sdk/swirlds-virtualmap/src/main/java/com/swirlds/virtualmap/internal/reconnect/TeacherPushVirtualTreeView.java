@@ -112,7 +112,7 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     public TeacherPushVirtualTreeView(final ReconnectConfig reconnectConfig, final VirtualMap map) {
         // There is no distinction between originalState and reconnectState in this implementation
-        super(map, map.getMetadata(), map.getMetadata());
+        super(map.getMetadata(), map.getMetadata());
         this.reconnectConfig = reconnectConfig;
         this.records = map.detach();
     }
