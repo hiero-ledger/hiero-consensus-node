@@ -164,7 +164,7 @@ jobs:
 
           git clone https://github.com/timo0/solo.git solo
           cd solo
-          git checkout cn-low-memory
+          git checkout fix-semantic-version
           task build:compile
           #npm run build
 
@@ -234,6 +234,7 @@ jobs:
                 jmap -dump:live,format=b,file=/tmp/test.hprof \$jpid; fi"; \
             kubectl -n ${i} cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/output/recording.jfr "${{ github.workspace }}"/solo/recording.jfr
             kubectl -n ${i} cp network-node1-0:/tmp/test.hprof "${{ github.workspace }}"/solo/$i.hprof
+            ls -l "${{ github.workspace }}"/solo/$i.hprof
           done
           EOF
           wait_time=$(expr ${{ inputs.nlg-time }} / 10 \* 9)
@@ -298,6 +299,7 @@ jobs:
         run: |
           set +e
           set +x
+          ls -l "${{ github.workspace }}"/solo
           cp -r $HOME/.solo "${{ github.workspace }}"/report/
           cp "${{ github.workspace }}"/solo/*.log  "${{ github.workspace }}"/report/
           cp "${{ github.workspace }}"/solo/*.jfr  "${{ github.workspace }}"/report/
