@@ -15,6 +15,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SEND_RECORD_THRESHOLD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
@@ -193,6 +194,17 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(pureChecksContext.body()).willReturn(txn);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(INVALID_INITIAL_BALANCE).isEqualTo(msg.responseCode());
+    }
+
+    @Test
+    @DisplayName("pureChecks fail when delegation address is not empty")
+    void whenDelegationAddressIsNonEmpty() {
+        txn = new CryptoCreateBuilder()
+                .withDelegationAddress(Bytes.fromHex("cafebabe"))
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(NOT_SUPPORTED).isEqualTo(msg.responseCode());
     }
 
     @Test
@@ -896,6 +908,8 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         private Key key = otherKey;
 
         private String memo = null;
+
+        private Bytes delegationAddress;
 
         private CryptoCreateBuilder() {}
 

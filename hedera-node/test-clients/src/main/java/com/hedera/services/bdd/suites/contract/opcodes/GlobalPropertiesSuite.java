@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.*;
@@ -36,7 +35,6 @@ public class GlobalPropertiesSuite {
     private static final String GET_GAS_LIMIT = "getGasLimit";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> chainIdWorks() {
         final var defaultChainId = BigInteger.valueOf(295L);
         final var devChainId = BigInteger.valueOf(298L);
@@ -84,7 +82,6 @@ public class GlobalPropertiesSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> coinbaseWorks() {
         return hapiTest(
                 uploadInitCode(CONTRACT),

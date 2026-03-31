@@ -8,8 +8,10 @@ gradle.lifecycle.beforeProject {
     plugins.withId("org.hiero.gradle.base.jpms-modules") {
         configure<ExtraJavaModuleInfoPluginExtension> {
             // with the upgrade, besu requires the consensys' fork of the tuweni libraries
-            module("io.consensys.tuweni:tuweni-units", "tuweni.units")
-            module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
+            knownModule("io.consensys.tuweni:tuweni-units", "tuweni.units")
+            knownModule("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
+//            module("io.tmio:tuweni-units", "tuweni.units")
+//            module("io.tmio:tuweni-bytes", "tuweni.bytes")
             module("io.vertx:vertx-core", "io.vertx.core")
         }
 

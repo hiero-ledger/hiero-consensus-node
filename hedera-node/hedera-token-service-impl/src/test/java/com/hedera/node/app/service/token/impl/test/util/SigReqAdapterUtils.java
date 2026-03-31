@@ -497,6 +497,6 @@ public class SigReqAdapterUtils {
                 0L,
                 0L,
                 0L,
-                null);
+                Bytes.EMPTY);
     }
 }

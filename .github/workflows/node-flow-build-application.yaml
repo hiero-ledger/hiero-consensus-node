@@ -35,11 +35,12 @@ jobs:
       enable-hapi-tests-time-consuming: "true"
       enable-hapi-tests-state-throttling: "true"
       enable-hapi-tests-simplefees: "true"
+      enable-hapi-tests-smart-contract: "true"
       enable-otter-tests: "true"
       enable-snyk-scan: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
-      java-version: "21.0.6"
+      java-version: "25"
       java-distribution: "temurin"
       custom-job-label: "MATS (main):"
     secrets:
@@ -62,12 +63,30 @@ jobs:
         with:
           egress-policy: audit
 
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "0"
+
+      - name: Resolve Workflow Reference
+        id: resolve-ref
+        run: |
+          RESOLVED_REF=${{ github.ref_name }}
+
+          if ! git ls-remote --exit-code origin "${RESOLVED_REF}" &>/dev/null; then
+            echo "::warning::Reference ${RESOLVED_REF} not found in remote. Defaulting to 'main'."
+            RESOLVED_REF="main"
+          fi
+
+          echo "Using workflow reference: ${RESOLVED_REF}"
+          echo "workflow-ref=${RESOLVED_REF}" >> "${GITHUB_OUTPUT}"
+
       - name: Trigger ZXF Deploy Production Release
         uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
         with:
           workflow: .github/workflows/node-flow-deploy-release-artifact.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: main # ensure we are always using the workflow definition from the main branch
+          ref: ${{ steps.resolve-ref.outputs.workflow-ref }} # ensure we are always using the correct workflow definition. Default to main.
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
             "ref": "${{ github.sha }}",

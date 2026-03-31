@@ -191,7 +191,7 @@ public class AtomicBatchHandler implements TransactionHandler {
             recordedFeeCharging.finishRecordingTo(streamBuilder);
             if (streamBuilder.status() != SUCCESS) {
                 final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-                throw new HandleException(INNER_TRANSACTION_FAILED, ctx -> {
+                throw new HandleException(INNER_TRANSACTION_FAILED, (ctx, ignored) -> {
                     recordedFeeCharging.forEachRecorded((builder, charges) -> {
                         final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
                         charges.forEach(

@@ -162,7 +162,9 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
                         .cryptoCreateAccount(synthAccountCreationWithKeyAndCodeDelegation(
                                 evmAddress, key, delegationAddress, unlimitedAutoAssociationsEnabled()))
                         .build(),
-                CryptoCreateStreamBuilder.class);
+                CryptoCreateStreamBuilder.class,
+                DISPATCH_ONLY_NOOP_FEE_CHARGING,
+                HandleContext.ConsensusThrottling.ON);
         try {
             return context.dispatch(dispatchOpts).status();
         } catch (HandleException e) {

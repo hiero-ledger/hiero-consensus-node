@@ -75,7 +75,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.13.0
+  NLG_VERSION: 0.13.2
 
   #Thresholds for performance
   #benchmarks
@@ -174,7 +174,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 21.0.6
+          java-version: 25
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@8379f6a1328ee0e06e2bb424dadb7b159856a326 # v4.4.0
@@ -438,7 +438,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"/solo
-          helm upgrade --install --set appName=nlg nlg oci://swirldslabs.jfrog.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+          helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')"

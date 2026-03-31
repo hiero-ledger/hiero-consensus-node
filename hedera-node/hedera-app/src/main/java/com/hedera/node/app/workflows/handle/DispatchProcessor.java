@@ -34,6 +34,8 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.DispatchValidator;
 import com.hedera.node.app.workflows.handle.dispatch.RecordFinalizer;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
+import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions.Details;
 import com.hedera.node.app.workflows.handle.steps.PlatformStateUpdates;
 import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
 import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
@@ -113,6 +115,20 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     public void processDispatch(@NonNull final Dispatch dispatch) {
+        processDispatch(dispatch, null);
+    }
+
+    /**
+     * This method is responsible for charging the fees and tries to execute the
+     * business logic for the given dispatch, guaranteeing that the changes committed
+     * to its stack are exactly reflected in its recordBuilder. At the end, it will
+     * finalize the record and commit the stack.
+     *
+     * @param dispatch the dispatch to be processed
+     * @param hollowAccountCompletionsDetails optional hollow-account setup dispatches to replay after rollback
+     */
+    public void processDispatch(
+            @NonNull final Dispatch dispatch, @Nullable final Details hollowAccountCompletionsDetails) {
         requireNonNull(dispatch);
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
@@ -120,7 +136,7 @@ public class DispatchProcessor {
         } else {
             final var fees = chargePayer(dispatch, validation, false);
             if (!alreadyFailed(dispatch, validation)) {
-                tryHandle(dispatch, validation, fees);
+                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails);
             }
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -142,8 +158,10 @@ public class DispatchProcessor {
     private void tryHandle(
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
-            @NonNull final Fees fees) {
+            @NonNull final Fees fees,
+            @Nullable final HollowAccountCompletions.Details details) {
         final var functionality = dispatch.txnInfo().functionality();
+        boolean success = false;
         try {
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
@@ -156,22 +174,26 @@ public class DispatchProcessor {
                 }
             }
             handleSystemUpdates(dispatch);
+            success = true;
         } catch (HandleException e) {
             // For EIP-7702 eth type 4 transactions we need to commit the code delegation related actions before rolling
             // back
             commitPossibleDelegationActions(dispatch, functionality);
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
             chargePayer(dispatch, validation, false);
-            e.maybeReplayFees(dispatch);
-        } catch (final ThrottleException e) {
+            e.maybeReplay(dispatch, dispatch.handleContext()::dispatch);
+        } catch (ThrottleException e) {
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
             if (functionality == ETHEREUM_TRANSACTION) {
                 ethereumTransactionHandler.handleThrottled(dispatch.handleContext());
             }
-        } catch (final Exception e) {
+        } catch (Exception e) {
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
+        }
+        if (!success && details != null) {
+            details.replay(dispatch.handleContext()::dispatch);
         }
     }
 

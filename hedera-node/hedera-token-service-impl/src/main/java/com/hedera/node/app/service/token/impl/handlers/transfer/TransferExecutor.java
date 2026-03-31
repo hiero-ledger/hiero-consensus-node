@@ -204,7 +204,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
-                        ctx -> refundHookFee(
+                        (ctx, ignored) -> refundHookFee(
                                 context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
             }
         }
@@ -229,7 +229,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 // for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
-                        ctx -> refundHookFee(
+                        (ctx, ignored) -> refundHookFee(
                                 context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
             }
         }
