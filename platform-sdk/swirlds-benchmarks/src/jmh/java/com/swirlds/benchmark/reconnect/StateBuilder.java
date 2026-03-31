@@ -12,6 +12,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.LongStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * A utility class to help build and populate virtual map states for benchmarks.
@@ -21,6 +23,8 @@ public record StateBuilder(
         Function<Long, Bytes> keyBuilder,
         // Build a value for a given index.
         Function<Long, BenchmarkValue> valueBuilder) {
+
+    private static final Logger logger = LogManager.getLogger(StateBuilder.class);
 
     /**
      * Builds a VirtualMap populator that is able to add/update, as well as remove nodes (when the value is null).
@@ -105,7 +109,7 @@ public record StateBuilder(
             final BiConsumer<Bytes, BenchmarkValue> teacherPopulator,
             final BiConsumer<Bytes, BenchmarkValue> learnerPopulator,
             final Consumer<Long> storageOptimizer) {
-        System.err.printf("Building a state of size %,d\n", size);
+        logger.info("Building a state of size {}", size);
 
         // Phase 1: populate both teacher and learner identically with keys 1..size-1
         populateState(1, size, storageOptimizer, teacherPopulator, learnerPopulator);
