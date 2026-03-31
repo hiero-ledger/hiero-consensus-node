@@ -93,8 +93,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
                 // call to zero address make no sense, and we are not supporting it
                 validateFalsePreCheck(ConstantUtils.ZERO_CONTRACT_ID.equals(contractId), INVALID_CONTRACT_ID);
             }
-
-            // baselineCost is 0 for contract calls as neither access list nor EIP-7702 authorizations are supported
+            // accessLists and codeDelegations are null because both are not supported for 'ContractCall'
             final var gasRequirements = gasCalculator.transactionGasRequirements(
                     Bytes.wrap(op.functionParameters().toByteArray()), false, null, null);
             validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);

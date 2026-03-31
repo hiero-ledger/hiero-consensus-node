@@ -95,7 +95,7 @@ public class ContractCallLocalHandler extends PaidQueryHandler {
         validateTruePreCheck(requestedGas >= 0, CONTRACT_NEGATIVE_GAS);
         final var maxGasLimit = getMaxGasLimit(context.configuration().getConfigData(ContractsConfig.class));
         validateTruePreCheck(requestedGas <= maxGasLimit, MAX_GAS_LIMIT_EXCEEDED);
-        // baselineCost is 0 for contract calls as neither access list nor EIP-7702 authorizations are supported
+        // accessLists and codeDelegations are null because both are not supported for 'ContractCallLocal'
         final var gasRequirements = gasCalculator.transactionGasRequirements(
                 org.apache.tuweni.bytes.Bytes.wrap(op.functionParameters().toByteArray()), false, null, null);
         validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);

@@ -8,11 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
-import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
-import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.HapiSuite.*;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -42,14 +38,17 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class AccessListTest {
 
+    private static final String SLOT_KEY_0 = "0x0000000000000000000000000000000000000000000000000000000000000000";
+    private static final String SLOT_KEY_1 = "0x0000000000000000000000000000000000000000000000000000000000000001";
+
     @Contract(contract = "AccessListCallerContract")
     static SpecContract callerContract;
 
     @Contract(contract = "AccessListTargetContract")
     static SpecContract targetContract;
 
-    private static final AtomicReference<Address> targetContractAddress = new AtomicReference<>();
-    private static final AtomicReference<Bytes> targetContractAddressBytes = new AtomicReference<>();
+    private static final AtomicReference<Address> TARGET_CONTRACT_ADDRESS = new AtomicReference<>();
+    private static final AtomicReference<Bytes> TARGET_CONTRACT_ADDRESS_BYTES = new AtomicReference<>();
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
@@ -58,8 +57,8 @@ public class AccessListTest {
                 targetContract
                         .getInfo()
                         .andAssert(e -> e.exposingEvmAddress(address -> {
-                            targetContractAddress.set(asHeadlongAddress(address));
-                            targetContractAddressBytes.set(
+                            TARGET_CONTRACT_ADDRESS.set(asHeadlongAddress(address));
+                            TARGET_CONTRACT_ADDRESS_BYTES.set(
                                     Bytes.fromHexString(address.startsWith("0x") ? address : "0x" + address));
                         })));
     }
@@ -91,7 +90,7 @@ public class AccessListTest {
             final EthTxData.EthTransactionType type,
             final List<AccessListItem> accessList,
             final LongSupplier expectedGas) {
-        return ethereumCall(callerContract.name(), "call", targetContractAddress.get())
+        return ethereumCall(callerContract.name(), "call", TARGET_CONTRACT_ADDRESS.get())
                 .signingWith(SECP_256K1_SOURCE_KEY)
                 .type(type)
                 .withAccessList(accessList)
@@ -107,7 +106,7 @@ public class AccessListTest {
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 // LEGACY_ETHEREUM call
-                ethereumCall(callerContract.name(), "call", targetContractAddress.get())
+                ethereumCall(callerContract.name(), "call", TARGET_CONTRACT_ADDRESS.get())
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.LEGACY_ETHEREUM)
                         .exposingGasTo((status, gas) -> legacyGas.set(gas)),
@@ -129,7 +128,7 @@ public class AccessListTest {
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 // LEGACY_ETHEREUM call
-                ethereumCall(callerContract.name(), "call", targetContractAddress.get())
+                ethereumCall(callerContract.name(), "call", TARGET_CONTRACT_ADDRESS.get())
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.LEGACY_ETHEREUM)
                         .exposingGasTo((status, gas) -> legacyGas.set(gas)),
@@ -138,26 +137,23 @@ public class AccessListTest {
                         .flatMap(type -> Stream.of(
                                 ethereumCallWithAccessList(
                                         type,
-                                        List.of(new AccessListItem(targetContractAddressBytes.get(), List.of())),
+                                        List.of(new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of())),
                                         () -> legacyGas.get() - 100),
                                 ethereumCallWithAccessList(
                                         type,
                                         List.of(new AccessListItem(
-                                                targetContractAddressBytes.get(),
+                                                TARGET_CONTRACT_ADDRESS_BYTES.get(),
                                                 List.of(
-                                                        Bytes32.fromHexString(
-                                                                "0x0000000000000000000000000000000000000000000000000000000000000000") // storage slot 0
+                                                        Bytes32.fromHexString(SLOT_KEY_0) // storage slot 0
                                                         ))),
                                         () -> legacyGas.get() - 200),
                                 ethereumCallWithAccessList(
                                         type,
                                         List.of(new AccessListItem(
-                                                targetContractAddressBytes.get(),
+                                                TARGET_CONTRACT_ADDRESS_BYTES.get(),
                                                 List.of(
-                                                        Bytes32.fromHexString(
-                                                                "0x0000000000000000000000000000000000000000000000000000000000000000"), // storage slot 0
-                                                        Bytes32.fromHexString(
-                                                                "0x0000000000000000000000000000000000000000000000000000000000000001") // storage slot 1
+                                                        Bytes32.fromHexString(SLOT_KEY_0), // storage slot 0
+                                                        Bytes32.fromHexString(SLOT_KEY_1) // storage slot 1
                                                         ))),
                                         () -> legacyGas.get() - 300)))
                         .toList()));
