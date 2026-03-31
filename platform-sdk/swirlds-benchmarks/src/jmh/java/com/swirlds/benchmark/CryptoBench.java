@@ -2,6 +2,7 @@
 package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -335,7 +336,7 @@ public class CryptoBench extends VirtualMapBench {
 
         @Override
         protected void onException(final Throwable t) {
-            t.printStackTrace();
+            logger.error("Error occurred while executing task", t);
         }
     }
 
@@ -375,7 +376,7 @@ public class CryptoBench extends VirtualMapBench {
 
         @Override
         protected void onException(final Throwable t) {
-            t.printStackTrace();
+            logger.error("Error occurred while executing task", t);
         }
 
         void send(TransferTask next) {

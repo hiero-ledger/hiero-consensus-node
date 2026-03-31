@@ -111,6 +111,7 @@ public class TokenServiceFeeCalculatorTests {
     private static final long TOKEN_FREEZE_BASE_FEE = 25;
     private static final long TOKEN_GRANT_KYC_BASE_FEE = 45;
     private static final long TOKEN_MINT_BASE_FEE = 20;
+    private static final long TOKEN_MINT_NFT_BASE_FEE = 5;
     private static final long TOKEN_PAUSE_BASE_FEE = 35;
     private static final long TOKEN_REJECT_BASE_FEE = 45;
     private static final long TOKEN_REVOKE_KYC_BASE_FEE = 45;
@@ -236,7 +237,7 @@ public class TokenServiceFeeCalculatorTests {
         when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
         final var result = feeCalculator.calculateTxFee(txBody2, new SimpleFeeContextImpl(feeContext, null));
         assertNotNull(result);
-        assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.totalTinycents());
+        assertEquals(TOKEN_MINT_BASE_FEE + TOKEN_MINT_NFT_BASE_FEE + UNIQUE_TOKEN_FEE, result.totalTinycents());
     }
 
     @Test
@@ -448,12 +449,18 @@ public class TokenServiceFeeCalculatorTests {
                         makeExtraDef(Extra.STATE_BYTES, 1),
                         makeExtraDef(Extra.KEYS, 2),
                         makeExtraDef(Extra.SIGNATURES, 3),
+                        makeExtraDef(Extra.NFT_UPDATE, 4),
+                        makeExtraDef(Extra.TOKEN_ASSOCIATE, 4),
+                        makeExtraDef(Extra.TOKEN_MINT_NFT_BASE, 5),
                         makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE))
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                 .services(makeService(
                         "Token",
                         makeServiceFee(TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE),
-                        makeServiceFee(TOKEN_ASSOCIATE_TO_ACCOUNT, TOKEN_ASSOCIATE_BASE_FEE),
+                        makeServiceFee(
+                                TOKEN_ASSOCIATE_TO_ACCOUNT,
+                                TOKEN_ASSOCIATE_BASE_FEE,
+                                makeExtraIncluded(Extra.TOKEN_ASSOCIATE, 1)),
                         makeServiceFee(TOKEN_BURN, TOKEN_BURN_BASE_FEE),
                         makeServiceFee(TOKEN_CREATE, TOKEN_CREATE_BASE_FEE, makeExtraIncluded(Extra.KEYS, 1)),
                         makeServiceFee(TOKEN_DELETE, TOKEN_DELETE_BASE_FEE),
@@ -467,6 +474,7 @@ public class TokenServiceFeeCalculatorTests {
                                 TOKEN_MINT,
                                 TOKEN_MINT_BASE_FEE,
                                 makeExtraIncluded(Extra.KEYS, 1),
+                                makeExtraIncluded(Extra.TOKEN_MINT_NFT_BASE, 0),
                                 makeExtraIncluded(Extra.TOKEN_MINT_NFT, 0)),
                         makeServiceFee(TOKEN_PAUSE, TOKEN_PAUSE_BASE_FEE),
                         makeServiceFee(TOKEN_REJECT, TOKEN_REJECT_BASE_FEE),
@@ -474,7 +482,8 @@ public class TokenServiceFeeCalculatorTests {
                         makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE),
                         makeServiceFee(TOKEN_UNPAUSE, TOKEN_UNPAUSE_BASE_FEE),
                         makeServiceFee(TOKEN_UPDATE, TOKEN_UPDATE_BASE_FEE, makeExtraIncluded(Extra.KEYS, 1)),
-                        makeServiceFee(TOKEN_UPDATE_NFTS, TOKEN_UPDATE_NFTS_BASE_FEE)))
+                        makeServiceFee(
+                                TOKEN_UPDATE_NFTS, TOKEN_UPDATE_NFTS_BASE_FEE, makeExtraIncluded(Extra.NFT_UPDATE, 1))))
                 .build();
     }
 }
