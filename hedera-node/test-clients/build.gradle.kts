@@ -141,10 +141,11 @@ val prCheckPropOverrides =
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         "hapiTestCrypto" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.writerMode=GRPC",
+        "hapiTestToken" to
+            "hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.writerMode=GRPC",
         "hapiTestCryptoSerial" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,blockStream.writerMode=GRPC",
         "hapiTestSmartContract" to
             "tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
