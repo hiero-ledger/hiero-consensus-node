@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -29,7 +30,9 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
  * {@link QuiescenceController#setNextTargetConsensusTime(Instant)}.
  * <p>
  * The heartbeat is stopped when the {@link QuiescenceController} reports any status other than
- * {@link QuiescenceCommand#QUIESCE} inside the heartbeat.
+ * {@link QuiescenceCommand#QUIESCE} inside the heartbeat. When the heartbeat stops, it updates the
+ * {@code lastQuiescenceCommand} reference so that {@link BlockStreamManagerImpl} can detect the state
+ * change and restart the heartbeat when quiescence resumes.
  */
 @Singleton
 public class QuiescedHeartbeat {
@@ -39,13 +42,8 @@ public class QuiescedHeartbeat {
     private final QuiescenceController controller;
     private final ScheduledExecutorService scheduler;
 
-    /** Number of consecutive DONT_QUIESCE ticks before the heartbeat gives up. */
-    private static final int MAX_DONT_QUIESCE_TICKS = 3;
-
     @Nullable
     private ScheduledFuture<?> heartbeatFuture;
-
-    private int consecutiveDontQuiesceTicks;
 
     @Inject
     public QuiescedHeartbeat(@NonNull final QuiescenceController controller, Platform platform) {
@@ -74,20 +72,29 @@ public class QuiescedHeartbeat {
     /**
      * Schedules a heartbeat at the given interval that will last until the {@link QuiescenceController} reports a
      * status other than {@link QuiescenceCommand#QUIESCE}.
+     *
+     * @param heartbeatInterval the interval between heartbeats (also used as the initial delay to give
+     *                          pending block signatures time to complete before the first tick)
+     * @param probe the TCT probe to use
+     * @param lastQuiescenceCommand if non-null, updated when the heartbeat breaks quiescence so that
+     *                              {@link BlockStreamManagerImpl} stays in sync with the command sent to the platform
      */
-    public void start(@NonNull final Duration heartbeatInterval, @NonNull final TctProbe probe) {
+    public void start(
+            @NonNull final Duration heartbeatInterval,
+            @NonNull final TctProbe probe,
+            @Nullable final AtomicReference<QuiescenceCommand> lastQuiescenceCommand) {
         requireNonNull(heartbeatInterval);
         requireNonNull(probe);
 
         // Cancel any existing heartbeat
         stop();
-        consecutiveDontQuiesceTicks = 0;
 
-        // Schedule the heartbeat task
+        // Schedule the heartbeat task with initialDelay = heartbeatInterval to give pending
+        // block signatures time to complete before the first tick
         heartbeatFuture = scheduler.scheduleAtFixedRate(
                 () -> {
                     try {
-                        heartbeat(probe);
+                        heartbeat(probe, lastQuiescenceCommand);
                     } catch (Exception e) {
                         log.warn("Unhandled exception in quiesced heartbeat", e);
                     }
@@ -119,13 +126,9 @@ public class QuiescedHeartbeat {
 
     /**
      * The heartbeat task that probes for the TCT and updates the controller.
-     *
-     * <p>The heartbeat tolerates transient {@link QuiescenceCommand#DONT_QUIESCE} states caused by
-     * the pipeline transaction count being temporarily elevated while blocks await signing. Only
-     * {@link QuiescenceCommand#BREAK_QUIESCENCE} (indicating a pending user transaction requires
-     * breaking quiescence) causes the heartbeat to stop and notify the platform.
      */
-    private void heartbeat(@NonNull final TctProbe probe) {
+    private void heartbeat(
+            @NonNull final TctProbe probe, @Nullable final AtomicReference<QuiescenceCommand> lastQuiescenceCommand) {
         try {
             // Probe for the TCT
             final var tct = probe.findTct();
@@ -134,30 +137,20 @@ public class QuiescedHeartbeat {
                 controller.setNextTargetConsensusTime(tct);
             }
             final var commandNow = controller.getQuiescenceStatus();
-            if (commandNow == QUIESCE) {
-                // Reset the counter when quiescence is healthy
-                consecutiveDontQuiesceTicks = 0;
-            } else if (commandNow == DONT_QUIESCE) {
-                // DONT_QUIESCE is often transient — the pipeline count may be temporarily elevated
-                // while blocks are being signed.  Tolerate a few consecutive ticks before giving up
-                // so the heartbeat isn't restarted only by block-signing callbacks.
-                consecutiveDontQuiesceTicks++;
-                if (consecutiveDontQuiesceTicks >= MAX_DONT_QUIESCE_TICKS) {
-                    log.info(
-                            "Stopping quiescence heartbeat ({}, {} consecutive ticks)",
-                            commandNow,
-                            consecutiveDontQuiesceTicks);
-                    platform.quiescenceCommand(commandNow);
-                    stop();
-                }
-            } else {
-                // BREAK_QUIESCENCE — a pending user transaction requires ending quiescence immediately
+            // Check if we should continue running
+            if (commandNow != QUIESCE) {
                 log.info("Stopping quiescence heartbeat ({})", commandNow);
+                if (lastQuiescenceCommand != null) {
+                    lastQuiescenceCommand.set(commandNow);
+                }
                 platform.quiescenceCommand(commandNow);
                 stop();
             }
         } catch (final Exception e) {
             // End quiescence and stop the heartbeat to avoid log spam from repeated failures
+            if (lastQuiescenceCommand != null) {
+                lastQuiescenceCommand.set(DONT_QUIESCE);
+            }
             platform.quiescenceCommand(DONT_QUIESCE);
             stop();
             throw e;

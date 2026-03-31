@@ -68,8 +68,8 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 assertHgcaaLogContainsPairTimeframe(
                         NodeSelector.byNodeId(0),
                         logAssertionStart::get,
-                        Duration.ofSeconds(60),
-                        Duration.ofSeconds(60),
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
                         "Started quiesced heartbeat",
                         "Stopping quiescence heartbeat",
                         Duration.ofSeconds(5),
