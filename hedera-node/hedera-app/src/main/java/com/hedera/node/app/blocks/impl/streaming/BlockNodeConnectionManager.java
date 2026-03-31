@@ -73,7 +73,9 @@ public class BlockNodeConnectionManager {
      * processing blocks and attempting to send them to a block node.
      */
     private final AtomicBoolean isConnectionManagerActive = new AtomicBoolean(false);
-
+    /**
+     * Service used to retrieve block node configurations.
+     */
     private final BlockNodeConfigService blockNodeConfigService;
     /**
      * Reference to the currently active connection. If this reference is null, then there is no active connection.

@@ -11,13 +11,11 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.node.internal.network.BlockNodeConfig;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
@@ -40,7 +38,6 @@ public class BlockNodeConnectionManagerTest2 extends BlockNodeCommunicationTestB
 
     private static final VarHandle isManagerActiveHandle;
     private static final VarHandle activeConnectionRefHandle;
-    private static final VarHandle nodeStatsHandle;
     private static final VarHandle nodeStatusTaskConnectionHandle;
     private static final VarHandle blockNodesHandle;
     private static final VarHandle globalActiveStreamingConnectionCountHandle;
@@ -52,8 +49,6 @@ public class BlockNodeConnectionManagerTest2 extends BlockNodeCommunicationTestB
                     .findVarHandle(BlockNodeConnectionManager.class, "isConnectionManagerActive", AtomicBoolean.class);
             activeConnectionRefHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "activeConnectionRef", AtomicReference.class);
-            nodeStatsHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
-                    .findVarHandle(BlockNodeConnectionManager.class, "nodeStats", Map.class);
             blockNodesHandle = MethodHandles.privateLookupIn(BlockNodeConnectionManager.class, lookup)
                     .findVarHandle(BlockNodeConnectionManager.class, "nodes", ConcurrentMap.class);
             nodeStatusTaskConnectionHandle = MethodHandles.privateLookupIn(RetrieveBlockNodeStatusTask.class, lookup)
@@ -172,11 +167,6 @@ public class BlockNodeConnectionManagerTest2 extends BlockNodeCommunicationTestB
 
     private AtomicBoolean isActiveFlag() {
         return (AtomicBoolean) isManagerActiveHandle.get(connectionManager);
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<BlockNodeConfig, BlockNodeStats> nodeStats() {
-        return (Map<BlockNodeConfig, BlockNodeStats>) nodeStatsHandle.get(connectionManager);
     }
 
     private void awaitCondition(final BooleanSupplier condition, final long timeoutMs) {

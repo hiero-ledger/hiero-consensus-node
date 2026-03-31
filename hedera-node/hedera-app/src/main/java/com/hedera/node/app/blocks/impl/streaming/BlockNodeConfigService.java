@@ -39,7 +39,7 @@ public class BlockNodeConfigService {
     private final AtomicBoolean isActive = new AtomicBoolean(false);
     private final AtomicInteger configVersionCounter = new AtomicInteger(0);
     private final ConfigProvider configProvider;
-    private final AtomicReference<VersionedBlockNodeConfigurationSet> latestConfig = new AtomicReference<>();
+    private final AtomicReference<VersionedBlockNodeConfigurationSet> latestConfigRef = new AtomicReference<>();
     private final AtomicReference<WatchService> watchServiceRef = new AtomicReference<>();
 
     BlockNodeConfigService(@NonNull final ConfigProvider configProvider) {
@@ -47,8 +47,11 @@ public class BlockNodeConfigService {
         this.configDirectory = FileUtils.getAbsolutePath(blockNodeConnectionFileDir());
     }
 
+    /**
+     * @return the latest configuration for all possible block nodes, else null if no configuration exists
+     */
     public @Nullable VersionedBlockNodeConfigurationSet latestConfiguration() {
-        return latestConfig.get();
+        return latestConfigRef.get();
     }
 
     /**
@@ -95,14 +98,16 @@ public class BlockNodeConfigService {
             return;
         }
 
-        Thread.ofPlatform().name("BlockNodesConfigWatcher").start(new ConfigWatcherTask(watchService));
+        Thread.ofPlatform().name("BlockNodesConfigWatcher").daemon().start(new ConfigWatcherTask());
         logger.info("Block node configuration watcher started");
     }
 
     public void stop() {
-        logger.info("Stopping block node configuration watcher...");
+        if (!isActive.compareAndSet(true, false)) {
+            return;
+        }
 
-        isActive.set(false);
+        logger.info("Stopping block node configuration watcher...");
 
         final WatchService watchService = watchServiceRef.getAndSet(null);
         if (watchService != null) {
@@ -150,7 +155,7 @@ public class BlockNodeConfigService {
         final long version = configVersionCounter.incrementAndGet();
         final VersionedBlockNodeConfigurationSet versionedConfigSet =
                 new VersionedBlockNodeConfigurationSet(version, nodeConfigs);
-        latestConfig.set(versionedConfigSet);
+        latestConfigRef.set(versionedConfigSet);
 
         if (logger.isInfoEnabled()) {
             final StringBuilder sb = new StringBuilder("Block node configuration loaded (version: ")
@@ -171,19 +176,13 @@ public class BlockNodeConfigService {
 
     private class ConfigWatcherTask implements Runnable {
 
-        private final WatchService watchService;
-
-        ConfigWatcherTask(@NonNull final WatchService watchService) {
-            this.watchService = requireNonNull(watchService, "Watch service is required");
-        }
-
         @Override
         public void run() {
             while (isActive.get()) {
                 WatchKey key = null;
 
                 try {
-                    key = watchService.take();
+                    key = watchServiceRef.get().take();
 
                     for (final WatchEvent<?> event : key.pollEvents()) {
                         final WatchEvent.Kind<?> kind = event.kind();
@@ -191,10 +190,16 @@ public class BlockNodeConfigService {
 
                         if (ctx instanceof final Path changed && BLOCK_NODES_FILE_NAME.equals(changed.toString())) {
                             logger.info("Detected {} event for {}", kind.name(), changed);
-                            loadConfiguration();
+
+                            if (StandardWatchEventKinds.ENTRY_DELETE == kind) {
+                                // treat a deletion as a version change
+                                configVersionCounter.incrementAndGet();
+                                latestConfigRef.set(null);
+                            } else {
+                                loadConfiguration();
+                            }
                         }
                     }
-
                 } catch (final InterruptedException | ClosedWatchServiceException e) {
                     logger.warn("Configuration watcher interrupted or closed; exiting watcher loop", e);
                     if (e instanceof InterruptedException) {
