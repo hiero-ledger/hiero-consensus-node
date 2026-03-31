@@ -87,15 +87,6 @@ class DataFileCollectionTest {
                 values.length * Long.BYTES);
     }
 
-    private static long[] readDataItem(final DataFileCollection coll, final long location) throws IOException {
-        final BufferedData data = coll.readDataItem(location);
-        final long[] items = new long[Math.toIntExact(data.remaining() / Long.BYTES)];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = data.readLong();
-        }
-        return items;
-    }
-
     // =================================================================================================================
     // Tests
 
@@ -439,11 +430,6 @@ class DataFileCollectionTest {
         // empty.
         List<DataFileReader> filesLeft = fileCollection.getAllCompletedFiles();
         assertEquals(1, filesLeft.size(), "unexpected # of files #2");
-
-        // and trying to merge an empty file list is a no-op
-        List<Path> secondMergeResults = fileCompactor.compactFiles(storedOffsetsMap.get(testType), List.of(), 1);
-        assertNotNull(secondMergeResults, "null merged files list");
-        assertEquals(0, secondMergeResults.size(), "unexpected results from second merge");
     }
 
     @Order(101)

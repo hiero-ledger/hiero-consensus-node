@@ -76,7 +76,7 @@ class GarbageScannerDeadAliveRatioTest {
         }
 
         @Test
-        @DisplayName("Empty file (totalItems == 0) → dead/alive = MAX_VALUE")
+        @DisplayName("Empty file (totalItems == 0) → aliveItems == 0 → dead/alive = MAX_VALUE")
         void emptyFileRatio() {
             final DataFileReader file = mockFileReader(1, 0, 0, 500);
             final LongList index = emptyIndex();
@@ -133,6 +133,24 @@ class GarbageScannerDeadAliveRatioTest {
             assertEquals(3, stats.garbageFileStats()[1].compactionLevel());
             assertEquals(10.0 / 90.0, stats.garbageFileStats()[1].deadToAliveRatio(), 1e-9);
         }
+
+        @Test
+        @DisplayName("aliveItems capped at totalItems when over-counted (HDHM edge case)")
+        void aliveItemsCappedAtTotalItems() {
+            // File with 5 total items, but index over-counts alive to 7
+            // (simulates unsanitized HDHM doubling edge case)
+            // aliveItems() should return min(5, 7) = 5, but dead/ratio still use raw counter.
+            final DataFileReader file = mockFileReader(1, 0, 5, 1000);
+            final LongList index = mockIndexWithEntries(locationsForFile(1, 7));
+
+            final IndexedGarbageFileStats stats =
+                    createScanner(index, List.of(file)).scan();
+
+            final GarbageFileStats fs = stats.garbageFileStats()[0];
+            assertEquals(5, fs.aliveItems()); // capped at totalItems
+            assertEquals(-2, fs.deadItems());
+            assertEquals(-2.0 / 7.0, fs.deadToAliveRatio(), 1e-9);
+        }
     }
 
     // ========================================================================
@@ -146,18 +164,19 @@ class GarbageScannerDeadAliveRatioTest {
         @Test
         @DisplayName("Duplicate entries are deduplicated, preventing inflated alive counts")
         void duplicateEntriesAreDeduplicated() {
-            // File 1: totalItems=5. After doubling, index has 8 entries (4 + 4 mirrored).
+            // File 1: totalItems=5. After doubling, index has 4 entries (2 + 2 mirrored).
             // Only 2 unique alive entries → dead=3, alive=2, d/a = 1.5
             final DataFileReader file = mockFileReader(1, 0, 5, 1000);
 
             final LongList index = new LongListHeap(
-                    DEFAULT_CONFIG.longListChunkSize(), 8, DEFAULT_CONFIG.longListReservedBufferSize());
+                    DEFAULT_CONFIG.longListChunkSize(), 4, DEFAULT_CONFIG.longListReservedBufferSize());
+            index.updateValidRange(0, 3);
             final long loc1 = DataFileCommon.dataLocation(1, 100);
             final long loc2 = DataFileCommon.dataLocation(1, 200);
             index.put(0, loc1);
             index.put(1, loc2);
-            index.put(4, loc1); // duplicate of index[0]
-            index.put(5, loc2); // duplicate of index[1]
+            index.put(2, loc1); // duplicate of index[0]
+            index.put(3, loc2); // duplicate of index[1]
 
             final DataFileCollection fileCollection = mock(DataFileCollection.class);
             when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file));
@@ -180,6 +199,7 @@ class GarbageScannerDeadAliveRatioTest {
 
             final LongList index = new LongListHeap(
                     DEFAULT_CONFIG.longListChunkSize(), 4, DEFAULT_CONFIG.longListReservedBufferSize());
+            index.updateValidRange(0, 3);
             index.put(0, DataFileCommon.dataLocation(1, 100));
             index.put(1, DataFileCommon.dataLocation(1, 200));
             index.put(2, DataFileCommon.dataLocation(1, 300));
@@ -232,6 +252,96 @@ class GarbageScannerDeadAliveRatioTest {
     }
 
     // ========================================================================
+    // IndexedGarbageFileStats helper methods
+    // ========================================================================
+
+    @Nested
+    @DisplayName("IndexedGarbageFileStats methods")
+    class IndexedGarbageFileStatsTests {
+
+        @Test
+        @DisplayName("getNonNullGarbageStats filters out null gaps")
+        void getNonNullGarbageStatsFiltersNulls() {
+            final DataFileReader file1 = mockFileReader(1, 0, 100, 1000);
+            final DataFileReader file5 = mockFileReader(5, 0, 100, 1000);
+
+            final LongList index = mockIndexWithEntries(locationsForFile(1, 30), locationsForFile(5, 70));
+
+            final IndexedGarbageFileStats stats =
+                    createScanner(index, List.of(file1, file5)).scan();
+
+            // Array has 5 elements (indices 1..5), 3 are null gaps
+            assertEquals(5, stats.garbageFileStats().length);
+            final List<GarbageFileStats> nonNull = stats.getNonNullGarbageStats();
+            assertEquals(2, nonNull.size());
+        }
+
+        @Test
+        @DisplayName("lookupStats returns correct entry for known file")
+        void lookupStatsFindsKnownFile() {
+            final DataFileReader file = mockFileReader(1, 0, 100, 1000);
+            final LongList index = mockIndexWithEntries(locationsForFile(1, 50));
+
+            final IndexedGarbageFileStats stats =
+                    createScanner(index, List.of(file)).scan();
+
+            final GarbageFileStats fs = stats.lookupStats(file);
+            assertNotNull(fs);
+            assertEquals(50, fs.aliveItems());
+        }
+
+        @Test
+        @DisplayName("lookupStats returns null for file not in stats")
+        void lookupStatsReturnsNullForUnknownFile() {
+            final DataFileReader inStats = mockFileReader(1, 0, 100, 1000);
+            final DataFileReader notInStats = mockFileReader(99, 0, 100, 1000);
+
+            final LongList index = mockIndexWithEntries(locationsForFile(1, 50));
+
+            final IndexedGarbageFileStats stats =
+                    createScanner(index, List.of(inStats)).scan();
+
+            assertNull(stats.lookupStats(notInStats));
+        }
+
+        @Test
+        @DisplayName("estimateAliveBytes computes correct projected size")
+        void estimateAliveBytesNormalCase() {
+            // 100 items, 75 alive, size=1000 → garbageRatio=0.25 → alive bytes=750
+            final DataFileReader file = mockFileReader(1, 0, 100, 1000);
+            final LongList index = mockIndexWithEntries(locationsForFile(1, 75));
+
+            final IndexedGarbageFileStats stats =
+                    createScanner(index, List.of(file)).scan();
+
+            final GarbageFileStats fs = stats.lookupStats(file);
+            assertNotNull(fs);
+            assertEquals(750, IndexedGarbageFileStats.estimateAliveBytes(file, fs));
+        }
+
+        @Test
+        @DisplayName("estimateAliveBytes returns 0 for null stats")
+        void estimateAliveBytesNullStats() {
+            final DataFileReader reader = mockFileReader(1, 0, 100, 1000);
+            assertEquals(0, IndexedGarbageFileStats.estimateAliveBytes(reader, null));
+        }
+
+        @Test
+        @DisplayName("estimateAliveBytes returns 0 for file with zero total items")
+        void estimateAliveBytesZeroTotalItems() {
+            final DataFileReader file = mockFileReader(1, 0, 0, 1000);
+            final LongList index = emptyIndex();
+
+            final IndexedGarbageFileStats stats =
+                    createScanner(index, List.of(file)).scan();
+
+            final GarbageFileStats fs = stats.lookupStats(file);
+            assertNotNull(fs);
+            assertEquals(0, IndexedGarbageFileStats.estimateAliveBytes(file, fs));
+        }
+    }
+
+    // ========================================================================
     // Edge cases
     // ========================================================================
 
@@ -254,11 +364,11 @@ class GarbageScannerDeadAliveRatioTest {
         }
 
         @Test
-        @DisplayName("Index entries pointing to deleted files are silently skipped")
-        void indexEntriesForDeletedFilesAreSkipped() {
+        @DisplayName("Index entries pointing to files not in collection snapshot are silently skipped")
+        void indexEntriesForNewFilesAreSkipped() {
             final DataFileReader file1 = mockFileReader(1, 0, 10, 100);
 
-            // Index has entries for file 1 AND file 99 (not in collection)
+            // Index has entries for file 1 AND file 99 (created after collection snapshot)
             final LongList index = mockIndexWithEntries(locationsForFile(1, 5), locationsForFile(99, 3));
 
             final IndexedGarbageFileStats stats =
@@ -292,47 +402,47 @@ class GarbageScannerDeadAliveRatioTest {
             assertNotNull(stats.garbageFileStats()[4]);
             assertEquals(7, stats.garbageFileStats()[4].aliveItems());
         }
-    }
 
-    @Test
-    @DisplayName("Files with compactionInProgress flag are excluded from scan results")
-    void filesWithCompactionInProgressAreExcluded() {
-        final DataFileReader normalFile = mockFileReader(1, 0, 100, 1000);
-        final DataFileReader flaggedFile = mockFileReader(2, 0, 100, 1000);
-        when(flaggedFile.isCompactionInProgress()).thenReturn(true);
+        @Test
+        @DisplayName("Files with compactionInProgress flag are excluded from scan results")
+        void filesWithCompactionInProgressAreExcluded() {
+            final DataFileReader normalFile = mockFileReader(1, 0, 100, 1000);
+            final DataFileReader flaggedFile = mockFileReader(2, 0, 100, 1000);
+            when(flaggedFile.isCompactionInProgress()).thenReturn(true);
 
-        final LongList index = mockIndexWithEntries(locationsForFile(1, 30), locationsForFile(2, 30));
+            final LongList index = mockIndexWithEntries(locationsForFile(1, 30), locationsForFile(2, 30));
 
-        final DataFileCollection fileCollection = mock(DataFileCollection.class);
-        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(normalFile, flaggedFile));
+            final DataFileCollection fileCollection = mock(DataFileCollection.class);
+            when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(normalFile, flaggedFile));
 
-        final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "test");
+            final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "test");
 
-        final IndexedGarbageFileStats stats = scanner.scan();
+            final IndexedGarbageFileStats stats = scanner.scan();
 
-        // Only normalFile should be in the stats — flaggedFile is invisible
-        assertEquals(1, stats.garbageFileStats().length);
-        assertNotNull(stats.garbageFileStats()[0]);
-        assertEquals(30, stats.garbageFileStats()[0].aliveItems());
-    }
+            // Only normalFile should be in the stats — flaggedFile is invisible
+            assertEquals(1, stats.garbageFileStats().length);
+            assertNotNull(stats.garbageFileStats()[0]);
+            assertEquals(30, stats.garbageFileStats()[0].aliveItems());
+        }
 
-    @Test
-    @DisplayName("All files flagged produces empty stats array")
-    void allFilesFlaggedProducesEmptyStats() {
-        final DataFileReader file1 = mockFileReader(1, 0, 100, 1000);
-        final DataFileReader file2 = mockFileReader(2, 0, 100, 1000);
-        when(file1.isCompactionInProgress()).thenReturn(true);
-        when(file2.isCompactionInProgress()).thenReturn(true);
+        @Test
+        @DisplayName("All files flagged produces empty stats array")
+        void allFilesFlaggedProducesEmptyStats() {
+            final DataFileReader file1 = mockFileReader(1, 0, 100, 1000);
+            final DataFileReader file2 = mockFileReader(2, 0, 100, 1000);
+            when(file1.isCompactionInProgress()).thenReturn(true);
+            when(file2.isCompactionInProgress()).thenReturn(true);
 
-        final LongList index = mockIndexWithEntries(locationsForFile(1, 50), locationsForFile(2, 50));
+            final LongList index = mockIndexWithEntries(locationsForFile(1, 50), locationsForFile(2, 50));
 
-        final DataFileCollection fileCollection = mock(DataFileCollection.class);
-        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file1, file2));
+            final DataFileCollection fileCollection = mock(DataFileCollection.class);
+            when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file1, file2));
 
-        final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "test");
+            final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "test");
 
-        final IndexedGarbageFileStats stats = scanner.scan();
-        assertEquals(0, stats.garbageFileStats().length);
+            final IndexedGarbageFileStats stats = scanner.scan();
+            assertEquals(0, stats.garbageFileStats().length);
+        }
     }
 
     // ========================================================================
@@ -359,6 +469,7 @@ class GarbageScannerDeadAliveRatioTest {
                 DEFAULT_CONFIG.longListChunkSize(),
                 Math.max(1, totalEntries),
                 DEFAULT_CONFIG.longListReservedBufferSize());
+        index.updateValidRange(0, Math.max(0, totalEntries - 1));
 
         long key = 0;
         for (final long[] block : blocks) {

@@ -86,9 +86,7 @@ class CompactionInterruptTest {
                     (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
                             CONFIGURATION.getConfigData(MerkleDbConfig.class));
             final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
-            dataSource.runHashChunkStoreCompaction();
-            dataSource.runKeyToPathStoreCompaction();
-            dataSource.runPathToKeyValueStoreCompaction();
+            triggerScansAndSubmitCompaction(dataSource, coordinator);
             // wait a small-time for merging to start
             MILLISECONDS.sleep(20);
             stopCompactionAndVerifyItsStopped(coordinator, compactingExecutor, initialCompletedTaskCount);
@@ -142,16 +140,12 @@ class CompactionInterruptTest {
                     (ThreadPoolExecutor) MerkleDbCompactionCoordinator.getCompactionExecutor(
                             CONFIGURATION.getConfigData(MerkleDbConfig.class));
             final long initialCompletedTaskCount = compactingExecutor.getTaskCount();
-            // we should take into account previous test runs
-            long initTaskCount = compactingExecutor.getTaskCount();
-            dataSource.runHashChunkStoreCompaction();
-            dataSource.runKeyToPathStoreCompaction();
-            dataSource.runPathToKeyValueStoreCompaction();
+            final long initTaskCount = compactingExecutor.getTaskCount();
+            triggerScansAndSubmitCompaction(dataSource, coordinator);
 
-            assertEventuallyEquals(
-                    initTaskCount + 3L,
-                    compactingExecutor::getTaskCount,
-                    Duration.ofMillis(20),
+            assertEventuallyTrue(
+                    () -> compactingExecutor.getTaskCount() >= initTaskCount + 3L,
+                    Duration.ofSeconds(2),
                     "Unexpected number of tasks " + compactingExecutor.getTaskCount());
             // wait a small-time for merging to start (or don't wait at all)
             Thread.sleep(delayMs);
@@ -165,9 +159,33 @@ class CompactionInterruptTest {
     }
 
     /**
+     * Mirrors the production lifecycle: the first round triggers scanner tasks for all three
+     * stores. After the scans complete, the second round finds cached stats and submits
+     * compaction tasks.
+     *
+     * <p>This is deterministic and avoids the race condition where {@code submitCompactionTasks}
+     * is called before scan results are available.
+     */
+    private static void triggerScansAndSubmitCompaction(
+            final MerkleDbDataSource dataSource, final MerkleDbCompactionCoordinator coordinator) {
+        // First round: triggers scan tasks for all three stores
+        dataSource.runHashChunkStoreCompaction();
+        dataSource.runKeyToPathStoreCompaction();
+        dataSource.runPathToKeyValueStoreCompaction();
+
+        // Wait for scans to complete — stats are now available in scanStatsByStore
+        coordinator.awaitForCurrentCompactionsToComplete(5000);
+
+        // Second round: stats are cached, compaction tasks get submitted
+        dataSource.runHashChunkStoreCompaction();
+        dataSource.runKeyToPathStoreCompaction();
+        dataSource.runPathToKeyValueStoreCompaction();
+    }
+
+    /**
      * Stops compaction and verifies that the coordinator reaches a clean quiescent state.
      *
-     * <p>Шndividual compactor instances are created internally by the
+     * <p>Individual compactor instances are created internally by the
      * coordinator — the test cannot inspect them directly. We verify coordinator-level
      * invariants instead:
      * <ul>
@@ -187,9 +205,11 @@ class CompactionInterruptTest {
 
         assertFalse(coordinator.isCompactionEnabled(), "compactionEnabled should be false");
 
-        assertFalse(coordinator.isCompactionRunning(ID_TO_HASH_CHUNK), "idToHashChunk compaction should not run");
-        assertFalse(coordinator.isCompactionRunning(OBJECT_KEY_TO_PATH), "keyToPath compaction should not run");
-        assertFalse(coordinator.isCompactionRunning(PATH_TO_KEY_VALUE), "pathToKeyValue compaction should not run");
+        assertFalse(coordinator.isCompactionRunning(ID_TO_HASH_CHUNK), ID_TO_HASH_CHUNK + " compaction should not run");
+        assertFalse(
+                coordinator.isCompactionRunning(OBJECT_KEY_TO_PATH), OBJECT_KEY_TO_PATH + " compaction should not run");
+        assertFalse(
+                coordinator.isCompactionRunning(PATH_TO_KEY_VALUE), PATH_TO_KEY_VALUE + " compaction should not run");
 
         synchronized (coordinator) {
             assertTrue(coordinator.compactorsByName.isEmpty(), "compactorsByName should be empty");

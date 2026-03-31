@@ -376,22 +376,6 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     @Test
-    void testSplitIntoGroupsNullStatsEntry() {
-        // f1 in stats, f5 not (gap in array) → projected = 0 for f5
-        final DataFileReader f1 = mockFileReader(1, 0, 100, 1000);
-        final DataFileReader f5 = mockFileReader(5, 0, 100, 1000);
-
-        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(f1, 50));
-
-        // f1 projected = 500. Cap = 400 → f1 alone in group 1 (oversized but at least one).
-        // f5 projected = 0 (not in stats) → starts group 2.
-        final List<List<DataFileReader>> groups =
-                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(f1, f5), 400, stats);
-
-        assertEquals(2, groups.size());
-    }
-
-    @Test
     void testSplitIntoGroupsEmptyCandidates() {
         final IndexedGarbageFileStats stats = buildStats();
 

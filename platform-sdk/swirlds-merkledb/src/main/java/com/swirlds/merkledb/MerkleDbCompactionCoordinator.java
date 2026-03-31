@@ -272,6 +272,10 @@ class MerkleDbCompactionCoordinator {
         }
 
         final IndexedGarbageFileStats stats = scanStatsByStore.get(storeName);
+        // if the scan failed, exiting early
+        if (stats == null) {
+            return;
+        }
         List<GarbageFileStats> fileStats = stats.getNonNullGarbageStats();
         if (fileStats.isEmpty()) {
             return;
@@ -408,7 +412,8 @@ class MerkleDbCompactionCoordinator {
 
         for (final DataFileReader reader : candidates) {
             final GarbageFileStats fs = stats.lookupStats(reader);
-            final long projectedAlive = fs == null ? 0 : estimateAliveBytes(reader, fs);
+            assert fs != null : "Candidates should have stats from the scan";
+            final long projectedAlive = estimateAliveBytes(reader, fs);
             if (!currentGroup.isEmpty() && currentProjectedSize + projectedAlive > maxProjectedBytes) {
                 groups.add(currentGroup);
                 currentGroup = new ArrayList<>();
@@ -474,9 +479,7 @@ class MerkleDbCompactionCoordinator {
         while (it.hasNext()) {
             final DataFileReader reader = it.next();
             final GarbageFileStats fs = stats.lookupStats(reader);
-            if (fs == null) {
-                continue;
-            }
+            assert fs != null : "Remaining pool should have stats from the scan";
 
             final long fileLive = fs.aliveItems();
             final long fileDead = fs.deadItems();

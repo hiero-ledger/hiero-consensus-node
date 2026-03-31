@@ -187,48 +187,47 @@ class DataFileCollectionCompactionTest {
         final CountDownLatch snapshotComplete = new CountDownLatch(1);
 
         // Do merge in a separate thread but pause before files are deleted
-        new Thread(() -> {
-                    final AtomicInteger updateCount = new AtomicInteger(0);
-                    final List<DataFileReader> filesToMerge = getFilesToMerge(store);
-                    final CASableLongIndex indexUpdater = new CASableLongIndex() {
-                        public long get(long key) {
-                            return index[(int) key];
+        final Thread compactionThread = new Thread(() -> {
+            final AtomicInteger updateCount = new AtomicInteger(0);
+            final List<DataFileReader> filesToMerge = getFilesToMerge(store);
+            final CASableLongIndex indexUpdater = new CASableLongIndex() {
+                public long get(long key) {
+                    return index[(int) key];
+                }
+
+                public boolean putIfEqual(long key, long oldValue, long newValue) {
+                    assertEquals(index[(int) key], oldValue, "Index value does not match");
+                    index[(int) key] = newValue;
+                    if (updateCount.incrementAndGet() == MAXKEYS) {
+                        compactionAboutComplete.countDown();
+                        try {
+                            snapshotComplete.await();
+                        } catch (final InterruptedException e) {
+                            throw new RuntimeException(e);
                         }
-
-                        public boolean putIfEqual(long key, long oldValue, long newValue) {
-                            assertEquals(index[(int) key], oldValue, "Index value does not match");
-                            index[(int) key] = newValue;
-                            if (updateCount.incrementAndGet() == MAXKEYS) {
-                                compactionAboutComplete.countDown();
-                                try {
-                                    snapshotComplete.await();
-                                } catch (final InterruptedException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                            return true;
-                        }
-
-                        public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
-                                throws InterruptedException, T {
-                            for (int i = 0; i < MAXKEYS; i++) {
-                                action.handle(i, index[i]);
-                            }
-                            return true;
-                        }
-                    };
-
-                    final DataFileCompactor compactor =
-                            new DataFileCompactor(storeName, store, indexUpdater, null, null, null, null);
-
-                    try {
-                        compactor.compactFiles(indexUpdater, filesToMerge, 1);
-                        store.close();
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
                     }
-                })
-                .start();
+                    return true;
+                }
+
+                public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
+                        throws InterruptedException, T {
+                    for (int i = 0; i < MAXKEYS; i++) {
+                        action.handle(i, index[i]);
+                    }
+                    return true;
+                }
+            };
+
+            final DataFileCompactor compactor =
+                    new DataFileCompactor(storeName, store, indexUpdater, null, null, null, null);
+
+            try {
+                compactor.compactFiles(indexUpdater, filesToMerge, 1);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+        compactionThread.start();
 
         compactionAboutComplete.await();
 
@@ -273,9 +272,11 @@ class DataFileCollectionCompactionTest {
             final DataFileCompactor compactor =
                     new DataFileCompactor(storeName, store2, indexUpdater, null, null, null, null);
 
-            compactor.compactFiles(indexUpdater, filesToMerge, 1);
+            if (filesToMerge.size() > 1) {
+                compactor.compactFiles(indexUpdater, filesToMerge, 1);
+            }
         } finally {
-            store2.close();
+            compactionThread.join();
         }
     }
 
