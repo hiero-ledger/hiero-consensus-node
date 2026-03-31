@@ -19,8 +19,6 @@ import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.TearDown;
 
 public abstract class VirtualMapBaseBench extends BaseBench {
 
@@ -58,17 +56,27 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         }
     }
 
-    @Setup
-    public void createLocal() {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onTrialSetup() {
+        super.onTrialSetup();
+
         // Start with a relatively low virtual map size hint and let MerkleDb resize its HDHM
         dataSourceBuilder = new MerkleDbDataSourceBuilder(configuration, maxKey / 2);
     }
 
-    @TearDown
-    public void destroyLocal() {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onTrialTearDown() throws Exception {
         releaseAndCloseMap(virtualMapP);
         virtualMapP = null;
         hasher.shutdown();
+
+        super.onTrialTearDown();
     }
 
     protected VirtualMap createEmptyMap() {
