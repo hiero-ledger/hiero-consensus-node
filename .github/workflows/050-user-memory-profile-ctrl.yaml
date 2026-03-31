@@ -164,7 +164,7 @@ jobs:
 
           git clone https://github.com/timo0/solo.git solo
           cd solo
-          git checkout fix-semantic-version
+          git checkout cn-direct-memory
           task build:compile
           #npm run build
 
