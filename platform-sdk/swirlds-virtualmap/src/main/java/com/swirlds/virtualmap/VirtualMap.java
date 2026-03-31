@@ -26,7 +26,6 @@ import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.utility.Labeled;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
@@ -171,10 +170,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     @Deprecated(forRemoval = true)
     public static final int MAX_LABEL_CHARS = 512;
 
-    /** Platform configuration */
-    @NonNull
-    private final Configuration configuration;
-
     /**
      * A {@link VirtualDataSourceBuilder} used for creating instances of {@link VirtualDataSource}.
      * The data source used by this instance is created from this builder. The builder is needed
@@ -275,7 +270,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
     private final long fastCopyVersion;
 
-    private VirtualMapStatistics statistics;
+    private final VirtualMapStatistics statistics;
 
     /**
      * This reference is used to assert that there is only one thread modifying the VM at a time.
@@ -285,16 +280,15 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
     /**
      * Required by the {@link RuntimeConstructable} contract.
-     * This can <strong>only</strong> be called as part of serialization and reconnect, not for normal use.
+     * This can <strong>only</strong> be called as part of serialization, not for normal use.
      */
     public VirtualMap(final @NonNull Configuration configuration) {
-        this.configuration = requireNonNull(configuration);
-
         this.fastCopyVersion = 0;
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
         // Hasher is required during reconnects
         this.hasher = new VirtualHasher(virtualMapConfig);
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
+        this.statistics = new VirtualMapStatistics(LABEL);
     }
 
     /**
@@ -306,12 +300,11 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public VirtualMap(
             final @NonNull VirtualDataSourceBuilder dataSourceBuilder, final @NonNull Configuration configuration) {
-        this.configuration = requireNonNull(configuration);
-
         this.fastCopyVersion = 0;
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
         this.hasher = new VirtualHasher(virtualMapConfig);
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
+        this.statistics = new VirtualMapStatistics(LABEL);
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
         dataSource = dataSourceBuilder.build(LABEL, null, true, false);
         this.metadata = new VirtualMapMetadata();
@@ -331,10 +324,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         requireNonNull(snapshotPath);
 
         this.fastCopyVersion = 0L;
-        this.configuration = requireNonNull(configuration);
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
         this.hasher = new VirtualHasher(virtualMapConfig);
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
+        this.statistics = new VirtualMapStatistics(LABEL);
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
         this.dataSource = dataSourceBuilder.build(LABEL, snapshotPath, true, false);
         this.metadata = new VirtualMapMetadata(dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
@@ -348,8 +341,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * 		must not be null.
      */
     private VirtualMap(final VirtualMap source) {
-        configuration = source.configuration;
-
         metadata = source.metadata.copy();
         fastCopyVersion = source.fastCopyVersion + 1;
         dataSourceBuilder = source.dataSourceBuilder;
@@ -377,7 +368,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * <p>The resulting map is registered with a fresh {@link VirtualPipeline} and is immediately
      * ready for use.
      *
-     * @param configuration    the platform configuration
+     * @param virtualMapConfig  the virtual map configuration
      * @param dataSourceBuilder the data source builder
      * @param dataSource        the data source containing the reconnected state
      * @param metadata          metadata describing the reconnected tree (size, first/last leaf paths)
@@ -387,16 +378,15 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *                          {@code null} for empty trees (hash is computed lazily in that case)
      */
     VirtualMap(
-            @NonNull final Configuration configuration,
+            @NonNull final VirtualMapConfig virtualMapConfig,
             @NonNull final VirtualDataSourceBuilder dataSourceBuilder,
             @NonNull final VirtualDataSource dataSource,
             @NonNull final VirtualMapMetadata metadata,
             @NonNull final VirtualMapStatistics statistics,
             @NonNull final VirtualHasher hasher,
             @Nullable final Hash reconnectHash) {
-        this.configuration = requireNonNull(configuration);
         this.fastCopyVersion = 0;
-        this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
+        this.virtualMapConfig = requireNonNull(virtualMapConfig);
         this.hasher = requireNonNull(hasher);
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
@@ -433,12 +423,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, dataSource::loadHashChunk);
         }
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, cache, dataSource);
-
-        if (statistics == null) {
-            // Only create statistics instance if we don't yet have statistics. During a reconnect operation.
-            // it is necessary to use the statistics object from the previous instance of the state.
-            statistics = new VirtualMapStatistics(LABEL);
-        }
 
         // VM size metric value is updated in add() and remove(). However, if no elements are added or
         // removed, the metric may have a stale value for a long time. Update it explicitly here
@@ -598,12 +582,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     }
 
     // ---- Package-private accessors for VirtualMapReconnect ----
-
-    /** Returns the platform configuration. */
-    @NonNull
-    Configuration getConfiguration() {
-        return configuration;
-    }
 
     /** Returns the data source builder. */
     @NonNull
@@ -857,9 +835,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 metadata.setFirstLeafPath(lastLeafParent); // replaced by the sibling, it is now first
                 metadata.setLastLeafPath(lastLeafSibling - 1); // One left of the last leaf sibling
             }
-            if (statistics != null) {
-                statistics.setSize(metadata.getSize());
-            }
+            statistics.setSize(metadata.getSize());
 
             // Get the value and return it, if requested
             return leafToDelete.valueBytes();

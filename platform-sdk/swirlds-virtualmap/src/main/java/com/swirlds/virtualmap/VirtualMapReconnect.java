@@ -9,7 +9,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
 import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
@@ -68,7 +67,6 @@ public final class VirtualMapReconnect implements Hashable {
 
     // ---- State captured from the original map at creation time ----
 
-    private final Configuration configuration;
     private final VirtualDataSourceBuilder dataSourceBuilder;
     private final VirtualHasher hasher;
     private final VirtualMapConfig virtualMapConfig;
@@ -102,7 +100,6 @@ public final class VirtualMapReconnect implements Hashable {
      * Private constructor — use {@link #create(VirtualMap)} as the entry point.
      */
     private VirtualMapReconnect(@NonNull final VirtualMap originalMap) {
-        this.configuration = originalMap.getConfiguration();
         this.dataSourceBuilder = originalMap.getDataSourceBuilder();
         this.hasher = originalMap.getHasher();
         this.virtualMapConfig = originalMap.getVirtualMapConfig();
@@ -264,7 +261,7 @@ public final class VirtualMapReconnect implements Hashable {
             logger.info(RECONNECT.getMarker(), "creating fully initialized VirtualMap from reconnect state");
             final VirtualMapMetadata metadata = new VirtualMapMetadata(reconnectState.getSize());
             virtualMap = new VirtualMap(
-                    configuration, dataSourceBuilder, dataSource, metadata, statistics, hasher, finalHash);
+                    virtualMapConfig, dataSourceBuilder, dataSource, metadata, statistics, hasher, finalHash);
         } catch (final ExecutionException e) {
             throw new MerkleSynchronizationException(e);
         } catch (final InterruptedException e) {
