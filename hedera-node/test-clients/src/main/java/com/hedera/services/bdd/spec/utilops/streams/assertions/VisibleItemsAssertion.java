@@ -58,11 +58,29 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     private boolean allIdsHaveItems = false;
 
     /**
-     * The total number of collected entries the last time validation was
-     * attempted.  Re-validation is skipped unless new items have arrived,
-     * avoiding repeated validator + exception overhead on every stream item.
+     * Snapshot of the total collected state (entries + skipped synth items) the
+     * last time validation was attempted.  Re-validation is skipped unless state
+     * has changed, avoiding repeated validator + exception overhead on every
+     * stream item.
      */
-    private int itemCountAtLastValidation = -1;
+    private int stateSnapshotAtLastValidation = -1;
+
+    /**
+     * Number of consecutive {@link #test} calls where the state snapshot has not
+     * changed since the last failed validation.  Once this exceeds
+     * {@link #SETTLE_ITEM_THRESHOLD}, we conclude that no more items are arriving
+     * and re-throw the validation error so that it is reported as a genuine failure
+     * (instead of being silently swallowed until timeout).
+     */
+    private int unchangedCallsSinceLastFailure = 0;
+
+    /**
+     * How many consecutive unchanged {@link #test} calls to tolerate before
+     * re-throwing a validation error.  50 items covers roughly one record-stream
+     * file's worth of traffic, giving enough time for a transaction's items that
+     * were split across files to arrive in the next poll cycle.
+     */
+    private static final int SETTLE_ITEM_THRESHOLD = 50;
 
     /**
      * The most recent validation error, kept so that {@link #toString()} can
@@ -145,25 +163,35 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
         // Only attempt validation once every ID has at least one collected item;
         // use try/catch so that if items are still arriving (e.g. a preceding child
         // and its parent were split across record-stream files), we keep waiting
-        // instead of failing immediately on incomplete data.
+        // instead of failing immediately on incomplete data.  Once enough items
+        // have been processed without any state change, we re-throw so that a
+        // genuine validation mismatch is reported rather than silently swallowed.
         if (!allIdsHaveItems) {
             allIdsHaveItems = allIds.stream().allMatch(items::containsKey);
         }
         if (allIdsHaveItems) {
-            // Only re-run the validator when new items have arrived since the
-            // last failed attempt, to avoid repeated exception/log overhead on
-            // every stream item while waiting for late-arriving records.
-            final var currentItemCount =
-                    items.values().stream().mapToInt(v -> v.entries().size()).sum();
-            if (currentItemCount == itemCountAtLastValidation) {
+            // Only re-run the validator when collected state has changed since the
+            // last failed attempt — count both entries and skipped synth items,
+            // since skipped synths affect firstExpectedUserNonce() used by validators.
+            final var currentSnapshot = items.values().stream()
+                    .mapToInt(v -> v.entries().size() + v.numSkippedSynthItems().get())
+                    .sum();
+            if (currentSnapshot == stateSnapshotAtLastValidation) {
+                // No new items arrived since the last failed validation.  After
+                // enough consecutive unchanged calls, conclude that no more items
+                // are coming and surface the error as a genuine failure.
+                if (lastValidationError != null && ++unchangedCallsSinceLastFailure > SETTLE_ITEM_THRESHOLD) {
+                    throw lastValidationError;
+                }
                 return false;
             }
+            unchangedCallsSinceLastFailure = 0;
             try {
                 validator.assertValid(spec, items);
                 lastValidationError = null;
                 return true;
             } catch (final AssertionError e) {
-                itemCountAtLastValidation = currentItemCount;
+                stateSnapshotAtLastValidation = currentSnapshot;
                 lastValidationError = e;
                 if (withLogging) {
                     log.info("Validation not yet passing (items may still be arriving): {}", e.getMessage());
@@ -181,35 +209,33 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
      *         {@code false} if no ID is registered yet for this item and it should be retried later
      */
     private boolean tryMatch(@NonNull final RecordStreamItem item) {
-        // Count how many IDs are currently resolvable in the registry; if none
-        // of the expected IDs are registered yet there is nothing to match against.
-        final var matched = new ArrayList<>(allIds)
-                .stream()
-                        .filter(id -> spec.registry()
-                                .getMaybeTxnId(id)
-                                .filter(txnId ->
-                                        baseFieldsMatch(txnId, item.getRecord().getTransactionID()))
-                                .isPresent())
-                        .findFirst();
-        if (matched.isPresent()) {
-            final var seenId = matched.get();
-            final var entry = RecordStreamEntry.from(item);
-            final var isSynthItem = isSynthItem(entry);
-            if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
-                if (withLogging) {
-                    log.info("Saw {} as {}", seenId, item.getRecord().getTransactionID());
-                }
-                items.computeIfAbsent(seenId, ignore -> newVisibleItems())
-                        .entries()
-                        .add(entry);
-            } else {
-                items.computeIfAbsent(seenId, ignore -> newVisibleItems()).trackSkippedSynthItem();
+        final var observedId = item.getRecord().getTransactionID();
+        boolean allResolvable = true;
+        for (final var id : allIds) {
+            final var maybeTxnId = spec.registry().getMaybeTxnId(id);
+            if (maybeTxnId.isEmpty()) {
+                allResolvable = false;
+                continue;
             }
-            return true;
+            if (baseFieldsMatch(maybeTxnId.get(), observedId)) {
+                final var entry = RecordStreamEntry.from(item);
+                final var isSynthItem = isSynthItem(entry);
+                if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
+                    if (withLogging) {
+                        log.info("Saw {} as {}", id, observedId);
+                    }
+                    items.computeIfAbsent(id, ignore -> newVisibleItems())
+                            .entries()
+                            .add(entry);
+                } else {
+                    items.computeIfAbsent(id, ignore -> newVisibleItems()).trackSkippedSynthItem();
+                }
+                return true;
+            }
         }
         // If all IDs are resolvable (registered) and none matched, the item is
         // genuinely unrelated — no need to buffer it for retry.
-        return allIds.stream().allMatch(id -> spec.registry().getMaybeTxnId(id).isPresent());
+        return allResolvable;
     }
 
     private static boolean isSynthItem(@NonNull final RecordStreamEntry entry) {
