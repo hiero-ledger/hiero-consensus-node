@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -53,8 +52,8 @@ import org.hiero.consensus.model.node.NodeId;
  *     <dt>csvFileName</dt>
  *     <dd>The filename of the generated CSV-file. If this setting is not set, no CSV-file is generated.</dd>
  *
- *     <dt>csvAppend</dt>
- *     <dd>If {@code true} and the file exists, new data is appended. Otherwise a new file is created.</dd>
+ *     <dt>csvOverwrite</dt>
+ *     <dd>If {@code true} and the file exists, it will be overwritten on each run. If not a new file with a suffix will be created</dd>
  *
  *     <dt>showInternalStats</dt>
  *     <dd>If {@code true}, also settings with the category "internal" will be written to file</dd>
@@ -71,7 +70,7 @@ public class LegacyCsvWriter {
 
     private final NodeId selfId;
     // path and filename of the .csv file to write to
-    private final Path csvFilePath;
+    private Path csvFilePath;
     private final MetricsConfig metricsConfig;
     private final BasicCommonConfig basicConfig;
 
@@ -143,32 +142,38 @@ public class LegacyCsvWriter {
         try {
             // create parent folder, if it does not exist
             ensureFolderExists();
-            if (metricsConfig.csvAppend() && Files.exists(csvFilePath)) {
-                // make sure last line of previous test was ended, and a blank line is inserted between tests.
-                Files.writeString(csvFilePath, "\n\n", StandardOpenOption.APPEND);
-            } else {
-                // if csvAppend is off, or it is on but the file does not exist, write the definitions and the headings.
-                // otherwise, they will already be there, so we can skip it
-                final ContentBuilder builder = new ContentBuilder();
-                // add the definitions at the top
-                builder.addCell("filename:").addCell(csvFilePath).newRow();
-
-                // add descriptions
-                for (final Metric metric : filteredMetrics) {
-                    builder.addCell(metric.getName() + ":")
-                            .addCell(metric.getDescription())
-                            .newRow();
+            if (!metricsConfig.csvOverwrite() && Files.exists(csvFilePath)) {
+                // Assign a new file name with an incrementing suffix to avoid overwriting existing data
+                final String fileName = csvFilePath.getFileName().toString();
+                final int dotIndex = fileName.lastIndexOf('.');
+                final String baseName = dotIndex >= 0 ? fileName.substring(0, dotIndex) : fileName;
+                final String extension = dotIndex >= 0 ? fileName.substring(dotIndex) : "";
+                int suffix = 1;
+                while (Files.exists(csvFilePath.resolveSibling(baseName + "_" + suffix + extension))) {
+                    suffix++;
                 }
-
-                // add empty row
-                builder.newRow();
-
-                // add rows with categories and names
-                addHeaderRows(builder, filteredMetrics);
-
-                // write to file
-                Files.writeString(csvFilePath, builder.toString(), CREATE, TRUNCATE_EXISTING);
+                csvFilePath = csvFilePath.resolveSibling(baseName + "_" + suffix + extension);
             }
+            final ContentBuilder builder = new ContentBuilder();
+            // add the definitions at the top
+            builder.addCell("filename:").addCell(csvFilePath).newRow();
+
+            // add descriptions
+            for (final Metric metric : filteredMetrics) {
+                builder.addCell(metric.getName() + ":")
+                        .addCell(metric.getDescription())
+                        .newRow();
+            }
+
+            // add empty row
+            builder.newRow();
+
+            // add rows with categories and names
+            addHeaderRows(builder, filteredMetrics);
+
+            // write to file
+            Files.writeString(csvFilePath, builder.toString(), CREATE, TRUNCATE_EXISTING);
+
         } catch (IOException ex) {
             throw new UncheckedIOException(ex);
         }
