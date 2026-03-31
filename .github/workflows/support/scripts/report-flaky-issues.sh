@@ -24,7 +24,7 @@ if [[ ! -f "${FLAKY_TESTS_JSON}" ]]; then
 fi
 
 count=$(jq 'length' "${FLAKY_TESTS_JSON}")
-if [[ "${count}" -eq 0 ]]; then
+if [[ "${count}" -le 0 ]]; then
     echo "No flaky tests to process."
     echo '[]' > "${OUTPUT_FILE}"
     exit 0

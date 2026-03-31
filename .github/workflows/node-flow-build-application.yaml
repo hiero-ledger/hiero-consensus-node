@@ -183,23 +183,7 @@ jobs:
         run: |
           echo "## Rootly Summary:" >> "${GITHUB_STEP_SUMMARY}"
           echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Create Rootly Alert
-        id: create-rootly-alert
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-        continue-on-error: true
-        with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          summary: "${{ steps.rootly-summary.outputs.title }}"
-          details: "${{ steps.rootly-summary.outputs.summary }}"
-          notification_target_type: "Service"
-          notification_target: "CITR General"
-          set_as_noise: "false"
-          alert_urgency: "Low"
-          external_id: ${{ github.run_id }}
-          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          environments: "CITR"
 
       - name: Build Slack Payload Message
         env:
