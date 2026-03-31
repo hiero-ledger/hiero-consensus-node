@@ -813,7 +813,7 @@ jobs:
 
           kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
-          ${NLGargs} -tt 10s > client.log 2>&1 &"
+          ${NLGargs} -tt 0s > client.log 2>&1 &"
 
       - name: Start BlockNode Cleaner
         run: |
