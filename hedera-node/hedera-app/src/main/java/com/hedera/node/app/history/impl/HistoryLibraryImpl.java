@@ -229,4 +229,13 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public boolean wrapsProverReady() {
         return WRAPSLibraryBridge.isProofSupported();
     }
+
+    @Override
+    public boolean verifyCompressedProof(
+            @NonNull final byte[] compressedProof, @NonNull final byte[] ledgerId, @NonNull final byte[] metadata) {
+        requireNonNull(compressedProof);
+        requireNonNull(ledgerId);
+        requireNonNull(metadata);
+        return WRAPS.verifyCompressedProof(compressedProof, ledgerId, metadata);
+    }
 }

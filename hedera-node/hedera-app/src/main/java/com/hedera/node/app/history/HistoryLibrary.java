@@ -277,4 +277,13 @@ public interface HistoryLibrary {
      * Returns whether the library is ready to be used.
      */
     boolean wrapsProverReady();
+
+    /**
+     * Verifies whether a compressed proof establishes the given metadata in the chain of trust of the given ledger id.
+     * @param compressedProof the compressed proof
+     * @param ledgerId the ledger id
+     * @param metadata the metadata
+     * @return if the proof is valid
+     */
+    boolean verifyCompressedProof(byte[] compressedProof, byte[] ledgerId, byte[] metadata);
 }
