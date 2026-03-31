@@ -297,7 +297,7 @@ After each flush, the flush handler submits two kinds of tasks to the compaction
    are only submitted once the first scan for a store has completed. New tasks for a level are only submitted when
    ALL tasks from the previous batch for that level have completed (tracked by a per-level counter).
 
-**Projected output size cap.** The `maxCompactedFileSizeInMB` parameter (default 1000 = 1 GB) limits the estimated
+**Projected output size cap.** The `maxCompactedFileSizeInMB` parameter (default 10000 = 10 GB) limits the estimated
 size of each compaction task's output. For each candidate file, the projected alive size is `fileSize × (1 - garbageRatio)`.
 Files are taken in iteration order (file index order from the scanner) and accumulated into a group until the next file would
 push the cumulative projected size over the cap; then a new group is started. At least one file per group is always included,
@@ -305,7 +305,7 @@ so a single large-but-mostly-garbage file is never skipped.
 
 This output-oriented estimation matches the copying collector's cost model: a file's processing cost is proportional
 to its alive data (which must be read and copied), not its total size. A 500 GB file with 99.9% garbage is fast
-to process — only ~500 MB of data is copied — while a 1 GB file with 10% garbage requires copying 900 MB.
+to process — only ~500 MB of data is copied — while a 10 GB file with 10% garbage requires copying 900 MB.
 
 **The flow for each compaction task when it executes:**
 
@@ -550,7 +550,7 @@ The following configuration parameters in `MerkleDbConfig` control compaction be
 | `compactionThreads`        | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                                                                                                                                                                                                                                                                  |
 | `maxCompactionLevel`       | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                                                                                                                                                                                                                                                                |
 | `gcRateThreshold`          | 0.5     | Minimum dead-to-alive ratio for compaction decisions. In **phase 1**, files whose individual ratio exceeds this value are selected. In **phase 2**, remaining files are considered for absorption as long as adding each one keeps the aggregate ratio above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead item is reclaimed. |
-| `maxCompactedFileSizeInMB` | 1000    | Maximum projected output size (MB) per compaction task. Also the size cap for per-group **phase 2** absorption. Candidates are partitioned into groups bounded by this size. 1 GB by default.                                                                                                                                                                     |
+| `maxCompactedFileSizeInMB` | 10000   | Maximum projected output size (MB) per compaction task. Also the size cap for per-group **phase 2** absorption. Candidates are partitioned into groups bounded by this size. 10 GB by default.                                                                                                                                                                    |
 
 ### Observability
 
