@@ -184,7 +184,6 @@ jobs:
           echo "## Rootly Summary:" >> "${GITHUB_STEP_SUMMARY}"
           echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
 
-
       - name: Build Slack Payload Message
         env:
           FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
