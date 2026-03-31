@@ -116,7 +116,11 @@ public class ProofControllerImpl implements ProofController {
         }
 
         public byte[] compressedProofOrEmpty() {
-            return historyProofVote.proofOrThrow().chainOfTrustProofOrElse(ChainOfTrustProof.DEFAULT).wrapsProofOrElse(Bytes.EMPTY).toByteArray();
+            return historyProofVote
+                    .proofOrThrow()
+                    .chainOfTrustProofOrElse(ChainOfTrustProof.DEFAULT)
+                    .wrapsProofOrElse(Bytes.EMPTY)
+                    .toByteArray();
         }
     }
 
@@ -297,24 +301,27 @@ public class ProofControllerImpl implements ProofController {
         final boolean thresholdCrossed;
         final ProofVoteCategory category;
         if (explicitProofVote.isRecursive()) {
-            final var ledgerId = Optional.ofNullable(historyStore.getLedgerId())
-                    .orElse(Bytes.EMPTY);
-            final var metadata =
-                    Optional.ofNullable(targetMetadata).orElse(Bytes.EMPTY);
+            final var ledgerId = Optional.ofNullable(historyStore.getLedgerId()).orElse(Bytes.EMPTY);
+            final var metadata = Optional.ofNullable(targetMetadata).orElse(Bytes.EMPTY);
             votes.values()
-                    .forEach(v -> proofTagValidations.computeIfAbsent(
-                            v.tag(),
-                            _ -> {
-                                final boolean valid = historyLibrary.verifyCompressedProof(v.compressedProofOrEmpty(), ledgerId.toByteArray(), metadata.toByteArray());
-                                log.info("{} compressed proof '{}' over ('{}' || '{}')", valid ? "VALID" : "INVALID", Bytes.wrap(v.compressedProofOrEmpty()), ledgerId, metadata);
-                                return valid;
-                            }));
+                    .forEach(v -> proofTagValidations.computeIfAbsent(v.tag(), _ -> {
+                        final boolean valid = historyLibrary.verifyCompressedProof(
+                                v.compressedProofOrEmpty(), ledgerId.toByteArray(), metadata.toByteArray());
+                        log.info(
+                                "{} compressed proof '{}' over ('{}' || '{}')",
+                                valid ? "VALID" : "INVALID",
+                                Bytes.wrap(v.compressedProofOrEmpty()),
+                                ledgerId,
+                                metadata);
+                        return valid;
+                    }));
             category = proofTagValidations.get(explicitProofVote.tag()) ? VALID_RECURSIVE : INVALID_RECURSIVE;
             final var weightsByValidity = votes.entrySet().stream()
                     .collect(groupingBy(
                             entry -> proofTagValidations.get(entry.getValue().tag()),
                             summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
-            final long validWeight = Optional.ofNullable(weightsByValidity.get(Boolean.TRUE)).orElse(0L);
+            final long validWeight =
+                    Optional.ofNullable(weightsByValidity.get(Boolean.TRUE)).orElse(0L);
             thresholdCrossed = validWeight >= weights.sourceWeightThreshold();
             if (thresholdCrossed) {
                 // Votes for valid recursive proofs are treated as congruent, we pick the valid proof

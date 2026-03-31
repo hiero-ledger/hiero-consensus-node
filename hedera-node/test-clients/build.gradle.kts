@@ -261,7 +261,7 @@ val prCheckPrepareUpgradeOffsets =
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
 // (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be for each task in CI; set it here
 val prCheckTssLibWrapsArtifactsPaths =
-    mapOf("hapiTestWraps" to "/Users/michaeltinker/misc/wraps-v0.2.0", "hapiTestCutover" to "", "hapiTestWrapsDownload" to "data/keys")
+    mapOf("hapiTestWraps" to "", "hapiTestCutover" to "", "hapiTestWrapsDownload" to "data/keys")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     buildMap<String, String> {
