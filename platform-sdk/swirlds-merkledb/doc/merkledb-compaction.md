@@ -189,9 +189,21 @@ which is harmless), or the file was written by an older version that did not rec
 Files with zero alive items also get `deadToAliveRatio = MAX_VALUE` (nothing to copy — perfect).
 Files with zero dead items get `deadToAliveRatio = 0.0` (no garbage — never individually selected for compaction).
 
-The scanner does not filter or group files — it returns the full `IndexedGarbageFileStats` for all completed files.
-Filtering, grouping, and absorption are performed by the `MerkleDbCompactionCoordinator` when it processes scan
-results in `submitCompactionTasks()`. The coordinator applies a two-phase selection algorithm per level:
+In rare cases involving successive `HalfDiskHashMap` bucket doublings, the scanner's deduplication heuristic may
+not fully prevent double-counting, causing `aliveItems` to exceed `totalItems`. The `aliveItems()` accessor caps
+the returned value at `totalItems` via `Math.min(totalItems(), aliveItems)`, ensuring `garbageRatio` stays in
+[0.0, 1.0] and `deadToAliveRatio` does not become negative. This is a conservative correction — the file appears
+to have zero garbage, which means it won't be selected in phase 1 but may still be absorbed in phase 2 if a dirty
+group has budget.
+
+The scanner does not filter or group files by compaction eligibility — it returns the full `IndexedGarbageFileStats`
+for all completed files that are not currently being compacted. Files whose `compactionInProgress` flag is set are
+excluded from the scanner's collection snapshot before stats are computed. This prevents stale scan results from
+referencing files that are mid-compaction and will likely be deleted before the results are consumed.
+Filtering by `gcRateThreshold`, grouping by projected output size, and phase 2 absorption are performed by the
+`MerkleDbCompactionCoordinator` when it processes scan results in `submitCompactionTasks()`.
+
+The coordinator applies a two-phase selection algorithm per level:
 
 1. **Phase 1 — Select eligible files:** files whose `deadToAliveRatio` exceeds `gcRateThreshold` are collected as
    compaction candidates for their level. These are files with enough garbage to justify compaction on their own.
@@ -300,10 +312,17 @@ to process — only ~500 MB of data is copied — while a 1 GB file with 10% gar
 1. Check if compaction is still enabled (exit if disabled during shutdown).
 2. Create a `DataFileCompactor` via the factory and register it for pause/resume/interrupt.
 3. Filter out stale entries: intersect the assigned file list with the current file collection
-   (`DataFileCollection.getAllCompletedFiles()`). The scan is a point-in-time snapshot that may reference files already
-   consumed by a compaction cycle that completed after the scan was taken. Files that were already compacted and deleted
-   by a concurrent task since the scan are removed. If no valid files remain, exit.
-4. Compact the valid files into a new output file at `level + 1` (capped at `maxCompactionLevel`).
+   (`DataFileCollection.getAllCompletedFiles()`). This handles the case where a task was submitted but queued — between
+   submission and execution, a previous compaction cycle may have completed and deleted some of the assigned files. The
+   `compactionInProgress` flag cannot cover this gap because it is only set at execution time, not at submission time
+   (setting at submission time would risk permanently flagging files if the task never executes, e.g. due to shutdown).
+   If no valid files remain, exit.
+4. Mark valid files as being compacted (`setCompactionInProgress()`). This makes them invisible to concurrent scanners,
+   preventing future scan results from referencing files that are about to be compacted.
+5. Compact the valid files into a new output file at `level + 1` (capped at `maxCompactionLevel`).
+6. In the `finally` block, reset the `compactionInProgress` flag on all assigned files
+   (`resetCompactionInProgress()`). If compaction succeeded, the files are already deleted and the reset is a no-op.
+   If compaction failed or was interrupted, the files remain in the collection and become visible to future scans again.
 
 ### Compaction Execution
 
@@ -359,7 +378,7 @@ managed by `MerkleDbCompactionCoordinator`. The pool size is configurable via `M
 
 The `MerkleDbCompactionCoordinator` tracks tasks using two structures:
 
-- A `tasks` set containing all active task keys (e.g. `"IdToHashChunk_scan"`, `"IdToHashChunk_compact_2_0"`, `"IdToHashChunk_compact_2_1"`).
+- A `tasksKeys` set containing all active task keys (e.g. `"IdToHashChunk_scan"`, `"IdToHashChunk_compact_2_0"`, `"IdToHashChunk_compact_2_1"`).
 - A `compactionTaskCounts` map tracking the number of outstanding tasks per level key (e.g. `"IdToHashChunk_compact_2" → 3`).
   When the count reaches zero, new tasks for that level can be submitted from the next scan cycle.
 
@@ -367,7 +386,7 @@ The `MerkleDbCompactionCoordinator` tracks tasks using two structures:
 
 **`MerkleDbCompactionCoordinator`** manages the lifecycle of scanner and compaction tasks. It tracks two categories of state:
 
-- **Submitted tasks** (`tasks`): a single `Set<String>` that tracks all queued and running tasks — both scanners and compaction tasks.
+- **Submitted tasks** (`taskKeys`): a single `Set<String>` that tracks all queued and running tasks — both scanners and compaction tasks.
   Task keys use distinct patterns (`"_scan"` for scanners, `"_compact_N_C"` for compaction where N is the level and C is the group index).
   A task is in this set from submission until its `finally` block.
 - **Active compactors** (`compactorsByName`): tracks tasks that have created a `DataFileCompactor` and are actively compacting.
@@ -388,7 +407,7 @@ per data source and reused across flushes.
 **`MerkleDbCompactionCoordinator`** owns the full compaction decision pipeline. Key data structures:
 
 - **Scan statistics** (`scanStatsByStore`): maps store names to the latest `IndexedGarbageFileStats` from the scanner.
-- **Submitted tasks** (`tasks`): a single `Set<String>` that tracks all queued and running tasks — both scanners and compaction tasks.
+- **Submitted tasks** (`taskKeys`): a single `Set<String>` that tracks all queued and running tasks — both scanners and compaction tasks.
   Task keys use distinct patterns (`"_scan"` for scanners, `"_compact_N_C"` for compaction where N is the level and C is the group index).
   A task is in this set from submission until its `finally` block.
 - **Active compactors** (`compactorsByName`): tracks tasks that have created a `DataFileCompactor` and are actively compacting.
@@ -427,6 +446,15 @@ which uses a CAS loop. This makes concurrent modifications from multiple compact
 **`DataFileReader`** represents a single data file and provides read access to its data items.
 It holds the file's `DataFileMetadata` (including compaction level and item count) and tracks whether the file
 has been fully written (`setFileCompleted()`). Only completed files are eligible for compaction.
+It also carries a `compactionInProgress` flag (`AtomicBoolean`) that is set when a compaction task begins processing
+the file and reset in the task's `finally` block. While the flag is set, the `GarbageScanner` excludes the file from
+its collection snapshot, preventing it from appearing in scan results. This avoids "budget evaporation" — a scenario
+where a group's aggregate dead/alive ratio is inflated by files that get deleted before the compaction task executes.
+The file's `metadataRef` is an `AtomicReference<DataFileMetadata>` because metadata is updated after construction:
+`DataFileCollection.endWriting()` propagates the final `itemsCount` from the writer, and `setCompactionLevel()`
+swaps the metadata with a new compaction level. These updates happen on the flush or compaction thread while scanner
+and compaction threads may concurrently read the metadata. The atomic reference ensures cross-thread visibility
+without explicit synchronization.
 
 **`DataFileMetadata`** stores per-file metadata in the file header: file index, creation date, compaction level, and
 total item count. The compaction level is a byte `(max 127)`, and the item count is set once at file creation.
@@ -439,9 +467,11 @@ created once during construction and reused across flushes. After each flush, it
 ### Edge Cases
 
 **No scan results available yet.** After the first few flushes, scanning tasks may not have completed.
-Since `submitCompactionTasks` reads from `scanStatsByStore`, no compaction tasks are submitted until
-the first scan completes and populates results. This is correct — compaction simply doesn't start until the first scan finishes.
-There is no harm in delaying compaction for a few seconds at startup.
+`submitCompactionTasks` reads from `scanStatsByStore` and returns immediately if no stats are available (null check).
+No compaction tasks are submitted until the first scan completes and populates results. This is correct — compaction
+simply doesn't start until the first scan finishes. There is no harm in delaying compaction for a few seconds at startup.
+If a scan fails (e.g. due to a concurrent snapshot modifying the file collection), `scanStatsByStore` is not populated for
+that store, and the next flush will trigger a new scan attempt.
 
 **Compaction interrupted by snapshot.** If a snapshot is requested while compaction is writing to an output file,
 the file is flushed and closed via `pauseCompaction()`. After the snapshot, `resumeCompaction()` opens a new output file
@@ -478,9 +508,20 @@ that level produces no phase 1 candidates. Since **phase 2** only runs for group
 selected and compaction is not scheduled for such levels.
 
 **Stale scan results referencing deleted files.** Between the time a scan completes and a compaction task executes,
-concurrent compaction tasks may have already compacted and deleted some of the candidate files. The compaction task
-handles this by intersecting the candidate list with the current file collection before proceeding. Files no longer
-present are silently dropped. If all candidates in a group have been deleted, the task exits as a no-op.
+concurrent compaction tasks may have already compacted and deleted some of the candidate files. This can occur when a
+task is submitted but sits in the executor queue: the scan ran before the task started (so the `compactionInProgress`
+flag was not yet set), and a previous cycle's task finishes and deletes the files while the new task is still queued.
+By the time the new task executes, the assigned files no longer exist in the collection. The compaction task handles
+this by intersecting the candidate list with the current file collection before proceeding. Files no longer present
+are silently dropped. If all candidates in a group have been deleted, the task exits as a no-op.
+
+**Budget evaporation from mid-compaction files.** _Without the `compactionInProgress` flag_, a scanner running
+concurrently with a compaction task would include mid-compaction files in its stats. If those files are later deleted
+by the compaction task, the coordinator would build groups whose aggregate dead/alive ratio was inflated by files that
+no longer exist. The resulting compaction tasks would process mostly clean files with little garbage — wasting I/O for
+minimal size reduction. The `compactionInProgress` flag prevents this: the scanner excludes flagged files from its
+collection snapshot, so mid-compaction files never appear in scan results. The flag is set at task execution time
+(not submission time) and reset in the task's `finally` block, ensuring files become visible again if compaction fails.
 
 **New files created during compaction.** Flushes continue while compaction runs, producing new level 0 files.
 These files are not included in the current compaction run (the compaction set is fixed at scan time).
