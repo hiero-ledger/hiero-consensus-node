@@ -290,7 +290,7 @@ public class GarbageScanner {
 
         /** @return {@code totalItems - aliveItems} */
         public long deadItems() {
-            return totalItems() - aliveItems;
+            return totalItems() - aliveItems();
         }
 
         void incrementAliveItems() {
@@ -311,7 +311,7 @@ public class GarbageScanner {
             if (totalItems() == 0) {
                 return 1.0;
             }
-            return 1.0 - ((double) aliveItems / totalItems());
+            return 1.0 - ((double) aliveItems() / totalItems());
         }
 
         /**
@@ -322,12 +322,12 @@ public class GarbageScanner {
          * @return dead-to-alive ratio
          */
         public double deadToAliveRatio() {
-            if (aliveItems == 0) {
+            if (aliveItems() == 0) {
                 return Double.MAX_VALUE;
             }
             final long dead = deadItems();
 
-            return (double) dead / aliveItems;
+            return (double) dead / aliveItems();
         }
     }
 }

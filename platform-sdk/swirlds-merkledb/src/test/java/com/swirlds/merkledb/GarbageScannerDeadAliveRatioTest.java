@@ -148,8 +148,8 @@ class GarbageScannerDeadAliveRatioTest {
 
             final GarbageFileStats fs = stats.garbageFileStats()[0];
             assertEquals(5, fs.aliveItems()); // capped at totalItems
-            assertEquals(-2, fs.deadItems());
-            assertEquals(-2.0 / 7.0, fs.deadToAliveRatio(), 1e-9);
+            assertEquals(0, fs.deadItems());
+            assertEquals(0, fs.deadToAliveRatio(), 1e-9);
         }
     }
 
