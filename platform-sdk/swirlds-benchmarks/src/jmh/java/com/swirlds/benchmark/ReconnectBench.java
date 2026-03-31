@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.virtualmap.VirtualMap;
@@ -112,7 +114,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
                         StateBuilder.buildVMPopulator(learnerRef),
                         i -> {
                             if (i % numRecords == 0) {
-                                System.err.printf("Copying files for i=%,d\n", i);
+                                logger.info("Copying files for i={}", i);
                                 teacherRef.set(teacherMap = copyMap(teacherMap));
                                 learnerRef.set(learnerMap = copyMap(learnerMap));
                             }
@@ -211,6 +213,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     @Benchmark
     public void reconnect() throws Exception {
+        logger.info(RUN_DELIMITER);
+
         reconnectedMap = MerkleBenchmarkUtils.hashAndTestSynchronization(
                 learnerMap,
                 teacherMap,
