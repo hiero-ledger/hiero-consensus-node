@@ -5,8 +5,9 @@
             <!-- 'hc' -> 'HapiClients' -->
 			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;hc&gt; %-5p  %-4L %c{1} - %m%n"/>
 		</Console>
-		<RollingFile name="RollingFile" fileName="output/hapi-client.log"
-					 filePattern="output/hapi-client.log-%d{yyyy-MM-dd}-%i.log" >
+		<RollingFile name="RollingFile"
+					 fileName="${sys:hapi.test.clients.log.file:-output/hapi-client.log}"
+					 filePattern="${sys:hapi.test.clients.log.filePattern:-output/hapi-client.log-%d{yyyy-MM-dd}-%i.log}" >
 			<PatternLayout>
 				<!-- 'tc' -> 'test-clients' -->
 				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;tc&gt; %-5p %-4L %c{1} - %m%n</pattern>

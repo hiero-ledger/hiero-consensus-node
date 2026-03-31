@@ -460,7 +460,8 @@ public class NetworkAdminHandlerTestBase {
                 0,
                 0L,
                 0L,
-                0L);
+                0L,
+                Bytes.EMPTY);
     }
 
     protected void givenFungibleTokenRelation() {
