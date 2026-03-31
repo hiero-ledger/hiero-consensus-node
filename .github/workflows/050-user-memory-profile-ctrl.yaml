@@ -281,17 +281,15 @@ jobs:
           set +x
           cd "${{ github.workspace }}"/solo
           #process hprof-s
-          for i in `ls -1 *.hprof`;\
-          do \
-            if [ -f $i.hprof ]
-            then
-              mkdir $i
-              cd $i
-              mv ../$i.hprof ./$i.hprof
-              bash ${HOME}/mat/ParseHeapDump.sh ./$i.hprof org.eclipse.mat.api:overview
-              unzip -d "${{ github.workspace }}"/report/$i ${i}_System_Overview.zip
+          ls -1 *.hprof
+          for i in `ls -1 *.hprof`
+          do
+              mkdir $i.dir
+              cd $i.dir
+              mv ../$i ./$i
+              bash ${HOME}/mat/ParseHeapDump.sh ./$i org.eclipse.mat.api:overview
+              unzip -d "${{ github.workspace }}"/report/$i.report ${i}_System_Overview.zip
               cd "${{ github.workspace }}"/solo
-            fi
           done
 
       - name: Publish logs
