@@ -84,8 +84,7 @@ public class BenchmarkService implements SlothService {
                 "app",
                 "slothLatency",
                 "the latency of sloth transaction in microseconds",
-                FloatFormats.FORMAT_16_2
-        );
+                FloatFormats.FORMAT_16_2);
     }
 
     /**
@@ -126,7 +125,7 @@ public class BenchmarkService implements SlothService {
                 InstantUtils.instantToMicros(submissionTime),
                 InstantUtils.instantToMicros(handleTime));
 
-        if(latencyMetric != null){
+        if (latencyMetric != null) {
             latencyMetric.update(latencyMicros);
         }
     }
