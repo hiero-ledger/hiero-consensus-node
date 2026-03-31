@@ -1878,11 +1878,20 @@ public class FeesChargingUtils {
     /**
      * Network-only fee for TokenFreeze failures in pre-handle.
      */
-    public static double expectedTokenFreezeNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenFreezeNetworkFeeOnlyUsd(long sigs, int txnSize) {
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenFreezeNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenFreezeNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenUnfreeze simple fees utils ---------//
@@ -1928,11 +1937,20 @@ public class FeesChargingUtils {
     /**
      * Network-only fee for TokenUnfreeze failures in pre-handle.
      */
-    public static double expectedTokenUnfreezeNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenUnfreezeNetworkFeeOnlyUsd(long sigs, int txnSize) {
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenUnfreezeNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenUnfreezeNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenUnpause simple fees utils ---------//
