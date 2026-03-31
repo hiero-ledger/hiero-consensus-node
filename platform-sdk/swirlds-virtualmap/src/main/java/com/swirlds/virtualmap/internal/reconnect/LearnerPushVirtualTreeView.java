@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static com.swirlds.virtualmap.internal.Path.getChildPath;
 import static com.swirlds.virtualmap.internal.Path.getParentPath;
@@ -22,8 +21,6 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -37,8 +34,6 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  */
 public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView {
 
-    private static final Logger logger = LogManager.getLogger(LearnerPushVirtualTreeView.class);
-
     /**
      * Some reasonable default initial capacity for the {@link BooleanBitSetQueue}s used for
      * storing {@link ExpectedLesson} data. If the value is too large, we use some more memory
@@ -50,11 +45,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
      */
     private final VirtualMapReconnect reconnect;
-
-    /**
-     * Handles removal of old nodes.
-     */
-    private final ReconnectNodeRemover nodeRemover;
 
     /**
      * As part of tracking {@link ExpectedLesson}s, this keeps track of the "nodeAlreadyPresent" boolean.
@@ -103,12 +93,10 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             @NonNull final RecordAccessor originalRecords,
             @NonNull final VirtualMapMetadata originalState,
             @NonNull final VirtualMapMetadata reconnectState,
-            @NonNull final ReconnectNodeRemover nodeRemover,
             @NonNull final ReconnectMapStats mapStats) {
         super(originalState, reconnectState);
         this.reconnect = requireNonNull(reconnect);
         this.originalRecords = requireNonNull(originalRecords);
-        this.nodeRemover = requireNonNull(nodeRemover);
         this.mapStats = requireNonNull(mapStats);
     }
 
@@ -191,8 +179,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
         final VirtualLeafBytes<?> leaf = VirtualReconnectUtils.readLeafRecord(in);
-        nodeRemover.newLeafNode(leaf.path(), leaf.keyBytes());
-        reconnect.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
+        reconnect.onLeaf(leaf); // may block if hashing is slower than ingest
         return leaf.path();
     }
 
@@ -211,10 +198,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             // of the VirtualMap. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
-            reconnectState.setLastLeafPath(lastLeafPath);
-            reconnectState.setFirstLeafPath(firstLeafPath);
-            reconnect.prepareReconnectHashing(firstLeafPath, lastLeafPath);
-            nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
+            reconnect.onStart(firstLeafPath, lastLeafPath);
         }
         return node;
     }
@@ -224,11 +208,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void close() {
-        logger.info(RECONNECT.getMarker(), "call nodeRemover.allNodesReceived()");
-        nodeRemover.allNodesReceived();
-        logger.info(RECONNECT.getMarker(), "call reconnect.endLearnerReconnect()");
-        reconnect.endLearnerReconnect();
-        logger.info(RECONNECT.getMarker(), "close() complete");
+        reconnect.close();
     }
 
     /**

@@ -55,7 +55,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  *       {@link #getVirtualMap()}.</li>
  * </ol>
  *
- * <p>No {@link VirtualMap} is created until {@link #endLearnerReconnect()} is called (which
+ * <p>No {@link VirtualMap} is created until {@link #close()} is called (which
  * happens internally when the learner tree view is closed), at which point a fresh, fully
  * initialized {@link VirtualMap} is constructed from the reconnected state.
  */
@@ -82,6 +82,7 @@ public final class VirtualMapReconnect implements Hashable {
     private final CompletableFuture<Hash> reconnectHashingFuture;
     private final AtomicBoolean reconnectHashingStarted;
     private ReconnectHashLeafFlusher reconnectFlusher;
+    private ReconnectNodeRemover nodeRemover;
 
     // ---- Set after reconnect completes ----
 
@@ -91,7 +92,7 @@ public final class VirtualMapReconnect implements Hashable {
 
     /**
      * The fully initialized {@link VirtualMap} created at the end of the reconnect process.
-     * Null until {@link #endLearnerReconnect()} has been called.
+     * Null until {@link #close()} has been called.
      */
     @Nullable
     private VirtualMap virtualMap;
@@ -186,12 +187,57 @@ public final class VirtualMapReconnect implements Hashable {
     // ---- Reconnect operations (called by LearnerTreeView implementations) ----
 
     /**
+     * Called when the teacher has sent the root response, establishing the first and last leaf
+     * paths of the reconnected tree. This initializes the reconnect state, registers old leaves
+     * that need to be removed, and starts the background hashing thread.
+     *
+     * <p>Must be called before {@link #onLeaf(VirtualLeafBytes)}.
+     *
+     * @param firstLeafPath first leaf path in the reconnected tree
+     * @param lastLeafPath  last leaf path in the reconnected tree
+     */
+    public void onStart(final long firstLeafPath, final long lastLeafPath) {
+        assert nodeRemover != null : "buildLearnerView() must be called first";
+        reconnectState.setPaths(firstLeafPath, lastLeafPath);
+        nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
+        prepareReconnectHashing(firstLeafPath, lastLeafPath);
+    }
+
+    /**
+     * Called when a dirty leaf is received from the teacher. Registers the leaf for stale-key
+     * removal tracking and feeds it into the background hashing pipeline.
+     * May block if the hashing thread is slower than the incoming data rate.
+     *
+     * @param leaf the leaf record received from the teacher; must not be null
+     */
+    public void onLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
+        assert nodeRemover != null : "buildLearnerView() must be called first";
+        nodeRemover.newLeafNode(leaf.path(), leaf.keyBytes());
+        handleReconnectLeaf(leaf);
+    }
+
+    /**
+     * Signals that all nodes have been received from the teacher, then finalizes the reconnect
+     * process. Waits for hashing to complete and creates the fully initialized {@link VirtualMap}.
+     * The new map can subsequently be retrieved via {@link #getVirtualMap()}.
+     *
+     * <p>This method is called automatically when the {@link LearnerTreeView} is closed.
+     *
+     * @throws MerkleSynchronizationException if hashing fails or if the calling thread is interrupted
+     */
+    public void close() {
+        logger.info(RECONNECT.getMarker(), "call nodeRemover.allNodesReceived()");
+        nodeRemover.allNodesReceived();
+        endLearnerReconnect();
+    }
+
+    /**
      * Feeds a leaf record received from the teacher into the reconnect hashing pipeline.
      * May block if the hashing thread is slower than the incoming data rate.
      *
      * @param leafRecord the leaf received from the teacher; must not be null
      */
-    public void handleReconnectLeaf(@NonNull final VirtualLeafBytes<?> leafRecord) {
+    private void handleReconnectLeaf(@NonNull final VirtualLeafBytes<?> leafRecord) {
         try {
             reconnectIterator.supply(leafRecord);
         } catch (final MerkleSynchronizationException e) {
@@ -213,7 +259,7 @@ public final class VirtualMapReconnect implements Hashable {
      * @param firstLeafPath first leaf path in the reconnected tree
      * @param lastLeafPath  last leaf path in the reconnected tree
      */
-    public void prepareReconnectHashing(final long firstLeafPath, final long lastLeafPath) {
+    private void prepareReconnectHashing(final long firstLeafPath, final long lastLeafPath) {
         assert reconnectFlusher != null : "Cannot prepare reconnect hashing: buildLearnerView() must be called first";
         final DataSourceHashChunkPreloader hashChunkPreloader = new DataSourceHashChunkPreloader(dataSource);
         final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher, hashChunkPreloader);
@@ -242,13 +288,10 @@ public final class VirtualMapReconnect implements Hashable {
     }
 
     /**
-     * Finalizes the reconnect process: waits for hashing to complete, then creates the fully
-     * initialized {@link VirtualMap}. The new map can subsequently be retrieved via
-     * {@link #getVirtualMap()}.
-     *
-     * <p>This method is called automatically when the {@link LearnerTreeView} is closed.
+     * Waits for hashing to complete, then creates the fully initialized {@link VirtualMap}.
+     * Called by {@link #close()} after all nodes have been signalled as received.
      */
-    public void endLearnerReconnect() {
+    private void endLearnerReconnect() {
         try {
             logger.info(RECONNECT.getMarker(), "call reconnectIterator.close()");
             reconnectIterator.close();
@@ -288,12 +331,11 @@ public final class VirtualMapReconnect implements Hashable {
             @NonNull final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
         reconnectFlusher =
                 new ReconnectHashLeafFlusher(dataSource, virtualMapConfig.reconnectFlushInterval(), statistics);
-        final ReconnectNodeRemover nodeRemover = new ReconnectNodeRemover(
+        this.nodeRemover = new ReconnectNodeRemover(
                 originalRecords, originalState.getFirstLeafPath(), originalState.getLastLeafPath(), reconnectFlusher);
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
-                new LearnerPushVirtualTreeView(
-                        this, originalRecords, originalState, reconnectState, nodeRemover, mapStats);
+                new LearnerPushVirtualTreeView(this, originalRecords, originalState, reconnectState, mapStats);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
                 new LearnerPullVirtualTreeView(
                         reconnectConfig,
@@ -301,7 +343,6 @@ public final class VirtualMapReconnect implements Hashable {
                         originalRecords,
                         originalState,
                         reconnectState,
-                        nodeRemover,
                         new TopToBottomTraversalOrder(),
                         mapStats);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
@@ -311,7 +352,6 @@ public final class VirtualMapReconnect implements Hashable {
                         originalRecords,
                         originalState,
                         reconnectState,
-                        nodeRemover,
                         new TwoPhasePessimisticTraversalOrder(),
                         mapStats);
             case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
@@ -321,7 +361,6 @@ public final class VirtualMapReconnect implements Hashable {
                         originalRecords,
                         originalState,
                         reconnectState,
-                        nodeRemover,
                         new ParallelSyncTraversalOrder(),
                         mapStats);
             default ->
@@ -353,7 +392,7 @@ public final class VirtualMapReconnect implements Hashable {
 
     // ---- Hashable implementation ----
     // VirtualMapReconnect is self-hashing. The hash is computed by the background hashing thread
-    // during reconnect and becomes available once endLearnerReconnect() completes.
+    // during reconnect and becomes available once close() completes.
 
     /**
      * {@inheritDoc}
@@ -373,7 +412,7 @@ public final class VirtualMapReconnect implements Hashable {
     @Override
     @Nullable
     public Hash getHash() {
-        // After endLearnerReconnect() the virtualMap is available; delegate to it so that
+        // After close() the virtualMap is available; delegate to it so that
         // empty-tree hashing (where no hashing thread was started) is also handled correctly.
         if (virtualMap != null) {
             return virtualMap.getHash();
