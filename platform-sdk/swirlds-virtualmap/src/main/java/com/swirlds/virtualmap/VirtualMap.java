@@ -60,7 +60,6 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
-import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
@@ -176,14 +175,14 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * during reconnect to create a new data source based on a snapshot directory, or in
      * various other scenarios.
      */
-    private VirtualDataSourceBuilder dataSourceBuilder;
+    private final VirtualDataSourceBuilder dataSourceBuilder;
 
     /**
      * Provides access to the {@link VirtualDataSource} for tree data.
      * All instances of {@link VirtualMap} in the "family" (i.e. that are copies
      * going back to some first progenitor) share the exact same dataSource instance.
      */
-    private VirtualDataSource dataSource;
+    private final VirtualDataSource dataSource;
 
     /**
      * A cache for virtual tree nodes. This cache is very specific for this use case. The elements
@@ -200,23 +199,20 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * anything here is at least as new as, or newer than, what is on disk. So we check it first whenever
      * we need a leaf. This allows us to keep the disk simple and not fast-copyable.
      */
-    private VirtualNodeCache cache;
+    private final VirtualNodeCache cache;
 
     /**
      * A reference to the map metadata, such as the first leaf path, last leaf path, name ({@link VirtualMapMetadata}).
-     * Ideally this would be final and never null, but serialization requires partially constructed objects,
-     * so it must not be final and may be null until deserialization is complete.
      */
-    private VirtualMapMetadata metadata;
+    private final VirtualMapMetadata metadata;
 
     /**
      * An interface through which the {@link VirtualMap} can access record data from the cache and the
      * data source. By encapsulating this logic in a RecordAccessor, we make it convenient to access records
      * using a combination of different caches, states, and data sources, which becomes important for reconnect
-     * and other uses. This should never be null except for a brief window during initialization / reconnect /
-     * serialization.
+     * and other uses.
      */
-    private RecordAccessor records;
+    private final RecordAccessor records;
 
     /**
      * The hasher is responsible for hashing data in a virtual merkle tree.
@@ -229,7 +225,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * defined lifecycle rules. This class makes calls to the pipeline, and the pipeline calls back methods
      * defined in this class.
      */
-    private VirtualPipeline pipeline;
+    private final VirtualPipeline pipeline;
 
     /**
      * Hash of this root node. If null, the node isn't hashed yet.
@@ -279,19 +275,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     private final AtomicReference<Thread> currentModifyingThreadRef = new AtomicReference<>(null);
 
     /**
-     * Required by the {@link RuntimeConstructable} contract.
-     * This can <strong>only</strong> be called as part of serialization, not for normal use.
-     */
-    public VirtualMap(final @NonNull Configuration configuration) {
-        this.fastCopyVersion = 0;
-        this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
-        // Hasher is required during reconnects
-        this.hasher = new VirtualHasher(virtualMapConfig);
-        this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
-        this.statistics = new VirtualMapStatistics(LABEL);
-    }
-
-    /**
      * Create a new {@link VirtualMap}.
      *
      * @param dataSourceBuilder
@@ -306,9 +289,14 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
         this.statistics = new VirtualMapStatistics(LABEL);
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
-        dataSource = dataSourceBuilder.build(LABEL, null, true, false);
+        this.dataSource = dataSourceBuilder.build(LABEL, null, true, false);
         this.metadata = new VirtualMapMetadata();
-        postInit();
+        final int hashChunkHeight = this.dataSource.getHashChunkHeight();
+        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, this.dataSource::loadHashChunk);
+        this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
+        this.statistics.setSize(size());
+        this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
+        this.pipeline.registerCopy(this);
     }
 
     /**
@@ -330,8 +318,13 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.statistics = new VirtualMapStatistics(LABEL);
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
         this.dataSource = dataSourceBuilder.build(LABEL, snapshotPath, true, false);
-        this.metadata = new VirtualMapMetadata(dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
-        postInit();
+        this.metadata = new VirtualMapMetadata(this.dataSource.getFirstLeafPath(), this.dataSource.getLastLeafPath());
+        final int hashChunkHeight = this.dataSource.getHashChunkHeight();
+        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, this.dataSource::loadHashChunk);
+        this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
+        this.statistics.setSize(size());
+        this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
+        this.pipeline.registerCopy(this);
     }
 
     /**
@@ -341,29 +334,32 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * 		must not be null.
      */
     private VirtualMap(final VirtualMap source) {
-        metadata = source.metadata.copy();
-        fastCopyVersion = source.fastCopyVersion + 1;
-        dataSourceBuilder = source.dataSourceBuilder;
-        dataSource = source.dataSource;
-        cache = source.cache.copy();
-        hasher = source.hasher;
-        pipeline = source.pipeline;
-        flushCandidateThreshold.set(source.flushCandidateThreshold.get());
-        statistics = source.statistics;
-        virtualMapConfig = source.virtualMapConfig;
+        this.metadata = source.metadata.copy();
+        this.fastCopyVersion = source.fastCopyVersion + 1;
+        this.dataSourceBuilder = source.dataSourceBuilder;
+        this.dataSource = source.dataSource;
+        this.cache = source.cache.copy();
+        this.hasher = source.hasher;
+        this.pipeline = source.pipeline;
+        this.flushCandidateThreshold.set(source.flushCandidateThreshold.get());
+        this.statistics = source.statistics;
+        this.virtualMapConfig = source.virtualMapConfig;
 
         if (this.pipeline.isTerminated()) {
             throw new IllegalStateException("A fast-copy was made of a VirtualMap with a terminated pipeline!");
         }
 
-        postInit();
+        final int hashChunkHeight = this.dataSource.getHashChunkHeight();
+        this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
+        // VM size metric value is updated in add() and remove(). However, if no elements are added or
+        // removed, the metric may have a stale value for a long time. Update it explicitly here
+        this.statistics.setSize(size());
+        this.pipeline.registerCopy(this);
     }
 
     /**
      * Creates a fully initialized {@link VirtualMap} after a reconnect operation on the learner
-     * side has completed. This constructor replaces the previous pattern of creating an empty
-     * {@code VirtualMap(Configuration)} and then calling {@code setupWithOriginalNode()} followed
-     * by {@code postInit()}.
+     * side has completed.
      *
      * <p>The resulting map is registered with a fresh {@link VirtualPipeline} and is immediately
      * ready for use.
@@ -396,43 +392,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         // Set the hash directly from the reconnect hashing result.
         // For empty trees reconnectHash may be null; getHash() will trigger lazy computation.
         this.hash.set(reconnectHash);
-
-        // Full initialization (equivalent to postInit() but without null-checks since all
-        // required values are passed via constructor parameters):
-        final int hashChunkHeight = dataSource.getHashChunkHeight();
-        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, dataSource::loadHashChunk);
-        this.records = new RecordAccessor(this.metadata, hashChunkHeight, cache, dataSource);
+        final int hashChunkHeight = this.dataSource.getHashChunkHeight();
+        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, this.dataSource::loadHashChunk);
+        this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
         this.statistics.setSize(size());
         this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
-        pipeline.registerCopy(this);
-    }
-
-    /**
-     * Sets the {@link VirtualMapMetadata}. This method is called when this root node
-     * is added as a child to its virtual map. It happens when virtual maps are created
-     * from scratch, or during deserialization.
-     *
-     */
-    void postInit() {
-        requireNonNull(metadata);
-        requireNonNull(dataSourceBuilder);
-        requireNonNull(dataSource);
-
-        final int hashChunkHeight = dataSource.getHashChunkHeight();
-        if (cache == null) {
-            cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, dataSource::loadHashChunk);
-        }
-        this.records = new RecordAccessor(this.metadata, hashChunkHeight, cache, dataSource);
-
-        // VM size metric value is updated in add() and remove(). However, if no elements are added or
-        // removed, the metric may have a stale value for a long time. Update it explicitly here
-        statistics.setSize(size());
-        // At this point in time the copy knows if it should be flushed or merged, and so it is safe
-        // to register with the pipeline.
-        if (pipeline == null) {
-            pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
-        }
-        pipeline.registerCopy(this);
+        this.pipeline.registerCopy(this);
     }
 
     /**

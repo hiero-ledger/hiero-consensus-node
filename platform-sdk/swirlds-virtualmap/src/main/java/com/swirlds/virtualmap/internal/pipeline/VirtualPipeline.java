@@ -252,8 +252,7 @@ public class VirtualPipeline {
         }
 
         // During reconnect, an existing virtual root node may be inserted to a new virtual map node.
-        // When it happens, the root node is initialized with {@link VirtualMap#postInit()} and
-        // requested to register in the same pipeline multiple times
+        // In such a case, the root node may be requested to register in the same pipeline multiple times.
         if (isAlreadyRegistered(copy)) {
             logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Virtual root copy is already registered in the pipeline");
             return;
