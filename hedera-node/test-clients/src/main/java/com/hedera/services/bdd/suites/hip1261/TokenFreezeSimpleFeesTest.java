@@ -671,7 +671,7 @@ public class TokenFreezeSimpleFeesTest {
             }
 
             @HapiTest
-            @DisplayName("TokenFreeze - token not associated fails on hande - full fees charged")
+            @DisplayName("TokenFreeze - token not associated fails on handle - full fees charged")
             final Stream<DynamicTest> tokenFreezeNotAssociatedFailsOnHandleFullFeesCharged() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -1189,7 +1189,7 @@ public class TokenFreezeSimpleFeesTest {
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
                         validateChargedUsdWithinWithTxnSize(
                                 unfreezeTxn,
-                                txnSize -> expectedTokenFreezeFullFeeUsd(
+                                txnSize -> expectedTokenUnfreezeFullFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(unfreezeTxn, PAYER));
