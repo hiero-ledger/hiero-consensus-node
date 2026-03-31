@@ -288,7 +288,7 @@ jobs:
               cd $i.dir
               mv ../$i ./$i
               bash ${HOME}/mat/ParseHeapDump.sh ./$i org.eclipse.mat.api:overview
-              unzip -d "${{ github.workspace }}"/report/$i.report ${i}_System_Overview.zip
+              unzip -d "${{ github.workspace }}"/report/$i.report $(find . -name '*System_Overview.zip')
               cd "${{ github.workspace }}"/solo
           done
 
