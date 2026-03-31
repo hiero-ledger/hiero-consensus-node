@@ -59,12 +59,14 @@ public class BlockItemsTranslator {
      *
      * @param context the context of the transaction
      * @param result the result of the transaction
+     * @param blockNumber the block number, if known
      * @param outputs the outputs of the transaction
      * @return the translated receipt
      */
     public TransactionReceipt translateReceipt(
             @NonNull final TranslationContext context,
             @NonNull final TransactionResult result,
+            @Nullable final Long blockNumber,
             @NonNull final TransactionOutput... outputs) {
         requireNonNull(context);
         requireNonNull(result);
@@ -111,6 +113,9 @@ public class BlockItemsTranslator {
             case TOKEN_CREATE -> receiptBuilder.tokenID(((TokenOpContext) context).tokenId());
             case CONSENSUS_CREATE_TOPIC -> receiptBuilder.topicID(((TopicOpContext) context).topicId());
         }
+        if (blockNumber != null) {
+            receiptBuilder.blockNumber(blockNumber);
+        }
         return receiptBuilder.build();
     }
 
@@ -121,6 +126,7 @@ public class BlockItemsTranslator {
      * @param context the context of the transaction
      * @param result the result of the transaction
      * @param logs the EVM logs of the transaction, if any
+     * @param blockNumber the block number, if known
      * @param outputs the outputs of the transaction
      * @return the translated record
      */
@@ -128,6 +134,7 @@ public class BlockItemsTranslator {
             @NonNull final TranslationContext context,
             @NonNull final TransactionResult result,
             @Nullable final List<EvmTransactionLog> logs,
+            @Nullable final Long blockNumber,
             @NonNull final TransactionOutput... outputs) {
         requireNonNull(context);
         requireNonNull(result);
@@ -208,7 +215,9 @@ public class BlockItemsTranslator {
                 }
             }
         }
-        return recordBuilder.receipt(translateReceipt(context, result, outputs)).build();
+        return recordBuilder
+                .receipt(translateReceipt(context, result, blockNumber, outputs))
+                .build();
     }
 
     private Function<TransactionOutput, ContractFunctionResult> translatingExtractor(

@@ -125,11 +125,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * The most recent wrapped record block root hash.
      */
     private Bytes previousWrappedRecordBlockRootHash;
-    /**
-     * Tracks whether in-memory wrapped hash tracking has been refreshed from finalized BlockInfo
-     * for the current migration voting cycle.
-     */
-    private boolean wrappedHashStateSyncedFromFinalizedVote;
 
     /**
      * Construct BlockRecordManager
@@ -138,8 +133,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param state The current hedera state
      * @param streamFileProducer The stream file producer
      * @param initTrigger The init trigger
-     * @param migrationResult The pre-computed migration result from before platform.build(), or null
-     *     if the migration was not run or was skipped
      */
     public BlockRecordManagerImpl(
             @NonNull final ConfigProvider configProvider,
@@ -149,8 +142,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
-            @NonNull final InitTrigger initTrigger,
-            @Nullable final WrappedRecordBlockHashMigration.Result migrationResult) {
+            @NonNull final InitTrigger initTrigger) {
         this.platform = platform;
         requireNonNull(state);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -184,8 +176,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             lastRunningHashes = runningHashState.get();
             assert lastRunningHashes != null : "Cannot be null, because this state is created at genesis";
         }
-        final var votingCompleteAtStartup =
-                initTrigger != InitTrigger.GENESIS && migrationRootHashVotingCompleteAtStartup(state);
+
         // Initialize wrapped record block hash tracking
         if (initTrigger != InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
             final var intermediateHashes = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
@@ -196,27 +187,16 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     intermediateHashes,
                     this.lastBlockInfo.wrappedIntermediateBlockRootsLeafCount());
             this.previousWrappedRecordBlockRootHash = this.lastBlockInfo.previousWrappedRecordBlockRootHash();
-            this.wrappedHashStateSyncedFromFinalizedVote = votingCompleteAtStartup;
         } else if (initTrigger == InitTrigger.GENESIS) {
             // Initialize with empty defaults at genesis
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
             this.previousWrappedRecordBlockRootHash = HASH_OF_ZERO;
-            this.wrappedHashStateSyncedFromFinalizedVote = false;
-        } else {
-            this.wrappedHashStateSyncedFromFinalizedVote = false;
         }
 
         // Initialize the stream file producer. NOTE, if the producer cannot be initialized, and a random exception is
         // thrown here, then startup of the node will fail. This is the intended behavior. We MUST be able to produce
         // record streams, or there really is no point to running the node!
         this.streamFileProducer.initRunningHash(lastRunningHashes);
-    }
-
-    private boolean migrationRootHashVotingCompleteAtStartup(@NonNull final State state) {
-        final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
-                .get();
-        return blockInfo != null && blockInfo.votingComplete();
     }
 
     // =================================================================================================================
@@ -946,12 +926,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
-        logger.info(
-                "votingState {} votingComplete {} currentBlockNumber {} votingCompletionDeadlineBlockNumber {}",
-                blockInfo,
-                blockInfo != null ? blockInfo.votingComplete() : null,
-                currentBlockNumber,
-                blockInfo != null ? blockInfo.votingCompletionDeadlineBlockNumber() : null);
         if (blockInfo == null) {
             return false;
         }
@@ -981,8 +955,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 .previousWrappedRecordBlockRootHash(prevWrappedRecordBlockRootHash)
                 .wrappedIntermediatePreviousBlockRootHashes(intermediateHashes)
                 .wrappedIntermediateBlockRootsLeafCount(leafCount)
+                .votingComplete(true)
                 .build();
-        this.wrappedHashStateSyncedFromFinalizedVote = true;
         logger.info(
                 "Synced in-memory wrapped hash state from finalized vote: prevHash={}, leafCount={}",
                 prevWrappedRecordBlockRootHash.toHex(),

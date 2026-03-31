@@ -7,7 +7,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DI
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartFile;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
@@ -29,6 +29,7 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -43,6 +44,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,12 +70,18 @@ class JumpstartFileSuite implements LifecycleTest {
                 "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                 "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
                 "hedera.recordStream.liveWritePrevWrappedRecordHashes",
+                "blockStream.jumpstart.blockNum",
+                "blockStream.jumpstart.previousWrappedRecordBlockHash",
+                "blockStream.jumpstart.streamingHasherLeafCount",
+                "blockStream.jumpstart.streamingHasherHashCount",
+                "blockStream.jumpstart.streamingHasherSubtreeHashes",
+                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
                 "blockStream.enableCutover",
                 "blockStream.streamMode"
             })
     final Stream<DynamicTest> executesAllCutoverPhases() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
-        final AtomicReference<byte[]> jumpstartFileContents = new AtomicReference<>();
+        final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
         final AtomicReference<String> liveWrappedHash = new AtomicReference<>();
@@ -81,21 +89,23 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<BlockInfo> capturedBlockInfo = new AtomicReference<>();
         final AtomicReference<RunningHashes> capturedRunningHashes = new AtomicReference<>();
 
+        // Mutable map so buildDynamicJumpstartConfig can add jumpstart config properties
+        // before the restart reads them
+        final var envOverrides = new HashMap<>(Map.of(
+                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                "true",
+                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
+                "true",
+                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
+                "true"));
+
         return hapiTest(
                 // Any nodes added after genesis will not have a complete wrapped hashes file on disk, so shut them down
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
-                logIt("Phase 2: Restarting with jumpstart file"),
+                logIt("Phase 2: Restarting with jumpstart config"),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(
-                        Map.of(
-                                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                                "true",
-                                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
-                                "true",
-                                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
-                                "true"),
-                        buildDynamicJumpstartFile(jumpstartFileContents)),
+                upgradeToNextConfigVersion(envOverrides, buildDynamicJumpstartConfig(jumpstartConfig, envOverrides)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
                 cryptoCreate("shouldWork").payingWith(GENESIS),
@@ -116,14 +126,21 @@ class JumpstartFileSuite implements LifecycleTest {
                 // migration processed.
                 getWrappedRecordHashes(wrappedRecordHashes),
                 sourcing(() -> verifyJumpstartHash(
-                        jumpstartFileContents.get(),
+                        jumpstartConfig.get(),
                         wrappedRecordHashes.get(),
                         nodeComputedHash.get(),
                         freezeBlockNum.get())),
-                logIt("Phase 5: Ops burst with live wrapped record hashes"),
+                logIt("Phase 5: Verify migration is not re-applied on restart"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(envOverrides),
+                waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Jumpstart migration already applied \\(votingComplete=true\\), skipping",
+                        Duration.ofSeconds(30)),
+                logIt("Phase 6: Third burst with live wrapped record hashes"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
-                // Phase 6: Second freeze to persist live hash state, then verify from node0 record files
-                logIt("Phase 6: Second freeze and live hash verification"),
+                logIt("Phase 7: Freeze and live hash verification"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
                         Map.of(
