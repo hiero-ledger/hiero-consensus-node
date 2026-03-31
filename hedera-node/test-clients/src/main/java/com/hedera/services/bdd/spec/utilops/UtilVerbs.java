@@ -101,6 +101,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
@@ -178,7 +179,7 @@ import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsA
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.SkipSynthItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
-import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartFileOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.BuildDynamicJumpstartConfigOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyJumpstartHashOp;
@@ -930,9 +931,10 @@ public class UtilVerbs {
         return new BuildUpgradeZipOp(path);
     }
 
-    public static BuildDynamicJumpstartFileOp buildDynamicJumpstartFile(
-            @NonNull final AtomicReference<byte[]> contentsRef) {
-        return new BuildDynamicJumpstartFileOp(contentsRef);
+    public static BuildDynamicJumpstartConfigOp buildDynamicJumpstartConfig(
+            @NonNull final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfigRef,
+            @NonNull final Map<String, String> envOverrides) {
+        return new BuildDynamicJumpstartConfigOp(jumpstartConfigRef, envOverrides);
     }
 
     public static GetWrappedRecordHashesOp getWrappedRecordHashes(
@@ -944,17 +946,17 @@ public class UtilVerbs {
      * Verifies the node's jumpstart hash computation via three-way comparison:
      * file entries, .rcd replay, and the node's logged hash.
      *
-     * @param jumpstartContents          raw bytes of the jumpstart file
+     * @param jumpstartConfig            the jumpstart config properties
      * @param wrappedHashes              per-block entries from the wrapped record hashes file
      * @param nodeComputedHash           the hash the node logged during migration
      * @param freezeBlockNum             the last block the migration processed
      */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
-            @NonNull final byte[] jumpstartContents,
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
             @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
-        return new VerifyJumpstartHashOp(jumpstartContents, wrappedHashes, nodeComputedHash, freezeBlockNum);
+        return new VerifyJumpstartHashOp(jumpstartConfig, wrappedHashes, nodeComputedHash, freezeBlockNum);
     }
 
     /**
