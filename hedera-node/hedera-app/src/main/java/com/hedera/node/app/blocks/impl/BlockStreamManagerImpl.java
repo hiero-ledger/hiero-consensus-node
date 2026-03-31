@@ -397,7 +397,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // During cutover, the trailing block hashes use the original record hash
             // (not the wrapped record root hash stored in lastBlockHash).
             final var trailingHash = cutoverTrailingBlockHash != null ? cutoverTrailingBlockHash : lastBlockHash;
-            final var wasCutover = cutoverTrailingBlockHash != null;
             cutoverTrailingBlockHash = null;
             blockHashManager.startBlock(blockStreamInfo, trailingHash);
             runningHashManager.startBlock(blockStreamInfo);
