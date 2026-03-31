@@ -434,7 +434,7 @@ class AtomicBatchHandlerTest {
         var fees = mock(Fees.class);
 
         var rfc = new AtomicBatchHandler.RecordedFeeCharging(delegate);
-        rfc.startRecording();
+        rfc.rollback();
         rfc.charge(ctx, mock(FeeCharging.Validation.class), fees);
         rfc.finishRecordingTo(mock(ReplayableFeeStreamBuilder.class));
         rfc.forEachRecorded((sb, charges) -> assertNotNull(charges));
