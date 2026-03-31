@@ -236,13 +236,20 @@ public class GarbageScanner {
             return (long) (reader.getSize() * (1.0 - fileStats.garbageRatio()));
         }
 
-        @Nullable
+        @NonNull
         GarbageFileStats lookupStats(final @NonNull DataFileReader reader) {
             final int idx = reader.getIndex() - this.offset();
             if (idx < 0 || idx >= this.garbageFileStats().length) {
-                return null;
+                throw new IllegalArgumentException(
+                        "File index %d is out of bounds for stats with offset %d and length %d"
+                                .formatted(reader.getIndex(), this.offset(), this.garbageFileStats().length));
             }
-            return garbageFileStats()[idx];
+            GarbageFileStats fileStats = garbageFileStats()[idx];
+            if (fileStats == null) {
+                throw new IllegalStateException(
+                        "No stats found for file index %d at offset %d".formatted(reader.getIndex(), this.offset()));
+            }
+            return fileStats;
         }
     }
 

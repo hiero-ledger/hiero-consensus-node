@@ -5,6 +5,7 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -291,7 +292,7 @@ class GarbageScannerDeadAliveRatioTest {
         }
 
         @Test
-        @DisplayName("lookupStats returns null for file not in stats")
+        @DisplayName("lookupStats throws an exception for file not in stats")
         void lookupStatsReturnsNullForUnknownFile() {
             final DataFileReader inStats = mockFileReader(1, 0, 100, 1000);
             final DataFileReader notInStats = mockFileReader(99, 0, 100, 1000);
@@ -301,7 +302,7 @@ class GarbageScannerDeadAliveRatioTest {
             final IndexedGarbageFileStats stats =
                     createScanner(index, List.of(inStats)).scan();
 
-            assertNull(stats.lookupStats(notInStats));
+            assertThrows(IllegalArgumentException.class, () -> stats.lookupStats(notInStats));
         }
 
         @Test

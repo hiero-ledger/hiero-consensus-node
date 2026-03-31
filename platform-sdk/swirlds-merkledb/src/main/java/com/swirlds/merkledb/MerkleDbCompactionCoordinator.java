@@ -322,7 +322,7 @@ class MerkleDbCompactionCoordinator {
                 final List<DataFileReader> sortedPool = new ArrayList<>(remainingPool);
                 sortedPool.sort(Comparator.<DataFileReader>comparingDouble(r -> {
                             final GarbageFileStats fs = stats.lookupStats(r);
-                            return fs != null ? fs.deadToAliveRatio() : 0.0;
+                            return fs.deadToAliveRatio();
                         })
                         .reversed());
 
@@ -412,7 +412,6 @@ class MerkleDbCompactionCoordinator {
 
         for (final DataFileReader reader : candidates) {
             final GarbageFileStats fs = stats.lookupStats(reader);
-            assert fs != null : "Candidates should have stats from the scan";
             final long projectedAlive = estimateAliveBytes(reader, fs);
             if (!currentGroup.isEmpty() && currentProjectedSize + projectedAlive > maxProjectedBytes) {
                 groups.add(currentGroup);
@@ -460,11 +459,9 @@ class MerkleDbCompactionCoordinator {
         long projectedSize = 0;
         for (final DataFileReader reader : group) {
             final GarbageFileStats fs = stats.lookupStats(reader);
-            if (fs != null) {
-                totalLive += fs.aliveItems();
-                totalDead += fs.deadItems();
-                projectedSize += estimateAliveBytes(reader, fs);
-            }
+            totalLive += fs.aliveItems();
+            totalDead += fs.deadItems();
+            projectedSize += estimateAliveBytes(reader, fs);
         }
 
         final double aggregateRatio = totalLive == 0 ? Double.MAX_VALUE : (double) totalDead / totalLive;
@@ -479,7 +476,6 @@ class MerkleDbCompactionCoordinator {
         while (it.hasNext()) {
             final DataFileReader reader = it.next();
             final GarbageFileStats fs = stats.lookupStats(reader);
-            assert fs != null : "Remaining pool should have stats from the scan";
 
             final long fileLive = fs.aliveItems();
             final long fileDead = fs.deadItems();
