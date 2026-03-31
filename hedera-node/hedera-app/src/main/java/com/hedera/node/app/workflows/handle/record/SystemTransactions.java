@@ -22,7 +22,6 @@ import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRAN
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -41,6 +40,7 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -53,7 +53,9 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.tss.LedgerIdNodeContribution;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
@@ -93,6 +95,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -181,6 +184,8 @@ public class SystemTransactions {
     private final StakePeriodChanges stakePeriodChanges;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
+    private final MigrationRootHashSubmissions migrationRootHashSubmissions;
+    private boolean startupMigrationVoteSubmissionRequested = false;
     private int nextDispatchNonce = 1;
 
     @FunctionalInterface
@@ -211,7 +216,8 @@ public class SystemTransactions {
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StakePeriodChanges stakePeriodChanges,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
-            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration) {
+            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration,
+            @NonNull final MigrationRootHashSubmissions migrationRootHashSubmissions) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -232,6 +238,7 @@ public class SystemTransactions {
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
         this.wrappedRecordBlockHashMigration = requireNonNull(wrappedRecordBlockHashMigration);
+        this.migrationRootHashSubmissions = requireNonNull(migrationRootHashSubmissions);
     }
 
     /**
@@ -263,6 +270,7 @@ public class SystemTransactions {
                     writablePlatformStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
             platformStateSingleton.put(platformStateSingleton.get());
         });
+        final int networkSize = networkInfo.addressBook().size();
         for (final var r : servicesRegistry.registrations()) {
             final var service = r.service();
             if (PlatformStateService.NAME.equals(service.getServiceName())) {
@@ -271,7 +279,7 @@ public class SystemTransactions {
             // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
             final var writableStates = state.getWritableStates(service.getServiceName());
             stateChangeStreaming.doStreamingChanges(
-                    writableStates, null, () -> service.doGenesisSetup(writableStates, config));
+                    writableStates, null, () -> service.doGenesisSetup(writableStates, config, networkSize));
         }
 
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
@@ -499,52 +507,94 @@ public class SystemTransactions {
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
 
-        // Apply effects of the jumpstart file migration (if any)
-        final var migration = wrappedRecordBlockHashMigration.result();
-        if (migration != null) {
-            // Check if the block info in state matches the migration result; if not, overwrite
-            final var writableStates = state.getWritableStates(BlockRecordService.NAME);
-            final var blockInfoState = writableStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
-            final var blockInfo = blockInfoState.get();
-            boolean changed = false;
-            final var builder = blockInfo.copyBuilder();
-            if (!migration
-                    .previousWrappedRecordBlockRootHash()
-                    .equals(blockInfo.previousWrappedRecordBlockRootHash())) {
-                builder.previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash());
-                changed = true;
-            }
-            if (!migration
-                    .wrappedIntermediatePreviousBlockRootHashes()
-                    .equals(blockInfo.wrappedIntermediatePreviousBlockRootHashes())) {
-                builder.wrappedIntermediatePreviousBlockRootHashes(
-                        migration.wrappedIntermediatePreviousBlockRootHashes());
-                changed = true;
-            }
-            if (migration.wrappedIntermediateBlockRootsLeafCount()
-                    != blockInfo.wrappedIntermediateBlockRootsLeafCount()) {
-                builder.wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount());
-                changed = true;
-            }
-            if (changed) {
-                blockInfoState.put(builder.build());
-                ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
-                log.info("Updated block info state to match migration result");
-            }
+        if (configProvider
+                .getConfiguration()
+                .getConfigData(BlockRecordStreamConfig.class)
+                .liveWritePrevWrappedRecordHashes()) {
+            final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+            final var blockInfoSingleton =
+                    blockRecordStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+            final var existingBlockInfo = requireNonNull(blockInfoSingleton.get());
+            if (existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0 || existingBlockInfo.votingComplete()) {
+                // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
+                startupMigrationVoteSubmissionRequested = true;
+                log.info(
+                        "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
+                        existingBlockInfo.votingCompletionDeadlineBlockNumber(),
+                        existingBlockInfo.votingComplete());
+            } else {
+                final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
+                blockInfoSingleton.put(existingBlockInfo
+                        .copyBuilder()
+                        .votingComplete(false)
+                        .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                        .build());
+                ((WritableSingletonStateBase<BlockInfo>) blockInfoSingleton).commit();
+                log.info(
+                        "Initialized wrapped record voting singleton with deadline={}",
+                        votingCompletionDeadlineBlockNumber);
 
-            // Archive the jumpstart file so the migration doesn't run again
-            final var jumpstartFilePath = wrappedRecordBlockHashMigration.jumpstartFilePath();
-            if (jumpstartFilePath != null) {
-                try {
-                    final var archivedPath =
-                            jumpstartFilePath.resolveSibling("archived_" + jumpstartFilePath.getFileName());
-                    Files.move(jumpstartFilePath, archivedPath, REPLACE_EXISTING);
-                    log.info("Archived jumpstart file to {}", archivedPath);
-                } catch (final IOException e) {
-                    log.warn("Failed to archive jumpstart file at {}", jumpstartFilePath, e);
+                // Keep migration result available for asynchronous submission once gossip is active.
+                final var migration = wrappedRecordBlockHashMigration.result();
+                if (migration != null) {
+                    startupMigrationVoteSubmissionRequested = false;
+                    log.info(
+                            "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}); will submit vote",
+                            networkInfo.selfNodeInfo().nodeId(),
+                            migration.wrappedIntermediateBlockRootsLeafCount(),
+                            migration
+                                    .wrappedIntermediatePreviousBlockRootHashes()
+                                    .size());
+                } else {
+                    startupMigrationVoteSubmissionRequested = true;
+                    log.info(
+                            "No local startup migration root hash result for node{}",
+                            networkInfo.selfNodeInfo().nodeId());
                 }
             }
         }
+    }
+
+    /**
+     * Submits this node's startup migration root-hash vote once round handling is active.
+     *
+     * <p>If this node's vote is already present in state or voting is complete, this is a no-op.
+     * If no local migration result is available, this is also a no-op.
+     *
+     * @param state the writable state in the current handling context
+     */
+    public void maybeSubmitStartupMigrationRootHashVote(@NonNull final State state) {
+        requireNonNull(state);
+
+        final var migration = wrappedRecordBlockHashMigration.result();
+        if (migration == null) {
+            return;
+        }
+
+        final var selfNodeId = networkInfo.selfNodeInfo().nodeId();
+        final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+        final var blockInfo = blockRecordStates
+                .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                .get();
+        if (blockInfo == null) {
+            return;
+        }
+        final var existingVote = blockInfo.migrationRootHashVotes().stream()
+                .filter(vote -> vote.nodeIdOrElse(NodeId.DEFAULT).id() == selfNodeId)
+                .map(NodeMigrationRootHashVote::vote)
+                .findFirst()
+                .orElse(null);
+        if (existingVote != null || blockInfo.votingComplete() || startupMigrationVoteSubmissionRequested) {
+            return;
+        }
+
+        final var voteBody = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash())
+                .wrappedIntermediatePreviousBlockRootHashes(migration.wrappedIntermediatePreviousBlockRootHashes())
+                .wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount())
+                .build();
+        log.info("Submitting startup migration root hash vote for node{} during round handling", selfNodeId);
+        startupMigrationVoteSubmissionRequested = migrationRootHashSubmissions.submitStartupVoteIfActive(voteBody);
     }
 
     /**
@@ -564,8 +614,8 @@ public class SystemTransactions {
             log.info("No fees to distribute for nodes");
             return;
         }
-        final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        final var systemContext =
+                newSystemContext(now, state, _ -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                         .transfers(transfers)
@@ -644,7 +694,7 @@ public class SystemTransactions {
         final var nodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
-        final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
+        final var network = startupNetworks.lastUsedOverrideNetwork(configProvider.getConfiguration());
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
             final var overrideNodes = network.get().nodeMetadata().stream()
@@ -998,8 +1048,10 @@ public class SystemTransactions {
             }
 
             dispatch.stack().commitFullStack();
-            final var handleOutput =
-                    parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
+            final var handleOutput = parentTxn
+                    .stack()
+                    .buildHandleOutput(
+                            parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), currentBlockNumber());
             recordCache.addRecordSource(
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
@@ -1010,6 +1062,10 @@ public class SystemTransactions {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
             return failInvalidStreamItems(parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
+    }
+
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
     }
 
     private static Bytes parseFeeSchedules(@NonNull final InputStream in) {
