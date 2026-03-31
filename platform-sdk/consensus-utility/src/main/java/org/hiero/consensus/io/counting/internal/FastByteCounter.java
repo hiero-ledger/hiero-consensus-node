@@ -9,8 +9,8 @@ public class FastByteCounter implements ModifiableByteCounter {
     private long count;
 
     @Override
-    public long addToCount(final long value) {
-        return (count += value);
+    public void addToCount(final long value) {
+        count += value;
     }
 
     @Override

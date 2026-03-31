@@ -11,8 +11,8 @@ public class ThreadSafeByteCounter implements ModifiableByteCounter {
     private final AtomicLong count = new AtomicLong(0);
 
     @Override
-    public long addToCount(final long value) {
-        return count.addAndGet(value);
+    public void addToCount(final long value) {
+        count.addAndGet(value);
     }
 
     @Override

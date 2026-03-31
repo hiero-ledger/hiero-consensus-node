@@ -68,10 +68,10 @@ public final class OSFileSystemCheck {
         // Open and read the first byte of the file
         final Supplier<Byte> randomRequester = () -> {
             try (final InputStream in = Files.newInputStream(fileToRead);
-                    final CountingInputStream ein = new CountingInputStream(in, CounterType.THREAD_SAFE)) {
-                final byte byteRead = (byte) ein.read();
+                    final CountingInputStream cis = new CountingInputStream(in, CounterType.THREAD_SAFE)) {
+                final byte byteRead = (byte) cis.read();
 
-                if (ein.byteCounter().getCount() < 1) {
+                if (cis.byteCounter().getCount() < 1) {
                     failureReport.set(Report.failure(TestResultCode.FILE_EMPTY));
                 }
                 return byteRead;

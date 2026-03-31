@@ -174,7 +174,8 @@ class SocketConnectionTests {
 
         initConnection(outbound);
 
-        boolean isConnected = assertDoesNotThrow(conn::connected, "connected() should not thrown any exceptions.");
+        final boolean isConnected =
+                assertDoesNotThrow(conn::connected, "connected() should not thrown any exceptions.");
         assertFalse(isConnected, "connected() should return false when an exception occurs.");
     }
 
@@ -219,7 +220,7 @@ class SocketConnectionTests {
     @ParameterizedTest
     @MethodSource("booleans")
     void testInitForSync(final boolean outbound) throws SocketException {
-        ByteCounter disCounter = mock(ByteCounter.class);
+        final ByteCounter disCounter = mock(ByteCounter.class);
         when(dis.byteCounter()).thenReturn(disCounter);
 
         // mock Connection.connected() = true

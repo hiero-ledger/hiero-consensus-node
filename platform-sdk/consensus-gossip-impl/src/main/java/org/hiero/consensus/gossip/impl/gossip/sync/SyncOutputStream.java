@@ -19,11 +19,11 @@ import org.hiero.consensus.io.counting.CountingOutputStream;
  */
 public class SyncOutputStream extends SerializableDataOutputStream {
 
-    private final ByteCounter byteCounter;
+    private final ByteCounter connectionByteCounter;
 
-    protected SyncOutputStream(@NonNull final OutputStream out, @NonNull final ByteCounter byteCounter) {
+    protected SyncOutputStream(@NonNull final OutputStream out, @NonNull final ByteCounter connectionByteCounter) {
         super(out);
-        this.byteCounter = byteCounter;
+        this.connectionByteCounter = connectionByteCounter;
     }
 
     /**
@@ -55,11 +55,11 @@ public class SyncOutputStream extends SerializableDataOutputStream {
     }
 
     /**
-     * Get the byte counter that counts the number of bytes written to this stream.
+     * Get the connection byte counter that counts the number of bytes written to this stream.
      *
      * @return the {@link ByteCounter}
      */
-    public ByteCounter byteCounter() {
-        return byteCounter;
+    public ByteCounter connectionByteCounter() {
+        return connectionByteCounter;
     }
 }

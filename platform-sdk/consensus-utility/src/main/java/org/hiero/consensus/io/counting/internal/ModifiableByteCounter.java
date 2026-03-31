@@ -4,14 +4,13 @@ package org.hiero.consensus.io.counting.internal;
 import org.hiero.consensus.io.counting.ByteCounter;
 
 /**
- * An abstract class that implements the ByteCounter interface and provides a method for adding to the count.
+ * An interface that allows to add to the {@link ByteCounter}.
  */
 public interface ModifiableByteCounter extends ByteCounter {
     /**
      * Adds the specified value to the count
      *
      * @param value the value to be added
-     * @return the new count
      */
-    abstract long addToCount(long value);
+    void addToCount(long value);
 }
