@@ -270,7 +270,6 @@ jobs:
       enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}"
       enable-hapi-tests-quiescence: "${{ inputs.enable-hapi-tests-quiescence == 'true' }}"
       enable-network-log-capture: "true"
-      mats-suffix: "MATS"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
