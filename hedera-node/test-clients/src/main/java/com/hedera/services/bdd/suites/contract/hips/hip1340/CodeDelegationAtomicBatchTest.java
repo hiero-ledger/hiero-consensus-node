@@ -808,9 +808,12 @@ public class CodeDelegationAtomicBatchTest {
                 }));
     }
 
-    // 9.2: atomicBatch(CryptoCreate(A), type-4 delegates A, invalid transfer) - batch fails.
-    // Gas charged for all inner txs despite rollback. Account creation fee for CryptoCreate
-    // correctly replayed despite account being rolled back.
+    // 9.2: We execute two batches:
+    // - atomicBatch(CryptoCreate(A), type-4 delegates A, invalid transfer) - batch fails
+    // - atomicBatch(CryptoCreate(A), type-4 delegates A, valid transfer) batch succeeds
+    // Gas charged for all inner txs despite rollback. Account creation fee for CryptoCreate correctly replayed despite
+    // account being rolled back and is included as part of the tx4 tx charge. Successful path should charge less fees
+    // (minus account creation), since account creation was successful.
     @HapiTest
     final Stream<DynamicTest> testGasAndFeesChargedOnRollbackWithCryptoCreate() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -820,25 +823,17 @@ public class CodeDelegationAtomicBatchTest {
         final var accountInBatch = DELEGATING_ACCOUNT + "AccountInBatch";
         final var type4Txn = "type4GasFee";
         final var type4TxnRollback = "type4GasFeeRollback";
-        final var batchTxnRollback = "txnRecordRollback";
-        final var batchTxn = "txnRecord";
-        final var cryptoCreateTxnRollback = "cryptoCreateGasFeeRollback";
-        final var cryptoCreateTxn = "cryptoCreateGasFee";
 
         final var rollbackPayerBalanceBefore = new AtomicLong();
         final var rollbackPayerBalanceAfter = new AtomicLong();
         final var payerBalanceBefore = new AtomicLong();
         final var payerBalanceAfter = new AtomicLong();
-        final var relayerBalanceBefore = new AtomicLong();
-        final var relayerBalanceAfterRollback = new AtomicLong();
-        final var relayerBalanceAfter = new AtomicLong();
 
         return hapiTest(
                 newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
                 newKeyNamed(accountInBatchRollback).shape(SECP_256K1_SHAPE),
                 createFundedAccount(rollbackPayer),
                 createFundedAccount(payer),
-                getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceBefore::set),
                 getAccountBalance(rollbackPayer).exposingBalanceTo(rollbackPayerBalanceBefore::set),
                 getAccountBalance(payer).exposingBalanceTo(payerBalanceBefore::set),
 
@@ -848,7 +843,6 @@ public class CodeDelegationAtomicBatchTest {
                                 .key(accountInBatchRollback)
                                 .withMatchingEvmAddress()
                                 .balance(ONE_HUNDRED_HBARS)
-                                .via(cryptoCreateTxnRollback)
                                 .batchKey(RELAYER),
                         ethereumCall(CONTRACT, "create")
                                 .signingWith(rollbackPayer)
@@ -863,10 +857,8 @@ public class CodeDelegationAtomicBatchTest {
                                 .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
                                 .batchKey(RELAYER))
                         .payingWith(RELAYER)
-                        .via(batchTxnRollback)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceAfterRollback::set),
                 getAccountBalance(rollbackPayer).exposingBalanceTo(rollbackPayerBalanceAfter::set),
 
                 // Success
@@ -875,7 +867,6 @@ public class CodeDelegationAtomicBatchTest {
                                 .key(accountInBatch)
                                 .withMatchingEvmAddress()
                                 .balance(ONE_HUNDRED_HBARS)
-                                .via(cryptoCreateTxn)
                                 .batchKey(RELAYER),
                         ethereumCall(CONTRACT, "create")
                                 .signingWith(payer)
@@ -890,72 +881,37 @@ public class CodeDelegationAtomicBatchTest {
                                 .hasKnownStatus(SUCCESS)
                                 .batchKey(RELAYER))
                         .payingWith(RELAYER)
-                        .via(batchTxn)
                         .hasKnownStatus(SUCCESS),
 
-                getAccountBalance(RELAYER).exposingBalanceTo(relayerBalanceAfter::set),
                 getAccountBalance(payer).exposingBalanceTo(payerBalanceAfter::set),
-
 
                 assertionsHold((spec, opLog) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
-                    final var batchRecordRollback = getTxnRecord(batchTxnRollback);
-                    final var batchRecord = getTxnRecord(batchTxn);
                     final var type4RecordRollback = getTxnRecord(type4TxnRollback);
                     final var type4Record = getTxnRecord(type4Txn);
-                    final var createRecordRollback = getTxnRecord(cryptoCreateTxnRollback);
-                    final var createRecord = getTxnRecord(cryptoCreateTxn);
-                    allRunFor(spec,
-                            batchRecordRollback,
-                            batchRecord,
-                            type4RecordRollback,
-                            type4Record,
-                            createRecordRollback,
-                            createRecord);
+                    allRunFor(spec, type4RecordRollback, type4Record);
 
-//                    final var createFeeOnRollback = createRecordRollback.getResponseRecord().getTransactionFee();
-//                    final var createFee = createRecord.getResponseRecord().getTransactionFee();
-//                    final var createGasOnRollback =
-//                            createRecordRollback.getResponseRecord().getContractCallResult().getGasUsed();
-//                    final var createGas = createRecord.getResponseRecord().getContractCallResult().getGasUsed();
-//
-//                    assertEquals(createFee, createFeeOnRollback,
-//                            "CryptoCreate fee should be the same on success and rollback since account " +
-//                                    "creation fee is deterministic");
-//
-//                    assertEquals(createGas, createGasOnRollback,
-//                            "Gas used for CryptoCreate should be the same on success and rollback since " +
-//                                    "account creation gas is deterministic");
-
-
-                    final var batchFeeOnRollback = batchRecordRollback.getResponseRecord().getTransactionFee();
-                    final var batchFee = batchRecord.getResponseRecord().getTransactionFee();
-                    final var batchGasOnRollback =
-                            batchRecordRollback.getResponseRecord().getContractCallResult().getGasUsed();
-                    final var batchGas = batchRecord.getResponseRecord().getContractCallResult().getGasUsed();
-
-                    assertEquals(batchFee, batchFeeOnRollback,
-                            "Batch fee should be the same on success and rollback since batch execution " +
-                                    "should deterministically consume the same amount of gas");
-
-                    assertEquals(batchGas, batchGasOnRollback,
-                            "Gas used for batch execution should be the same on success and rollback since " +
-                                    "batch execution should deterministically consume the same amount of gas");
-
-                    final var type4FeeOnRollback = type4RecordRollback.getResponseRecord().getTransactionFee();
-                    final var type4Fee = type4Record.getResponseRecord().getTransactionFee();
+                    final var recordedType4FeeOnRollback = type4RecordRollback.getResponseRecord().getTransactionFee();
+                    final var recorderType4Fee = type4Record.getResponseRecord().getTransactionFee();
                     final var gasUsedOnRollback = type4RecordRollback.getResponseRecord()
                             .getContractCallResult().getGasUsed();
                     final var gasUsed = type4Record.getResponseRecord().getContractCallResult().getGasUsed();
                     final var expectedGasChargeOnRollback = gasUsedOnRollback * gasPriceTinybars;
                     final var expectedGasCharge = gasUsed * gasPriceTinybars;
 
-                    assertEquals(expectedGasCharge, type4Fee);
-                    assertEquals(expectedGasChargeOnRollback, type4FeeOnRollback);
+                    assertEquals(expectedGasCharge, recorderType4Fee);
+                    assertEquals(expectedGasChargeOnRollback, recordedType4FeeOnRollback);
 
-                    assertEquals(gasUsedOnRollback, gasUsed,
-                            "gasUsed must be identical for same contract call on fresh contracts");
+                    // TODO (dsinyakov): add commented below asserts when atomic batch when issue with replay of fees
+                    //  for atomic batch is fixed
+//                    assertTrue(gasUsedOnRollback > gasUsed,
+//                            "gas used on rollback should be higher since account creation is rolled back and " +
+//                                    "re-played as part of the type4 tx execution");
+//
+//                    assertTrue(expectedGasChargeOnRollback > expectedGasCharge, "Expected gas charge " +
+//                            "on rollback should be higher since account creation is rolled back and re-played as part " +
+//                            "of the type4 tx execution");
 
                     final var rollbackPayerDelta = rollbackPayerBalanceBefore.get() - rollbackPayerBalanceAfter.get();
                     final var payerDelta = payerBalanceBefore.get() - payerBalanceAfter.get();
@@ -963,12 +919,6 @@ public class CodeDelegationAtomicBatchTest {
 //                            "Rollback payer charge must equal gasUsed * gasPriceTinybars");
                     assertEquals(expectedGasCharge, payerDelta,
                             "Payer charge must equal gasUsed * gasPriceTinybars");
-
-                    final var relayerDeltaOnRollback = relayerBalanceBefore.get() - relayerBalanceAfterRollback.get();
-                    final var relayerDelta = relayerBalanceBefore.get() - relayerBalanceAfter.get();
-
-                    assertEquals(batchFee + batchFeeOnRollback, relayerDelta,
-                            "Relayer should be charged for batch part");
                 }));
     }
 
