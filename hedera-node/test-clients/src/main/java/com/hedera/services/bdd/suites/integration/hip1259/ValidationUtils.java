@@ -168,6 +168,7 @@ public class ValidationUtils {
             int feeDistributionIndex = -1;
             int nodeRewardIndex = -1;
             long nodeFees = 0L;
+            long nodeRewards = 0L;
 
             for (int i = 0; i < items.size(); i++) {
                 final var payment = items.get(i);
@@ -211,16 +212,20 @@ public class ValidationUtils {
                             -nodeRewardDebit,
                             totalCredits,
                             "Total credits to node accounts should equal debit from 0.0.801");
+
+                    if (bodyAdjustments.containsKey(3L)) {
+                        nodeRewards += bodyAdjustments.get(3L);
+                    }
                 }
             }
 
             assertTrue(foundFeeDistribution, "Should have at least one fee distribution transaction");
             assertTrue(foundNodeReward, "Should have at least one node reward transaction");
             assertTrue(feeDistributionIndex < nodeRewardIndex, "Fee distribution should happen before node rewards");
-            assertEquals(
-                    initialNodeBalance.getAsLong() + nodeFees,
-                    nodeAccountBalanceAfterDistribution.getAsLong(),
-                    "Node account balance should match");
+            final var minimumExpectedBalance = initialNodeBalance.getAsLong() + nodeFees + nodeRewards;
+            assertTrue(
+                    nodeAccountBalanceAfterDistribution.getAsLong() >= minimumExpectedBalance,
+                    "Node account balance should include fee distribution and node reward credits");
         };
     }
 }

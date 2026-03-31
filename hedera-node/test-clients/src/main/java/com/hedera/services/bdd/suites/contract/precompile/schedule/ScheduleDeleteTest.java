@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -98,7 +97,6 @@ public class ScheduleDeleteTest {
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName(
             "call deleteSchedule/proxy deleteSchedule for scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes) success")
-    @Tag(MATS)
     public Stream<DynamicTest> scheduleCallWithPayerDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(
@@ -114,7 +112,6 @@ public class ScheduleDeleteTest {
     @LeakyHapiTest(fees = "scheduled-contract-fees.json")
     @DisplayName(
             "call deleteSchedule/proxy deleteSchedule for executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes) success")
-    @Tag(MATS)
     public Stream<DynamicTest> executeCallOnPayerSignatureDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(

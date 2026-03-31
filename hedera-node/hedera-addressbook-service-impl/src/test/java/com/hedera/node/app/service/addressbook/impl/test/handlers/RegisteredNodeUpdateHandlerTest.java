@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDP
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -646,6 +647,20 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
 
         assertThat(subject.calculateFees(feeCtx)).isEqualTo(expectedFees);
         verify(feeCalc).addVerificationsPerTransaction(4L);
+    }
+
+    @Test
+    @DisplayName("calculateFees throws NOT_SUPPORTED when registeredNodesEnabled is false")
+    void calculateFeesThrowsWhenDisabled() {
+        final var feeCtx = mock(FeeContext.class);
+        final var config = new TestConfigBuilder()
+                .withConfigDataType(NodesConfig.class)
+                .withValue("nodes.registeredNodesEnabled", false)
+                .getOrCreateConfig();
+        given(feeCtx.configuration()).willReturn(config);
+
+        final var ex = assertThrows(HandleException.class, () -> subject.calculateFees(feeCtx));
+        assertEquals(NOT_SUPPORTED, ex.getStatus());
     }
 
     // ========== helper methods ==========
