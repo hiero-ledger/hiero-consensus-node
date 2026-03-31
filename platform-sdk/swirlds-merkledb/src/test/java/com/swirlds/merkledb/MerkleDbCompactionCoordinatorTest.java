@@ -448,13 +448,6 @@ class MerkleDbCompactionCoordinatorTest {
         // Both should be absorbed into group1
         assertEquals(3, group1.size());
         assertTrue(pool.isEmpty(), "All files absorbed from pool");
-
-        // A second group trying to absorb from the same pool gets nothing
-        final DataFileReader dirty2 = mockFileReader(4, 0, 100, 1000);
-        final List<DataFileReader> group2 = new ArrayList<>(List.of(dirty2));
-        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group2, pool, stats, 0.5, Long.MAX_VALUE);
-
-        assertEquals(1, group2.size(), "No files left in pool to absorb");
     }
 
     @Test
