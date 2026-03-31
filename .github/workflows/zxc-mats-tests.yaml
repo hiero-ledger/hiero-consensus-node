@@ -68,11 +68,6 @@ on:
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-quiescence:
-        description: "HAPI Testing (Quiescence) Enabled"
-        type: string
-        required: false
-        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
@@ -268,7 +263,6 @@ jobs:
       enable-hapi-tests-time-consuming: "${{ inputs.enable-hapi-tests-time-consuming == 'true' }}"
       enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests-state-throttling == 'true' }}"
       enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}"
-      enable-hapi-tests-quiescence: "${{ inputs.enable-hapi-tests-quiescence == 'true' }}"
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}

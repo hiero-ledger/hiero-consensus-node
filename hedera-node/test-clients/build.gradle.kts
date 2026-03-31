@@ -173,7 +173,7 @@ val prCheckPropOverrides =
         "hapiTestCutover" to
             "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestTimeConsumingSerial" to
+        "hapiTestQuiescence" to
             "tss.forceMockSignatures=true,blockStream.quiescedHeartbeatInterval=PT3S,quiescence.enabled=true,staking.periodMins=1440,nodes.nodeRewardsEnabled=false",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
