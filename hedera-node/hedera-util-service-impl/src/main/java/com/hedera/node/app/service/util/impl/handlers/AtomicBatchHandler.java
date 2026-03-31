@@ -188,11 +188,8 @@ public class AtomicBatchHandler implements TransactionHandler {
             if (!innerTxnBody.hasEthereumTransaction()) {
                 rollbackStack.add((ctx, dispatch) -> {
                     final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
-                    if (recordedFeeCharging.finalCharge() != null) {
-                        recordedFeeCharging
-                                .finalCharge()
-                                .replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum));
-                    }
+                    recordedFeeCharging.charges().forEach(charge ->
+                        charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum)));
                     streamBuilder.setReplayedFees(asTransferList(adjustments));
                 });
             }
@@ -276,16 +273,25 @@ public class AtomicBatchHandler implements TransactionHandler {
 
         private final FeeCharging delegate;
 
-        // We track just the final charging event of any dispatch (earlier ones would be rolled back)
-        @Nullable
-        private Charge finalCharge;
+        private final List<Charge> charges = new ArrayList<>();
 
         public RecordedFeeCharging(@NonNull final FeeCharging delegate) {
             this.delegate = requireNonNull(delegate);
         }
 
-        Charge finalCharge() {
-            return finalCharge;
+        List<Charge> charges() {
+            return charges;
+        }
+
+        @Override
+        public void rollback() {
+            charges.clear();
+        }
+
+        @Override
+        public Context customized(@NonNull final Context ctx) {
+            requireNonNull(ctx);
+            return new RecordingContext(ctx, charges::add);
         }
 
         @Override
@@ -306,7 +312,7 @@ public class AtomicBatchHandler implements TransactionHandler {
                 @NonNull final Context ctx,
                 @NonNull final Validation validation,
                 @NonNull final Fees fees) {
-            final var recordingContext = new RecordingContext(ctx, charge -> this.finalCharge = charge);
+            final var recordingContext = new RecordingContext(ctx, charges::add);
             return delegate.charge(payerId, recordingContext, validation, fees);
         }
 
