@@ -443,42 +443,40 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
 
     private static void validateProofs(@NonNull final HapiSpec spec) {
         if (!isWriterModeGrpcOnly(spec)) {
-            validateProofsFromDisk(spec);
-        }
-    }
+            log.info("Beginning block proof validation for each node in the network");
+            spec.getNetworkNodes().forEach(node -> {
+                try {
+                    final var path =
+                            node.getExternalPath(BLOCK_STREAMS_PARENT_DIR).toAbsolutePath();
+                    final var markerFileNumbers = BlockStreamAccess.getAllMarkerFileNumbers(path);
 
-    private static void validateProofsFromDisk(@NonNull final HapiSpec spec) {
-        log.info("Beginning block proof validation for each node in the network");
-        spec.getNetworkNodes().forEach(node -> {
-            try {
-                final var path = node.getExternalPath(BLOCK_STREAMS_PARENT_DIR).toAbsolutePath();
-                final var markerFileNumbers = BlockStreamAccess.getAllMarkerFileNumbers(path);
-
-                final var nodeId = node.getNodeId();
-                if (markerFileNumbers.isEmpty()) {
-                    Assertions.fail(String.format("No marker files found for node %d", nodeId));
-                }
-
-                // Get verified block numbers from the simulator
-                final var verifiedBlockNumbers = getVerifiedBlockNumbers(spec, nodeId);
-
-                if (verifiedBlockNumbers.isEmpty()) {
-                    Assertions.fail(String.format("No verified blocks by block node simulator for node %d", nodeId));
-                }
-
-                for (final var markerFile : markerFileNumbers) {
-                    if (!verifiedBlockNumbers.contains(markerFile)) {
-                        Assertions.fail(String.format(
-                                "Marker file for block {%d} on node %d is not verified by the respective block node simulator",
-                                markerFile, nodeId));
+                    final var nodeId = node.getNodeId();
+                    if (markerFileNumbers.isEmpty()) {
+                        Assertions.fail(String.format("No marker files found for node %d", nodeId));
                     }
+
+                    // Get verified block numbers from the simulator
+                    final var verifiedBlockNumbers = getVerifiedBlockNumbers(spec, nodeId);
+
+                    if (verifiedBlockNumbers.isEmpty()) {
+                        Assertions.fail(
+                                String.format("No verified blocks by block node simulator for node %d", nodeId));
+                    }
+
+                    for (final var markerFile : markerFileNumbers) {
+                        if (!verifiedBlockNumbers.contains(markerFile)) {
+                            Assertions.fail(String.format(
+                                    "Marker file for block {%d} on node %d is not verified by the respective block node simulator",
+                                    markerFile, nodeId));
+                        }
+                    }
+                    log.info("Successfully validated {} marker files for node {}", markerFileNumbers.size(), nodeId);
+                } catch (Exception ignore) {
+                    // We will try to read the next node's streams
                 }
-                log.info("Successfully validated {} marker files for node {}", markerFileNumbers.size(), nodeId);
-            } catch (Exception ignore) {
-                // We will try to read the next node's streams
-            }
-        });
-        log.info("Block proofs validation completed successfully");
+            });
+            log.info("Block proofs validation completed successfully");
+        }
     }
 
     private static Set<Long> getVerifiedBlockNumbers(@NonNull final HapiSpec spec, final long nodeId) {
