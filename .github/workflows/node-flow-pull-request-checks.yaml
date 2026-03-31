@@ -50,7 +50,7 @@ jobs:
           script: |
             const script = require('.github/workflows/support/scripts/classify-changed-files.js');
             await script({github, context, core})
-  # Add a comment
+
   mats-pr-checks:
     name: MATS
     needs:
