@@ -88,8 +88,11 @@ public class ConsensusLayerBenchmark {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
-        // Enable the BenchmarkService
-        network.withConfigValue(
+        network
+                // Disable prometheus overhead
+                .withConfigValue("prometheus.endpointEnabled", false)
+                // Enable the BenchmarkService
+                .withConfigValue(
                 "slothApp.services", "org.hiero.sloth.fixtures.app.services.benchmark.BenchmarkService");
 
         final Configuration configuration = ConfigurationBuilder.create()
