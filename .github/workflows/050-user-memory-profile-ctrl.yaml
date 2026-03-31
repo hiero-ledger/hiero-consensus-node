@@ -51,7 +51,7 @@ on:
         description: 'Transactions Per Second'
       versions:
         required: true
-        default: "export CONSENSUS_NODE_VERSION=v0.72.0-rc.4; export BLOCK_NODE_VERSION=v0.28.1"
+        default: "export CONSENSUS_NODE_VERSION=v0.72.0-rc.4; export BLOCK_NODE_VERSION=v0.27.0; ONE_SHOT_WITH_BLOCK_NODE=false"
         type: string
         description: 'Versions of containers'
 defaults:
@@ -212,7 +212,7 @@ jobs:
           
           wait_in_minutes=$(expr ${{ inputs.nlg-time }} / 60)
           echo SOLO_TEST_CLUSTER=solo-e2e >> .env
-          echo ONE_SHOT_WITH_BLOCK_NODE=true >> .env
+          echo ONE_SHOT_WITH_BLOCK_NODE=false >> .env
           echo MIRROR_NODE_PINGER_TPS=10 >> .env
           echo ONE_SHOT_METRICS_TEST_DURATION_IN_MINUTES=${wait_in_minutes} >> .env
           cat .env
