@@ -272,8 +272,8 @@ public class ConsensusServiceSimpleFeesSuite {
                         .payingWith("payer")
                         .fee(ONE_HBAR)
                         .via("submitTxn"),
-                withOpContext((spec, opLog) -> validateChargedUsd(
-                        "submitTxn", expectedTopicSubmitMessageFullFeeUsd(0,4,4))));
+                withOpContext((spec, opLog) ->
+                        validateChargedUsd("submitTxn", expectedTopicSubmitMessageFullFeeUsd(0, 4, 4))));
     }
 
     @HapiTest
