@@ -24,15 +24,12 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -777,7 +774,7 @@ public class TokenWipeSimpleFeesTest {
             }
 
             @HapiTest
-            @DisplayName("TokenWipe - token not associated fails on handle - full fes charged")
+            @DisplayName("TokenWipe - token not associated fails on handle - full fees charged")
             final Stream<DynamicTest> tokenWipeNotAssociatedFails() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -798,7 +795,11 @@ public class TokenWipeSimpleFeesTest {
                                 .signedBy(PAYER, WIPE_KEY)
                                 .via(wipeTxn)
                                 .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
-                        validateChargedUsd(wipeTxn, TOKEN_WIPE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                        validateChargedUsdWithinWithTxnSize(
+                                wipeTxn,
+                                txnSize -> expectedTokenWipeFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
                         validateChargedAccount(wipeTxn, PAYER));
             }
 
