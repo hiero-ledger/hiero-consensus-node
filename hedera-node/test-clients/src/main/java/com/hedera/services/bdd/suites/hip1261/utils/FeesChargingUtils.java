@@ -1174,6 +1174,18 @@ public class FeesChargingUtils {
         return nodeFee * NETWORK_MULTIPLIER;
     }
 
+    public static double expectedTopicSubmitMessageServiceOnly(long messageBytes, boolean includesCustomFee) {
+        double serviceFee = 0;
+        if (includesCustomFee) {
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
+        } else {
+            final long byteExtrasService = Math.max(0L, messageBytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
+            final double serviceBytesExtrasFee = byteExtrasService * CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES;
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + serviceBytesExtrasFee;
+        }
+        return serviceFee;
+    }
+
     // -------- TokenCreate simple fees utils ---------//
 
     /**
