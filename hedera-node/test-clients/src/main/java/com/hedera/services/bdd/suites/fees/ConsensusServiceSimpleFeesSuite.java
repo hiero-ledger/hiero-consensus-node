@@ -23,6 +23,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateWithCustomFeeFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SUBMIT_MESSAGE_FULL_FEE_USD;
@@ -271,7 +272,8 @@ public class ConsensusServiceSimpleFeesSuite {
                         .payingWith("payer")
                         .fee(ONE_HBAR)
                         .via("submitTxn"),
-                validateChargedUsd("submitTxn", SUBMIT_MESSAGE_FULL_FEE_USD));
+                withOpContext((spec, opLog) -> validateChargedUsd(
+                        "submitTxn", expectedTopicSubmitMessageFullFeeUsd(0,4,4))));
     }
 
     @HapiTest
