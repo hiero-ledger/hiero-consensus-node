@@ -33,6 +33,7 @@ import org.hiero.sloth.fixtures.network.transactions.SlothTransaction;
  * between when the transaction was submitted (timestamp embedded in the transaction)
  * and when it reached the handle method.
  */
+@SuppressWarnings("unused")
 public class BenchmarkService implements SlothService {
 
     private static final Logger log = LogManager.getLogger(BenchmarkService.class);
@@ -80,7 +81,7 @@ public class BenchmarkService implements SlothService {
         this.selfId = selfId;
         this.latencyMetric = new AverageAndMax(
                 metrics,
-                "platform",
+                "app",
                 "slothLatency",
                 "the latency of sloth transaction in microseconds",
                 FloatFormats.FORMAT_16_2
