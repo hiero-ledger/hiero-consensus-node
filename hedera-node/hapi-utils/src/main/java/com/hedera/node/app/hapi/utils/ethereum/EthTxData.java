@@ -160,9 +160,6 @@ public record EthTxData(
 
     public byte[] encodeTx() {
         // TODO Glib: check if we can use accessList instead of accessListRlp
-//        if (accessList != null && accessList.length > 0) {
-//            throw new IllegalStateException("Re-encoding access list is unsupported");
-//        }
         return switch (type) {
             case LEGACY_ETHEREUM ->
                 RLPEncoder.list(

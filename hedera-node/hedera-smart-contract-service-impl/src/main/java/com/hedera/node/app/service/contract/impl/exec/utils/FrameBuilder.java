@@ -128,7 +128,8 @@ public class FrameBuilder {
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
         // add accessLists and codeDelegations authorities to "warmed" addresses
-        if (transaction.accessLists() != null || !codeDelegationAccessedAddresses.isEmpty()) {
+        if ((transaction.accessLists() != null && !transaction.accessLists().isEmpty())
+                || !codeDelegationAccessedAddresses.isEmpty()) {
             final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAccessedAddresses);
             final Multimap<Address, Bytes32> accessListWarmStorage = HashMultimap.create();
             // add accessLists to "warmed" addresses
@@ -136,7 +137,7 @@ public class FrameBuilder {
                 for (final AccessListItem accessList : transaction.accessLists()) {
                     final Address address = Address.wrap(accessList.address());
                     accessListWarmAddresses.add(address);
-                    accessList.storageKeys().forEach(e -> accessListWarmStorage.put(address, e));
+                    accessListWarmStorage.putAll(address, accessList.storageKeys());
                 }
             }
             builder.accessListWarmAddresses(accessListWarmAddresses);
