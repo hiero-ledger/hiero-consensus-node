@@ -28,3 +28,6 @@ categories:
   hammer-tests:
     artifact-pattern: "Hammer Test*"
     managers: [Jeffrey-morgan34]
+  catch-all:
+    default: true
+    managers: [Jeffrey-morgan34]

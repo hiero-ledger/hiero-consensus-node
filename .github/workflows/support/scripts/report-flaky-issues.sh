@@ -50,9 +50,17 @@ lookup_managers() {
     # Use a simple approach: iterate through categories
     local current_pattern=""
     local current_managers=""
+    local current_is_default=false
+    local default_managers=""
     local matched=false
 
     while IFS= read -r line; do
+        # Detect start of a new category block (2-space indented key) and reset state
+        if [[ "${line}" =~ ^[[:space:]]{2}[a-z] ]]; then
+            current_pattern=""
+            current_is_default=false
+        fi
+
         # Match artifact-pattern lines
         if [[ "${line}" =~ artifact-pattern:\ *\"(.*)\" ]]; then
             current_pattern="${BASH_REMATCH[1]}"
@@ -67,11 +75,21 @@ lookup_managers() {
             current_pattern="${current_pattern#\'}"
         fi
 
+        # Match default: true lines
+        if [[ "${line}" =~ default:\ *true ]]; then
+            current_is_default=true
+        fi
+
         # Match managers lines
         if [[ "${line}" =~ managers:\ *\[(.*)\] ]]; then
             current_managers="${BASH_REMATCH[1]}"
             # Remove spaces around commas
             current_managers=$(echo "${current_managers}" | tr -d ' ')
+
+            # Capture default managers for catch-all fallback
+            if [[ "${current_is_default}" == "true" ]]; then
+                default_managers="${current_managers}"
+            fi
 
             # Check if artifact name matches the pattern (glob matching)
             # shellcheck disable=SC2053
@@ -83,7 +101,10 @@ lookup_managers() {
         fi
     done < "${CONFIG_FILE}"
 
-    if [[ "${matched}" == "false" ]]; then
+    # Fall back to catch-all default managers if no pattern matched
+    if [[ "${matched}" == "false" && -n "${default_managers}" ]]; then
+        managers="${default_managers}"
+    elif [[ "${matched}" == "false" ]]; then
         echo "::warning::No matching artifact-pattern found for '${artifact_name}' in ${CONFIG_FILE}" >&2
     fi
 
