@@ -176,7 +176,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             // of the VirtualMap. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
-            reconnect.onStart(firstLeafPath, lastLeafPath);
+            reconnect.onStart(firstLeafPath, lastLeafPath, null);
         }
         return node;
     }

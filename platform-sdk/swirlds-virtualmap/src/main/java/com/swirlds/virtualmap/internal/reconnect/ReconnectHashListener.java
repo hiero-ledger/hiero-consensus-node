@@ -43,7 +43,7 @@ public class ReconnectHashListener implements VirtualHashListener {
      */
     @Override
     public void onHashingStarted(long firstLeafPath, long lastLeafPath) {
-        flusher.start(firstLeafPath, lastLeafPath);
+        flusher.init(firstLeafPath, lastLeafPath);
     }
 
     /**

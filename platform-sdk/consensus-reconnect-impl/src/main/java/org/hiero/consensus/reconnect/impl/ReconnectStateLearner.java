@@ -220,8 +220,10 @@ public class ReconnectStateLearner {
         } catch (final InterruptedException e) {
             logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
             Thread.currentThread().interrupt();
+            reconnect.destroy();
             throw e;
         } catch (final Exception e) {
+            reconnect.destroy();
             throw new MerkleSynchronizationException(e);
         }
 

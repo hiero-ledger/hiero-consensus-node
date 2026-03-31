@@ -186,8 +186,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
                     : "Root node must be the first node received from the teacher";
             traversalOrder.start(
                     originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
-            reconnect.onStart(firstLeafPath, lastLeafPath);
-            rootResponseReceived.countDown();
+            reconnect.onStart(firstLeafPath, lastLeafPath, rootResponseReceived::countDown);
         }
         if ((responsePath == 0) || !isLeaf(responsePath)) {
             handleResponse(response);

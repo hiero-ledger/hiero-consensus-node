@@ -30,6 +30,8 @@ import com.swirlds.virtualmap.internal.reconnect.TopToBottomTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.TwoPhasePessimisticTraversalOrder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -157,18 +159,27 @@ public final class VirtualMapReconnect {
      * paths of the reconnected tree. This initializes the reconnect state, registers old leaves
      * that need to be removed, and starts the background hashing thread.
      *
-     * <p>Must be called before {@link #onLeaf(VirtualLeafBytes)}.
+     * <p>Must be called before any {@link #onLeaf(VirtualLeafBytes)} and {@link #onEnd()} calls.
      *
      * @param firstLeafPath first leaf path in the reconnected tree
      * @param lastLeafPath  last leaf path in the reconnected tree
+     * @param beforeCleaningLeafsAction an action to run after the reconnect state is initialized but before any old leaves are marked for deletion. Can be {@code null}.
      */
-    public void onStart(final long firstLeafPath, final long lastLeafPath) {
+    public void onStart(
+            final long firstLeafPath, final long lastLeafPath, @Nullable Runnable beforeCleaningLeafsAction) {
         logger.info(RECONNECT.getMarker(), "Start reconnect");
 
         reconnectState.setPaths(firstLeafPath, lastLeafPath);
-        // setPathInformation() below may take a while if many old leaves need to be marked for deletion
-        nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
+        reconnectFlusher.init(firstLeafPath, lastLeafPath);
         prepareReconnectHashing(firstLeafPath, lastLeafPath);
+
+        // setPathInformation() below may take a while if many old leaves need to be marked for deletion,
+        // so we run the provided action before that to allow the caller to do any necessary preparation
+        // (e.g., send an acknowledgment to the teacher to unblock it).
+        if (beforeCleaningLeafsAction != null) {
+            beforeCleaningLeafsAction.run();
+        }
+        nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
     }
 
     /**
@@ -211,7 +222,7 @@ public final class VirtualMapReconnect {
         nodeRemover.allNodesReceived();
         endLearnerReconnect();
 
-        logger.info(RECONNECT.getMarker(), "Leaner reconnect complete");
+        logger.info(RECONNECT.getMarker(), "Learner reconnect complete");
     }
 
     /**
@@ -223,6 +234,10 @@ public final class VirtualMapReconnect {
      * @param lastLeafPath  last leaf path in the reconnected tree
      */
     private void prepareReconnectHashing(final long firstLeafPath, final long lastLeafPath) {
+        if (reconnectHashingStarted.get()) {
+            throw new MerkleSynchronizationException("Reconnect hashing thread has already been started");
+        }
+
         final DataSourceHashChunkPreloader hashChunkPreloader = new DataSourceHashChunkPreloader(dataSource);
         final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher, hashChunkPreloader);
 
@@ -275,8 +290,6 @@ public final class VirtualMapReconnect {
         }
     }
 
-    // ---- Factory method for the learner tree view ----
-
     /**
      * Builds a {@link LearnerTreeView} for this reconnect operation.
      *
@@ -324,5 +337,16 @@ public final class VirtualMapReconnect {
             throw new IllegalStateException("Reconnect has not completed; VirtualMap is not yet available");
         }
         return virtualMap;
+    }
+
+    /**
+     * Destroy current reconnect state by closing datasource. Can be called in case of any reconnect exception.
+     */
+    public void destroy() {
+        try {
+            dataSource.close(false);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Error closing data source", e);
+        }
     }
 }
