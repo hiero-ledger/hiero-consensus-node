@@ -363,7 +363,7 @@ public final class BenchmarkMetrics {
         csvOutputFolder = config.csvOutputFolder();
         csvMetricsFileName = config.csvMetricsFileName();
         csvMetricNamesFileName = config.csvMetricNamesFileName();
-        csvAppend = config.csvOverwrite();
+        csvAppend = config.csvAppend();
         csvWriteFrequency = config.csvWriteFrequency();
         deviceName = config.deviceName();
     }

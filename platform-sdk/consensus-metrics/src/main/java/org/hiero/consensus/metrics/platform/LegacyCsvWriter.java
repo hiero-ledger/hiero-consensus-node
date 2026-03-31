@@ -52,8 +52,8 @@ import org.hiero.consensus.model.node.NodeId;
  *     <dt>csvFileName</dt>
  *     <dd>The filename of the generated CSV-file. If this setting is not set, no CSV-file is generated.</dd>
  *
- *     <dt>csvAppend</dt>
- *     <dd>If {@code true} and the file exists, new data is appended. Otherwise a new file is created.</dd>
+ *     <dt>csvOverwrite</dt>
+ *     <dd>If {@code true} and the file exists, it will be overwritten on each run. If not a new file with a suffix will be created</dd>
  *
  *     <dt>showInternalStats</dt>
  *     <dd>If {@code true}, also settings with the category "internal" will be written to file</dd>
