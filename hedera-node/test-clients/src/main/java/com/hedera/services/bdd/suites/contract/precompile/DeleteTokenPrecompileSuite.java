@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -65,7 +64,6 @@ public class DeleteTokenPrecompileSuite {
     private static final KeyShape THRESHOLD_KEY_SHAPE = KeyShape.threshOf(1, ED25519, CONTRACT);
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> deleteFungibleToken() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
@@ -122,7 +120,6 @@ public class DeleteTokenPrecompileSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> deleteNftToken() {
         final AtomicReference<TokenID> vanillaTokenID = new AtomicReference<>();
         final AtomicReference<AccountID> accountID = new AtomicReference<>();
