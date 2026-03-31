@@ -558,7 +558,7 @@ public final class VirtualHasher {
         // as one of the inputs is this dirty leaf task. If the parent task is not created,
         // create it here.
 
-        while (sortedDirtyLeaves.hasNext()) {
+        while (sortedDirtyLeaves.hasNext() && !Thread.currentThread().isInterrupted()) {
             VirtualLeafBytes<?> leaf = sortedDirtyLeaves.next();
             long curPath = leaf.path();
             // For the created leaf task, set the leaf as an input. Together with the parent task

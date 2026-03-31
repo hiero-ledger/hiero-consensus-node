@@ -43,7 +43,7 @@ public class LearningSynchronizer {
     private final SerializableDataOutputStream outputStream;
 
     /**
-     * Virtual tree view used to access nodes and hashes in the newRoot above.
+     * Virtual tree view used to access nodes and hashes.
      */
     private final LearnerTreeView view;
 

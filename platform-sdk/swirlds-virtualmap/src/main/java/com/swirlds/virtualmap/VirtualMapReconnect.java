@@ -163,10 +163,10 @@ public final class VirtualMapReconnect {
      *
      * @param firstLeafPath first leaf path in the reconnected tree
      * @param lastLeafPath  last leaf path in the reconnected tree
-     * @param beforeCleaningLeafsAction an action to run after the reconnect state is initialized but before any old leaves are marked for deletion. Can be {@code null}.
+     * @param beforeCleaningLeavesAction an action to run after the reconnect state is initialized but before any old leaves are marked for deletion. Can be {@code null}.
      */
     public void onStart(
-            final long firstLeafPath, final long lastLeafPath, @Nullable Runnable beforeCleaningLeafsAction) {
+            final long firstLeafPath, final long lastLeafPath, @Nullable Runnable beforeCleaningLeavesAction) {
         logger.info(RECONNECT.getMarker(), "Start reconnect");
 
         reconnectState.setPaths(firstLeafPath, lastLeafPath);
@@ -176,8 +176,8 @@ public final class VirtualMapReconnect {
         // setPathInformation() below may take a while if many old leaves need to be marked for deletion,
         // so we run the provided action before that to allow the caller to do any necessary preparation
         // (e.g., send an acknowledgment to the teacher to unblock it).
-        if (beforeCleaningLeafsAction != null) {
-            beforeCleaningLeafsAction.run();
+        if (beforeCleaningLeavesAction != null) {
+            beforeCleaningLeavesAction.run();
         }
         nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
     }
@@ -234,10 +234,6 @@ public final class VirtualMapReconnect {
      * @param lastLeafPath  last leaf path in the reconnected tree
      */
     private void prepareReconnectHashing(final long firstLeafPath, final long lastLeafPath) {
-        if (reconnectHashingStarted.get()) {
-            throw new MerkleSynchronizationException("Reconnect hashing thread has already been started");
-        }
-
         final DataSourceHashChunkPreloader hashChunkPreloader = new DataSourceHashChunkPreloader(dataSource);
         final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher, hashChunkPreloader);
 
@@ -340,10 +336,15 @@ public final class VirtualMapReconnect {
     }
 
     /**
-     * Destroy current reconnect state by closing datasource. Can be called in case of any reconnect exception.
+     * Destroy current reconnect state by closing datasource, closing iterator and canceling reconnect hashing future.
+     * Must be called in case of any reconnect exception.
      */
-    public void destroy() {
+    public void destroyOnException() {
         try {
+            if (!reconnectHashingFuture.isDone()) {
+                reconnectHashingFuture.cancel(true);
+            }
+            reconnectIterator.close();
             dataSource.close(false);
         } catch (IOException e) {
             throw new UncheckedIOException("Error closing data source", e);
