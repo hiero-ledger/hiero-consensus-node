@@ -126,29 +126,6 @@ public class FeesChargingUtils {
 
     // ------ Fees calculation utils ------//
 
-    /** tinycents -> USD */
-    public static double tinycentsToUsd(long tinycents) {
-        return tinycents / 100_000_000.0 / 100.0;
-    }
-
-    /**
-     * SimpleFees formula for node fees only:
-     * node = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
-     */
-    private static double expectedNodeFeeUsd(long sigs, int txnSize) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        return NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-    }
-
-    /**
-     * SimpleFees formula for network fees only:
-     * network = node * NETWORK_MULTIPLIER
-     */
-    private static double expectedNetworkFeeUsd(long sigs, int txnSize) {
-        return expectedNodeFeeUsd(sigs, txnSize) * NETWORK_MULTIPLIER;
-    }
-
     /**
      * SimpleFees formula for node + network fees:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
@@ -1645,14 +1622,23 @@ public class FeesChargingUtils {
     /**
      * Network-only fee for TokenAssociate failures in pre-handle.
      */
-    public static double expectedTokenAssociateNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenAssociateNetworkFeeOnlyUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenAssociateNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenAssociateNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenDissociate simple fees utils ---------//
@@ -1664,7 +1650,7 @@ public class FeesChargingUtils {
      * service = TOKEN_DISSOCIATE_BASE
      * total   = node + network + service
      */
-    private static double expectedTokenDissociateFullFeeUsd(long sigs, long tokens, int txnSize) {
+    private static double expectedTokenDissociateFullFeeUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
@@ -1680,17 +1666,10 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Overload for single token dissociation.
-     */
-    public static double expectedTokenDissociateFullFeeUsd(long sigs) {
-        return expectedTokenDissociateFullFeeUsd(sigs, 1L);
-    }
-
-    /**
      * Overload for TokenDissociate with no bytes.
      */
-    public static double expectedTokenDissociateFullFeeUsd(long sigs, long tokens) {
-        return expectedTokenDissociateFullFeeUsd(sigs, tokens, 0);
+    public static double expectedTokenDissociateFullFeeUsd(long sigs) {
+        return expectedTokenDissociateFullFeeUsd(sigs, 0);
     }
 
     /**
@@ -1705,11 +1684,20 @@ public class FeesChargingUtils {
     /**
      * Network-only fee for TokenDissociate failures in pre-handle.
      */
-    public static double expectedTokenDissociateNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenDissociateNetworkFeeOnlyUsd(long sigs, int txnSize) {
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenDissociateNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenDissociateNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenGrantKyc simple fees utils ---------//
@@ -1883,11 +1871,20 @@ public class FeesChargingUtils {
     /**
      * Network-only fee for TokenFreeze failures in pre-handle.
      */
-    public static double expectedTokenFreezeNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenFreezeNetworkFeeOnlyUsd(long sigs, int txnSize) {
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenFreezeNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenFreezeNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenUnfreeze simple fees utils ---------//
@@ -1933,11 +1930,20 @@ public class FeesChargingUtils {
     /**
      * Network-only fee for TokenUnfreeze failures in pre-handle.
      */
-    public static double expectedTokenUnfreezeNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenUnfreezeNetworkFeeOnlyUsd(long sigs, int txnSize) {
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenUnfreezeNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenUnfreezeNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenUnpause simple fees utils ---------//

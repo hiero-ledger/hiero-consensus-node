@@ -2,11 +2,14 @@
 package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -191,30 +194,6 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         finalMap.getDataSource().close();
     }
 
-    private void preCreateMap() {
-        if (virtualMapP != null) {
-            return;
-        }
-        virtualMapP = createEmptyMap();
-
-        long start = System.currentTimeMillis();
-        int count = 0;
-        for (int i = 0; i < maxKey; i++) {
-            Bytes key = longToKey(i);
-            BenchmarkValue value = new BenchmarkValue(nextValue());
-            virtualMapP.put(key, value, BenchmarkValueCodec.INSTANCE);
-
-            if (++count == maxKey / numFiles) {
-                count = 0;
-                virtualMapP = copyMap(virtualMapP);
-            }
-        }
-
-        logger.info("Pre-created {} records in {} ms", maxKey, System.currentTimeMillis() - start);
-
-        virtualMapP = flushAndOptionallySaveMap(virtualMapP);
-    }
-
     /**
      * Read from a pre-created map. Parallel.
      */
@@ -225,7 +204,26 @@ public class VirtualMapBench extends VirtualMapBaseBench {
 
         logger.info(RUN_DELIMITER);
 
-        preCreateMap();
+        if (virtualMapP == null) {
+            virtualMapP = createEmptyMap();
+            final AtomicReference<VirtualMap> mapRef = new AtomicReference<>(virtualMapP);
+            final long recordsPerCopy = maxKey / numFiles;
+
+            final long start = System.currentTimeMillis();
+            new StateBuilder(BenchmarkKeyUtils::longToKey, i -> new BenchmarkValue(nextValue()))
+                    .populateState(
+                            0,
+                            maxKey,
+                            i -> {
+                                if (i > 0 && i % recordsPerCopy == 0) {
+                                    mapRef.set(virtualMapP = copyMap(virtualMapP));
+                                }
+                            },
+                            StateBuilder.buildVMPopulator(mapRef));
+            logger.info("Pre-created {} records in {} ms", maxKey, System.currentTimeMillis() - start);
+
+            virtualMapP = flushAndOptionallySaveMap(virtualMapP);
+        }
 
         final long start = System.currentTimeMillis();
         final AtomicLong total = new AtomicLong(0);

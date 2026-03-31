@@ -264,7 +264,6 @@ jobs:
       enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests-state-throttling == 'true' }}"
       enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}"
       enable-network-log-capture: "true"
-      mats-suffix: "MATS"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
