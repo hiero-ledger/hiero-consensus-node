@@ -176,7 +176,9 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
             if (pcesOnlyPercent > MAX_PCES_ONLY_PERCENT) {
                 fail(
                         "%.2f%% of cross-block parent hashes (%d of %d) were resolved via PCES only,"
-                                + " exceeding the %.1f%% threshold. This indicates too many stale events.",
+                                + " exceeding the %.1f%% threshold. Either this test run had an unusually high number"
+                                + " of stale events, or event hashes are not being calculated properly from the block"
+                                + " stream data.",
                         pcesOnlyPercent, pcesOnlyRefs.size(), crossBlockParentRefs.size(), MAX_PCES_ONLY_PERCENT);
             }
         }
