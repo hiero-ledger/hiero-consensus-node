@@ -40,6 +40,13 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
     /** Number of nearby birth rounds to show around a gap in diagnostics. */
     private static final int CONTEXT_WINDOW = 5;
 
+    /**
+     * Maximum allowed percentage of cross-block parent hashes resolved via PCES only.
+     * If more than this fraction of parent refs are found only in PCES (stale events),
+     * the validation fails, as it indicates a problem beyond normal stale event rates.
+     */
+    private static final double MAX_PCES_ONLY_PERCENT = 1.0;
+
     private final PcesEventHashReader.PcesData pcesData;
 
     /**
@@ -151,10 +158,14 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         }
 
         if (!pcesOnlyRefs.isEmpty()) {
+            final double pcesOnlyPercent = crossBlockParentRefs.isEmpty()
+                    ? 0.0
+                    : (pcesOnlyRefs.size() * 100.0) / crossBlockParentRefs.size();
             logger.warn(
-                    "{} of {} cross-block parent hashes were resolved via PCES only (stale events not in block stream):",
+                    "{} of {} cross-block parent hashes ({} %) were resolved via PCES only (stale events not in block stream):",
                     pcesOnlyRefs.size(),
-                    crossBlockParentRefs.size());
+                    crossBlockParentRefs.size(),
+                    String.format("%.2f", pcesOnlyPercent));
             for (final var ref : pcesOnlyRefs) {
                 logger.warn(
                         "  Stale parent: creator={}, birthRound={}, hash={} | child: creator={}, birthRound={}, block={}",
@@ -164,6 +175,15 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                         ref.childCreatorId(),
                         ref.childBirthRound(),
                         ref.childBlockIndex());
+            }
+            if (pcesOnlyPercent > MAX_PCES_ONLY_PERCENT) {
+                fail(
+                        "%.2f%% of cross-block parent hashes (%d of %d) were resolved via PCES only,"
+                                + " exceeding the %.1f%% threshold. This indicates too many stale events.",
+                        pcesOnlyPercent,
+                        pcesOnlyRefs.size(),
+                        crossBlockParentRefs.size(),
+                        MAX_PCES_ONLY_PERCENT);
             }
         }
 
