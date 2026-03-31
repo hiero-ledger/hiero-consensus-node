@@ -158,14 +158,11 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
         }
 
         if (!pcesOnlyRefs.isEmpty()) {
-            final double pcesOnlyPercent = crossBlockParentRefs.isEmpty()
-                    ? 0.0
-                    : (pcesOnlyRefs.size() * 100.0) / crossBlockParentRefs.size();
+            final double pcesOnlyPercent =
+                    crossBlockParentRefs.isEmpty() ? 0.0 : (pcesOnlyRefs.size() * 100.0) / crossBlockParentRefs.size();
             logger.warn(
                     "{} of {} cross-block parent hashes ({} %) were resolved via PCES only (stale events not in block stream):",
-                    pcesOnlyRefs.size(),
-                    crossBlockParentRefs.size(),
-                    String.format("%.2f", pcesOnlyPercent));
+                    pcesOnlyRefs.size(), crossBlockParentRefs.size(), String.format("%.2f", pcesOnlyPercent));
             for (final var ref : pcesOnlyRefs) {
                 logger.warn(
                         "  Stale parent: creator={}, birthRound={}, hash={} | child: creator={}, birthRound={}, block={}",
@@ -180,10 +177,7 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                 fail(
                         "%.2f%% of cross-block parent hashes (%d of %d) were resolved via PCES only,"
                                 + " exceeding the %.1f%% threshold. This indicates too many stale events.",
-                        pcesOnlyPercent,
-                        pcesOnlyRefs.size(),
-                        crossBlockParentRefs.size(),
-                        MAX_PCES_ONLY_PERCENT);
+                        pcesOnlyPercent, pcesOnlyRefs.size(), crossBlockParentRefs.size(), MAX_PCES_ONLY_PERCENT);
             }
         }
 
