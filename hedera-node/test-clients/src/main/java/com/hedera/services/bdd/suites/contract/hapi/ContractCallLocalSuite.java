@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -79,7 +78,6 @@ public class ContractCallLocalSuite {
     private static final int DECIMALS = 13;
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> htsOwnershipCheckWorksWithAliasAddress() {
         final AtomicReference<AccountID> ecdsaAccountId = new AtomicReference<>();
         final AtomicReference<ByteString> ecdsaAccountIdLongZeroAddress = new AtomicReference<>();
@@ -274,7 +272,6 @@ public class ContractCallLocalSuite {
 
     // https://github.com/hashgraph/hedera-services/pull/5485
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> callLocalDoesNotCheckSignaturesNorPayer() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
