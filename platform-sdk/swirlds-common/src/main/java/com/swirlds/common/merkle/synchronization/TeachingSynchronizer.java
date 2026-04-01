@@ -111,7 +111,7 @@ public class TeachingSynchronizer {
 
         InterruptedException interruptException = null;
         try (view) {
-            view.startTeacherTasks(this, time, workGroup, in, out);
+            view.startTeacherTasks(time, workGroup, in, out);
             workGroup.waitForTermination();
         } catch (final InterruptedException e) { // NOSONAR: Exception is rethrown below after cleanup.
             interruptException = e;
