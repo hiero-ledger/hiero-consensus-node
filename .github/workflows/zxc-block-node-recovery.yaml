@@ -144,7 +144,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@v0.61.0
+        run: npm install -g @hashgraph/solo@v0.65.0
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
