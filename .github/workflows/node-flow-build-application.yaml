@@ -71,8 +71,8 @@ jobs:
             "dry-run-enabled": false
             }'
 
-  # Runs on every outcome (success, failure, cancelled) so it can classify the
-  # result into a category and send the appropriate Slack notification.
+  # Always run on the outcome (MATS failure, Deploy CI Trigger failure, or canceled)
+  # so it can classify the result into a category and send the appropriate Slack notification.
   report-status:
     name: Report MATS execution status
     runs-on: hl-cn-default-lin-sm
@@ -129,9 +129,6 @@ jobs:
         run: |
           if [[ "${{ needs.mats-tests.result }}" == "cancelled" ]]; then
             echo "category=cancelled" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ needs.mats-tests.result }}" == "success" \
-            && "${{ needs.deploy-ci-trigger.result }}" == "success" ]]; then
-            echo "category=success" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ needs.deploy-ci-trigger.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.mats-tests.outputs.failure-mode }}" == "workflow" ]]; then
             echo "category=infrastructure" >> "${GITHUB_OUTPUT}"
@@ -151,7 +148,7 @@ jobs:
       # success. Infrastructure failures aren't attributable to a specific commit.
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
-        if: ${{ steps.report-category.outputs.category == 'success' || steps.report-category.outputs.category == 'test' }}
+        if: ${{ steps.report-category.outputs.category == 'test' }}
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
           EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
@@ -440,21 +437,12 @@ jobs:
       # Notification routing:
       #   test failures       -> citr-operations (detailed) + release-team (detailed)
       #   infrastructure      -> citr-failures (detailed) + release-team (summary) + citr-operations (summary)
-      #   cancelled           -> release-team (summary) + citr-operations (summary) + citr-failures (summary)
+      #   canceled            -> release-team (summary) + citr-operations (summary) + citr-failures (summary)
       - name: Notify test failure (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload.json
-
-      - name: Notify test failure (release-team)
-        if: ${{ steps.report-category.outputs.category == 'test' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
@@ -468,29 +456,11 @@ jobs:
           payload-templated: true
           payload-file-path: slack_payload.json
 
-      - name: Notify infrastructure failure summary (release-team)
-        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload_summary.json
-
       - name: Notify infrastructure failure summary (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload-file-path: slack_payload_summary.json
-
-      - name: Notify cancelled summary (release-team)
-        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
