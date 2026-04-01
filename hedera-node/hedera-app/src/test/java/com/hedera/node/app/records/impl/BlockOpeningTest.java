@@ -119,7 +119,7 @@ class BlockOpeningTest {
         subject.maybeQuiesce(state);
 
         verify(platform, times(1)).quiescenceCommand(QUIESCE);
-        verify(quiescedHeartbeat, times(1)).start(any(), any(), any());
+        verify(quiescedHeartbeat, times(1)).start(any(), any());
     }
 
     @Test
@@ -130,7 +130,7 @@ class BlockOpeningTest {
         subject.maybeQuiesce(state);
 
         verify(platform, never()).quiescenceCommand(any());
-        verify(quiescedHeartbeat, never()).start(any(), any(), any());
+        verify(quiescedHeartbeat, never()).start(any(), any());
     }
 
     private void setupBlockInfo(@NonNull final Instant firstConsTimeOfCurrentBlock) {

@@ -69,10 +69,10 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(interval, probe, null);
+        subject.start(interval, probe);
 
-        // Then - initialDelay should equal the interval
-        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(5000L), eq(5000L), eq(TimeUnit.MILLISECONDS));
+        // Then
+        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(5000L), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -83,10 +83,10 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // Start first heartbeat
-        subject.start(interval, probe, null);
+        subject.start(interval, probe);
 
         // When - start second heartbeat
-        subject.start(interval, probe, null);
+        subject.start(interval, probe);
 
         // Then - should have cancelled the first one
         verify(scheduledFuture).cancel(false);
@@ -99,7 +99,7 @@ class QuiescedHeartbeatTest {
         final var interval = Duration.ofSeconds(2);
         given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
-        subject.start(interval, probe, null);
+        subject.start(interval, probe);
 
         // When
         subject.stop();
@@ -120,7 +120,7 @@ class QuiescedHeartbeatTest {
         final var interval = Duration.ofSeconds(2);
         given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
-        subject.start(interval, probe, null);
+        subject.start(interval, probe);
 
         // When
         subject.stop();
@@ -136,7 +136,7 @@ class QuiescedHeartbeatTest {
         final var interval = Duration.ofSeconds(2);
         given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
-        subject.start(interval, probe, null);
+        subject.start(interval, probe);
 
         // When
         subject.shutdown();
@@ -165,7 +165,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -188,7 +188,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -212,7 +212,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -237,7 +237,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -262,7 +262,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -286,7 +286,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -308,7 +308,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -335,7 +335,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -361,7 +361,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -387,7 +387,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -413,7 +413,7 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(Duration.ofSeconds(1), probe, null);
+        subject.start(Duration.ofSeconds(1), probe);
 
         // Capture and execute the heartbeat runnable twice
         final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
@@ -438,17 +438,17 @@ class QuiescedHeartbeatTest {
         given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
                 .willReturn(scheduledFuture);
 
-        // When - start with short interval (initialDelay = interval)
-        subject.start(shortInterval, probe, null);
+        // When - start with short interval
+        subject.start(shortInterval, probe);
 
         // Then
-        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(100L), eq(100L), eq(TimeUnit.MILLISECONDS));
+        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(100L), eq(TimeUnit.MILLISECONDS));
 
         // When - start with long interval
-        subject.start(longInterval, probe, null);
+        subject.start(longInterval, probe);
 
         // Then
-        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(60000L), eq(60000L), eq(TimeUnit.MILLISECONDS));
+        verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(60000L), eq(TimeUnit.MILLISECONDS));
     }
 
     @Test
@@ -459,32 +459,9 @@ class QuiescedHeartbeatTest {
                 .willReturn(scheduledFuture);
 
         // When
-        subject.start(zeroDuration, probe, null);
+        subject.start(zeroDuration, probe);
 
         // Then
         verify(scheduler).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(0L), eq(TimeUnit.MILLISECONDS));
-    }
-
-    @Test
-    void heartbeatUpdatesLastQuiescenceCommandWhenStopping() {
-        // Given
-        given(probe.findTct()).willReturn(null);
-        given(controller.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
-        given(scheduler.scheduleAtFixedRate(any(Runnable.class), anyLong(), anyLong(), any(TimeUnit.class)))
-                .willReturn(scheduledFuture);
-        final var lastCommand = new java.util.concurrent.atomic.AtomicReference<>(QUIESCE);
-
-        // When
-        subject.start(Duration.ofSeconds(1), probe, lastCommand);
-
-        final var runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
-        verify(scheduler).scheduleAtFixedRate(runnableCaptor.capture(), anyLong(), anyLong(), any(TimeUnit.class));
-        runnableCaptor.getValue().run();
-
-        // Then - lastQuiescenceCommand should be updated so BlockStreamManagerImpl
-        // can detect the change and restart the heartbeat when quiescence resumes
-        org.junit.jupiter.api.Assertions.assertEquals(DONT_QUIESCE, lastCommand.get());
-        verify(platform).quiescenceCommand(DONT_QUIESCE);
-        verify(scheduledFuture).cancel(false);
     }
 }

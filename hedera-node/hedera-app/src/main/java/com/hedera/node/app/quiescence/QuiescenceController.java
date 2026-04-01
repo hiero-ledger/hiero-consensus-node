@@ -259,9 +259,7 @@ public class QuiescenceController {
             return QuiescenceCommand.DONT_QUIESCE;
         }
         final Instant tct = nextTct.get();
-        if (tct != null
-                && !Instant.EPOCH.equals(tct)
-                && tct.minus(config.tctDuration()).isBefore(time.instant())) {
+        if (tct != null && tct.minus(config.tctDuration()).isBefore(time.instant())) {
             return QuiescenceCommand.DONT_QUIESCE;
         }
         if (pendingTransactionCount.getAsLong() > 0) {

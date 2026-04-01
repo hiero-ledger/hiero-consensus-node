@@ -15,7 +15,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -30,9 +29,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
  * {@link QuiescenceController#setNextTargetConsensusTime(Instant)}.
  * <p>
  * The heartbeat is stopped when the {@link QuiescenceController} reports any status other than
- * {@link QuiescenceCommand#QUIESCE} inside the heartbeat. When the heartbeat stops, it updates the
- * {@code lastQuiescenceCommand} reference so that {@link BlockStreamManagerImpl} can detect the state
- * change and restart the heartbeat when quiescence resumes.
+ * {@link QuiescenceCommand#QUIESCE} inside the heartbeat.
  */
 @Singleton
 public class QuiescedHeartbeat {
@@ -72,34 +69,24 @@ public class QuiescedHeartbeat {
     /**
      * Schedules a heartbeat at the given interval that will last until the {@link QuiescenceController} reports a
      * status other than {@link QuiescenceCommand#QUIESCE}.
-     *
-     * @param heartbeatInterval the interval between heartbeats (also used as the initial delay to give
-     *                          pending block signatures time to complete before the first tick)
-     * @param probe the TCT probe to use
-     * @param lastQuiescenceCommand if non-null, updated when the heartbeat breaks quiescence so that
-     *                              {@link BlockStreamManagerImpl} stays in sync with the command sent to the platform
      */
-    public void start(
-            @NonNull final Duration heartbeatInterval,
-            @NonNull final TctProbe probe,
-            @Nullable final AtomicReference<QuiescenceCommand> lastQuiescenceCommand) {
+    public void start(@NonNull final Duration heartbeatInterval, @NonNull final TctProbe probe) {
         requireNonNull(heartbeatInterval);
         requireNonNull(probe);
 
         // Cancel any existing heartbeat
         stop();
 
-        // Schedule the heartbeat task with initialDelay = heartbeatInterval to give pending
-        // block signatures time to complete before the first tick
+        // Schedule the heartbeat task
         heartbeatFuture = scheduler.scheduleAtFixedRate(
                 () -> {
                     try {
-                        heartbeat(probe, lastQuiescenceCommand);
+                        heartbeat(probe);
                     } catch (Exception e) {
                         log.warn("Unhandled exception in quiesced heartbeat", e);
                     }
                 },
-                heartbeatInterval.toMillis(),
+                0,
                 heartbeatInterval.toMillis(),
                 TimeUnit.MILLISECONDS);
         log.info("Started quiesced heartbeat at interval {}", heartbeatInterval);
@@ -127,8 +114,7 @@ public class QuiescedHeartbeat {
     /**
      * The heartbeat task that probes for the TCT and updates the controller.
      */
-    private void heartbeat(
-            @NonNull final TctProbe probe, @Nullable final AtomicReference<QuiescenceCommand> lastQuiescenceCommand) {
+    private void heartbeat(@NonNull final TctProbe probe) {
         try {
             // Probe for the TCT
             final var tct = probe.findTct();
@@ -140,17 +126,11 @@ public class QuiescedHeartbeat {
             // Check if we should continue running
             if (commandNow != QUIESCE) {
                 log.info("Stopping quiescence heartbeat ({})", commandNow);
-                if (lastQuiescenceCommand != null) {
-                    lastQuiescenceCommand.set(commandNow);
-                }
                 platform.quiescenceCommand(commandNow);
                 stop();
             }
         } catch (final Exception e) {
             // End quiescence and stop the heartbeat to avoid log spam from repeated failures
-            if (lastQuiescenceCommand != null) {
-                lastQuiescenceCommand.set(DONT_QUIESCE);
-            }
             platform.quiescenceCommand(DONT_QUIESCE);
             stop();
             throw e;

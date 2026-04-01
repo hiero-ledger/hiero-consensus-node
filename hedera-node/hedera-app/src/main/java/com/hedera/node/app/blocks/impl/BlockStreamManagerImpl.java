@@ -636,8 +636,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                                         blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
                                                         config.getConfigData(StakingConfig.class)
                                                                 .periodMins(),
-                                                        state),
-                                                lastQuiescenceCommand);
+                                                        state));
                                     }
                                 }
                             }
