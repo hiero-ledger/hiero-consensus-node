@@ -15,7 +15,7 @@ categories:
     managers: [Jeffrey-morgan34]
   hapi-tests:
     artifact-pattern: "HAPI Test*"
-    managers: [Jeffrey-morgan34, andrewb1269]
+    managers: [Jeffrey-morgan34]
   otter-tests:
     artifact-pattern: "Otter Tests*"
     managers: [Jeffrey-morgan34]
@@ -30,4 +30,4 @@ categories:
     managers: [Jeffrey-morgan34]
   catch-all:
     default: true
-    managers: [andrewb1269, rbarker-dev]
+    managers: [Jeffrey-morgan34]
