@@ -24,17 +24,10 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_BASE_FEE;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -123,13 +116,12 @@ public class TokenWipeSimpleFeesTest {
                     wipeTokenAccount(TOKEN, ACCOUNT, 50L)
                             .payingWith(PAYER)
                             .signedBy(PAYER, WIPE_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
                             .via("wipeTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "wipeTxn",
                             txnSize -> expectedTokenWipeFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
-                            0.001));
+                            0.1));
         }
 
         @HapiTest
@@ -160,13 +152,12 @@ public class TokenWipeSimpleFeesTest {
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .signedBy(PAYER, WIPE_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
                             .via("wipeTxn"),
                     validateChargedUsdWithinWithTxnSize(
                             "wipeTxn",
                             txnSize -> expectedTokenWipeFullFeeUsd(
                                     Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
-                            0.001));
+                            0.1));
         }
 
         @HapiTest

@@ -27,7 +27,6 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
@@ -36,7 +35,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
@@ -582,7 +580,6 @@ public class TokenOpsShortPrefixTest {
                         .signedBy(PAYER, TREASURY)
                         .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
                         .via("nftXferTxn"),
-                // 2 sigs (PAYER + TREASURY), 0 hooks, 2 accounts (within included=2), 1 token type, 0 gas
                 validateChargedUsdWithinWithTxnSize(
                         "nftXferTxn",
                         txnSize -> expectedCryptoTransferNFTFullFeeUsd(Map.of(
@@ -628,7 +625,13 @@ public class TokenOpsShortPrefixTest {
                         .signedBy(PAYER, ADMIN_KEY, TREASURY)
                         .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
                         .via("tokenCreateTxn"),
-                validateChargedUsdWithin("tokenCreateTxn", expectedTokenCreateFungibleFullFeeUsd(3L, 1L), 5.0));
+                validateChargedUsdWithinWithTxnSize(
+                        "tokenCreateTxn",
+                        txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                SIGNATURES, 3L,
+                                KEYS, 1L,
+                                PROCESSING_BYTES, (long) txnSize)),
+                        5.0));
     }
 
     @HapiTest
@@ -649,6 +652,12 @@ public class TokenOpsShortPrefixTest {
                         .signedBy(PAYER, ADMIN_KEY)
                         .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
                         .via("tokenUpdateTxn"),
-                validateChargedUsdWithin("tokenUpdateTxn", expectedTokenUpdateFullFeeUsd(2L, 0L), 10.0));
+                validateChargedUsdWithinWithTxnSize(
+                        "tokenUpdateTxn",
+                        txnSize -> expectedTokenUpdateFullFeeUsd(Map.of(
+                                SIGNATURES, 2L,
+                                KEYS, 0L,
+                                PROCESSING_BYTES, (long) txnSize)),
+                        10.0));
     }
 }
