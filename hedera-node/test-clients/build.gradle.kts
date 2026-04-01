@@ -453,6 +453,11 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
     val subprocessConcurrentParallelism =
         (Runtime.getRuntime().availableProcessors() * 2).coerceIn(8, 12)
+    logger.lifecycle(
+        "testSubprocessConcurrent: junit fixed.parallelism={} (availableProcessors={})",
+        subprocessConcurrentParallelism,
+        Runtime.getRuntime().availableProcessors(),
+    )
     systemProperty(
         "junit.jupiter.execution.parallel.config.fixed.parallelism",
         subprocessConcurrentParallelism.toString(),
