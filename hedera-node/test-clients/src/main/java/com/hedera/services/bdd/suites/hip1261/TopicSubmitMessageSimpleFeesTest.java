@@ -67,7 +67,7 @@ import org.junit.jupiter.api.Tag;
  * Tests for SubmitMessage simple fees.
  * Validates that fees are correctly calculated based on:
  * - Number of signatures (extras beyond included)
- * - Number of bytes (extras beyond included 100 bytes)
+ * - Number of bytes (extras beyond included)
  */
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
@@ -90,9 +90,9 @@ public class TopicSubmitMessageSimpleFeesTest {
     class SubmitMessageSimpleFeesPositiveTestCases {
 
         @HapiTest
-        @DisplayName("SubmitMessage - within included bytes (100 bytes) - base fee only")
-        final Stream<DynamicTest> submitMessageWithinIncludedBytes() {
-            final String message = "x".repeat(100); // Exactly 100 bytes (included)
+        @DisplayName("SubmitMessage - within included bytes (50 bytes) - base fee only")
+        final Stream<DynamicTest> submitMessageWith50IncludedBytes() {
+            final String message = "x".repeat(50);
 
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -106,16 +106,16 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
-                                    STATE_BYTES, 100L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
         @HapiTest
-        @DisplayName("SubmitMessage - extra bytes (101 bytes)")
-        final Stream<DynamicTest> submitMessageExtraBytes101() {
-            final String message = "x".repeat(101); // 101 bytes (1 extra byte)
+        @DisplayName("SubmitMessage - just below included bytes threshold (99 bytes) - base fee only")
+        final Stream<DynamicTest> submitMessageWith99IncludedBytes() {
+            final String message = "x".repeat(99);
 
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -129,16 +129,16 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
-                                    STATE_BYTES, 101L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
         @HapiTest
-        @DisplayName("SubmitMessage - extra bytes (500 bytes)")
-        final Stream<DynamicTest> submitMessageExtraBytes500() {
-            final String message = "x".repeat(500); // 500 bytes (400 extra bytes)
+        @DisplayName("SubmitMessage - at included bytes threshold (100 bytes) - base fee only")
+        final Stream<DynamicTest> submitMessageWith100IncludedBytes() {
+            final String message = "x".repeat(100);
 
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -152,16 +152,16 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
-                                    STATE_BYTES, 500L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
         @HapiTest
-        @DisplayName("SubmitMessage - extra bytes (1024 bytes)")
-        final Stream<DynamicTest> submitMessageExtraBytes1024() {
-            final String message = "x".repeat(1024); // 1024 bytes (924 extra bytes)
+        @DisplayName("SubmitMessage - just above included bytes threshold (101 bytes) - with extra byte fee")
+        final Stream<DynamicTest> submitMessageWith101BytesExtraFeeCharged() {
+            final String message = "x".repeat(101);
 
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -175,7 +175,53 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
-                                    STATE_BYTES, 1024L,
+                                    STATE_BYTES, (long) message.length(),
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(submitMessageTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("SubmitMessage - above included bytes threshold (512 bytes) - with extra fees charged")
+        final Stream<DynamicTest> submitMessageWith512BytesExtraFeesCharged() {
+            final String message = "x".repeat(512);
+
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER),
+                    submitMessageTo(TOPIC)
+                            .message(message)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER)
+                            .via(submitMessageTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            submitMessageTxn,
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    STATE_BYTES, (long) message.length(),
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(submitMessageTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("SubmitMessage - at max bytes message threshold (1024 bytes) - with extra fees charged")
+        final Stream<DynamicTest> submitMessageAt1024ThresholdExtraFeeCharged() {
+            final String message = "x".repeat(1024);
+
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER),
+                    submitMessageTo(TOPIC)
+                            .message(message)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER)
+                            .via(submitMessageTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            submitMessageTxn,
+                            txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
@@ -184,7 +230,7 @@ public class TopicSubmitMessageSimpleFeesTest {
         @HapiTest
         @DisplayName("SubmitMessage - with submit key (extra sigs)")
         final Stream<DynamicTest> submitMessageWithSubmitKey() {
-            final String message = "x".repeat(50); // 50 bytes (within included)
+            final String message = "x".repeat(50);
 
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -202,7 +248,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    STATE_BYTES, 50L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
@@ -213,7 +259,7 @@ public class TopicSubmitMessageSimpleFeesTest {
         final Stream<DynamicTest> submitMessageWithThresholdSubmitKey() {
             KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
             SigControl validSig = keyShape.signedWith(sigs(ON, ON));
-            final String message = "x".repeat(100); // 100 bytes (within included)
+            final String message = "x".repeat(100);
 
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -232,7 +278,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
-                                    STATE_BYTES, 100L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
@@ -255,7 +301,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
-                                    STATE_BYTES, 100L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
@@ -264,7 +310,7 @@ public class TopicSubmitMessageSimpleFeesTest {
         @HapiTest
         @DisplayName("SubmitMessage - with submit key and extra bytes")
         final Stream<DynamicTest> submitMessageWithSubmitKeyAndExtraBytes() {
-            final String message = "x".repeat(500); // 500 bytes (400 extra)
+            final String message = "x".repeat(512);
 
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -282,7 +328,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    STATE_BYTES, 500L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
@@ -296,7 +342,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                     SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             SigControl allSigning = largeKeyShape.signedWith(
                     sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-            final String message = "x".repeat(100);
+            final String message = "x".repeat(150);
 
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(largeKeyShape),
@@ -312,7 +358,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 20L,
-                                    STATE_BYTES, 100L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
@@ -329,7 +375,7 @@ public class TopicSubmitMessageSimpleFeesTest {
             SigControl allSigning = veryLargeKeyShape.signedWith(sigs(
                     ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
                     ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-            final String message = "x".repeat(100);
+            final String message = "x".repeat(500);
 
             return hapiTest(
                     newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
@@ -345,7 +391,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                             submitMessageTxn,
                             txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
                                     SIGNATURES, 41L,
-                                    STATE_BYTES, 100L,
+                                    STATE_BYTES, (long) message.length(),
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
