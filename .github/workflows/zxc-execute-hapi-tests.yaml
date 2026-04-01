@@ -204,7 +204,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -281,7 +283,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -359,7 +363,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -436,7 +442,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -513,7 +521,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -590,7 +600,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -667,7 +679,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -744,7 +758,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -821,7 +837,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -898,7 +916,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -973,7 +993,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -1050,7 +1072,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "failure" ]]; then
+          if [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -1060,6 +1084,8 @@ jobs:
     name: "HAPI Tests (State Throttling)"
     if: ${{ inputs.enable-hapi-tests-state-throttling == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -1121,6 +1147,18 @@ jobs:
             hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   set-failure-mode:
     name: "Set Failure Mode"
     runs-on: hl-cn-default-lin-sm
@@ -1177,6 +1215,7 @@ jobs:
             "${{ needs.hapi-tests-iss.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}"
           )
 
           failure_mode="none"
