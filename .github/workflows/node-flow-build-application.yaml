@@ -155,8 +155,8 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build Rootly Summary
-        id: rootly-summary
+      - name: Build Report Summary
+        id: report-summary
         env:
           FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
         run: |
@@ -179,10 +179,10 @@ jobs:
             echo EOF
           } >> "${GITHUB_OUTPUT}"
 
-      - name: Log Rootly Summary
+      - name: Log Report Summary
         run: |
-          echo "## Rootly Summary:" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "## Flaky Test Summary:" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.report-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Build Slack Payload Message
         env:
