@@ -135,8 +135,8 @@ public class FrameBuilder {
                     accessList.storageKeys().forEach(e -> accessListWarmStorage.put(address, e));
                 }
             }
-            builder.accessListWarmAddresses(accessListWarmAddresses);
-            builder.accessListWarmStorage(accessListWarmStorage);
+            builder.eip2930AccessListWarmAddresses(accessListWarmAddresses);
+            builder.eip2930AccessListWarmStorage(accessListWarmStorage);
         }
         // finish initial frame
         if (transaction.isCreate()) {
