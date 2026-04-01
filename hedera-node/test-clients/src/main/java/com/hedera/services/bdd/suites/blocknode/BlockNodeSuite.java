@@ -96,7 +96,6 @@ public class BlockNodeSuite {
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
-                        String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(1)),
@@ -150,7 +149,7 @@ public class BlockNodeSuite {
                                 portNumbers.get(3)),
                         String.format(
                                 "/localhost:%s/ACTIVE] Block boundary reached; closing connection", portNumbers.get(3)),
-                        String.format("/localhost:%s/CLOSING] Closing connection.", portNumbers.get(3)),
+                        String.format("/localhost:%s/CLOSING] Closing connection", portNumbers.get(3)),
                         String.format(
                                 "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING",
                                 portNumbers.get(3)),
@@ -221,7 +220,7 @@ public class BlockNodeSuite {
                         // look for the saturation reaching the action stage (50%)
                         "saturation=50.0%",
                         // look for the log that shows we are forcing a reconnect to a different block node
-                        "Attempting to forcefully switch block node connections due to increasing block buffer saturation",
+                        "Streaming connection update requested",
                         "/localhost:" + portNumbers.get(1)
                                 + "/ACTIVE] Connection state transitioned from READY to ACTIVE")),
                 blockNode(0).updateSendingBlockAcknowledgements(true),
@@ -287,7 +286,7 @@ public class BlockNodeSuite {
                                 timeRef::get,
                                 duration,
                                 duration,
-                                "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
+                                "Streaming connection update requested")),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // restart the consensus node
                 // this should persist the buffer to disk on shutdown and load the buffer on startup
@@ -302,7 +301,7 @@ public class BlockNodeSuite {
                                 Duration.ofMinutes(3),
                                 "Block buffer persisted to disk",
                                 "Block buffer is being restored from disk",
-                                "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
+                                "Streaming connection update requested")),
                 // restart the block node and let it catch up
                 blockNode(0).startImmediately(),
                 // create some more blocks and ensure the buffer/platform remains healthy
@@ -371,19 +370,9 @@ public class BlockNodeSuite {
                 // Block node connection error assertions
                 assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "Error received", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Exception caught in block stream worker loop", Duration.ofSeconds(0)),
+                        byNodeId(0), "Exception caught in connection worker thread", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "UncheckedIOException caught in block stream worker loop", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Failed to establish connection to block node", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Failed to schedule connection task for block node", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Failed to reschedule connection attempt", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0),
-                        "Closing and rescheduling connection for reconnect attempt",
-                        Duration.ofSeconds(0)),
+                        byNodeId(0), "UncheckedIOException caught in connection worker thread", Duration.ofSeconds(0)),
 
                 // EndOfStream error assertions
                 assertBlockNodeCommsLogDoesNotContainText(
@@ -392,7 +381,7 @@ public class BlockNodeSuite {
                         byNodeId(0), "Block node reported an unknown error at block", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
-                        "Block node has exceeded the allowed number of EndOfStream responses",
+                        "Block node has exceeded the allowed number of BehindPublisher responses",
                         Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
@@ -441,7 +430,7 @@ public class BlockNodeSuite {
                         byNodeId(0), "Block buffer still not available to accept new blocks", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
-                        "Attempting to forcefully switch block node connections due to increasing block buffer saturation",
+                        "Streaming connection update requested",
                         Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
