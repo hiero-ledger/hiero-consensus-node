@@ -350,6 +350,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
                 .build();
 
         app.stateMutator(BlockRecordService.NAME)
@@ -410,6 +411,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
                 .build();
 
         app.stateMutator(BlockRecordService.NAME)
@@ -474,6 +476,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
                 .build();
 
         app.stateMutator(BlockRecordService.NAME)
@@ -545,6 +548,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
                 .build();
 
         app.stateMutator(BlockRecordService.NAME)
@@ -610,6 +614,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 1)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
                 .build();
 
         app.stateMutator(BlockRecordService.NAME)
@@ -734,6 +739,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.computeHashesFromWrappedRecordBlocks", true)
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
                 .build();
 
         // Build a migration result with a real hasher that has 1 leaf
@@ -818,6 +824,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .withConfigValue("hedera.recordStream.computeHashesFromWrappedRecordBlocks", false)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
                 .build();
 
         // Build seed wrapped hash state from a real hasher with 1 leaf
@@ -1211,6 +1218,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
                 .build();
 
         // State begins with votingComplete = false, i.e. prior to vote finalization.
@@ -1436,6 +1444,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", 1L)
                 .build();
 
         // Genesis init
@@ -1494,6 +1503,75 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         assertEquals(1, blockInfo.wrappedIntermediateBlockRootsLeafCount());
         assertNotEquals(Bytes.EMPTY, blockInfo.previousWrappedRecordBlockRootHash());
         assertTrue(blockInfo.wrappedIntermediatePreviousBlockRootHashes().size() > 0);
+    }
+
+    @Test
+    void liveWrappingSkippedWhenJumpstartBlockNumNotPositive() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", false)
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.jumpstart.blockNum", -1L)
+                .build();
+
+        // Genesis init with voting complete so the live path would normally write wrapped hashes
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RECONNECT)) {
+            // Open block 0 (EPOCH path), add items, cross period boundary
+            final var t0 = InstantUtils.instant(10, 1);
+            mgr.startUserTransaction(t0, state);
+            mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+
+            final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
+            mgr.startUserTransaction(t1, state);
+        }
+
+        // Wrapped hash fields should remain at defaults because blockNum <= 0 skips the live path
+        final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get();
+        assertEquals(Bytes.EMPTY, blockInfo.previousWrappedRecordBlockRootHash());
+        assertEquals(List.of(), blockInfo.wrappedIntermediatePreviousBlockRootHashes());
+        assertEquals(0, blockInfo.wrappedIntermediateBlockRootsLeafCount());
     }
 
     private static State requireNonNullState(final State state) {
