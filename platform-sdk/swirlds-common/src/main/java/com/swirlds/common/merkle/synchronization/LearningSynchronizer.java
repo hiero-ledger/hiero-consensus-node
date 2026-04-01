@@ -101,7 +101,7 @@ public class LearningSynchronizer {
 
         InterruptedException interruptException = null;
         try (view) {
-            view.startLearnerTasks(workGroup, in, out, () -> {});
+            view.startLearnerTasks(workGroup, in, out);
             workGroup.waitForTermination();
         } catch (final InterruptedException e) { // NOSONAR: Exception is rethrown below after cleanup.
             interruptException = e;

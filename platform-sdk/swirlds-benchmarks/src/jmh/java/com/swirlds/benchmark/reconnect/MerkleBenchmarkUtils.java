@@ -17,7 +17,7 @@ import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualMapReconnect;
+import com.swirlds.virtualmap.VirtualMapLearner;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -96,8 +96,8 @@ public class MerkleBenchmarkUtils {
             final TeachingSynchronizer teacher;
 
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final VirtualMapReconnect reconnect = new VirtualMapReconnect(startingTree, reconnectConfig, mapStats);
-            final LearnerTreeView learnerView = reconnect.getLearnerView();
+            final VirtualMapLearner vmapLearner = new VirtualMapLearner(startingTree, reconnectConfig, mapStats);
+            final LearnerTreeView learnerView = vmapLearner.getLearnerView();
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(
                         getStaticThreadManager(),
@@ -189,7 +189,7 @@ public class MerkleBenchmarkUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            return reconnect.getVirtualMap();
+            return vmapLearner.getVirtualMap();
         }
     }
 

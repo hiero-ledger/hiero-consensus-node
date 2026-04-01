@@ -20,7 +20,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapIterator;
-import com.swirlds.virtualmap.VirtualMapReconnect;
+import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -129,8 +129,8 @@ public final class MerkleTestUtils {
             final TeachingSynchronizer teacher;
 
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final VirtualMapReconnect reconnect = new VirtualMapReconnect(startingMap, reconnectConfig, mapStats);
-            final LearnerTreeView learnerView = reconnect.getLearnerView();
+            final VirtualMapLearner vmapLearner = new VirtualMapLearner(startingMap, reconnectConfig, mapStats);
+            final LearnerTreeView learnerView = vmapLearner.getLearnerView();
 
             if (latencyMilliseconds == 0) {
                 learner =
@@ -244,7 +244,7 @@ public final class MerkleTestUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            final VirtualMap generatedTree = reconnect.getVirtualMap();
+            final VirtualMap generatedTree = vmapLearner.getVirtualMap();
 
             assertReconnectValidity(startingTree, desiredTree, generatedTree);
 

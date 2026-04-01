@@ -9,7 +9,7 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.virtualmap.VirtualMapReconnect;
+import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -52,7 +52,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
      */
-    private final VirtualMapReconnect reconnect;
+    private final VirtualMapLearner vmapLearner;
 
     /**
      * Node traversal order. Defines the order in which node requests will be sent to the teacher.
@@ -65,10 +65,10 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     private final CountDownLatch rootResponseReceived = new CountDownLatch(1);
 
     /**
-     * Indicates if no responses from the teacher have been received yet. The very first response
+     * Indicates if a response from the teacher have been received already. The very first response
      * must be for path 0 (root virtual node). Used in assertions only.
      */
-    private final AtomicBoolean firstNodeResponse = new AtomicBoolean(true);
+    private final AtomicBoolean firstNodeResponse = new AtomicBoolean(false);
 
     /**
      * Responses from teacher may come in a different order than they are sent by learner. The order
@@ -88,34 +88,31 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
-     * @param reconnect
+     * @param vmapLearner
      * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
      * @param mapStats
      *      A ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPullVirtualTreeView(
             @NonNull final ReconnectConfig reconnectConfig,
-            @NonNull final VirtualMapReconnect reconnect,
+            @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {
-        super(reconnect.getOriginalState(), reconnect.getReconnectState());
+        super(vmapLearner.getOriginalState(), vmapLearner.getReconnectState());
         this.reconnectConfig = reconnectConfig;
-        this.reconnect = Objects.requireNonNull(reconnect);
+        this.vmapLearner = Objects.requireNonNull(vmapLearner);
         this.traversalOrder = traversalOrder;
         this.mapStats = mapStats;
     }
 
     @Override
     public void startLearnerTasks(
-            final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
-            final AsyncOutputStream out,
-            final Runnable completeListener) {
+            final StandardWorkGroup workGroup, final AsyncInputStream in, final AsyncOutputStream out) {
         final AtomicLong expectedResponses = new AtomicLong(0);
         // FUTURE WORK: configurable number of tasks
         for (int i = 0; i < 16; i++) {
-            final LearnerPullVirtualTreeReceiveTask learnerReceiveTask = new LearnerPullVirtualTreeReceiveTask(
-                    reconnectConfig, workGroup, in, this, expectedResponses, completeListener);
+            final LearnerPullVirtualTreeReceiveTask learnerReceiveTask =
+                    new LearnerPullVirtualTreeReceiveTask(reconnectConfig, workGroup, in, this, expectedResponses);
             learnerReceiveTask.exec();
         }
 
@@ -182,11 +179,11 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             logger.info(RECONNECT.getMarker(), "Root response received from the teacher");
             final long firstLeafPath = response.getFirstLeafPath();
             final long lastLeafPath = response.getLastLeafPath();
-            assert firstNodeResponse.compareAndSet(true, false)
+            assert firstNodeResponse.compareAndSet(false, true)
                     : "Root node must be the first node received from the teacher";
             traversalOrder.start(
                     originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
-            reconnect.onStart(firstLeafPath, lastLeafPath, rootResponseReceived::countDown);
+            vmapLearner.init(firstLeafPath, lastLeafPath, rootResponseReceived::countDown);
         }
         if ((responsePath == 0) || !isLeaf(responsePath)) {
             handleResponse(response);
@@ -209,7 +206,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
-        assert !firstNodeResponse.get() : "Root node must be the first node received from the teacher";
+        assert firstNodeResponse.get() : "Root node must be the first node received from the teacher";
         final long path = response.getPath();
         if (reconnectState.getLastLeafPath() <= 0) {
             return;
@@ -224,7 +221,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
                 final VirtualLeafBytes<?> leaf = response.getLeafData();
                 assert leaf != null;
                 assert path == leaf.path();
-                reconnect.onLeaf(leaf); // may block if hashing is slower than ingest
+                vmapLearner.onLeaf(leaf); // may block if hashing is slower than ingest
             }
             mapStats.incrementLeafData(1, isClean ? 1 : 0);
         } else {
@@ -254,7 +251,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             return Cryptography.NULL_HASH;
         }
 
-        final Hash hash = reconnect.findHash(originalChild);
+        final Hash hash = vmapLearner.findHash(originalChild);
         // The hash must have been specified by this point. The original tree was hashed before
         // we started running on the learner, so either the hash is in cache or on disk, but it
         // definitely exists at this point. If it is null, something bad happened elsewhere.
@@ -310,7 +307,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void close() {
-        reconnect.onEnd();
+        vmapLearner.onEnd();
     }
 
     /**

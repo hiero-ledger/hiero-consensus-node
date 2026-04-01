@@ -29,8 +29,6 @@ public class LearnerPushTask {
     private final AsyncOutputStream out;
     private final LearnerTreeView view;
 
-    private final Runnable completeListener;
-
     private final ReconnectMapStats mapStats;
 
     private final ThresholdLimitingHandler<Throwable> exceptionRateLimiter = new ThresholdLimitingHandler<>(1);
@@ -54,14 +52,12 @@ public class LearnerPushTask {
             final AsyncInputStream in,
             final AsyncOutputStream out,
             final LearnerTreeView view,
-            final ReconnectMapStats mapStats,
-            final Runnable completeListener) {
+            final ReconnectMapStats mapStats) {
         this.workGroup = workGroup;
         this.in = in;
         this.out = out;
         this.view = view;
         this.mapStats = mapStats;
-        this.completeListener = completeListener;
     }
 
     public void start() {
@@ -195,7 +191,6 @@ public class LearnerPushTask {
                 }
             }
 
-            completeListener.run();
             logger.info(RECONNECT.getMarker(), "learner thread finished the learning loop for the current subtree");
         } catch (final InterruptedException ex) {
             logger.warn(RECONNECT.getMarker(), "Learner thread interrupted");

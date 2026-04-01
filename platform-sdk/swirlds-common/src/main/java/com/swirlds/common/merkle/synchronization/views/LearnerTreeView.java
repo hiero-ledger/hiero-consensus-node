@@ -30,11 +30,7 @@ public interface LearnerTreeView extends LearnerExpectedLessonQueue, TreeView {
      * @param in the input stream to read data from teacher
      * @param out the output stream to write data to teacher
      */
-    void startLearnerTasks(
-            final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
-            final AsyncOutputStream out,
-            final Runnable completeListener);
+    void startLearnerTasks(final StandardWorkGroup workGroup, final AsyncInputStream in, final AsyncOutputStream out);
 
     /**
      * Set the child of an internal node.

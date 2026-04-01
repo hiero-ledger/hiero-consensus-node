@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -42,32 +41,8 @@ public class ReconnectHashListener implements VirtualHashListener {
      * {@inheritDoc}
      */
     @Override
-    public void onHashingStarted(long firstLeafPath, long lastLeafPath) {
-        flusher.init(firstLeafPath, lastLeafPath);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void onHashChunkHashed(@NonNull final VirtualHashChunk chunk) {
         flusher.updateHashChunk(chunk);
         hashChunkPreloader.clearCache(chunk.getChunkId());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onLeafHashed(final VirtualLeafBytes leaf) {
-        flusher.updateLeaf(leaf);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void onHashingCompleted() {
-        flusher.finish();
     }
 }

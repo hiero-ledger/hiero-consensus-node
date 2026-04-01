@@ -36,8 +36,6 @@ public class LearnerPullVirtualTreeReceiveTask {
     // sending tasks, decreased in receiving tasks
     private final AtomicLong expectedResponses;
 
-    private final Runnable completeListener;
-
     private final Duration allMessagesReceivedTimeout;
 
     /**
@@ -55,13 +53,11 @@ public class LearnerPullVirtualTreeReceiveTask {
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
             final LearnerPullVirtualTreeView view,
-            final AtomicLong expectedResponses,
-            final Runnable completeListener) {
+            final AtomicLong expectedResponses) {
         this.workGroup = workGroup;
         this.in = in;
         this.view = view;
         this.expectedResponses = expectedResponses;
-        this.completeListener = completeListener;
 
         this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
     }
@@ -101,7 +97,6 @@ public class LearnerPullVirtualTreeReceiveTask {
                                     "Timed out waiting for view all remaining view messages to be processed");
                         }
                     }
-                    completeListener.run();
                     logger.info(RECONNECT.getMarker(), "Learning is complete");
                 }
             }

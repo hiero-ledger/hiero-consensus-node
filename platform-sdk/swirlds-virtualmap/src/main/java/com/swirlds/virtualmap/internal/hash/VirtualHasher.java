@@ -355,7 +355,6 @@ public final class VirtualHasher {
             final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
             leaf.writeToForHashing(wmd);
             final Hash hash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
-            listener.onLeafHashed(leaf);
             out.setHash(path, hash);
             return true;
         }
@@ -558,7 +557,7 @@ public final class VirtualHasher {
         // as one of the inputs is this dirty leaf task. If the parent task is not created,
         // create it here.
 
-        while (sortedDirtyLeaves.hasNext() && !Thread.currentThread().isInterrupted()) {
+        while (sortedDirtyLeaves.hasNext()) {
             VirtualLeafBytes<?> leaf = sortedDirtyLeaves.next();
             long curPath = leaf.path();
             // For the created leaf task, set the leaf as an input. Together with the parent task

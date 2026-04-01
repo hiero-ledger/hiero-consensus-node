@@ -22,7 +22,7 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.VirtualMapReconnect;
+import com.swirlds.virtualmap.VirtualMapLearner;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
@@ -207,10 +207,9 @@ public class ReconnectStateLearner {
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-        final VirtualMapReconnect reconnect =
-                new VirtualMapReconnect(currentState.getRoot(), reconnectConfig, mapStats);
+        final VirtualMapLearner vmapLearner = new VirtualMapLearner(currentState.getRoot(), reconnectConfig, mapStats);
         // The learner view will be closed by LearningSynchronizer
-        final LearnerTreeView learnerView = reconnect.getLearnerView();
+        final LearnerTreeView learnerView = vmapLearner.getLearnerView();
         final LearningSynchronizer synchronizer =
                 new LearningSynchronizer(threadManager, in, out, learnerView, connection::disconnect, reconnectConfig);
         final long syncStartTime = System.currentTimeMillis();
@@ -220,10 +219,10 @@ public class ReconnectStateLearner {
         } catch (final InterruptedException e) {
             logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
             Thread.currentThread().interrupt();
-            reconnect.destroyOnException();
+            vmapLearner.abortOnException();
             throw e;
         } catch (final Exception e) {
-            reconnect.destroyOnException();
+            vmapLearner.abortOnException();
             throw new MerkleSynchronizationException(e);
         }
 
@@ -232,7 +231,7 @@ public class ReconnectStateLearner {
                 .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
                 .toString());
 
-        final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(reconnect.getVirtualMap());
+        final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(vmapLearner.getVirtualMap());
         final SignedState newSignedState = new SignedState(
                 configuration,
                 ConsensusCryptoUtils::verifySignature,

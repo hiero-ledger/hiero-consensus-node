@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
@@ -20,10 +21,8 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * This is a mechanism to flush data (dirty hashes, dirty leaves, deleted leaves) to disk
- * during reconnect, bypassing virtual node cache and virtual pipeline. This mechanism is
- * used by two components. First, {@link ReconnectNodeRemover}, which deletes leaves from
- * the old (learner) state tree outside the new leaf path range. Second, {@link ReconnectHashListener},
- * which listens for hash updates from virtual hasher.
+ * during reconnect. This class is used by the learner during reconnect to delete leaves from
+ * the old (learner) state tree outside the new leaf path range, update matched leaves and update hashes from virtual hasher.
  *
  * <p>This flusher is thread safe, its methods like {@link #updateHashChunk(VirtualHashChunk)},
  * {@link #updateLeaf(VirtualLeafBytes)}, and {@link #deleteLeaf(VirtualLeafBytes)} can
@@ -79,20 +78,23 @@ public class ReconnectHashLeafFlusher {
             throw new IllegalArgumentException(
                     "The last leaf path is invalid. firstLeafPath=" + firstLeafPath + ", lastLeafPath=" + lastLeafPath);
         }
-        if ((this.firstLeafPath == 0) && (this.lastLeafPath == 0)) {
-            this.firstLeafPath = firstLeafPath;
-            this.lastLeafPath = lastLeafPath;
-            assert (updatedHashChunks == null) && (updatedLeaves == null) && (deletedLeaves == null)
-                    : "Reconnect must not be started yet";
-            updatedHashChunks = new ArrayList<>();
-            updatedLeaves = new ArrayList<>();
-            deletedLeaves = new ArrayList<>();
-        } else {
-            // Allow this method to be called multiple times (e.g. from a node remover and from
-            // a hash listener), but only with the same path range
-            assert this.firstLeafPath == firstLeafPath;
-            assert this.lastLeafPath == lastLeafPath;
+        if ((this.firstLeafPath != 0) && (this.lastLeafPath != 0)) {
+            throw new IllegalArgumentException("Flusher was already initialized. firstLeafPath=" + this.firstLeafPath
+                    + ", lastLeafPath=" + this.lastLeafPath);
         }
+
+        this.firstLeafPath = firstLeafPath;
+        this.lastLeafPath = lastLeafPath;
+
+        updatedHashChunks = new ArrayList<>();
+        updatedLeaves = new ArrayList<>();
+        deletedLeaves = new ArrayList<>();
+
+        logger.info(
+                RECONNECT.getMarker(),
+                "Reconnect flusher initialized with firstLeafPath={}, lastLeafPath={}",
+                firstLeafPath,
+                lastLeafPath);
     }
 
     void updateHashChunk(@NonNull final VirtualHashChunk chunk) {
@@ -101,13 +103,13 @@ public class ReconnectHashLeafFlusher {
         actionAndCheckFlush(() -> updatedHashChunks.add(chunk));
     }
 
-    void updateLeaf(final VirtualLeafBytes<?> leaf) {
+    public void updateLeaf(final VirtualLeafBytes<?> leaf) {
         assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "updateLeaf called without start";
         actionAndCheckFlush(() -> updatedLeaves.add(leaf));
     }
 
-    void deleteLeaf(final VirtualLeafBytes<?> leaf) {
+    public void deleteLeaf(final VirtualLeafBytes<?> leaf) {
         assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "deleteLeaf called without start";
         actionAndCheckFlush(() -> deletedLeaves.add(leaf));
@@ -144,7 +146,7 @@ public class ReconnectHashLeafFlusher {
                 || (deletedLeaves.size() >= flushInterval);
     }
 
-    synchronized void finish() {
+    public synchronized void finish() {
         assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "finish called without start";
         final List<VirtualHashChunk> dirtyHashChunksToFlush = updatedHashChunks;

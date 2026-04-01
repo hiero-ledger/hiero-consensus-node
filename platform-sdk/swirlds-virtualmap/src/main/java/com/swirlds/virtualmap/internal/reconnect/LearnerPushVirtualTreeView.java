@@ -14,7 +14,7 @@ import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 import com.swirlds.common.merkle.synchronization.task.LearnerPushTask;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.virtualmap.VirtualMapReconnect;
+import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -42,7 +42,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
      */
-    private final VirtualMapReconnect reconnect;
+    private final VirtualMapLearner vmapLearner;
 
     /**
      * As part of tracking {@link ExpectedLesson}s, this keeps track of the "nodeAlreadyPresent" boolean.
@@ -66,25 +66,22 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * Create a new {@link LearnerPushVirtualTreeView}.
      *
-     * @param reconnect
+     * @param vmapLearner
      * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
      * @param mapStats
      *      A ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPushVirtualTreeView(
-            @NonNull final VirtualMapReconnect reconnect, @NonNull final ReconnectMapStats mapStats) {
-        super(reconnect.getOriginalState(), reconnect.getReconnectState());
-        this.reconnect = requireNonNull(reconnect);
+            @NonNull final VirtualMapLearner vmapLearner, @NonNull final ReconnectMapStats mapStats) {
+        super(vmapLearner.getOriginalState(), vmapLearner.getReconnectState());
+        this.vmapLearner = requireNonNull(vmapLearner);
         this.mapStats = requireNonNull(mapStats);
     }
 
     @Override
     public void startLearnerTasks(
-            final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
-            final AsyncOutputStream out,
-            final Runnable completeListener) {
-        final LearnerPushTask learnerThread = new LearnerPushTask(workGroup, in, out, this, mapStats, completeListener);
+            final StandardWorkGroup workGroup, final AsyncInputStream in, final AsyncOutputStream out) {
+        final LearnerPushTask learnerThread = new LearnerPushTask(workGroup, in, out, this, mapStats);
         learnerThread.start();
     }
 
@@ -104,7 +101,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
 
         // Make sure the path is valid for the original state
         checkValidNode(originalChild, originalState);
-        final Hash hash = reconnect.findHash(originalChild);
+        final Hash hash = vmapLearner.findHash(originalChild);
 
         // The hash must have been specified by this point. The original tree was hashed before
         // we started running on the learner, so either the hash is in cache or on disk, but it
@@ -157,7 +154,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
         final VirtualLeafBytes<?> leaf = VirtualReconnectUtils.readLeafRecord(in);
-        reconnect.onLeaf(leaf); // may block if hashing is slower than ingest
+        vmapLearner.onLeaf(leaf); // may block if hashing is slower than ingest
         return leaf.path();
     }
 
@@ -176,7 +173,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             // of the VirtualMap. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
-            reconnect.onStart(firstLeafPath, lastLeafPath, null);
+            vmapLearner.init(firstLeafPath, lastLeafPath, null);
         }
         return node;
     }
@@ -186,7 +183,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void close() {
-        reconnect.onEnd();
+        vmapLearner.onEnd();
     }
 
     /**
