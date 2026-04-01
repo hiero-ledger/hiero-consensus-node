@@ -403,7 +403,9 @@ class MerkleDbCompactionCoordinator {
             final long maxProjectedBytes,
             final @NonNull IndexedGarbageFileStats stats) {
         if (maxProjectedBytes == Long.MAX_VALUE) {
-            return List.of(candidates);
+            // Return a single group containing all candidates, but use a defensive copy
+            // so that later mutations of the group do not modify the original list.
+            return List.of(new ArrayList<>(candidates));
         }
 
         final List<List<DataFileReader>> groups = new ArrayList<>();
