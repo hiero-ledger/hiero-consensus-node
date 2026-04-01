@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -18,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -33,6 +33,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@OrderedInIsolation
 @HapiTestLifecycle
 public class UnknownFunctionSelectorTest {
 
@@ -48,7 +49,6 @@ public class UnknownFunctionSelectorTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> callScheduleServiceWithUnknownSelector(@Account final SpecAccount receiver) {
 
         final AtomicReference<ScheduleID> scheduleID = new AtomicReference<>();
@@ -83,7 +83,6 @@ public class UnknownFunctionSelectorTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> callTokenServiceWithUnknownSelector() {
         return hapiTest(
                 withOpContext((spec, opLog) -> allRunFor(

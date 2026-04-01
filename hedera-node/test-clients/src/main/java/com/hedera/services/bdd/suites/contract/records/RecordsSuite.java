@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.contract.records;
 
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -64,7 +63,6 @@ public class RecordsSuite {
     public static final String AUTO_ACCOUNT = "autoAccount";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> bigCall() {
         final var contract = "BigBig";
         final var txName = "BigCall";
@@ -125,7 +123,6 @@ public class RecordsSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> blck003ReturnsTimestampOfTheBlock() {
         final var contract = "EmitBlockTimestamp";
         final var firstCall = "firstCall";
