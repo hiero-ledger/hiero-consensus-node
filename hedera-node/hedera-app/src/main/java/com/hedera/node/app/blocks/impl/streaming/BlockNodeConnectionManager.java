@@ -598,7 +598,7 @@ public class BlockNodeConnectionManager {
         if (updateConnection) {
             logger.info(
                     "Streaming connection update requested (noActionConnection: {}, updatedConfiguration: {}, "
-                            + "bufferActionStage: {}, higherPriorityConnectionFound: {}, stalledActiveConnection: {},"
+                            + "bufferActionStage: {}, higherPriorityConnectionFound: {}, stalledActiveConnection: {}, "
                             + "activeConnectionAutoReset: {})",
                     noActiveConnection,
                     updatedConfig,
@@ -782,10 +782,10 @@ public class BlockNodeConnectionManager {
 
         if (logger.isDebugEnabled()) {
             // log the available nodes and their connection history
-            final StringBuilder sb = new StringBuilder("Available Block Nodes:\n");
+            final StringBuilder sb = new StringBuilder("Available Block Nodes:");
             for (final BlockNode node : nodes.values()) {
-                sb.append("  Connection History (")
-                        .append(node.configuration().address())
+                sb.append("\n  Connection History (")
+                        .append(node.configuration().address()).append(":").append(node.configuration().streamingPort())
                         .append(")");
                 if (node.connectionHistory().isEmpty()) {
                     sb.append("\n    <no history>");
