@@ -493,7 +493,7 @@ class WritableHintsStoreImplTest {
                 configProvider,
                 InitTrigger.GENESIS);
         final var writableStates = state.getWritableStates(HintsService.NAME);
-        hintsServiceImpl.doGenesisSetup(writableStates, DEFAULT_CONFIG);
+        hintsServiceImpl.doGenesisSetup(writableStates, DEFAULT_CONFIG, 4);
         ((CommittableWritableStates) writableStates).commit();
         return state;
     }
