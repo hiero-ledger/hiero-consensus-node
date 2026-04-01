@@ -2,6 +2,7 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static java.lang.Math.max;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.merkledb.collections.LongList;
@@ -109,7 +110,7 @@ public class GarbageScanner {
         final IndexedGarbageFileStats statsByFileIndex = createStatsByFileIndexArray();
         if (deduplicateMirroredEntries) {
             final long halfSize = index.size() / 2;
-            for (long i = 0; i < halfSize; i++) {
+            for (long i = max(0, index.getMinValidIndex()); i < halfSize; i++) {
                 final long locationLow = index.get(i, 0);
                 final long locationHigh = index.get(i + halfSize, 0);
                 if (locationLow != 0) {
@@ -120,7 +121,7 @@ public class GarbageScanner {
                 }
             }
         } else {
-            for (long i = 0; i < index.size(); i++) {
+            for (long i = max(0, index.getMinValidIndex()); i < index.size(); i++) {
                 final long location = index.get(i, 0);
                 if (location != 0) {
                     countAlive(location, statsByFileIndex);
