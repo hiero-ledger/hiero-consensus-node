@@ -452,45 +452,12 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("junit.jupiter.execution.parallel.enabled", true)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
+    // Limit concurrent test classes to prevent transaction backlog
+    // Use fixed strategy with limited parallelism to balance speed and stability
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
     val subprocessConcurrentParallelism =
         (Runtime.getRuntime().availableProcessors() * 2).coerceIn(8, 12)
 
-    val rt = Runtime.getRuntime()
-    val osMx = ManagementFactory.getOperatingSystemMXBean()
-    fun memMiB(bytes: Long) = bytes / (1024L * 1024L)
-
-    logger.lifecycle(
-        "testSubprocessConcurrent: junit fixed.parallelism={} Runtime.availableProcessors={}",
-        subprocessConcurrentParallelism,
-        rt.availableProcessors(),
-    )
-    logger.lifecycle(
-        "testSubprocessConcurrent: os={} {} arch={} java={} ({})",
-        System.getProperty("os.name"),
-        System.getProperty("os.version"),
-        System.getProperty("os.arch"),
-        System.getProperty("java.version"),
-        System.getProperty("java.vendor"),
-    )
-    logger.lifecycle(
-        "testSubprocessConcurrent: JVM heap max={}MiB total={}MiB free={}MiB",
-        memMiB(rt.maxMemory()),
-        memMiB(rt.totalMemory()),
-        memMiB(rt.freeMemory()),
-    )
-    if (osMx is OperatingSystemMXBean) {
-        logger.lifecycle(
-            "testSubprocessConcurrent: physical RAM total={}MiB free={}MiB osMx.availableProcessors={}",
-            memMiB(osMx.totalMemorySize),
-            memMiB(osMx.totalSwapSpaceSize),
-            osMx.availableProcessors,
-        )
-    }
-    System.getenv("RUNNER_OS")?.takeIf { it.isNotBlank() }?.let { ro ->
-        val ra = System.getenv("RUNNER_ARCH").orEmpty()
-        logger.lifecycle("testSubprocessConcurrent: GitHub RUNNER_OS={} RUNNER_ARCH={}", ro, ra)
-    }
     systemProperty(
         "junit.jupiter.execution.parallel.config.fixed.parallelism",
         subprocessConcurrentParallelism.toString(),
