@@ -17,7 +17,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockStreamSubscribeServiceInterface.BlockStreamSubscribeServiceClient;
@@ -51,6 +53,8 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
     public long getLastAvailableBlock() {
         try (final var serviceClient = createServiceClient()) {
             final var response = serviceClient.serverStatus(ServerStatusRequest.DEFAULT);
+            log.info(
+                    "Block node {}:{} server status: lastAvailableBlock={}", host, port, response.lastAvailableBlock());
             return response.lastAvailableBlock();
         } catch (final Exception e) {
             log.error("Failed to get server status from block node {}:{}", host, port, e);
@@ -60,6 +64,7 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
 
     /**
      * Subscribes to the block stream and retrieves all blocks in the given range.
+     * Blocks until the stream completes or the timeout expires.
      *
      * @param startBlock the first block number to retrieve (inclusive)
      * @param endBlock the last block number to retrieve (inclusive)
@@ -74,6 +79,7 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
 
         final List<Block> blocks = new ArrayList<>();
         final List<BlockItem> currentBlockItems = new ArrayList<>();
+        final var latch = new CountDownLatch(1);
 
         try (final var client = createSubscribeClient()) {
             client.subscribeBlockStream(request, new Pipeline<>() {
@@ -93,16 +99,14 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
                             currentBlockItems.clear();
                         }
                     } else if (response.hasStatus()) {
-                        log.info(
-                                "Subscribe stream completed with status {} after {} blocks",
-                                response.status(),
-                                blocks.size());
+                        log.info("Subscribe stream status {} after {} blocks", response.status(), blocks.size());
                     }
                 }
 
                 @Override
                 public void onError(final Throwable throwable) {
                     log.error("Error subscribing to blocks from {}:{}", host, port, throwable);
+                    latch.countDown();
                 }
 
                 @Override
@@ -113,8 +117,22 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
                         currentBlockItems.clear();
                     }
                     log.info("Subscribe stream completed with {} blocks from {}:{}", blocks.size(), host, port);
+                    latch.countDown();
                 }
             });
+
+            // Wait for the async stream to complete
+            if (!latch.await(DEFAULT_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+                log.warn(
+                        "Timed out waiting for subscribe stream from {}:{} after {}s (got {} blocks so far)",
+                        host,
+                        port,
+                        DEFAULT_TIMEOUT.toSeconds(),
+                        blocks.size());
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Interrupted while subscribing to blocks from {}:{}", host, port, e);
         } catch (final Exception e) {
             log.error("Failed to subscribe to blocks from {}:{}", host, port, e);
         }

@@ -374,8 +374,12 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
 
     @Nullable
     private static List<Block> readBlocksFromRealContainers(@NonNull final BlockNodeNetwork blockNodeNetwork) {
-        for (final Map.Entry<Long, BlockNodeContainer> entry :
-                blockNodeNetwork.getBlockNodeContainerById().entrySet()) {
+        final var containers = blockNodeNetwork.getBlockNodeContainerById();
+        if (containers.isEmpty()) {
+            log.warn("No block node containers available");
+            return null;
+        }
+        for (final Map.Entry<Long, BlockNodeContainer> entry : containers.entrySet()) {
             try {
                 final var container = entry.getValue();
                 try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
@@ -390,6 +394,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         if (!blocks.isEmpty()) {
                             return blocks;
                         }
+                    } else {
+                        log.info("Block node {} reports no available blocks yet", entry.getKey());
                     }
                 }
             } catch (Exception e) {

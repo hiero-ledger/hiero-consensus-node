@@ -182,7 +182,21 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             if (embedding == Embedding.NA) {
                 HapiClients.tearDown();
             }
-            Optional.ofNullable(SHARED_NETWORK.get()).ifPresent(HederaNetwork::terminate);
+            final var network = SHARED_NETWORK.get();
+            if (network != null) {
+                // Dump block node container logs before termination so they are
+                // available in CI failure artifacts
+                final var blockNodeNetwork = SHARED_BLOCK_NODE_NETWORK.get();
+                if (blockNodeNetwork != null) {
+                    final var scopeRoot = network.nodes()
+                            .getFirst()
+                            .getExternalPath(ExternalPath.WORKING_DIR)
+                            .getParent();
+                    blockNodeNetwork.terminate(scopeRoot);
+                    SHARED_BLOCK_NODE_NETWORK.set(null);
+                }
+                network.terminate();
+            }
         }
 
         /**
