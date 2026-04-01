@@ -453,7 +453,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
     // Limit concurrent test classes to prevent transaction backlog
     // Use fixed strategy with limited parallelism to balance speed and stability
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
-    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "4")
+    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "8")
     systemProperty(
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",

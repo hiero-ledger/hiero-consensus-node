@@ -138,17 +138,17 @@ And writes `results/SUMMARY.csv` which you can import into a spreadsheet.
 
 Open `results/SUMMARY.csv` directly in Excel, Google Sheets, or any spreadsheet tool. Columns:
 
-|     Column      |        Description        |
-|-----------------|---------------------------|
-| `test_name`     | Test identifier           |
-| `peak_mib`      | Peak memory in MiB        |
-| `peak_gib`      | Peak memory in GiB        |
+|     Column      |         Description         |
+|-----------------|-----------------------------|
+| `test_name`     | Test identifier             |
+| `peak_mib`      | Peak memory in MiB          |
+| `peak_gib`      | Peak memory in GiB          |
 | `end_mib`       | Memory at end of test (MiB) |
 | `end_gib`       | Memory at end of test (GiB) |
-| `duration_secs` | Wall-clock duration       |
-| `exit_code`     | 0 = pass, non-zero = fail |
-| `timestamp`     | UTC time of measurement   |
-| `git_sha`       | Commit that was tested    |
+| `duration_secs` | Wall-clock duration         |
+| `exit_code`     | 0 = pass, non-zero = fail   |
+| `timestamp`     | UTC time of measurement     |
+| `git_sha`       | Commit that was tested      |
 
 ### Individual result files
 
