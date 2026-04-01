@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark.reconnect;
 
+import static com.swirlds.benchmark.Utils.printVirtualMap;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
@@ -19,6 +20,8 @@ import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
@@ -29,6 +32,8 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * A utility class to support benchmarks for reconnect.
  */
 public class MerkleBenchmarkUtils {
+
+    private static final Logger logger = LogManager.getLogger(MerkleBenchmarkUtils.class);
 
     public static VirtualMap hashAndTestSynchronization(
             final VirtualMap startingTree,
@@ -41,9 +46,8 @@ public class MerkleBenchmarkUtils {
             final NodeId selfId,
             final Configuration configuration)
             throws Exception {
-        System.out.println("------------");
-        System.out.println("starting: " + startingTree);
-        System.out.println("desired: " + desiredTree);
+        printVirtualMap("Starting Tree", startingTree);
+        printVirtualMap("Desired Tree", desiredTree);
 
         if (startingTree != null) {
             // calculate hash
@@ -106,7 +110,7 @@ public class MerkleBenchmarkUtils {
                                 streams.disconnect();
                             } catch (final IOException e) {
                                 // test code, no danger
-                                e.printStackTrace();
+                                logger.error("Error while shutting down sockets", e);
                             }
                         },
                         reconnectConfig);
@@ -121,7 +125,7 @@ public class MerkleBenchmarkUtils {
                                 streams.disconnect();
                             } catch (final IOException e) {
                                 // test code, no danger
-                                e.printStackTrace();
+                                logger.error("Error while shutting down sockets", e);
                             }
                         },
                         reconnectConfig);
@@ -141,7 +145,7 @@ public class MerkleBenchmarkUtils {
                                 streams.disconnect();
                             } catch (final IOException e) {
                                 // test code, no danger
-                                e.printStackTrace();
+                                logger.error("Error while shutting down sockets", e);
                             }
                         },
                         reconnectConfig);
@@ -159,7 +163,7 @@ public class MerkleBenchmarkUtils {
                                 streams.disconnect();
                             } catch (final IOException e) {
                                 // test code, no danger
-                                e.printStackTrace();
+                                logger.error("Error while shutting down sockets", e);
                             }
                         },
                         reconnectConfig);
