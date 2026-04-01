@@ -1342,6 +1342,8 @@ public class EthereumSuite {
                                 new byte[32])));
     }
 
+    // TODO Pectra: failed due to auto creation account having nonce 1.
+    //  Will be fixed in future pull request
     @Disabled
     @HapiTest
     final Stream<DynamicTest> eip7702Test() {

@@ -22,7 +22,10 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TR
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
@@ -34,10 +37,14 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
@@ -70,14 +77,16 @@ public class FrameBuilder {
     /**
      * Builds the initial {@link MessageFrame} instance for a transaction.
      *
-     * @param transaction the transaction
-     * @param worldUpdater the world updater for the transaction
-     * @param context the Hedera EVM context (gas price, block values, etc.)
-     * @param config the active Hedera configuration
-     * @param featureFlags the feature flag currently used
-     * @param from the sender of the transaction
-     * @param to the recipient of the transaction
-     * @param initialGas the initial gas amount available for execution
+     * @param transaction                     the transaction
+     * @param worldUpdater                    the world updater for the transaction
+     * @param context                         the Hedera EVM context (gas price, block values, etc.)
+     * @param config                          the active Hedera configuration
+     * @param featureFlags                    the feature flag currently used
+     * @param from                            the sender of the transaction
+     * @param to                              the recipient of the transaction
+     * @param initialGas                      the initial gas amount available for execution
+     * @param gasCalculator                   the gas calculator
+     * @param codeDelegationAccessedAddresses the authorities of the processed code delegations
      * @return the initial frame
      */
     @SuppressWarnings("java:S107")
@@ -91,7 +100,8 @@ public class FrameBuilder {
             @NonNull final Address from,
             @NonNull final Address to,
             final long initialGas,
-            @NonNull final GasCalculator gasCalculator) {
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final List<Address> codeDelegationAccessedAddresses) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
@@ -113,6 +123,22 @@ public class FrameBuilder {
                 .miningBeneficiary(nominalCoinbase)
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
+        // add accessLists and codeDelegations authorities to "warmed" addresses
+        if (transaction.accessLists() != null || !codeDelegationAccessedAddresses.isEmpty()) {
+            final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAccessedAddresses);
+            final Multimap<Address, Bytes32> accessListWarmStorage = HashMultimap.create();
+            // add accessLists to "warmed" addresses
+            if (transaction.accessLists() != null) {
+                for (final AccessListItem accessList : transaction.accessLists()) {
+                    final Address address = Address.wrap(accessList.address());
+                    accessListWarmAddresses.add(address);
+                    accessList.storageKeys().forEach(e -> accessListWarmStorage.put(address, e));
+                }
+            }
+            builder.accessListWarmAddresses(accessListWarmAddresses);
+            builder.accessListWarmStorage(accessListWarmStorage);
+        }
+        // finish initial frame
         if (transaction.isCreate()) {
             return finishedAsCreate(to, builder, transaction);
         } else {
@@ -240,8 +266,6 @@ public class FrameBuilder {
             }
             code = Code.EMPTY_CODE;
         }
-
-        // TODO(AccessLists): Add EIP-7702 addresses to access list (see `accessListWarmUpAddresses` in besu)
         return builder.type(MessageFrame.Type.MESSAGE_CALL)
                 .address(to)
                 .contract(to)

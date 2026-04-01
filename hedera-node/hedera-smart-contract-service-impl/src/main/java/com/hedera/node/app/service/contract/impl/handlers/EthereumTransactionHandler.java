@@ -23,6 +23,8 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
@@ -51,6 +53,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.BiConsumer;
 import javax.inject.Inject;
 import javax.inject.Provider;
@@ -116,24 +119,20 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             // gas requirements check
             final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
             final var isContractCreate = !ethTxData.hasToAddress();
-            // TODO: Revisit baselineGas with Pectra support epic
+            final var accessLists = parseAccessLists(ethTxData);
             // Ensure that type 4 transactions have at least one authorization in the list
+            final List<CodeDelegation> codeDelegations;
             if (ethTxData.type().equals(EthTransactionType.EIP7702)) {
                 validateTruePreCheck(
                         ethTxData.authorizationList() != null && ethTxData.authorizationListAsRlp().length > 0,
                         INVALID_ETHEREUM_TRANSACTION);
                 // parse the inner code delegations to ensure they are valid
-                parseInnerCodeDelegations(ethTxData);
+                codeDelegations = parseInnerCodeDelegations(ethTxData);
+            } else {
+                codeDelegations = null;
             }
-            final var authorizationListSize =
-                    ethTxData.authorizationList() != null ? ethTxData.authorizationListAsRlp().length : 0;
-
-            // Baseline cost is the gas used by access lists and code delegation authorizations.
-            // Since we currently don't support access lists, we're just adding code authorizations cost.
-            // TODO(access-list): add access list cost
-            final var baselineCost = gasCalculator.delegateCodeGasCost(authorizationListSize);
             final var gasRequirements = gasCalculator.transactionGasRequirements(
-                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, baselineCost);
+                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, accessLists, codeDelegations);
             validateTruePreCheck(ethTxData.gasLimit() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(ETHEREUM_TRANSACTION, e);
@@ -144,10 +143,19 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         }
     }
 
-    private static void parseInnerCodeDelegations(EthTxData ethTxData) throws PreCheckException {
+    private static List<AccessListItem> parseAccessLists(final EthTxData ethTxData) throws PreCheckException {
+        try {
+            return ethTxData.extractAccessList();
+        } catch (final IllegalArgumentException e) {
+            throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
+        }
+    }
+
+    private static List<CodeDelegation> parseInnerCodeDelegations(final EthTxData ethTxData) throws PreCheckException {
         try {
             final var codeDelegations = ethTxData.extractCodeDelegations();
-            validateFalsePreCheck(codeDelegations.isEmpty(), INVALID_ETHEREUM_TRANSACTION);
+            validateTruePreCheck(!codeDelegations.isEmpty(), INVALID_ETHEREUM_TRANSACTION);
+            return codeDelegations;
         } catch (final IllegalArgumentException e) {
             throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
         }

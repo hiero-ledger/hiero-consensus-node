@@ -40,12 +40,10 @@ import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
-import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
@@ -61,6 +59,8 @@ import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.hapi.streams.ContractStateChanges;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
+import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
@@ -128,7 +128,10 @@ import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
 
-public class TestHelpers {
+public final class TestHelpers {
+
+    private TestHelpers() {}
+
     public static final String LEDGER_ID = "01";
     public static final long shard = 0;
     public static final long realm = 0;
@@ -538,7 +541,6 @@ public class TestHelpers {
             ContractID.newBuilder().evmAddress(CANONICAL_ALIAS).build();
     public static final List<ContractNonceInfo> NONCES =
             List.of(new ContractNonceInfo(CALLED_CONTRACT_ID, NONCE), new ContractNonceInfo(CHILD_CONTRACT_ID, 1L));
-    public static final EntityNumber CALLED_CONTRACT_ENTITY_NUMBER = new EntityNumber(666);
     public static final GasCalculator GAS_CALCULATOR = new HederaGasCalculatorImpl();
     public static final Code CONTRACT_CODE = new Code(pbjToTuweniBytes(CALL_DATA));
     public static final Log BESU_LOG = new Log(
@@ -587,6 +589,7 @@ public class TestHelpers {
             ContractCreateTransactionBody.DEFAULT,
             null,
             null,
+            null,
             null);
     public static final HederaEvmTransaction HEVM_Exception = new HederaEvmTransaction(
             SENDER_ID,
@@ -599,6 +602,7 @@ public class TestHelpers {
             GAS_LIMIT,
             0L,
             0L,
+            null,
             null,
             null,
             new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
@@ -615,6 +619,7 @@ public class TestHelpers {
             GAS_LIMIT,
             0L,
             0L,
+            null,
             null,
             null,
             new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE),
@@ -807,26 +812,36 @@ public class TestHelpers {
         return wellKnownHapiCall(null, VALUE);
     }
 
+    public static HederaEvmTransaction wellKnownHapiCall(
+            @Nullable final List<AccessListItem> accessLists, @Nullable List<CodeDelegation> codeDelegations) {
+        return wellKnownHapiCall(null, VALUE, GAS_LIMIT, accessLists, codeDelegations);
+    }
+
     public static HederaEvmTransaction wellKnownRelayedHapiCall(final long value) {
         return wellKnownHapiCall(RELAYER_ID, value);
     }
 
     public static HederaEvmTransaction wellKnownRelayedHapiCallWithGasLimit(final long gasLimit) {
-        return wellKnownHapiCall(RELAYER_ID, VALUE, gasLimit);
+        return wellKnownHapiCall(RELAYER_ID, VALUE, gasLimit, null, null);
     }
 
     public static HederaEvmTransaction wellKnownRelayedHapiCallWithUserGasPriceAndMaxAllowance(
             final long gasPrice, final long maxGasAllowance) {
-        return wellKnownHapiCall(RELAYER_ID, VALUE, GAS_LIMIT, gasPrice, maxGasAllowance);
+        return wellKnownHapiCall(RELAYER_ID, VALUE, GAS_LIMIT, gasPrice, maxGasAllowance, null, null);
     }
 
     public static HederaEvmTransaction wellKnownHapiCall(@Nullable final AccountID relayer, final long value) {
-        return wellKnownHapiCall(relayer, value, GAS_LIMIT);
+        return wellKnownHapiCall(relayer, value, GAS_LIMIT, null, null);
     }
 
     public static HederaEvmTransaction wellKnownHapiCall(
-            @Nullable final AccountID relayer, final long value, final long gasLimit) {
-        return wellKnownHapiCall(relayer, value, gasLimit, USER_OFFERED_GAS_PRICE, MAX_GAS_ALLOWANCE);
+            @Nullable final AccountID relayer,
+            final long value,
+            final long gasLimit,
+            @Nullable final List<AccessListItem> accessLists,
+            @Nullable List<CodeDelegation> codeDelegations) {
+        return wellKnownHapiCall(
+                relayer, value, gasLimit, USER_OFFERED_GAS_PRICE, MAX_GAS_ALLOWANCE, accessLists, codeDelegations);
     }
 
     public static HederaEvmTransaction wellKnownHapiCall(
@@ -834,7 +849,9 @@ public class TestHelpers {
             final long value,
             final long gasLimit,
             final long userGasPrice,
-            final long maxGasAllowance) {
+            final long maxGasAllowance,
+            @Nullable final List<AccessListItem> accessLists,
+            @Nullable List<CodeDelegation> codeDelegations) {
         return new HederaEvmTransaction(
                 SENDER_ID,
                 relayer,
@@ -847,7 +864,8 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 null,
-                null,
+                accessLists,
+                codeDelegations,
                 null,
                 null);
     }
@@ -878,6 +896,7 @@ public class TestHelpers {
                 userGasPrice,
                 maxGasAllowance,
                 ContractCreateTransactionBody.DEFAULT,
+                null,
                 null,
                 null,
                 null);
@@ -1075,11 +1094,6 @@ public class TestHelpers {
             return this;
         }
 
-        public TokenTransferListBuilder withNftTransfers(final Tuple... nftTransfers) {
-            tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
-            return this;
-        }
-
         public Tuple build() {
             return tokenTransferList;
         }
@@ -1087,24 +1101,6 @@ public class TestHelpers {
 
     public static TokenTransferListBuilder tokenTransferList() {
         return new TokenTransferListBuilder();
-    }
-
-    public record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {}
-
-    public static TransferList transfersLists(@NonNull final List<TestHbarTransfer> hbarTransfers) {
-        final var transferList = TransferList.newBuilder();
-        List<AccountAmount> list = new ArrayList<>();
-        for (TestHbarTransfer hbarTransfer : hbarTransfers) {
-            list.add(AccountAmount.newBuilder()
-                    .accountID(hbarTransfer.receiver())
-                    .amount(hbarTransfer.amount())
-                    .build());
-            list.add(AccountAmount.newBuilder()
-                    .accountID(hbarTransfer.sender())
-                    .amount(-hbarTransfer.amount())
-                    .build());
-        }
-        return transferList.build();
     }
 
     public record TestTokenTransfer(
@@ -1182,8 +1178,8 @@ public class TestHelpers {
     }
 
     /**
-     *  Create GasCharges when `intrinsicGas` == `minimumGasUsed`.
-     *  For not it is used just for the tests purposes.
+     * Create GasCharges when `intrinsicGas` == `minimumGasUsed`.
+     * For not it is used just for the tests purposes.
      *
      * @param intrinsicGas the intrinsic gas cost of a transaction
      * @return The gas requirements of the transaction

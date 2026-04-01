@@ -18,7 +18,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKno
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCallWithUserGasPriceAndMaxAllowance;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -417,12 +416,12 @@ class CustomGasChargingTest {
     }
 
     private void givenWellKnownIntrinsicGasCost(boolean isCreation) {
-        given(gasCalculator.transactionGasRequirements(any(), eq(isCreation), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), eq(isCreation), any(), any()))
                 .willReturn(TestHelpers.NO_ALLOWANCE_CHARGING_RESULT);
     }
 
     private void givenExcessiveIntrinsicGasCost(boolean isCreation) {
-        given(gasCalculator.transactionGasRequirements(any(), eq(isCreation), anyLong()))
+        given(gasCalculator.transactionGasRequirements(any(), eq(isCreation), any(), any()))
                 .willReturn(TestHelpers.gasChargesFromIntrinsicGas(100_000_000L));
     }
 }

@@ -96,7 +96,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
 
             // baselineCost is 0 for contract calls as neither access list nor EIP-7702 authorizations are supported
             final var gasRequirements = gasCalculator.transactionGasRequirements(
-                    Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
+                    Bytes.wrap(op.functionParameters().toByteArray()), false, null, null);
             validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CALL, e);
