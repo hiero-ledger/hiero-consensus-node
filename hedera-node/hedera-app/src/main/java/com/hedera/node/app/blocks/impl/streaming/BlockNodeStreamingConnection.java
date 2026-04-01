@@ -161,30 +161,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param blockingIoExecutor the executor service used for blocking I/O operations (e.g. sending a message)
      * @param initialBlockToStream the initial block number to start streaming from, or null to use default
      * @param clientFactory the factory for creating block stream clients
+     * @param nodeId the id of the node owning this connection
      */
-    public BlockNodeStreamingConnection(
-            @NonNull final ConfigProvider configProvider,
-            @NonNull final BlockNodeConfiguration nodeConfig,
-            @NonNull final BlockNodeConnectionManager connectionManager,
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull final ScheduledExecutorService executorService,
-            @NonNull final ExecutorService blockingIoExecutor,
-            @Nullable final Long initialBlockToStream,
-            @NonNull final BlockNodeClientFactory clientFactory) {
-        this(
-                configProvider,
-                nodeConfig,
-                connectionManager,
-                blockBufferService,
-                blockStreamMetrics,
-                executorService,
-                blockingIoExecutor,
-                initialBlockToStream,
-                clientFactory,
-                0L);
-    }
-
     public BlockNodeStreamingConnection(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockNodeConfiguration nodeConfig,

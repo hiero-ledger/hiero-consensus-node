@@ -389,7 +389,8 @@ public class BlockStreamingBenchmark {
                 scheduler,
                 pipelineExecutor,
                 0L,
-                new BlockNodeClientFactory());
+                new BlockNodeClientFactory(),
+                0L);
 
         connection.initialize();
         BlockNodeConnectionHelper.updateConnectionState(connection, ConnectionState.ACTIVE);
