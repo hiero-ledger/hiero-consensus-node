@@ -136,7 +136,6 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                         makeServiceFee(
                                 HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE,
                                 498500000L,
-                                makeExtraIncluded(Extra.STATE_BYTES, 1024),
                                 makeExtraIncluded(Extra.CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES, 100),
                                 makeExtraIncluded(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 1024),
                                 makeExtraIncluded(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, 0))))
