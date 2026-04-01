@@ -30,6 +30,8 @@ import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator
 import com.hedera.services.bdd.junit.support.validators.WrappedRecordHashesByRecordFilesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
+import com.hedera.services.bdd.junit.support.validators.block.EventHashBlockStreamValidator;
+import com.hedera.services.bdd.junit.support.validators.block.RedactingEventHashBlockStreamValidator;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.TransactionRecordParityValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -74,11 +76,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             TransactionRecordParityValidator.FACTORY,
             StateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
-            BlockNumberSequenceValidator.FACTORY
-            // (FUTURE) Disabled until PCES events are integrated as the source of truth. See GH issue #22769.
-            //            EventHashBlockStreamValidator.FACTORY,
-            //            RedactingEventHashBlockStreamValidator.FACTORY
-            );
+            BlockNumberSequenceValidator.FACTORY,
+            EventHashBlockStreamValidator.FACTORY,
+            RedactingEventHashBlockStreamValidator.FACTORY);
 
     private record DataOrException(
             @Nullable StreamFileAccess.RecordStreamData data,
