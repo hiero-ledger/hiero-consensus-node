@@ -52,7 +52,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCancelAirdropFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
@@ -603,7 +603,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 txnFor(commonNoFees),
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(
+                                txnSize -> expectedTokenCreateFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
@@ -688,7 +688,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 uniqueNoFees,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
                                         KEYS, 2L,
                                         PROCESSING_BYTES, (long) txnSize)),

@@ -1210,7 +1210,7 @@ public class FeesChargingUtils {
     /**
      * Overload for FT when extras are provided in a map.
      */
-    public static double expectedTokenCreateFungibleFullFeeUsd(final Map<Extra, Long> extras) {
+    public static double expectedTokenCreateFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenCreateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 extras.getOrDefault(Extra.KEYS, 0L),
