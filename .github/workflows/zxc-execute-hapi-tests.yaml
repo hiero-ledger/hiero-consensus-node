@@ -153,7 +153,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -218,7 +218,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Misc Records) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -283,7 +283,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon
+        run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Crypto) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -348,7 +348,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon
+        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Simple Fees) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -413,7 +413,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestToken --no-daemon
+        run: ${GRADLE_EXEC} hapiTestToken --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Token) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -478,7 +478,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSmartContract --no-daemon
+        run: ${GRADLE_EXEC} hapiTestSmartContract --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Smart Contract) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -543,7 +543,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon
+        run: ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Time Consuming) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -866,7 +866,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon
+        run: ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Atomic Batch) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
