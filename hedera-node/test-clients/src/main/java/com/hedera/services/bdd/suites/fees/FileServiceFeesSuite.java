@@ -60,7 +60,7 @@ public class FileServiceFeesSuite {
                 safeValidateChargedUsd(
                         "fileCreateBasic",
                         BASE_FEE_FILE_CREATE,
-                        BASE_FEE_FILE_CREATE + 0 * PROCESSING_BYTES_FEE_USD * 10));
+                        BASE_FEE_FILE_CREATE));
     }
 
     @HapiTest
@@ -81,7 +81,7 @@ public class FileServiceFeesSuite {
                 safeValidateChargedUsd(
                         "fileUpdateBasic",
                         BASE_FEE_FILE_UPDATE,
-                        BASE_FEE_FILE_UPDATE + 0 * PROCESSING_BYTES_FEE_USD * 10));
+                        BASE_FEE_FILE_UPDATE));
     }
 
     @HapiTest
@@ -125,7 +125,7 @@ public class FileServiceFeesSuite {
                         .payingWith(civilian)
                         .via(baseAppend),
                 safeValidateChargedUsd(
-                        baseAppend, BASE_FEE_FILE_APPEND, BASE_FEE_FILE_APPEND + 0 * PROCESSING_BYTES_FEE_USD * 10));
+                        baseAppend, BASE_FEE_FILE_APPEND, BASE_FEE_FILE_APPEND));
     }
 
     @HapiTest
