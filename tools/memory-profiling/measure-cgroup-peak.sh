@@ -5,11 +5,11 @@ set -euo pipefail
 if [[ -f /sys/fs/cgroup/memory.peak ]]; then
   CGROUP_VERSION="v2"
   PEAK_FILE="/sys/fs/cgroup/memory.peak"
-  CURRENT_FILE="/sys/fs/cgroup/memory.current"
+  END_FILE="/sys/fs/cgroup/memory.current"
 elif [[ -f /sys/fs/cgroup/memory/memory.max_usage_in_bytes ]]; then
   CGROUP_VERSION="v1"
   PEAK_FILE="/sys/fs/cgroup/memory/memory.max_usage_in_bytes"
-  CURRENT_FILE="/sys/fs/cgroup/memory/memory.usage_in_bytes"
+  END_FILE="/sys/fs/cgroup/memory/memory.usage_in_bytes"
 else
   echo "ERROR: Cannot find cgroup memory files" >&2
   exit 1
@@ -37,12 +37,14 @@ DURATION_SEC_REM=$((DURATION_SECS % 60))
 
 # Read peak memory
 PEAK_BYTES=$(cat "$PEAK_FILE" 2>/dev/null || echo 0)
-CURRENT_BYTES=$(cat "$CURRENT_FILE" 2>/dev/null || echo 0)
+END_BYTES=$(cat "$END_FILE" 2>/dev/null || echo 0)
 
 PEAK_MIB=$((PEAK_BYTES / 1024 / 1024))
 PEAK_GIB_INT=$((PEAK_BYTES / 1024 / 1024 / 1024))
 PEAK_GIB_FRAC=$(( (PEAK_BYTES / 1024 / 1024 % 1024) * 10 / 1024 ))
-CURRENT_MIB=$((CURRENT_BYTES / 1024 / 1024))
+END_MIB=$((END_BYTES / 1024 / 1024))
+END_GIB_INT=$((END_BYTES / 1024 / 1024 / 1024))
+END_GIB_FRAC=$(( (END_BYTES / 1024 / 1024 % 1024) * 10 / 1024 ))
 
 # Write results to a file if RESULT_FILE is set
 if [[ -n "${RESULT_FILE:-}" ]]; then
@@ -54,7 +56,8 @@ if [[ -n "${RESULT_FILE:-}" ]]; then
     echo "peak_bytes=${PEAK_BYTES}"
     echo "peak_mib=${PEAK_MIB}"
     echo "peak_gib=${PEAK_GIB_INT}.${PEAK_GIB_FRAC}"
-    echo "current_mib=${CURRENT_MIB}"
+    echo "end_mib=${END_MIB}"
+    echo "end_gib=${END_GIB_INT}.${END_GIB_FRAC}"
     echo "duration_secs=${DURATION_SECS}"
     echo "exit_code=${EXIT_CODE}"
   } > "${RESULT_FILE}"
@@ -64,7 +67,7 @@ echo ""
 echo "======== CGROUP MEMORY MEASUREMENT ========"
 echo "Cgroup version: $CGROUP_VERSION"
 echo "Peak memory:    ${PEAK_MIB} MiB (~${PEAK_GIB_INT}.${PEAK_GIB_FRAC} GiB)"
-echo "Current memory: ${CURRENT_MIB} MiB"
+echo "End memory:     ${END_MIB} MiB (~${END_GIB_INT}.${END_GIB_FRAC} GiB)"
 echo "Raw peak bytes: ${PEAK_BYTES}"
 echo "Duration:       ${DURATION_MIN}m ${DURATION_SEC_REM}s (${DURATION_SECS}s)"
 echo "Exit code:      $EXIT_CODE"

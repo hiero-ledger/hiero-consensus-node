@@ -143,7 +143,8 @@ Open `results/SUMMARY.csv` directly in Excel, Google Sheets, or any spreadsheet 
 | `test_name`     | Test identifier           |
 | `peak_mib`      | Peak memory in MiB        |
 | `peak_gib`      | Peak memory in GiB        |
-| `current_mib`   | Memory at end of test     |
+| `end_mib`       | Memory at end of test (MiB) |
+| `end_gib`       | Memory at end of test (GiB) |
 | `duration_secs` | Wall-clock duration       |
 | `exit_code`     | 0 = pass, non-zero = fail |
 | `timestamp`     | UTC time of measurement   |
@@ -161,7 +162,8 @@ cgroup_version=v2
 peak_bytes=8589934592
 peak_mib=8192
 peak_gib=8.0
-current_mib=4096
+end_mib=4096
+end_gib=4.0
 duration_secs=1234
 exit_code=0
 ```
