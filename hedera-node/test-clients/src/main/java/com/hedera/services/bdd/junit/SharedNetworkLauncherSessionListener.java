@@ -308,10 +308,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
             final String writerMode = prCheckOverrides.get("blockStream.writerMode");
             if ("FILE_AND_GRPC".equals(writerMode) || "GRPC".equals(writerMode)) {
-                // Determine block node mode from system property, default to SIMULATOR
+                // Determine block node mode from system property, default to REAL
                 final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
                         .map(BlockNodeMode::valueOf)
-                        .orElse(BlockNodeMode.SIMULATOR);
+                        .orElse(BlockNodeMode.REAL);
                 log.info(
                         "PR Check Override: blockStream.writerMode={} is set, configuring a Block Node network with mode {}",
                         writerMode,

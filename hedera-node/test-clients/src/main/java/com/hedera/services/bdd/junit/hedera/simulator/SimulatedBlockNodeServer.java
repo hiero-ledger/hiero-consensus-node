@@ -1042,7 +1042,7 @@ public class SimulatedBlockNodeServer {
      * @return the block, or null if no items are stored for this block number
      */
     @Nullable
-    public Block getBlock(final long blockNumber) {
+    private Block getBlock(final long blockNumber) {
         final var items = storedBlockItems.get(blockNumber);
         if (items == null || items.isEmpty()) {
             return null;

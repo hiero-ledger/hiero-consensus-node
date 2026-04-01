@@ -374,6 +374,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 .distinct()
                 .toList();
         for (final var parentPath : blockPaths) {
+            if (!Files.exists(parentPath)) {
+                continue;
+            }
             try (final var stream = Files.walk(parentPath)) {
                 stream.filter(p -> {
                             final var name = p.getFileName().toString();

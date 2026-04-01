@@ -33,13 +33,13 @@ import org.hiero.block.api.SubscribeStreamResponse;
  */
 public class BlockNodeSubscribeClient implements AutoCloseable {
     private static final Logger log = LogManager.getLogger(BlockNodeSubscribeClient.class);
-    private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(5);
+    private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
 
     private final String host;
     private final int port;
 
     public BlockNodeSubscribeClient(@NonNull final String host, final int port) {
-        this.host = requireNonNull(host);
+        this.host = requireNonNull(host, "host must not be null");
         this.port = port;
     }
 
