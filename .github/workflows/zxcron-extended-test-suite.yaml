@@ -527,7 +527,7 @@ jobs:
           elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(skipped|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]]; then
-            echo "category=workflow" >> "${GITHUB_OUTPUT}"
+            echo "category=infrastructure" >> "${GITHUB_OUTPUT}"
           else
             echo "category=test" >> "${GITHUB_OUTPUT}"
           fi
@@ -581,17 +581,17 @@ jobs:
 
       - name: Set Rootly Service Name
         id: set-rootly-service
-        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'workflow' }}
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
-          if [[ "${{ steps.report-category.outputs.category }}" == "workflow" ]]; then
+          if [[ "${{ steps.report-category.outputs.category }}" == "infrastructure" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
-        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'workflow' }}
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
         run: |
@@ -607,7 +607,7 @@ jobs:
             echo "------------------------------------"
             if [[ "${{ needs.xts-execution.result }}" != "success" ]]; then
               FAILURE_MODE="${{ needs.xts-execution.outputs.failure-mode }}"
-              if [[ "${FAILURE_MODE}" == "workflow" ]]; then
+              if [[ "${FAILURE_MODE}" == "infrastructure" ]]; then
                 FAILURE_MODE="infrastructure"
               fi
               echo "XTS tests failed due to a ${FAILURE_MODE} error."
@@ -626,7 +626,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Log Rootly Summary
-        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'workflow' }}
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           echo "## Rootly Summary:"
           echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
@@ -636,7 +636,7 @@ jobs:
 
       - name: Create Rootly Alert
         id: create-rootly-alert
-        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'workflow' }}
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
@@ -771,7 +771,7 @@ jobs:
           EOF
 
       - name: Build Infrastructure Failure Slack Payload
-        if: ${{ steps.report-category.outputs.category == 'workflow' }}
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           cat <<EOF > slack_payload.json
           {
@@ -834,7 +834,7 @@ jobs:
           EOF
 
       - name: Build Infrastructure Failure Summary Payload
-        if: ${{ steps.report-category.outputs.category == 'workflow' }}
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           cat <<EOF > slack_payload_summary.json
           {
@@ -887,7 +887,7 @@ jobs:
           payload-file-path: slack_payload.json
 
       - name: Notify infrastructure failure summary (citr-operations)
-        if: ${{ steps.report-category.outputs.category == 'workflow' }}
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
@@ -896,7 +896,7 @@ jobs:
           payload-file-path: slack_payload_summary.json
 
       - name: Notify infrastructure failure detailed (citr-failures)
-        if: ${{ steps.report-category.outputs.category == 'workflow' }}
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
@@ -921,3 +921,4 @@ jobs:
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
+
