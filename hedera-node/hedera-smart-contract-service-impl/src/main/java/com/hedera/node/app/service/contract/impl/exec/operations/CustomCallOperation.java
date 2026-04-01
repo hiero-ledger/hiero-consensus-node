@@ -60,7 +60,45 @@ public class CustomCallOperation extends CallOperation {
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
         try {
-            final long cost = cost(frame, false);
+            final Address to = to(frame);
+            final boolean accountIsWarm =
+                    frame.warmUpAddress(to) || gasCalculator().isPrecompile(to);
+            final long stipend = gas(frame);
+            final long inputDataOffset = inputDataOffset(frame);
+            final long inputDataLength = inputDataLength(frame);
+            final long outputDataOffset = outputDataOffset(frame);
+            final long outputDataLength = outputDataLength(frame);
+            final Wei transferValue = value(frame);
+            final Address recipientAddress = address(frame);
+            final long staticCost = gasCalculator()
+                    .callOperationStaticGasCost(
+                            frame,
+                            stipend,
+                            inputDataOffset,
+                            inputDataLength,
+                            outputDataOffset,
+                            outputDataLength,
+                            transferValue,
+                            recipientAddress,
+                            accountIsWarm);
+
+            if (frame.getRemainingGas() < staticCost) {
+                return new OperationResult(staticCost, ExceptionalHaltReason.INSUFFICIENT_GAS);
+            }
+
+            long cost = gasCalculator()
+                    .callOperationGasCost(
+                            frame,
+                            staticCost,
+                            stipend,
+                            inputDataOffset,
+                            inputDataLength,
+                            outputDataOffset,
+                            outputDataLength,
+                            transferValue,
+                            recipientAddress,
+                            accountIsWarm);
+
             if (frame.getRemainingGas() < cost) {
                 return new OperationResult(cost, ExceptionalHaltReason.INSUFFICIENT_GAS);
             }

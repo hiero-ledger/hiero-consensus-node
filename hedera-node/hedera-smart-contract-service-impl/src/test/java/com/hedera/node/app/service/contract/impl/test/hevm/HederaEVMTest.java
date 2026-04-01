@@ -19,6 +19,7 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.bouncycastle.util.encoders.Hex;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -80,7 +81,7 @@ class HederaEVMTest {
                 .jump(33) // Loop
                 .toString();
 
-        final var code = TestHelpers.CODE_FACTORY.createCode(Bytes.fromHexString(byteCodeBuilder), false);
+        final var code = new Code(Bytes.fromHexString(byteCodeBuilder));
 
         final var frame = MessageFrame.builder()
                 .type(MessageFrame.Type.MESSAGE_CALL)

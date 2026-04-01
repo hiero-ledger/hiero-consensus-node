@@ -117,7 +117,7 @@ class CustomCallOperationTest {
     @Test
     void withSystemAccountContinuesAsExpected() {
         givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
-        given(frame.getStackItem(1)).willReturn(SYSTEM_ADDRESS);
+        given(frame.getStackItem(1)).willReturn(SYSTEM_ADDRESS.getBytes());
         given(addressChecks.isSystemAccount(SYSTEM_ADDRESS)).willReturn(true);
 
         final var expected = new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
@@ -148,7 +148,7 @@ class CustomCallOperationTest {
     void delegateToParentMissingAddressIfAllowCallFeatureFlagOn() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             givenWellKnownFrameWithNoGasCalc(1L, EIP_1014_ADDRESS, 2L);
-            given(frame.getStackItem(1)).willReturn(TestHelpers.EIP_1014_ADDRESS);
+            given(frame.getStackItem(1)).willReturn(TestHelpers.EIP_1014_ADDRESS.getBytes());
             given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(2l)));
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
 
@@ -198,7 +198,7 @@ class CustomCallOperationTest {
     private void givenWellKnownFrameWithNoGasCalc(final long value, final Address to, final long gas) {
         lenient().when(frame.getWorldUpdater()).thenReturn(worldUpdater);
         given(frame.getStackItem(0)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
-        given(frame.getStackItem(1)).willReturn(to);
+        given(frame.getStackItem(1)).willReturn(to.getBytes());
         given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(value)));
         given(frame.getStackItem(3)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(3)));
         given(frame.getStackItem(4)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(4)));
@@ -213,7 +213,16 @@ class CustomCallOperationTest {
         givenWellKnownFrameWithNoGasCalc(value, to, gas);
         given(frame.getRemainingGas()).willReturn(REQUIRED_GAS);
         given(gasCalculator.callOperationGasCost(
-                        any(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any(), eq(to), anyBoolean()))
+                        any(),
+                        anyLong(),
+                        anyLong(),
+                        anyLong(),
+                        anyLong(),
+                        anyLong(),
+                        anyLong(),
+                        any(),
+                        eq(to),
+                        anyBoolean()))
                 .willReturn(REQUIRED_GAS);
     }
 }

@@ -62,6 +62,11 @@ gradle.lifecycle.beforeProject {
                 requireAllDefinedDependencies()
                 requiresStatic("com.fasterxml.jackson.annotation")
             }
+            module("org.hyperledger.besu:besu-datatypes", "org.hyperledger.besu.datatypes") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
             module(
                 "org.hyperledger.besu.internal:besu-crypto-algorithms",
                 "org.hyperledger.besu.internal.crypto",

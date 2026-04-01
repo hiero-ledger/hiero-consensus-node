@@ -97,7 +97,16 @@ class CustomStaticCallOperationTest {
             givenWellKnownFrameWith(1L, SYSTEM_ADDRESS, 2L);
             given(frame.getRemainingGas()).willReturn(0L);
             given(gasCalculator.callOperationGasCost(
-                            any(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any(), any(), anyBoolean()))
+                            any(),
+                            anyLong(),
+                            anyLong(),
+                            anyLong(),
+                            anyLong(),
+                            anyLong(),
+                            anyLong(),
+                            any(),
+                            any(),
+                            anyBoolean()))
                     .willReturn(REQUIRED_GAS);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             final var expected = new Operation.OperationResult(REQUIRED_GAS, INSUFFICIENT_GAS);
@@ -108,7 +117,7 @@ class CustomStaticCallOperationTest {
     private void givenWellKnownFrameWithNoGasCalc(final long value, final Address to, final long gas) {
         lenient().when(frame.getWorldUpdater()).thenReturn(worldUpdater);
         given(frame.getStackItem(0)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
-        given(frame.getStackItem(1)).willReturn(to);
+        given(frame.getStackItem(1)).willReturn(to.getBytes());
         given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(value)));
         given(frame.getStackItem(3)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(3)));
         given(frame.getStackItem(4)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(4)));
@@ -119,7 +128,16 @@ class CustomStaticCallOperationTest {
         givenWellKnownFrameWithNoGasCalc(value, to, gas);
         given(frame.getRemainingGas()).willReturn(REQUIRED_GAS);
         given(gasCalculator.callOperationGasCost(
-                        any(), anyLong(), anyLong(), anyLong(), anyLong(), anyLong(), any(), any(), anyBoolean()))
+                        any(),
+                        anyLong(),
+                        anyLong(),
+                        anyLong(),
+                        anyLong(),
+                        anyLong(),
+                        anyLong(),
+                        any(),
+                        any(),
+                        anyBoolean()))
                 .willReturn(REQUIRED_GAS);
     }
 

@@ -37,7 +37,6 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
@@ -53,7 +52,6 @@ public class TransactionProcessor {
     private final CustomMessageCallProcessor messageCall;
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
-    private final CodeFactory codeFactory;
     private final GasCalculator gasCalculator;
 
     public TransactionProcessor(
@@ -63,7 +61,6 @@ public class TransactionProcessor {
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
             @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory,
             @NonNull final GasCalculator gasCalculator) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
@@ -71,7 +68,6 @@ public class TransactionProcessor {
         this.messageCall = requireNonNull(messageCall);
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
-        this.codeFactory = requireNonNull(codeFactory);
         this.gasCalculator = requireNonNull(gasCalculator);
     }
 
@@ -174,7 +170,6 @@ public class TransactionProcessor {
                 parties.sender().getAddress(),
                 parties.receiverAddress(),
                 rootFrameInitialGas,
-                codeFactory,
                 gasCalculator);
 
         // As per EIP-7702: add code delegation refund (for setting the delegation on *existing* accounts)

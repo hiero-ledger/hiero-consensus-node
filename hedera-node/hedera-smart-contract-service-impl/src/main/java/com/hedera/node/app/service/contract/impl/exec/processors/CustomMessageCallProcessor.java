@@ -252,7 +252,9 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             contractMetrics
                     .opsDurationMetrics()
                     .recordSystemContractOpsDuration(
-                            systemContract.getName(), systemContractAddress.toHexString(), opsDurationCost);
+                            systemContract.getName(),
+                            systemContractAddress.getBytes().toHexString(),
+                            opsDurationCost);
 
             result = fullResult.result();
         }

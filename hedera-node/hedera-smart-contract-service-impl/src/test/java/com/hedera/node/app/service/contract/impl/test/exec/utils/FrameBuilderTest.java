@@ -6,7 +6,6 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.tinybarValuesFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CONTRACT_CODE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_COINBASE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
@@ -53,7 +52,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeV0;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
@@ -123,7 +122,6 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY,
                 GAS_CALCULATOR);
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
@@ -177,7 +175,6 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY,
                 GAS_CALCULATOR);
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
@@ -229,7 +226,6 @@ class FrameBuilderTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         INTRINSIC_GAS,
-                        CODE_FACTORY,
                         GAS_CALCULATOR));
     }
 
@@ -253,7 +249,6 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY,
                 GAS_CALCULATOR);
 
         assertEquals(1024, frame.getMaxStackSize());
@@ -296,7 +291,6 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY,
                 GAS_CALCULATOR);
 
         assertEquals(1024, frame.getMaxStackSize());
@@ -315,7 +309,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CodeV0.EMPTY_CODE, frame.getCode());
+        assertSame(Code.EMPTY_CODE, frame.getCode());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 
@@ -340,7 +334,6 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY,
                 GAS_CALCULATOR);
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
@@ -364,7 +357,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CodeV0.EMPTY_CODE, frame.getCode());
+        assertSame(Code.EMPTY_CODE, frame.getCode());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 
@@ -376,7 +369,7 @@ class FrameBuilderTest {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
                 .getOrCreateConfig();
-        final var expectedCode = CODE_FACTORY.createCode(transaction.evmPayload(), false);
+        final var expectedCode = new Code(transaction.evmPayload());
 
         final var frame = subject.buildInitialFrameWith(
                 transaction,
@@ -388,7 +381,6 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY,
                 GAS_CALCULATOR);
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 

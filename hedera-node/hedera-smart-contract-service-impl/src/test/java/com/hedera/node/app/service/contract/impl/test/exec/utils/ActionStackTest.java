@@ -69,8 +69,8 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogBuilder;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.account.Account;
-import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.junit.jupiter.api.BeforeEach;
@@ -217,7 +217,7 @@ class ActionStackTest {
         given(parentFrame.getState()).willReturn(MessageFrame.State.EXCEPTIONAL_HALT);
         final var pretendPrecompileAction = CALL_ACTION
                 .copyBuilder()
-                .targetedAddress(tuweniToPbjBytes(HTS_SYSTEM_CONTRACT_ADDRESS))
+                .targetedAddress(tuweniToPbjBytes(HTS_SYSTEM_CONTRACT_ADDRESS.getBytes()))
                 .build();
         final var wrappedAction = new ActionWrapper(pretendPrecompileAction);
         allActions.add(wrappedAction);
@@ -249,7 +249,7 @@ class ActionStackTest {
         given(parentFrame.getState()).willReturn(MessageFrame.State.COMPLETED_FAILED);
         final var pretendPrecompileAction = CALL_ACTION
                 .copyBuilder()
-                .targetedAddress(tuweniToPbjBytes(HTS_SYSTEM_CONTRACT_ADDRESS))
+                .targetedAddress(tuweniToPbjBytes(HTS_SYSTEM_CONTRACT_ADDRESS.getBytes()))
                 .build();
         final var wrappedAction = new ActionWrapper(pretendPrecompileAction);
         allActions.add(wrappedAction);
@@ -431,7 +431,7 @@ class ActionStackTest {
         final var finalAction = allActions.get(0).get();
         assertEquals(gasUsed, finalAction.gasUsed());
         assertNull(finalAction.recipientAccount());
-        assertEquals(tuweniToPbjBytes(EIP_1014_ADDRESS), finalAction.targetedAddress());
+        assertEquals(tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes()), finalAction.targetedAddress());
         assertTrue(actionsStack.isEmpty());
     }
 
@@ -519,7 +519,7 @@ class ActionStackTest {
         given(parentFrame.getInputData()).willReturn(pbjToTuweniBytes(CALL_DATA));
         given(parentFrame.getValue()).willReturn(WEI_VALUE);
         given(parentFrame.getDepth()).willReturn(STACK_DEPTH);
-        given(parentFrame.getCode()).willReturn(CodeV0.EMPTY_CODE);
+        given(parentFrame.getCode()).willReturn(Code.EMPTY_CODE);
         given(parentFrame.getContractAddress()).willReturn(EIP_1014_ADDRESS);
         given(worldUpdater.entityIdFactory()).willReturn(entityIdFactory);
 
@@ -566,7 +566,7 @@ class ActionStackTest {
         assertEquals(VALUE, action.value());
         assertEquals(STACK_DEPTH, action.callDepth());
         assertNull(action.recipientAccount());
-        assertEquals(tuweniToPbjBytes(EIP_1014_ADDRESS), action.targetedAddress());
+        assertEquals(tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes()), action.targetedAddress());
         assertEquals(NON_SYSTEM_ACCOUNT_ID, action.callingAccount());
     }
 

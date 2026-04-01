@@ -77,7 +77,7 @@ class CodeDelegationProcessorTest {
     private static Optional<EthTxSigs> mockAuthorityWithAddress(final Address addr) {
         return Optional.of(mock(EthTxSigs.class, invocation -> {
             if ("address".equals(invocation.getMethod().getName())) {
-                return addr.toArrayUnsafe();
+                return addr.getBytes().toArrayUnsafe();
             } else if ("publicKey".equals(invocation.getMethod().getName())) {
                 return new byte[32];
             }
@@ -215,7 +215,7 @@ class CodeDelegationProcessorTest {
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AA");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
-        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
+        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr.getBytes());
 
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(tx.gasLimit()).thenReturn(100000L);
@@ -223,7 +223,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null, acct);
@@ -252,7 +252,7 @@ class CodeDelegationProcessorTest {
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AA");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
-        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
+        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr.getBytes());
 
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(tx.gasLimit()).thenReturn(20000L);
@@ -260,7 +260,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
         when(proxyWorldUpdater.enhancement()).thenReturn(enhancement);
         when(enhancement.nativeOperations()).thenReturn(hederaNativeOperations);
@@ -297,7 +297,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(7L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null);
@@ -321,14 +321,14 @@ class CodeDelegationProcessorTest {
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AC");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
-        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
+        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr.getBytes());
 
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(5L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
@@ -363,7 +363,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(1L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
@@ -395,7 +395,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(9L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
 
         when(world.updater()).thenReturn(proxyWorldUpdater);
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
@@ -429,7 +429,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(zeroAddr)).thenReturn(acct);

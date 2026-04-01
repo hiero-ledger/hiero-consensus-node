@@ -209,9 +209,9 @@ public record CodeDelegationProcessor(long chainId) {
             final boolean unlimitedAutoAssociations) {
         return signedTxWith(TransactionBody.newBuilder()
                 .cryptoCreateAccount(synthAccountCreationWithKeyAndCodeDelegation(
-                        tuweniToPbjBytes(authorizerAddress),
+                        tuweniToPbjBytes(authorizerAddress.getBytes()),
                         Key.DEFAULT,
-                        tuweniToPbjBytes(delegatedContractAddress),
+                        tuweniToPbjBytes(delegatedContractAddress.getBytes()),
                         unlimitedAutoAssociations))
                 .build());
     }

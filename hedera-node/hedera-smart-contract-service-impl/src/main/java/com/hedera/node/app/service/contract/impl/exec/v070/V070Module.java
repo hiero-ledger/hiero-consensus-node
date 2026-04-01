@@ -51,7 +51,6 @@ import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
@@ -89,7 +88,6 @@ public interface V070Module {
             @ServicesV070 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV070 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory,
             @NonNull final HederaGasCalculator gasCalculator) {
         return new TransactionProcessor(
                 frameBuilder,
@@ -98,7 +96,6 @@ public interface V070Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                codeFactory,
                 gasCalculator);
     }
 
@@ -223,19 +220,16 @@ public interface V070Module {
     @Provides
     @IntoSet
     @ServicesV070
-    static Operation provideCreateOperation(
-            @NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
-        return new CustomCreateOperation(gasCalculator, codeFactory);
+    static Operation provideCreateOperation(@NonNull final GasCalculator gasCalculator) {
+        return new CustomCreateOperation(gasCalculator);
     }
 
     @Provides
     @IntoSet
     @ServicesV070
     static Operation provideCreate2Operation(
-            @NonNull final GasCalculator gasCalculator,
-            @ServicesV070 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory) {
-        return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
+            @NonNull final GasCalculator gasCalculator, @ServicesV070 @NonNull final FeatureFlags featureFlags) {
+        return new CustomCreate2Operation(gasCalculator, featureFlags);
     }
 
     @Provides

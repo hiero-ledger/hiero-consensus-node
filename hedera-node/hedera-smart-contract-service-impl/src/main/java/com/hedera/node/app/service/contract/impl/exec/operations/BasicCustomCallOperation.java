@@ -13,9 +13,11 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.UnderflowException;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.operation.Operation.OperationResult;
@@ -55,11 +57,112 @@ public interface BasicCustomCallOperation {
     Address to(@NonNull MessageFrame frame);
 
     /**
-     * Returns the gas cost of the {@link org.hyperledger.besu.evm.operation.AbstractCallOperation} being customized.
-     * @param frame the frame in which the call is being made
-     * @return the gas cost of the call
+     * Returns the gas calculator used for gas cost calculations.
+     *
+     * @return the gas calculator
      */
-    long cost(@NonNull MessageFrame frame, boolean isAccountWarm);
+    GasCalculator gasCalculator();
+
+    /**
+     * Returns the gas stipend for the call from the stack.
+     *
+     * @param frame the frame in which the call is being made
+     * @return the gas stipend
+     */
+    long gas(@NonNull MessageFrame frame);
+
+    /**
+     * Returns the input data offset from the stack.
+     *
+     * @param frame the frame in which the call is being made
+     * @return the input data offset
+     */
+    long inputDataOffset(@NonNull MessageFrame frame);
+
+    /**
+     * Returns the input data length from the stack.
+     *
+     * @param frame the frame in which the call is being made
+     * @return the input data length
+     */
+    long inputDataLength(@NonNull MessageFrame frame);
+
+    /**
+     * Returns the output data offset from the stack.
+     *
+     * @param frame the frame in which the call is being made
+     * @return the output data offset
+     */
+    long outputDataOffset(@NonNull MessageFrame frame);
+
+    /**
+     * Returns the output data length from the stack.
+     *
+     * @param frame the frame in which the call is being made
+     * @return the output data length
+     */
+    long outputDataLength(@NonNull MessageFrame frame);
+
+    /**
+     * Returns the value being transferred with the call.
+     *
+     * @param frame the frame in which the call is being made
+     * @return the value being transferred
+     */
+    Wei value(@NonNull MessageFrame frame);
+
+    /**
+     * Returns the recipient address for the call.
+     *
+     * @param frame the frame in which the call is being made
+     * @return the recipient address
+     */
+    Address address(@NonNull MessageFrame frame);
+
+    /**
+     * Calculates the gas cost for the call operation.
+     *
+     * @param frame the frame in which the call is being made
+     * @return the gas cost
+     */
+    default long gasCost(@NonNull final MessageFrame frame) {
+        final var stipend = gas(frame);
+        final var inputOffset = inputDataOffset(frame);
+        final var inputLength = inputDataLength(frame);
+        final var outputOffset = outputDataOffset(frame);
+        final var outputLength = outputDataLength(frame);
+        final var transferValue = value(frame);
+        final var recipientAddress = address(frame);
+
+        final var staticCost = gasCalculator()
+                .callOperationStaticGasCost(
+                        frame,
+                        stipend,
+                        inputOffset,
+                        inputLength,
+                        outputOffset,
+                        outputLength,
+                        transferValue,
+                        recipientAddress,
+                        false);
+
+        if (isDeficientGas(frame, staticCost)) {
+            return staticCost;
+        }
+
+        return gasCalculator()
+                .callOperationGasCost(
+                        frame,
+                        staticCost,
+                        stipend,
+                        inputOffset,
+                        inputLength,
+                        outputOffset,
+                        outputLength,
+                        transferValue,
+                        recipientAddress,
+                        false);
+    }
 
     /**
      * Executes the {@link org.hyperledger.besu.evm.operation.AbstractCallOperation} being customized.
@@ -83,16 +186,16 @@ public interface BasicCustomCallOperation {
         requireNonNull(evm);
         requireNonNull(frame);
         try {
-            final long cost = cost(frame, false);
+            final long cost = gasCost(frame);
             if (isDeficientGas(frame, cost)) {
                 return new OperationResult(cost, ExceptionalHaltReason.INSUFFICIENT_GAS);
             }
 
-            final var address = to(frame);
-            if (contractRequired(frame, address, featureFlags())
-                    && addressChecks().isNeitherSystemNorPresent(address, frame)) {
+            final var toAddress = to(frame);
+            if (contractRequired(frame, toAddress, featureFlags())
+                    && addressChecks().isNeitherSystemNorPresent(toAddress, frame)) {
                 FrameUtils.invalidAddressContext(frame)
-                        .set(address, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
+                        .set(toAddress, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
                 return new Operation.OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
             }
             return executeUnchecked(frame, evm);

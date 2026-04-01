@@ -118,13 +118,12 @@ import java.util.Optional;
 import java.util.Set;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.datatypes.LogTopic;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogTopic;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
@@ -518,14 +517,14 @@ public class TestHelpers {
 
     public static final Account ALIASED_SOMEBODY = Account.newBuilder()
             .accountId(A_NEW_ACCOUNT_ID)
-            .alias(tuweniToPbjBytes(EIP_1014_ADDRESS))
+            .alias(tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes()))
             .build();
 
     public static final Account PARANOID_SOMEBODY = Account.newBuilder()
             .accountId(B_NEW_ACCOUNT_ID)
             .receiverSigRequired(true)
             .key(AN_ED25519_KEY)
-            .alias(tuweniToPbjBytes(EIP_1014_ADDRESS))
+            .alias(tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes()))
             .build();
     public static final Account B_CONTRACT =
             Account.newBuilder().accountId(B_NEW_ACCOUNT_ID).smartContract(true).build();
@@ -534,15 +533,14 @@ public class TestHelpers {
             .accountId(A_NEW_ACCOUNT_ID)
             .balance(123L)
             .build();
-    public static final Bytes CANONICAL_ALIAS = tuweniToPbjBytes(EIP_1014_ADDRESS);
+    public static final Bytes CANONICAL_ALIAS = tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes());
     public static final ContractID CALLED_CONTRACT_EVM_ADDRESS =
             ContractID.newBuilder().evmAddress(CANONICAL_ALIAS).build();
     public static final List<ContractNonceInfo> NONCES =
             List.of(new ContractNonceInfo(CALLED_CONTRACT_ID, NONCE), new ContractNonceInfo(CHILD_CONTRACT_ID, 1L));
     public static final EntityNumber CALLED_CONTRACT_ENTITY_NUMBER = new EntityNumber(666);
-    public static final CodeFactory CODE_FACTORY = new CodeFactory(0, 0);
     public static final GasCalculator GAS_CALCULATOR = new HederaGasCalculatorImpl();
-    public static final Code CONTRACT_CODE = CODE_FACTORY.createCode(pbjToTuweniBytes(CALL_DATA), false);
+    public static final Code CONTRACT_CODE = new Code(pbjToTuweniBytes(CALL_DATA));
     public static final Log BESU_LOG = new Log(
             NON_SYSTEM_LONG_ZERO_ADDRESS,
             pbjToTuweniBytes(TestHelpers.CALL_DATA),
@@ -694,7 +692,7 @@ public class TestHelpers {
             .build();
     public static final ContractAction LAZY_CREATE_ACTION = ContractAction.newBuilder()
             .callType(ContractActionType.CALL)
-            .targetedAddress(tuweniToPbjBytes(EIP_1014_ADDRESS))
+            .targetedAddress(tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes()))
             .gas(REMAINING_GAS)
             .build();
 
@@ -929,11 +927,12 @@ public class TestHelpers {
     }
 
     public static com.esaulpaugh.headlong.abi.Address asHeadlongAddress(final Address address) {
-        return asHeadlongAddress(address.toArrayUnsafe());
+        return asHeadlongAddress(address.getBytes().toArrayUnsafe());
     }
 
     public static com.esaulpaugh.headlong.abi.Address asHeadlongAddress(final long entityNum) {
-        final var addressBytes = org.apache.tuweni.bytes.Bytes.wrap(asLongZeroAddress(entityNum));
+        final var addressBytes =
+                org.apache.tuweni.bytes.Bytes.wrap(asLongZeroAddress(entityNum).getBytes());
         final var addressAsInteger = addressBytes.toUnsignedBigInteger();
         return com.esaulpaugh.headlong.abi.Address.wrap(
                 com.esaulpaugh.headlong.abi.Address.toChecksumAddress(addressAsInteger));
@@ -1149,7 +1148,7 @@ public class TestHelpers {
 
     public static LogTopic convertAccountToLog(final Account account) {
         return LogTopic.wrap(org.apache.tuweni.bytes.Bytes32.wrap(LogBuilder.expandByteArrayTo32Length(
-                ConversionUtils.priorityAddressOf(account).toArray())));
+                ConversionUtils.priorityAddressOf(account).getBytes().toArray())));
     }
 
     private static HederaEvmTransactionResult explicitSuccessFrom(
