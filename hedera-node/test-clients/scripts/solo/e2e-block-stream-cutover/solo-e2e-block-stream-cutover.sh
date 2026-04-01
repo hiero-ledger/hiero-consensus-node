@@ -108,23 +108,10 @@ Environment:
   USE_BLOCK_NODE_JUMPSTART  true|false (default: true)
   BLOCKS_WRAP_EXTRA_ARGS    Extra args appended to `blocks wrap ...`
   JUMPSTART_BIN_PATH        Optional explicit jumpstart.bin path (if tool writes elsewhere)
-  TSS_WRAPS_ARTIFACTS_LOCAL_DIR
-                            Local directory containing WRAPS artifacts (.bin files)
-                            (default: resources/tss-lib-wraps-artifacts)
-  TSS_WRAPS_ARTIFACTS_CONTAINER_DIR
-                            In-container path where WRAPS artifacts are staged (must match
-                            TSS_LIB_WRAPS_ARTIFACTS_PATH in APP_ENV_073_FILE)
-                            (default: /opt/hgcapp/services-hedera/HapiApp2.0/keys/wraps)
   APP_PROPS_073_FILE         application.properties for the 0.73 consensus upgrade
                             (default: resources/0.73/application.properties next to this script)
-  APP_ENV_073_FILE           application.env (e.g. TSS_LIB_WRAPS_ARTIFACTS_PATH) for 0.73 upgrade
-                            (default: resources/0.73/application.env next to this script)
-  SOLO_073_UPGRADE_VERSION   Passed to solo --upgrade-version for 0.73 local-build step (builds.hedera.com
-                            HEAD only; default: UPGRADE_072_RELEASE_TAG)
   SOLO_073_NODE_COPY_CONCURRENT  Solo NODE_COPY_CONCURRENT for 0.73 step (default: 1)
   SOLO_073_LOCAL_BUILD_COPY_RETRY Solo LOCAL_BUILD_COPY_RETRY for 0.73 step (default: 300)
-  SOLO_073_UPGRADE_RETRIES       Retry count for Step 6 0.73 upgrade command (default: 2)
-  SOLO_073_UPGRADE_RETRY_DELAY_SECS Delay before retrying Step 6 0.73 upgrade (default: 90)
   FILE121_UPDATE_RETRIES         Retry count for Step 6 File 121 update (default: 3)
   FILE121_UPDATE_RETRY_DELAY_SECS Delay before retrying File 121 update (default: 15)
   SDK_READY_RETRIES              Retry count for SDK readiness probe before Step 6 transactions (default: 8)
@@ -169,20 +156,13 @@ LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
 APP_PROPS_071_FILE="${SCRIPT_DIR}/resources/0.71/application.properties"
 APP_PROPS_072_FILE="${SCRIPT_DIR}/resources/0.72/application.properties"
 APP_PROPS_073_FILE="${APP_PROPS_073_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
-APP_ENV_073_FILE="${APP_ENV_073_FILE:-${SCRIPT_DIR}/resources/0.73/application.env}"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.71.2}"
 UPGRADE_072_RELEASE_TAG="${UPGRADE_072_RELEASE_TAG:-v0.72.0-rc.2}"
-# Reserved for the upcoming 0.73 network-upgrade step.
 UPGRADE_073_RELEASE_TAG="${UPGRADE_073_RELEASE_TAG:-0.73.0}"
-# Solo still requires a published upgrade-version even with --local-build-path.
-# Default to the known-available 0.72 tag for metadata/flow, while jars come from LOCAL_BUILD_PATH.
-SOLO_073_UPGRADE_VERSION="${SOLO_073_UPGRADE_VERSION:-${UPGRADE_072_RELEASE_TAG}}"
 # After "Update node configuration files", Solo Helm-rolls pods then kubectl-cp's LOCAL_BUILD_PATH in parallel (Solo default 4).
 # On kind, concurrent large copies can hit pods still in Failed/Terminating — serialize copies unless overridden.
 SOLO_073_NODE_COPY_CONCURRENT="${SOLO_073_NODE_COPY_CONCURRENT:-1}"
 SOLO_073_LOCAL_BUILD_COPY_RETRY="${SOLO_073_LOCAL_BUILD_COPY_RETRY:-300}"
-SOLO_073_UPGRADE_RETRIES="${SOLO_073_UPGRADE_RETRIES:-2}"
-SOLO_073_UPGRADE_RETRY_DELAY_SECS="${SOLO_073_UPGRADE_RETRY_DELAY_SECS:-90}"
 FILE121_UPDATE_RETRIES="${FILE121_UPDATE_RETRIES:-3}"
 FILE121_UPDATE_RETRY_DELAY_SECS="${FILE121_UPDATE_RETRY_DELAY_SECS:-15}"
 SDK_READY_RETRIES="${SDK_READY_RETRIES:-8}"
@@ -208,6 +188,7 @@ export JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES
 
 CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
 MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
+MIRROR_REST_SERVICE="${MIRROR_REST_SERVICE:-mirror-1-rest}"
 GRAFANA_LOCAL_PORT="${GRAFANA_LOCAL_PORT:-3000}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
 # If true, script continues when Grafana forwarding cannot be established.
@@ -226,9 +207,6 @@ USE_BLOCK_NODE_JUMPSTART="${USE_BLOCK_NODE_JUMPSTART:-true}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
 BLOCKS_WRAP_EXTRA_ARGS="${BLOCKS_WRAP_EXTRA_ARGS:-}"
 JUMPSTART_BIN_PATH="${JUMPSTART_BIN_PATH:-}"
-TSS_WRAPS_ARTIFACTS_LOCAL_DIR="${TSS_WRAPS_ARTIFACTS_LOCAL_DIR:-${SCRIPT_DIR}/resources/tss-lib-wraps-artifacts}"
-TSS_WRAPS_ARTIFACTS_CONTAINER_DIR="${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR:-/opt/hgcapp/services-hedera/HapiApp2.0/keys/wraps}"
-TSS_WRAPS_ARTIFACTS_REQUIRED_FILES_CSV="${TSS_WRAPS_ARTIFACTS_REQUIRED_FILES_CSV:-decider_pp.bin,decider_vp.bin,nova_pp.bin,nova_vp.bin}"
 
 OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
@@ -243,7 +221,7 @@ MIRROR_METADATA_LOG="${WORK_DIR}/mirror-metadata.log"
 WRAP_INPUT_PREP_LOG="${WORK_DIR}/wrap-input-prep.log"
 MINIO_DOWNLOAD_LOG="${WORK_DIR}/minio-download.log"
 EXPLORER_ADD_LOG="${WORK_DIR}/explorer-add.log"
-APP_ENV_073_EFFECTIVE_FILE="${WORK_DIR}/application-0.73.effective.env"
+SOLO_073_UPGRADE_LOG="${WORK_DIR}/solo-073-upgrade.log"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
 MIRROR_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-mirror.log"
 GRAFANA_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-grafana.log"
@@ -458,8 +436,37 @@ kill_processes_on_local_port() {
 cleanup_stale_port_forwards() {
   log "Stopping stale port-forwards from previous runs (if any)"
   pkill -f "port-forward svc/haproxy-node1-svc .*${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >/dev/null 2>&1 || true
-  pkill -f "port-forward svc/mirror-1-rest .*${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 || true
+  pkill -f "port-forward svc/${MIRROR_REST_SERVICE} .*${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/kube-prometheus-stack-grafana .*${GRAFANA_LOCAL_PORT}:80" >/dev/null 2>&1 || true
+}
+
+mirror_rest_service_exists() {
+  kubectl -n "${SOLO_NAMESPACE}" get svc "${MIRROR_REST_SERVICE}" >/dev/null 2>&1
+}
+
+ensure_mirror_rest_service_for_step6() {
+  local attempt=1
+  local max_attempts=60
+
+  if mirror_rest_service_exists; then
+    log "ONLY_STEP6: mirror REST service ${MIRROR_REST_SERVICE} already exists"
+    return 0
+  fi
+
+  log "ONLY_STEP6: mirror REST service ${MIRROR_REST_SERVICE} not found; deploying mirror node"
+  solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger
+
+  while (( attempt <= max_attempts )); do
+    if mirror_rest_service_exists; then
+      log "ONLY_STEP6: mirror REST service ${MIRROR_REST_SERVICE} is available"
+      return 0
+    fi
+    sleep 5
+    ((attempt++))
+  done
+
+  echo "Mirror REST service ${MIRROR_REST_SERVICE} was not created after deploying the mirror node" >&2
+  return 1
 }
 
 cleanup_record_stream_files_only() {
@@ -482,14 +489,65 @@ cleanup_record_stream_files_only() {
 
 wait_for_consensus_pods_ready() {
   local timeout_secs="${1:-600}"
-  local pod
-  local nodes
+  local pod=""
+  local nodes=()
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
 
   for pod in "${nodes[@]}"; do
     log "Waiting for network-${pod}-0 to become Ready"
     kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/network-${pod}-0" --timeout="${timeout_secs}s"
   done
+}
+
+capture_consensus_pod_uids() {
+  local node
+  local nodes=()
+  local uids=()
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    uids+=("$(kubectl -n "${SOLO_NAMESPACE}" get pod "network-${node}-0" -o jsonpath='{.metadata.uid}')")
+  done
+
+  (
+    IFS=','
+    echo "${uids[*]}"
+  )
+}
+
+wait_for_consensus_pod_recreation() {
+  local original_uids_csv="$1"
+  local timeout_secs="${2:-900}"
+  local deadline=$((SECONDS + timeout_secs))
+  local node=""
+  local current_uid=""
+  local idx=0
+  local nodes=()
+  local original_uids=()
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  IFS=',' read -r -a original_uids <<< "${original_uids_csv}"
+
+  while (( SECONDS < deadline )); do
+    idx=0
+    for node in "${nodes[@]}"; do
+      current_uid="$(kubectl -n "${SOLO_NAMESPACE}" get pod "network-${node}-0" -o jsonpath='{.metadata.uid}' 2>/dev/null || true)"
+      if [[ -z "${current_uid}" || "${current_uid}" == "${original_uids[$idx]}" ]]; then
+        break
+      fi
+      ((idx++))
+    done
+
+    if (( idx == ${#nodes[@]} )); then
+      log "Detected recreated consensus pods for 0.73 upgrade"
+      return 0
+    fi
+
+    sleep 2
+  done
+
+  echo "Timed out waiting for consensus pods to be recreated during 0.73 upgrade" >&2
+  return 1
 }
 
 wait_for_haproxy_ready() {
@@ -528,12 +586,21 @@ restart_post_upgrade_port_forwards() {
   sleep 1
   kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >"${CN_PORT_FORWARD_LOG}" 2>&1 &
   CN_PORT_FORWARD_PID="$!"
-  kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-rest "${MIRROR_REST_LOCAL_PORT}:http" >"${MIRROR_PORT_FORWARD_LOG}" 2>&1 &
-  MIRROR_PORT_FORWARD_PID="$!"
+  if mirror_rest_service_exists; then
+    kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${MIRROR_REST_SERVICE}" "${MIRROR_REST_LOCAL_PORT}:http" >"${MIRROR_PORT_FORWARD_LOG}" 2>&1 &
+    MIRROR_PORT_FORWARD_PID="$!"
+  else
+    log "Mirror REST service ${MIRROR_REST_SERVICE} not found; skipping mirror port-forward"
+  fi
   sleep 2
   if ! wait_for_tcp_open "127.0.0.1" "${CN_GRPC_LOCAL_PORT}" 20 1; then
     echo "Consensus gRPC port-forward did not become reachable on localhost:${CN_GRPC_LOCAL_PORT}" >&2
     tail -n 80 "${CN_PORT_FORWARD_LOG}" >&2 || true
+    return 1
+  fi
+  if [[ -n "${MIRROR_PORT_FORWARD_PID}" ]] && ! wait_for_tcp_open "127.0.0.1" "${MIRROR_REST_LOCAL_PORT}" 20 1; then
+    echo "Mirror REST port-forward did not become reachable on localhost:${MIRROR_REST_LOCAL_PORT}" >&2
+    tail -n 80 "${MIRROR_PORT_FORWARD_LOG}" >&2 || true
     return 1
   fi
 }
@@ -638,7 +705,7 @@ download_solo_record_streams_via_pod_mc() {
   local wanted_timestamps selected_objects
   local u p selected_u selected_p remote subpath dest
   local server_url cfg_full
-  local list_ok=0 list_attempt endpoint_try download_attempt
+  local list_ok=0 endpoint_try
   local wanted_count selected_count matched_timestamps
   local found=0 sig_found=0 failed=0
   local progress_every=200
@@ -681,12 +748,12 @@ download_solo_record_streams_via_pod_mc() {
   fi
 
   cfg_full="$(kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
-    'cat "${MINIO_CONFIG_ENV_FILE:-/tmp/minio/config.env}" 2>/dev/null || true' 2>/dev/null || true)"
+    "cat \"\${MINIO_CONFIG_ENV_FILE:-/tmp/minio/config.env}\" 2>/dev/null || true" 2>/dev/null || true)"
   server_url="$(echo "${cfg_full}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_SERVER_URL=//p' | head -1 | tr -d '"\r')"
 
   all_objects="$(mktemp)"
   # Retries plus alternate in-cluster endpoints avoid transient DNS/service hiccups during upgrade.
-  for list_attempt in 1 2 3 4 5 6; do
+  for _ in 1 2 3 4 5 6; do
     for endpoint_try in \
       "${server_url}" \
       "http://${svc}.${MINIO_NAMESPACE}.svc.cluster.local:${svc_port}" \
@@ -785,7 +852,7 @@ download_solo_record_streams_via_pod_mc() {
     mkdir -p "$(dirname "${dest}")"
 
     local copied=0
-    for download_attempt in 1 2 3; do
+    for _ in 1 2 3; do
       if kubectl -n "${MINIO_NAMESPACE}" exec "${pod}" -c minio -- sh -lc \
         "mc alias set local '${endpoint}' '${selected_u}' '${selected_p}' >/dev/null 2>&1; mc cat '${remote}'" \
         >"${dest}" 2>/dev/null; then
@@ -929,94 +996,98 @@ download_solo_minio_record_streams() {
   rm -f "${names_file}"
 }
 
-validate_tss_wraps_artifacts_dir() {
-  local file
-  local required_files=()
+local_build_implementation_version() {
+  unzip -p "${LOCAL_BUILD_PATH}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
+    | sed -n 's/^Implementation-Version: //p' | head -n 1
+}
 
-  if [[ ! -d "${TSS_WRAPS_ARTIFACTS_LOCAL_DIR}" ]]; then
-    echo "TSS WRAPS artifacts directory not found: ${TSS_WRAPS_ARTIFACTS_LOCAL_DIR}" >&2
+consensus_pod_implementation_version() {
+  local pod="$1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "unzip -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps/HederaNode.jar META-INF/MANIFEST.MF 2>/dev/null \
+      | sed -n 's/^Implementation-Version: //p' | head -n 1"
+}
+
+clean_consensus_pod_app_lib_dirs() {
+  local pod="$1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "mkdir -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps /opt/hgcapp/services-hedera/HapiApp2.0/data/lib \
+      && find /opt/hgcapp/services-hedera/HapiApp2.0/data/apps -mindepth 1 -maxdepth 1 -exec rm -rf {} + \
+      && find /opt/hgcapp/services-hedera/HapiApp2.0/data/lib -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
+}
+
+clean_consensus_node_app_lib_dirs() {
+  local node pod
+  local nodes=()
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    log "Cleaning existing apps/lib on ${pod}"
+    clean_consensus_pod_app_lib_dirs "${pod}"
+  done
+}
+
+stage_local_build_on_consensus_nodes() {
+  local node pod
+  local nodes=()
+  local local_version=""
+  local pod_version=""
+
+  local_version="$(local_build_implementation_version)"
+  if [[ -z "${local_version}" ]]; then
+    echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2
     return 1
   fi
 
-  IFS=',' read -r -a required_files <<< "${TSS_WRAPS_ARTIFACTS_REQUIRED_FILES_CSV}"
-  for file in "${required_files[@]}"; do
-    file="${file//[[:space:]]/}"
-    [[ -z "${file}" ]] && continue
-    if [[ ! -s "${TSS_WRAPS_ARTIFACTS_LOCAL_DIR}/${file}" ]]; then
-      echo "Missing required WRAPS artifact: ${TSS_WRAPS_ARTIFACTS_LOCAL_DIR}/${file}" >&2
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
+    log "Restaging local build apps/lib on ${pod} (local=${local_version}, pod=${pod_version:-unknown})"
+    COPYFILE_DISABLE=1 tar --disable-copyfile --no-mac-metadata --format ustar -C "${LOCAL_BUILD_PATH}" -cf - apps lib \
+      | kubectl -n "${SOLO_NAMESPACE}" exec -i "${pod}" -c root-container -- sh -lc \
+          "tar -xf - -C /opt/hgcapp/services-hedera/HapiApp2.0/data"
+    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
+    if [[ "${pod_version}" != "${local_version}" ]]; then
+      echo "Local build restage did not take effect on ${pod}: expected ${local_version}, found ${pod_version:-unknown}" >&2
       return 1
     fi
   done
-
-  log "Validated WRAPS artifacts directory: ${TSS_WRAPS_ARTIFACTS_LOCAL_DIR}"
 }
 
-prepare_073_application_env() {
-  [[ -f "${APP_ENV_073_FILE}" ]] || { echo "application.env file not found: ${APP_ENV_073_FILE}" >&2; return 1; }
-
-  awk -v wraps_path="${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR}" '
-    BEGIN { replaced = 0 }
-    /^TSS_LIB_WRAPS_ARTIFACTS_PATH=/ {
-      print "TSS_LIB_WRAPS_ARTIFACTS_PATH=" wraps_path
-      replaced = 1
-      next
-    }
-    { print }
-    END {
-      if (!replaced) {
-        print "TSS_LIB_WRAPS_ARTIFACTS_PATH=" wraps_path
-      }
-    }
-  ' "${APP_ENV_073_FILE}" > "${APP_ENV_073_EFFECTIVE_FILE}"
-
-  log "Prepared effective 0.73 application.env at ${APP_ENV_073_EFFECTIVE_FILE} (TSS_LIB_WRAPS_ARTIFACTS_PATH=${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR})"
-}
-
-stage_tss_wraps_artifacts_on_consensus_nodes() {
-  local node pod file
+enable_network_node_service_on_consensus_nodes() {
+  local node pod
   local nodes=()
-  local required_files=()
 
-  validate_tss_wraps_artifacts_dir || return 1
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  IFS=',' read -r -a required_files <<< "${TSS_WRAPS_ARTIFACTS_REQUIRED_FILES_CSV}"
 
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
-    log "Staging WRAPS artifacts on ${pod}:${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR}"
+    log "Enabling network-node service on ${pod}"
     kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "mkdir -p '${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR}' && rm -f '${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR}'/*.bin"
-
-    for file in "${required_files[@]}"; do
-      file="${file//[[:space:]]/}"
-      [[ -z "${file}" ]] && continue
-      kubectl -n "${SOLO_NAMESPACE}" cp \
-        "${TSS_WRAPS_ARTIFACTS_LOCAL_DIR}/${file}" \
-        "${pod}:${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR}/${file}" \
-        -c root-container
-    done
+      "mkdir -p /opt/hgcapp/services-hedera/HapiApp2.0/state \
+        && touch /opt/hgcapp/services-hedera/HapiApp2.0/state/network-node.enabled \
+        && /command/s6-svc -u /run/service/network-node"
   done
 }
 
-verify_tss_wraps_artifacts_and_env_on_consensus_nodes() {
-  local node pod file
+verify_local_build_on_consensus_nodes() {
+  local node pod
   local nodes=()
-  local required_files=()
+  local local_version=""
+  local pod_version=""
+
+  local_version="$(local_build_implementation_version)"
+  [[ -n "${local_version}" ]] || { echo "Unable to determine local build version for verification" >&2; return 1; }
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  IFS=',' read -r -a required_files <<< "${TSS_WRAPS_ARTIFACTS_REQUIRED_FILES_CSV}"
 
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
-    log "Verifying WRAPS env + artifacts on ${pod}"
-    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "test \"\${TSS_LIB_WRAPS_ARTIFACTS_PATH:-}\" = '${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR}'"
-    for file in "${required_files[@]}"; do
-      file="${file//[[:space:]]/}"
-      [[ -z "${file}" ]] && continue
-      kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-        "test -s '${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR}/${file}'"
-    done
+    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
+    log "Verifying local build version on ${pod} (expected ${local_version}, found ${pod_version:-unknown})"
+    [[ "${pod_version}" == "${local_version}" ]]
   done
 }
 
@@ -1072,35 +1143,56 @@ run_with_consensus_diagnostics() {
 }
 
 run_073_upgrade_once() {
-  run_with_consensus_diagnostics "solo 0.73 local-build network upgrade" \
-    env NODE_COPY_CONCURRENT="${SOLO_073_NODE_COPY_CONCURRENT}" \
+  env NODE_COPY_CONCURRENT="${SOLO_073_NODE_COPY_CONCURRENT}" \
     LOCAL_BUILD_COPY_RETRY="${SOLO_073_LOCAL_BUILD_COPY_RETRY}" \
     solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
-    --upgrade-version "${SOLO_073_UPGRADE_VERSION}" \
     --local-build-path "${LOCAL_BUILD_PATH}" \
     --application-properties "${APP_PROPS_073_FILE}" \
-    --application-env "${APP_ENV_073_EFFECTIVE_FILE}" \
     --quiet-mode --force
 }
 
-run_073_upgrade_with_retry() {
-  local attempt=1
-  local max_attempts="${SOLO_073_UPGRADE_RETRIES}"
-  local delay_secs="${SOLO_073_UPGRADE_RETRY_DELAY_SECS}"
+run_073_upgrade_internal() {
+  local ec=1
+  local original_uids_csv=""
+  local solo_pid=""
 
-  while (( attempt <= max_attempts )); do
-    if run_073_upgrade_once; then
-      return 0
+  original_uids_csv="$(capture_consensus_pod_uids)"
+  : > "${SOLO_073_UPGRADE_LOG}"
+  log "Step 6: executing solo consensus network upgrade (streaming logs; file: ${SOLO_073_UPGRADE_LOG})"
+
+  (
+    run_073_upgrade_once 2>&1 | tee "${SOLO_073_UPGRADE_LOG}"
+  ) &
+  solo_pid="$!"
+
+  if ! wait_for_consensus_pod_recreation "${original_uids_csv}" 900; then
+    if wait "${solo_pid}"; then
+      :
+    else
+      ec=$?
     fi
-    if (( attempt == max_attempts )); then
-      return 1
-    fi
-    log "Step 6: 0.73 upgrade attempt ${attempt}/${max_attempts} failed; waiting ${delay_secs}s before retry"
-    sleep "${delay_secs}"
-    wait_for_consensus_pods_ready 600 || true
-    wait_for_haproxy_ready 600 || true
-    ((attempt++))
-  done
+    tail -n 160 "${SOLO_073_UPGRADE_LOG}" >&2 || true
+    return "${ec}"
+  fi
+
+  wait_for_consensus_pods_ready 600
+  log "Step 6: cleaning recreated pods before restaging local 0.73 apps/lib"
+  clean_consensus_node_app_lib_dirs
+  stage_local_build_on_consensus_nodes
+  enable_network_node_service_on_consensus_nodes
+
+  if wait "${solo_pid}"; then
+    :
+  else
+    ec=$?
+    tail -n 160 "${SOLO_073_UPGRADE_LOG}" >&2 || true
+    return "${ec}"
+  fi
+}
+
+run_073_upgrade() {
+  run_with_consensus_diagnostics "solo 0.73 local-build network upgrade" \
+    run_073_upgrade_internal
 }
 
 run_explorer_add_with_retry() {
@@ -1956,13 +2048,6 @@ if [[ ! -f "${APP_PROPS_073_FILE}" ]]; then
   echo "application.properties file not found: ${APP_PROPS_073_FILE}" >&2
   exit 1
 fi
-if [[ ! -f "${APP_ENV_073_FILE}" ]]; then
-  echo "application.env file not found: ${APP_ENV_073_FILE}" >&2
-  exit 1
-fi
-if ! validate_tss_wraps_artifacts_dir; then
-  exit 1
-fi
 if ! validate_local_build_path "${LOCAL_BUILD_PATH}"; then
   echo "Invalid LOCAL_BUILD_PATH content: ${LOCAL_BUILD_PATH}" >&2
   echo "Expected jar artifacts under both data/lib and data/apps (run ./gradlew assemble)." >&2
@@ -1974,6 +2059,7 @@ if [[ "${ONLY_STEP6}" == "true" ]]; then
   cleanup_stale_port_forwards
   wait_for_consensus_pods_ready 300
   wait_for_haproxy_ready 300
+  ensure_mirror_rest_service_for_step6
   restart_post_upgrade_port_forwards
   log "Waiting for mirror REST in ONLY_STEP6 mode"
   wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
@@ -2118,23 +2204,13 @@ run_file121_update_with_retry
 # Step 6 upgrade path remains WIP; keep disabled until cutover path is validated.
 # log "Step 6: waiting 30s after File 121 update before consensus upgrade"
 sleep 30
-#
-# log "Step 6: upgrading consensus network to 0.73 using local build (${LOCAL_BUILD_PATH}) and ${APP_PROPS_073_FILE}"
-prepare_073_application_env
-log "Step 6: staging WRAPS artifacts to ${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR} on running consensus pods"
-stage_tss_wraps_artifacts_on_consensus_nodes
-log "Step 6: verifying staged WRAPS artifacts before 0.73 upgrade"
-for node in ${NODE_ALIASES//,/ }; do
-  kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- sh -lc \
-    "test -d '${TSS_WRAPS_ARTIFACTS_CONTAINER_DIR}'"
-done
-
-run_073_upgrade_with_retry
+log "Step 6: running solo consensus network upgrade to ${UPGRADE_073_RELEASE_TAG} using local build (${LOCAL_BUILD_PATH})"
+run_073_upgrade
 
 wait_for_consensus_pods_ready 600
 wait_for_haproxy_ready 600
 restart_post_upgrade_port_forwards
-verify_tss_wraps_artifacts_and_env_on_consensus_nodes
+verify_local_build_on_consensus_nodes
 log "Waiting for mirror REST after 0.73 upgrade port-forward restart"
 wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
 
