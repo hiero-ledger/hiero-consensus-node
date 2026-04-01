@@ -74,6 +74,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final long MIN_GZIP_SIZE_IN_BYTES = 26;
     private static final String ERROR_PREFIX = "\n  - ";
     private static final Duration STREAM_FILE_WAIT = Duration.ofSeconds(2);
+    private static final int BLOCK_NODE_READ_MAX_ATTEMPTS = 5;
+    private static final long BLOCK_NODE_READ_RETRY_MS = 2000L;
 
     private final List<RecordStreamValidator> recordStreamValidators;
     private final WrappedRecordHashesByRecordFilesValidator wrappedRecordHashesValidator =
@@ -206,7 +208,27 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
         }
         if (isWriterModeGrpcOnly(spec) && blockNodeNetwork != null) {
-            return readBlocksFromBlockNodes(spec, blockNodeNetwork);
+            // Retry reading from block nodes — blocks may still be in-flight after freeze,
+            // especially with TSS/state proofs enabled where block finalization is async
+            for (int attempt = 1; attempt <= BLOCK_NODE_READ_MAX_ATTEMPTS; attempt++) {
+                final var result = readBlocksFromBlockNodes(spec, blockNodeNetwork);
+                if (result.isPresent()) {
+                    return result;
+                }
+                if (attempt < BLOCK_NODE_READ_MAX_ATTEMPTS) {
+                    log.info(
+                            "No blocks from block nodes on attempt {}, retrying in {}ms",
+                            attempt,
+                            BLOCK_NODE_READ_RETRY_MS);
+                    try {
+                        Thread.sleep(BLOCK_NODE_READ_RETRY_MS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+            return Optional.empty();
         }
         return readBlocksFromDisk(spec);
     }
@@ -311,18 +333,23 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             return Optional.empty();
         }
 
-        // Also read pending blocks (.pnd.gz) from subprocess nodes for the freeze block
+        // Also read pending blocks (.pnd.gz) from subprocess nodes for the freeze block,
+        // deduplicating by block number (block node blocks take precedence over pending blocks)
         final var pendingBlocks = readPendingBlocksFromDisk(spec);
         if (!pendingBlocks.isEmpty()) {
+            final var existingNumbers = new HashSet<Long>();
+            for (final var block : blocks) {
+                existingNumbers.add(blockNumberOf(block));
+            }
             final var allBlocks = new ArrayList<>(blocks);
-            allBlocks.addAll(pendingBlocks);
-            allBlocks.sort(Comparator.comparingLong(block -> block.items().isEmpty()
-                    ? Long.MAX_VALUE
-                    : block.items().getFirst().hasBlockHeader()
-                            ? block.items().getFirst().blockHeader().number()
-                            : Long.MAX_VALUE));
+            for (final var block : pendingBlocks) {
+                if (existingNumbers.add(blockNumberOf(block))) {
+                    allBlocks.add(block);
+                }
+            }
+            allBlocks.sort(Comparator.comparingLong(StreamValidationOp::blockNumberOf));
             blocks = allBlocks;
-            log.info("Added {} pending blocks from disk, total {} blocks", pendingBlocks.size(), blocks.size());
+            log.info("Merged {} pending blocks from disk, {} total blocks", pendingBlocks.size(), blocks.size());
         }
 
         return Optional.of(blocks);
@@ -414,6 +441,13 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private static long blockNumberOf(@NonNull final Block block) {
+        if (!block.items().isEmpty() && block.items().getFirst().hasBlockHeader()) {
+            return block.items().getFirst().blockHeader().number();
+        }
+        return Long.MAX_VALUE;
     }
 
     private static Optional<DataOrException> readMaybeRecordStreamDataFor(@NonNull final HapiSpec spec) {
