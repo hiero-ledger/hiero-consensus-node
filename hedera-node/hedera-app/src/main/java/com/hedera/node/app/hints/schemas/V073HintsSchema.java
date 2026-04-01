@@ -47,10 +47,11 @@ public class V073HintsSchema extends Schema<SemanticVersion> {
         if (activeConstruction == null) {
             activeConstructionState.put(HintsConstruction.DEFAULT);
             activeConstruction = activeConstructionState.get();
-            if (activeConstruction != null && activeConstruction.hasHintsScheme()) {
-                signingContext.setConstruction(activeConstruction);
-            }
         }
+        if (activeConstruction != null) {
+            signingContext.setConstruction(activeConstruction);
+        }
+
         if (writableStates
                         .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                         .get()
