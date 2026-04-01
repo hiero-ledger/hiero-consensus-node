@@ -1003,6 +1003,13 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public StreamBuilder blockNumber(@Nullable final Long blockNumber) {
+        // No op for stream mode records
+        return this;
+    }
+
     /**
      * Sets the receipt topicID.
      *
