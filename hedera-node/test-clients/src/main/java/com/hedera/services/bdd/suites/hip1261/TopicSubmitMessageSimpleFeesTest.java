@@ -108,7 +108,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 1L,
                                     STATE_BYTES, 100L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
@@ -131,7 +131,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 1L,
                                     STATE_BYTES, 101L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
@@ -154,7 +154,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 1L,
                                     STATE_BYTES, 500L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
@@ -177,7 +177,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 1L,
                                     STATE_BYTES, 1024L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
@@ -204,7 +204,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 2L,
                                     STATE_BYTES, 50L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
@@ -234,7 +234,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 3L,
                                     STATE_BYTES, 100L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
@@ -257,7 +257,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 1L,
                                     STATE_BYTES, 100L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
@@ -284,7 +284,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 2L,
                                     STATE_BYTES, 500L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
@@ -314,7 +314,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 20L,
                                     STATE_BYTES, 100L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
 
@@ -347,7 +347,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                     SIGNATURES, 41L,
                                     STATE_BYTES, 100L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            1.0),
+                            0.1),
                     validateChargedAccount(submitMessageTxn, PAYER));
         }
     }
@@ -367,7 +367,7 @@ public class TopicSubmitMessageSimpleFeesTest {
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER).fee(ONE_HUNDRED_HBARS),
+                        createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER),
                         submitMessageTo(TOPIC)
                                 .message(message)
                                 .payingWith(PAYER)
@@ -404,7 +404,7 @@ public class TopicSubmitMessageSimpleFeesTest {
             final Stream<DynamicTest> submitMessageEmptyFailsOnIngest() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER).fee(ONE_HUNDRED_HBARS),
+                        createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER),
                         submitMessageTo(TOPIC)
                                 .message("") // Empty message
                                 .payingWith(PAYER)
@@ -535,7 +535,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                 return hapiTest(
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        createTopic(TOPIC).signedBy(DEFAULT_PAYER).fee(ONE_HUNDRED_HBARS),
+                        createTopic(TOPIC).signedBy(DEFAULT_PAYER),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "4")),
                         submitMessageTo(TOPIC)
                                 .message(message)
@@ -550,7 +550,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                 INNER_ID,
                                 txnSize -> expectedTopicSubmitMessageNetworkFeeOnlyUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                1.0),
+                                0.1),
                         validateChargedAccount(INNER_ID, "4"));
             }
         }
@@ -580,7 +580,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                         SIGNATURES, 1L,
                                         STATE_BYTES, (long) message.length(),
                                         PROCESSING_BYTES, (long) txnSize)),
-                                1.0),
+                                0.1),
                         validateChargedAccount(submitMessageTxn, PAYER));
             }
 
@@ -603,7 +603,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                         SIGNATURES, 1L,
                                         STATE_BYTES, (long) message.length(),
                                         PROCESSING_BYTES, (long) txnSize)),
-                                1.0),
+                                0.1),
                         validateChargedAccount(submitMessageTxn, PAYER));
             }
 
@@ -632,7 +632,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                         SIGNATURES, 1L,
                                         STATE_BYTES, (long) message.length(),
                                         PROCESSING_BYTES, (long) txnSize)),
-                                1.0),
+                                0.1),
                         validateChargedAccount(submitMessageTxn, PAYER));
             }
 
@@ -661,7 +661,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                         SIGNATURES, 1L,
                                         STATE_BYTES, (long) message.length(),
                                         PROCESSING_BYTES, (long) txnSize)),
-                                1.0),
+                                0.1),
                         validateChargedAccount(submitMessageTxn, PAYER));
             }
 
@@ -672,7 +672,7 @@ public class TopicSubmitMessageSimpleFeesTest {
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER).fee(ONE_HUNDRED_HBARS),
+                        createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER),
                         submitMessageTo(TOPIC)
                                 .message(message)
                                 .chunkInfo(5, 10) // Invalid chunk info (chunk 5 of 10, but no initial txn ID)
@@ -686,7 +686,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                         SIGNATURES, 1L,
                                         STATE_BYTES, (long) message.length(),
                                         PROCESSING_BYTES, (long) txnSize)),
-                                1.0),
+                                0.1),
                         validateChargedAccount(submitMessageTxn, PAYER));
             }
 
@@ -703,7 +703,7 @@ public class TopicSubmitMessageSimpleFeesTest {
 
                     return hapiTest(
                             cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                            createTopic(TOPIC).payingWith(DEFAULT_PAYER).fee(ONE_HUNDRED_HBARS),
+                            createTopic(TOPIC).payingWith(DEFAULT_PAYER),
                             cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "4")),
                             usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
                             submitMessageTo(TOPIC)
@@ -726,7 +726,7 @@ public class TopicSubmitMessageSimpleFeesTest {
                                             SIGNATURES, 1L,
                                             STATE_BYTES, (long) message.length(),
                                             PROCESSING_BYTES, (long) txnSize)),
-                                    1.0),
+                                    0.1),
                             validateChargedAccount(DUPLICATE_TXN_ID, PAYER));
                 }
             }

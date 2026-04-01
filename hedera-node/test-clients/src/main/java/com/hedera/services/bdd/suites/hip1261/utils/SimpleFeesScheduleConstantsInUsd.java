@@ -97,6 +97,8 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double CONS_DELETE_TOPIC_BASE_FEE_USD = 0.0049;
 
+    public static final double CONS_GET_TOPIC_INFO_BASE_FEE_USD = 0.0000000084;
+
     /* ---------- File service ---------- */
     public static final double FILE_CREATE_BASE_FEE_USD = 0.0499;
     public static final long FILE_CREATE_INCLUDED_KEYS = 1L;
