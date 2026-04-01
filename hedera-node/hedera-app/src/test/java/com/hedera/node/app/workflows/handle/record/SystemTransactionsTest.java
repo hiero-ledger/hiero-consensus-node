@@ -167,13 +167,6 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
-        lenient()
-                .doAnswer(invocation -> {
-                    invocation.getArgument(2, Runnable.class).run();
-                    return null;
-                })
-                .when(stateChangeStreaming)
-                .doStreamingChanges(any(), any(), any());
         subject = new SystemTransactions(
                 initTrigger,
                 parentTxnFactory,
