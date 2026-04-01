@@ -105,6 +105,7 @@ public abstract class AbstractNode implements HederaNode {
                                 getAccountId().shardNum(),
                                 getAccountId().realmNum(),
                                 getAccountId().accountNumOrThrow()));
+            case BLOCK_STREAMS_PARENT_DIR -> workingDir.resolve(DATA_DIR).resolve(BLOCK_STREAMS_DIR);
             case UPGRADE_ARTIFACTS_DIR ->
                 workingDir.resolve(DATA_DIR).resolve(UPGRADE_DIR).resolve(CURRENT_DIR);
             case SAVED_STATES_DIR ->
@@ -114,6 +115,12 @@ public abstract class AbstractNode implements HederaNode {
                         .resolve(Hedera.APP_NAME)
                         .resolve("" + getNodeId())
                         .resolve(Hedera.SWIRLD_NAME);
+            case PCES_DIR ->
+                workingDir
+                        .resolve(DATA_DIR)
+                        .resolve(SAVED_STATES_DIR)
+                        .resolve("preconsensus-events")
+                        .resolve("" + getNodeId());
         };
     }
 

@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.gossip.config.GossipConfig;
@@ -20,6 +22,8 @@ import org.hiero.consensus.model.node.NodeId;
  * Utility class for generating paired streams for synchronization tests.
  */
 public class PairedStreams implements AutoCloseable {
+
+    private static final Logger logger = LogManager.getLogger(PairedStreams.class);
 
     protected BufferedOutputStream teacherOutputBuffer;
     protected SerializableDataOutputStream teacherOutput;
@@ -97,7 +101,7 @@ public class PairedStreams implements AutoCloseable {
                 c.close();
             } catch (final Exception e) {
                 // this is the test code, and we don't want the test to fail because of a close error
-                e.printStackTrace(System.err);
+                logger.error("Error while closing resources", e);
             }
         }
     }

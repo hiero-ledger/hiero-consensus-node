@@ -8,7 +8,6 @@ import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
 import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushReceiveTask;
@@ -16,11 +15,10 @@ import com.swirlds.common.merkle.synchronization.task.TeacherPushSendTask;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.ConcurrentNodeStatusTracker;
 import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
@@ -111,25 +109,16 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
      *
      * @param map
      * 		The map node on the teacher side of the saved state that we are going to reconnect.
-     * @param state
-     * 		The state of the virtual tree that we are synchronizing.
-     * @param pipeline
-     * 		The pipeline managing the virtual map.
      */
-    public TeacherPushVirtualTreeView(
-            final ReconnectConfig reconnectConfig,
-            final VirtualMap map,
-            final VirtualMapMetadata state,
-            final VirtualPipeline pipeline) {
+    public TeacherPushVirtualTreeView(final ReconnectConfig reconnectConfig, final VirtualMap map) {
         // There is no distinction between originalState and reconnectState in this implementation
-        super(map, state, state);
+        super(map, map.getMetadata(), map.getMetadata());
         this.reconnectConfig = reconnectConfig;
-        this.records = pipeline.pausePipelineAndRun("copy", map::detach);
+        this.records = map.detach();
     }
 
     @Override
     public void startTeacherTasks(
-            final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
@@ -291,15 +280,19 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void writeChildHashes(final Long parent, final SerializableDataOutputStream out) throws IOException {
         checkValidInternal(parent, reconnectState);
-        if (parent == ROOT_PATH && reconnectState.getLastLeafPath() == INVALID_PATH) {
+
+        final long firstLeafPath = reconnectState.getFirstLeafPath();
+        final long lastLeafPath = reconnectState.getLastLeafPath();
+
+        if (parent == ROOT_PATH && lastLeafPath == INVALID_PATH) {
             // out.writeSerializableList() writes just a single int if the list is empty
             out.writeInt(0);
             return;
         }
         final int size;
-        if (parent > ROOT_PATH || (parent == ROOT_PATH && reconnectState.getLastLeafPath() > 1)) {
+        if (parent > ROOT_PATH || (parent == ROOT_PATH && lastLeafPath > 1)) {
             size = 2;
-        } else if (parent == ROOT_PATH && reconnectState.getLastLeafPath() == 1) {
+        } else if (parent == ROOT_PATH && lastLeafPath == 1) {
             size = 1;
         } else {
             throw new MerkleSynchronizationException("Unexpected parent " + parent);
@@ -309,24 +302,29 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
         out.writeBoolean(true);
 
         final long leftPath = getLeftChildPath(parent);
+
+        final long hashChunkPath = VirtualHashChunk.pathToChunkPath(leftPath, records.getHashChunkHeight());
+        final VirtualHashChunk hashChunk = records.findHashChunk(hashChunkPath);
+        if (hashChunk == null) {
+            throw new MerkleSynchronizationException("Can't find hash chunk for path " + leftPath);
+        }
+
         // Is null? false
         out.writeBoolean(false);
         // Class version is written for the first entry only
         out.writeInt(Hash.CLASS_VERSION);
         // Write hash in SelfSerializable format
-        if (!records.findAndWriteHash(leftPath, out)) {
-            throw new MerkleSynchronizationException("Null hash for path = " + leftPath);
-        }
+        hashChunk.calcHash(leftPath, firstLeafPath, lastLeafPath).serialize(out);
 
         if (size == 2) {
+            // The right path is always in the same chunk as the left path, so calcHash() below
+            // will work as expected
             final long rightPath = getRightChildPath(parent);
             // Is null? false
             out.writeBoolean(false);
             // Class version is not written
             // Write hash in SelfSerializable format
-            if (!records.findAndWriteHash(rightPath, out)) {
-                throw new MerkleSynchronizationException("Null hash for path = " + rightPath);
-            }
+            hashChunk.calcHash(rightPath, firstLeafPath, lastLeafPath).serialize(out);
         }
     }
 

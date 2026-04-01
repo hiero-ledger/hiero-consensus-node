@@ -62,6 +62,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 
+/**
+ * Runs safely in concurrent misc execution because nested {@code @BeforeAll} methods only call
+ * {@link TestLifecycle#doAdhoc(com.hedera.services.bdd.spec.SpecOperation...)} and do not call
+ * {@link TestLifecycle#overrideInClass(java.util.Map)}.
+ */
 @HapiTestLifecycle
 @DisplayName("Topic custom fees")
 public class TopicCustomFeeCreateTest extends TopicCustomFeeBase {

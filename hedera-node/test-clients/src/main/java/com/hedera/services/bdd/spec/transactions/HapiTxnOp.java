@@ -43,6 +43,7 @@ import com.hedera.services.bdd.spec.exceptions.HapiTxnCheckStateException;
 import com.hedera.services.bdd.spec.exceptions.HapiTxnPrecheckStateException;
 import com.hedera.services.bdd.spec.infrastructure.DelegatingOpFinisher;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
+import com.hedera.services.bdd.spec.infrastructure.TransientPlatformErrorRetry;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
@@ -54,7 +55,6 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.Response;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionGetReceiptResponse;
@@ -223,6 +223,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     protected boolean submitOp(HapiSpec spec) throws Throwable {
         configureTlsFor(spec);
         int retryCount = 1;
+        long platformNotActiveRetryStart = 0;
         while (true) {
             Transaction txn = finalizedTxn(spec, opBodyDef(spec));
 
@@ -279,28 +280,23 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
             }
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
-            // Automatically retry on transient platform errors (backlog/not active)
-            // regardless of explicit retryPrechecks configuration
-            final boolean isTransientPlatformError = actualPrecheck == PLATFORM_NOT_ACTIVE
-                    || actualPrecheck == PLATFORM_TRANSACTION_NOT_CREATED
-                    || actualPrecheck == BUSY;
             // Don't retry if the test explicitly expects this transient error (e.g., testing throttling)
             final boolean expectsTransientError =
                     expectedPrecheck.isPresent() && expectedPrecheck.get() == actualPrecheck;
-            // For transient platform errors, use a hard limit of 10 retries to avoid infinite loops
-            // when no explicit retryLimits is set (which defaults to unlimited)
-            final int maxTransientRetries = 10;
-            final boolean withinTransientLimit = retryCount < maxTransientRetries;
-            final boolean shouldRetryTransient =
-                    isTransientPlatformError && withinTransientLimit && !expectsTransientError;
+
+            final var transientDecision = expectsTransientError
+                    ? TransientPlatformErrorRetry.NO_RETRY
+                    : TransientPlatformErrorRetry.evaluate(
+                            actualPrecheck, retryCount, platformNotActiveRetryStart, System.currentTimeMillis());
+            platformNotActiveRetryStart = transientDecision.firstSeenMs();
+
             final boolean shouldRetryExplicit = retryPrechecks.isPresent()
                     && retryPrechecks.get().contains(actualPrecheck)
                     && isWithInRetryLimit(retryCount);
-            if (shouldRetryTransient || shouldRetryExplicit) {
+            if (transientDecision.shouldRetry() || shouldRetryExplicit) {
                 retryCount++;
                 try {
-                    // Use longer sleep for platform errors to allow recovery
-                    sleep(isTransientPlatformError ? 100 : 10);
+                    sleep(transientDecision.shouldRetry() ? transientDecision.sleepMs() : 10);
                 } catch (InterruptedException e) {
                     log.error("Interrupted while sleeping before retry");
                     throw new RuntimeException(e);
@@ -510,19 +506,6 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         }
     }
 
-    /**
-     * Returns the valid start time of the submitted transaction.
-     *
-     * @return the valid start time
-     */
-    public Timestamp validStartOfSubmittedTxn() {
-        try {
-            return extractTxnId(txnSubmitted).getTransactionValidStart();
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private ResponseCodeEnum resolvedStatusOfSubmission(HapiSpec spec) throws Throwable {
         long delayMS = spec.setup().statusPreResolvePauseMs();
         long elapsedMS = System.currentTimeMillis() - submitTime;
@@ -551,6 +534,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                     // This smooths the case of getting the receipt for a transaction that was submitted
                     // to the non-default node in embedded mode, bypassing ingest; we retry until the default
                     // node caches the receipt at consensus
+                    continue;
+                } else if (lookupStatus == PLATFORM_NOT_ACTIVE
+                        || lookupStatus == PLATFORM_TRANSACTION_NOT_CREATED
+                        || lookupStatus == BUSY) {
+                    // Retry transient platform errors from the receipt query precheck, consistent
+                    // with how the transaction submission loop and query submission loop handle them
                     continue;
                 } else {
                     return statusNow;

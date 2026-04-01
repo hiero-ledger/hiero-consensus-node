@@ -4,6 +4,7 @@ package com.hedera.node.app.services;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.contract.ContractService;
@@ -108,10 +109,16 @@ public class ServiceScopeLookup {
                     default -> NON_EXISTING_SERVICE;
                 };
 
-            case NODE_CREATE, NODE_DELETE, NODE_UPDATE -> AddressBookService.NAME;
+            case NODE_CREATE,
+                    NODE_DELETE,
+                    NODE_UPDATE,
+                    REGISTERED_NODE_CREATE,
+                    REGISTERED_NODE_UPDATE,
+                    REGISTERED_NODE_DELETE -> AddressBookService.NAME;
             case HISTORY_PROOF_KEY_PUBLICATION, HISTORY_PROOF_SIGNATURE, HISTORY_PROOF_VOTE -> HistoryService.NAME;
             case HINTS_KEY_PUBLICATION, HINTS_PARTIAL_SIGNATURE, HINTS_PREPROCESSING_VOTE, CRS_PUBLICATION ->
                 HintsService.NAME;
+            case MIGRATION_ROOT_HASH_VOTE -> BlockRecordService.NAME;
 
             default -> NON_EXISTING_SERVICE;
         };

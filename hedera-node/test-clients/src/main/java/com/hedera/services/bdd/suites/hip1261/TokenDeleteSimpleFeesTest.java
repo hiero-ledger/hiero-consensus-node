@@ -2,51 +2,65 @@
 package com.hedera.services.bdd.suites.hip1261;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
+import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteNetworkFeeOnlyUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_WAS_DELETED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +73,6 @@ import org.junit.jupiter.api.Tag;
  * Validates that fees are correctly calculated based on:
  * - Number of signatures (extras beyond included)
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class TokenDeleteSimpleFeesTest {
@@ -69,6 +82,7 @@ public class TokenDeleteSimpleFeesTest {
     private static final String ADMIN_KEY = "adminKey";
     private static final String PAYER_KEY = "payerKey";
     private static final String TOKEN = "fungibleToken";
+    private static final String tokenDeleteTxn = "tokenDeleteTxn";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -90,17 +104,16 @@ public class TokenDeleteSimpleFeesTest {
                             .tokenType(FUNGIBLE_COMMON)
                             .adminKey(ADMIN_KEY)
                             .treasury(TREASURY)
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS),
+                            .payingWith(PAYER),
                     tokenDelete(TOKEN)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenDeleteTxn"),
-                    validateChargedUsdWithin(
-                            "tokenDeleteTxn",
-                            expectedTokenDeleteFullFeeUsd(2L), // 2 sigs
-                            0.001));
+                            .via(tokenDeleteTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenDeleteTxn,
+                            txnSize -> expectedTokenDeleteFullFeeUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
 
         @HapiTest
@@ -119,18 +132,18 @@ public class TokenDeleteSimpleFeesTest {
                             .adminKey(ADMIN_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
                             .sigControl(forKey(PAYER_KEY, validSig)),
                     tokenDelete(TOKEN)
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenDeleteTxn"),
-                    validateChargedUsdWithin(
-                            "tokenDeleteTxn",
-                            expectedTokenDeleteFullFeeUsd(3L), // 3 sigs (2 payer + 1 admin)
-                            0.001));
+                            .via(tokenDeleteTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenDeleteTxn,
+                            txnSize -> expectedTokenDeleteFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenDeleteTxn, PAYER));
         }
 
         @HapiTest
@@ -149,18 +162,92 @@ public class TokenDeleteSimpleFeesTest {
                             .treasury(TREASURY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY, ADMIN_KEY)
-                            .sigControl(forKey(ADMIN_KEY, validSig))
-                            .fee(ONE_HUNDRED_HBARS),
+                            .sigControl(forKey(ADMIN_KEY, validSig)),
                     tokenDelete(TOKEN)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY)
                             .sigControl(forKey(ADMIN_KEY, validSig))
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenDeleteTxn"),
-                    validateChargedUsdWithin(
-                            "tokenDeleteTxn",
-                            expectedTokenDeleteFullFeeUsd(3L), // 3 sigs (1 payer + 2 admin)
-                            0.001));
+                            .via(tokenDeleteTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenDeleteTxn,
+                            txnSize -> expectedTokenDeleteFullFeeUsd(
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenDeleteTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TokenDelete - large key txn above NODE_INCLUDED_BYTES threshold - extra PROCESSING_BYTES charged")
+        final Stream<DynamicTest> tokenDeleteLargeKeyExtraProcessingBytesFee() {
+            final KeyShape largeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    newKeyNamed(ADMIN_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .adminKey(ADMIN_KEY)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER),
+                    tokenDelete(TOKEN)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, ADMIN_KEY)
+                            .via(tokenDeleteTxn),
+                    assertionsHold((spec, log) -> {
+                        final int txnSize = signedTxnSizeFor(spec, tokenDeleteTxn);
+                        log.info(
+                                "Large-key TokenDelete signed size: {} bytes (threshold: {})",
+                                txnSize,
+                                NODE_INCLUDED_BYTES);
+                        assertTrue(
+                                txnSize > NODE_INCLUDED_BYTES,
+                                "Expected txn size (" + txnSize + ") to exceed " + NODE_INCLUDED_BYTES + " bytes");
+                    }),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenDeleteTxn,
+                            txnSize -> expectedTokenDeleteFullFeeUsd(
+                                    Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenDeleteTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TokenDelete - very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
+        final Stream<DynamicTest> tokenDeleteVeryLargeKeyBelowOversizeFee() {
+            final KeyShape veryLargeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    newKeyNamed(ADMIN_KEY),
+                    tokenCreate(TOKEN)
+                            .tokenType(FUNGIBLE_COMMON)
+                            .adminKey(ADMIN_KEY)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER),
+                    tokenDelete(TOKEN)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, ADMIN_KEY)
+                            .via(tokenDeleteTxn),
+                    assertionsHold((spec, log) -> {
+                        final int txnSize = signedTxnSizeFor(spec, tokenDeleteTxn);
+                        log.info("Very-large TokenDelete signed size: {} bytes", txnSize);
+                        assertTrue(txnSize < 6_000, "Expected txn size (" + txnSize + ") to not exceed 6000 bytes");
+                    }),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenDeleteTxn,
+                            txnSize -> expectedTokenDeleteFullFeeUsd(
+                                    Map.of(SIGNATURES, 56L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenDeleteTxn, PAYER));
         }
     }
 
@@ -173,46 +260,8 @@ public class TokenDeleteSimpleFeesTest {
         class TokenDeleteFailuresOnIngest {
 
             @HapiTest
-            @DisplayName("TokenDelete - missing admin key signature fails at handle")
-            final Stream<DynamicTest> tokenDeleteMissingAdminKeySignatureFailsAtHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
-                return hapiTest(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TREASURY).balance(0L),
-                        newKeyNamed(ADMIN_KEY),
-                        tokenCreate(TOKEN)
-                                .tokenType(FUNGIBLE_COMMON)
-                                .adminKey(ADMIN_KEY)
-                                .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        tokenDelete(TOKEN)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER) // Missing admin key signature
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenDeleteTxn")
-                                .hasKnownStatus(INVALID_SIGNATURE),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "tokenDeleteTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenDeleteFullFeeUsd(1L),
-                                0.001));
-            }
-
-            @HapiTest
             @DisplayName("TokenDelete - insufficient tx fee fails on ingest - no fee charged")
             final Stream<DynamicTest> tokenDeleteInsufficientTxFeeFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -221,55 +270,337 @@ public class TokenDeleteSimpleFeesTest {
                                 .tokenType(FUNGIBLE_COMMON)
                                 .adminKey(ADMIN_KEY)
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                                .payingWith(PAYER),
                         tokenDelete(TOKEN)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(1L) // Fee too low
-                                .via("tokenDeleteTxn")
+                                .via(tokenDeleteTxn)
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
-                        getTxnRecord("tokenDeleteTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
-            @DisplayName("TokenDelete - invalid token fails - fee charged")
-            final Stream<DynamicTest> tokenDeleteInvalidTokenFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
+            @DisplayName("TokenDelete - threshold key invalid signature fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteThresholdInvalidSigFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
 
                 return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, keyShape.signedWith(sigs(ON, ON)))),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .via(tokenDeleteTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName(
+                    "TokenDelete - threshold key with nested list invalid signature fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteThresholdWithListInvalidSigFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF, sigs(OFF, OFF)));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER)
+                                .key(PAYER_KEY)
+                                .sigControl(forKey(PAYER_KEY, keyShape.signedWith(sigs(ON, ON, sigs(ON, ON)))))
+                                .balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, keyShape.signedWith(sigs(ON, ON, sigs(ON, ON))))),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .via(tokenDeleteTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - key list with missing signature fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteKeyListMissingSigFailsOnIngest() {
+                return hapiTest(
+                        newKeyNamed("firstKey"),
+                        newKeyNamed("secondKey"),
+                        newKeyListNamed(PAYER_KEY, List.of("firstKey", "secondKey")),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy("firstKey", ADMIN_KEY) // missing secondKey from list
+                                .via(tokenDeleteTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - insufficient payer balance fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteInsufficientPayerBalanceFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(1L), // too little balance
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .via(tokenDeleteTxn)
+                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - memo too long fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteMemoTooLongFailsOnIngest() {
+                final var LONG_MEMO = "x".repeat(1025);
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig)),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .memo(LONG_MEMO)
+                                .via(tokenDeleteTxn)
+                                .hasPrecheck(MEMO_TOO_LONG),
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - expired transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteExpiredTransactionFailsOnIngest() {
+                final var expiredTxnId = "expiredTokenDelete";
+                final var oneHourPast = -3_600L;
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig)),
+                        usableTxnIdNamed(expiredTxnId)
+                                .modifyValidStart(oneHourPast)
+                                .payerId(PAYER),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .txnId(expiredTxnId)
+                                .via(tokenDeleteTxn)
+                                .hasPrecheck(TRANSACTION_EXPIRED),
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - too far start time fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteTooFarStartTimeFailsOnIngest() {
+                final var futureTxnId = "futureTokenDelete";
+                final var oneHourFuture = 3_600L;
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig)),
+                        usableTxnIdNamed(futureTxnId)
+                                .modifyValidStart(oneHourFuture)
+                                .payerId(PAYER),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .txnId(futureTxnId)
+                                .via(tokenDeleteTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_START),
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - invalid duration fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteInvalidDurationFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig)),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .validDurationSecs(0)
+                                .via(tokenDeleteTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_DURATION),
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - duplicate transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteDuplicateTxnFailsOnIngest() {
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER),
+                        // first successful delete
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .via(tokenDeleteTxn),
+                        // duplicate reusing same txnId — uses a different operation so it doesn't need the token
+                        cryptoCreate("dummy")
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .txnId(tokenDeleteTxn)
+                                .via("tokenDeleteDuplicateTxn")
+                                .hasPrecheck(DUPLICATE_TRANSACTION));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - very large txn (above 6KB) fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenDeleteTransactionOversizeFailsOnIngest() {
+                final KeyShape veryLargeKeyShape = threshOf(
+                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .via(tokenDeleteTxn)
+                                .hasPrecheck(TRANSACTION_OVERSIZE),
+                        getTxnRecord(tokenDeleteTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - missing admin key signature fails on handle - fee charged")
+            final Stream<DynamicTest> tokenDeleteMissingAdminKeySignatureFailsAtHandle() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER) // Missing admin key signature
+                                .via(tokenDeleteTxn)
+                                .hasKnownStatus(INVALID_SIGNATURE),
+                        validateChargedUsdWithinWithTxnSize(
+                                tokenDeleteTxn,
+                                txnSize -> expectedTokenDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(tokenDeleteTxn, PAYER));
+            }
+
+            @HapiTest
+            @DisplayName("TokenDelete - invalid token fails on handle - fee charged")
+            final Stream<DynamicTest> tokenDeleteInvalidTokenFails() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         tokenDelete("0.0.99999999") // Invalid token
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenDeleteTxn")
+                                .via(tokenDeleteTxn)
                                 .hasKnownStatus(INVALID_TOKEN_ID),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "tokenDeleteTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenDeleteFullFeeUsd(1L),
-                                0.001));
+                        validateChargedUsdWithinWithTxnSize(
+                                tokenDeleteTxn,
+                                txnSize -> expectedTokenDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(tokenDeleteTxn, PAYER));
             }
 
             @HapiTest
-            @DisplayName("TokenDelete - immutable token fails - fee charged")
+            @DisplayName("TokenDelete - immutable token fails on handle - fee charged")
             final Stream<DynamicTest> tokenDeleteImmutableTokenFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -277,33 +608,23 @@ public class TokenDeleteSimpleFeesTest {
                                 .tokenType(FUNGIBLE_COMMON)
                                 // No admin key - token is immutable
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                                .payingWith(PAYER),
                         tokenDelete(TOKEN)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenDeleteTxn")
+                                .via(tokenDeleteTxn)
                                 .hasKnownStatus(TOKEN_IS_IMMUTABLE),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "tokenDeleteTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenDeleteFullFeeUsd(1L),
-                                0.001));
+                        validateChargedUsdWithinWithTxnSize(
+                                tokenDeleteTxn,
+                                txnSize -> expectedTokenDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(tokenDeleteTxn, PAYER));
             }
 
             @HapiTest
-            @DisplayName("TokenDelete - already deleted token fails - fee charged")
+            @DisplayName("TokenDelete - already deleted token fails on handle - fee charged")
             final Stream<DynamicTest> tokenDeleteAlreadyDeletedFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
@@ -312,29 +633,57 @@ public class TokenDeleteSimpleFeesTest {
                                 .tokenType(FUNGIBLE_COMMON)
                                 .adminKey(ADMIN_KEY)
                                 .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
+                                .payingWith(PAYER),
+                        tokenDelete(TOKEN).payingWith(PAYER).signedBy(PAYER, ADMIN_KEY),
                         tokenDelete(TOKEN)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        tokenDelete(TOKEN)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenDeleteTxn")
+                                .via(tokenDeleteTxn)
                                 .hasKnownStatus(TOKEN_WAS_DELETED),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "tokenDeleteTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenDeleteFullFeeUsd(2L),
-                                0.001));
+                        validateChargedUsdWithinWithTxnSize(
+                                tokenDeleteTxn,
+                                txnSize -> expectedTokenDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(tokenDeleteTxn, PAYER));
+            }
+
+            @Tag(ONLY_SUBPROCESS)
+            @LeakyHapiTest
+            @DisplayName("TokenDelete - duplicate transaction fails on handle - payer charged full fee")
+            final Stream<DynamicTest> tokenDeleteDuplicateFailsOnHandle() {
+                final String DUPLICATE_TXN_ID = "tokenDeleteDuplicateTxnId";
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        tokenCreate(TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
+                        usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .setNode(4)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .via(tokenDeleteTxn)
+                                .logged(),
+                        tokenDelete(TOKEN)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .setNode(3)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .via("tokenDeleteDuplicateTxn")
+                                .hasPrecheck(DUPLICATE_TRANSACTION),
+                        validateChargedUsdWithinWithTxnSize(
+                                tokenDeleteTxn,
+                                txnSize -> expectedTokenDeleteFullFeeUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(tokenDeleteTxn, PAYER));
             }
         }
 
@@ -345,11 +694,6 @@ public class TokenDeleteSimpleFeesTest {
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
             @DisplayName("TokenDelete - invalid payer signature fails on pre-handle - network fee only")
             final Stream<DynamicTest> tokenDeleteInvalidPayerSigFailsOnPreHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 final String INNER_ID = "token-delete-txn-inner-id";
 
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -363,33 +707,21 @@ public class TokenDeleteSimpleFeesTest {
                         tokenCreate(TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .adminKey(ADMIN_KEY)
-                                .treasury(TREASURY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "0.0.4"))
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance("0.0.4").exposingBalanceTo(initialNodeBalance::set),
+                                .treasury(TREASURY),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "4")),
                         tokenDelete(TOKEN)
                                 .payingWith(PAYER)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
                                 .setNode("0.0.4")
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("0.0.4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                expectedTokenDeleteNetworkFeeOnlyUsd(2L),
-                                0.001));
+                                txnSize -> expectedTokenDeleteNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1));
             }
         }
     }

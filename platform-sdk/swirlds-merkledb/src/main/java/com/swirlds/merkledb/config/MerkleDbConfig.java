@@ -5,12 +5,8 @@ import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.validation.ConfigViolation;
-import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
-import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 
 /**
  * Instance-wide config for {@code MerkleDbDataSource}.
@@ -33,9 +29,18 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
  *      Number of longs to store in a single chunk in long lists (heap, off-heap, disk).
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
- * @param minNumberOfFilesInCompaction
- * 	    The minimum number of files before we do a compaction. If there are less than this number then it is
- * 	    acceptable to not do a compaction.
+ * @param gcRateThreshold
+ *      Minimum dead-to-alive ratio for compaction decisions. In phase 1, files whose individual
+ *      {@code dead / alive > gcRateThreshold} are selected for compaction. In phase 2, remaining
+ *      files are considered for absorption as long as adding each one keeps the aggregate ratio
+ *      above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead
+ *      item must be reclaimed.
+ * @param maxCompactedFileSizeInMB
+ *      Maximum projected output size (MB) per compaction task. Candidates are partitioned into
+ *      groups bounded by this size. Also used as the size cap when absorbing files in phase 2.
+ *      A zero value disables this limit.
+ * @param maxCompactionLevel max number of compaction levels, once this level is reached compactors stop increasing levels.
+ *      That is, the result of compaction at level N will be a file at level N.
  * @param iteratorInputBufferBytes
  *      Size of buffer used by data file iterators, in bytes.
  * @param reconnectKeyLeakMitigationEnabled
@@ -75,15 +80,17 @@ import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "1000000000") long initialCapacity,
         @Positive @ConfigProperty(defaultValue = "8000000000") long maxNumOfKeys,
-        @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
-        @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
-        @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
+        @Deprecated @Min(0) @ConfigProperty(defaultValue = "8388608") long hashesRamToDiskThreshold,
+        @Deprecated @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
+        @Min(0) @ConfigProperty(defaultValue = "262144") int hashChunkCacheThreshold,
+        @Deprecated @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
-        @Min(1) @ConfigProperty(defaultValue = "3") int compactionThreads,
-        @ConstraintMethod("minNumberOfFilesInCompactionValidation") @ConfigProperty(defaultValue = "8")
-                int minNumberOfFilesInCompaction,
-        @Min(3) @ConfigProperty(defaultValue = "5") int maxCompactionLevel,
+        @Min(1) @ConfigProperty(defaultValue = "4") int compactionThreads,
+        @ConfigProperty(defaultValue = "0.5") double gcRateThreshold,
+        /*Default is 10GB*/
+        @Min(0) @ConfigProperty(defaultValue = "10000") long maxCompactedFileSizeInMB,
+        @Min(3) @ConfigProperty(defaultValue = "10") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,
         @ConfigProperty(defaultValue = "false") boolean reconnectKeyLeakMitigationEnabled,
@@ -100,20 +107,6 @@ public record MerkleDbConfig(
     // spotless:on
 
     static double UNIT_FRACTION_PERCENT = 100.0;
-
-    public ConfigViolation minNumberOfFilesInCompactionValidation(final Configuration configuration) {
-        final long minNumberOfFilesInCompaction =
-                configuration.getConfigData(MerkleDbConfig.class).minNumberOfFilesInCompaction();
-        if (minNumberOfFilesInCompaction < 2) {
-            return new DefaultConfigViolation(
-                    "minNumberOfFilesInCompaction",
-                    "%d".formatted(minNumberOfFilesInCompaction),
-                    true,
-                    "Cannot configure minNumberOfFilesInCompaction to " + minNumberOfFilesInCompaction
-                            + ", it must be >= 2");
-        }
-        return null;
-    }
 
     public int getNumHalfDiskHashMapFlushThreads() {
         final int numProcessors = Runtime.getRuntime().availableProcessors();
