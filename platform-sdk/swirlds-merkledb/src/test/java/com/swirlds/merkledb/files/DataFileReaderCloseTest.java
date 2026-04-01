@@ -8,6 +8,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
@@ -44,7 +45,7 @@ class DataFileReaderCloseTest {
         final int COUNT = 100;
         collection.updateValidKeyRange(0, COUNT - 1);
         collection.startWriting();
-        final LongList index = new LongListOffHeap(COUNT / 10, COUNT, COUNT / 10);
+        final LongList index = new LongListSegment(COUNT / 10, COUNT, COUNT / 10);
         index.updateValidRange(0, COUNT - 1);
         for (int i = 0; i < COUNT; i++) {
             final int fi = i;

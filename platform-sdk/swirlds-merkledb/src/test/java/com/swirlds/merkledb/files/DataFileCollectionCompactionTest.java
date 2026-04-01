@@ -10,6 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -451,7 +452,7 @@ class DataFileCollectionCompactionTest {
         String storeName = "testMergeSnapshotRestore";
         final Path testDir = tempFileDir.resolve(storeName);
         Files.createDirectories(testDir);
-        final LongListOffHeap index = new LongListOffHeap(numValues, numFiles * numValues, 0);
+        final LongListSegment index = new LongListSegment(numValues, numFiles * numValues, 0);
         index.updateValidRange(0, numFiles * numValues - 1);
         final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
         final DataFileCompactor compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);

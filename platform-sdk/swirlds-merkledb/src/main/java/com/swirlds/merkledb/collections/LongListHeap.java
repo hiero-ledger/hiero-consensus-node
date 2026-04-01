@@ -151,7 +151,7 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
 
     /** {@inheritDoc} */
     @Override
-    protected boolean putIfEqual(AtomicLongArray chunk, int subIndex, long oldValue, long newValue) {
+    protected boolean putIfEqual(@NonNull AtomicLongArray chunk, int subIndex, long oldValue, long newValue) {
         return chunk.compareAndSet(subIndex, oldValue, newValue);
     }
 
