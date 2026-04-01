@@ -56,7 +56,6 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
@@ -335,40 +334,34 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     : new LongListOffHeap(hashIndexCapacity, config);
         }
 
-        // Hash chunk store (hash chunks)
-        if (Files.exists(dbPaths.hashStoreRamFile) || Files.isDirectory(dbPaths.hashStoreDiskDirectory)) {
-            throw new IllegalStateException(
-                    "Legacy hash stores detected");
-        } else {
-            final LoadedDataCallback hashChunkLoadedCallback;
-            // Check if hash chunk index is to be restored: either the index file is missing, or
-            // index rebuilding is explicitly forced in MerkleDbConfig
-            final boolean needRestorePathToDiskLocationHashChunks = idToDiskLocationHashChunks.size() == 0;
-            if (needRestorePathToDiskLocationHashChunks) {
-                if (validLeafPathRange.getMaxValidKey() >= 0) {
-                    idToDiskLocationHashChunks.updateValidRange(0, validLeafPathRange.getMaxValidKey());
-                }
-                hashChunkLoadedCallback = (dataLocation, hashData) -> {
-                    final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(hashData, hashChunkHeight);
-                    final long path = hashChunk.path();
-                    // Old data files may contain entries with paths outside the current virtual node range
-                    final long firstHashPath = com.swirlds.virtualmap.internal.Path.getRightChildPath(path);
-                    if (firstHashPath <= validLeafPathRange.getMaxValidKey()) {
-                        final long chunkId = VirtualHashChunk.pathToChunkId(firstHashPath, hashChunkHeight);
-                        idToDiskLocationHashChunks.put(chunkId, dataLocation);
-                    }
-                };
-            } else {
-                hashChunkLoadedCallback = null;
+        final LoadedDataCallback hashChunkLoadedCallback;
+        // Check if hash chunk index is to be restored: either the index file is missing, or
+        // index rebuilding is explicitly forced in MerkleDbConfig
+        final boolean needRestorePathToDiskLocationHashChunks = idToDiskLocationHashChunks.size() == 0;
+        if (needRestorePathToDiskLocationHashChunks) {
+            if (validLeafPathRange.getMaxValidKey() >= 0) {
+                idToDiskLocationHashChunks.updateValidRange(0, validLeafPathRange.getMaxValidKey());
             }
-            hashChunkStore = new MemoryIndexDiskKeyValueStore(
-                    merkleDbConfig,
-                    dbPaths.hashChunkDirectory,
-                    tableName + "_idtohashchunk",
-                    null,
-                    hashChunkLoadedCallback,
-                    idToDiskLocationHashChunks);
+            hashChunkLoadedCallback = (dataLocation, hashData) -> {
+                final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(hashData, hashChunkHeight);
+                final long path = hashChunk.path();
+                // Old data files may contain entries with paths outside the current virtual node range
+                final long firstHashPath = com.swirlds.virtualmap.internal.Path.getRightChildPath(path);
+                if (firstHashPath <= validLeafPathRange.getMaxValidKey()) {
+                    final long chunkId = VirtualHashChunk.pathToChunkId(firstHashPath, hashChunkHeight);
+                    idToDiskLocationHashChunks.put(chunkId, dataLocation);
+                }
+            };
+        } else {
+            hashChunkLoadedCallback = null;
         }
+        hashChunkStore = new MemoryIndexDiskKeyValueStore(
+                merkleDbConfig,
+                dbPaths.hashChunkDirectory,
+                tableName + "_idtohashchunk",
+                null,
+                hashChunkLoadedCallback,
+                idToDiskLocationHashChunks);
 
         hashChunkCacheThreshold = merkleDbConfig.hashChunkCacheThreshold();
         hashChunkCache = new ConcurrentHashMap<>(hashChunkCacheThreshold);
@@ -459,7 +452,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 this.initialCapacity,
                 this.hashChunkHeight);
     }
-
 
     /**
      * Enables background compaction process.

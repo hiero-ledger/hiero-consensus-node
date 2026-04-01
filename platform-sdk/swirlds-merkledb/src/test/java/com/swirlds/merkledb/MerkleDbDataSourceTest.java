@@ -710,6 +710,10 @@ class MerkleDbDataSourceTest {
             dataSource.snapshot(snapshotDbPath);
 
             final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDbPath);
+            // Local paths for legacy-format files (no longer part of MerkleDbPaths)
+            final Path hashStoreRamFile = snapshotDbPath.resolve("internalHashStoreRam.hl");
+            final Path pathToDiskLocationInternalNodesFile = snapshotDbPath.resolve("pathToDiskLocationInternalNodes.ll");
+            final Path hashStoreDiskDirectory = snapshotDbPath.resolve("internalHashStoreDisk");
             // Drop hash chunk index file and hash chunks store folder, they don't exist in
             // legacy snapshots
             Files.delete(snapshotPaths.idToDiskLocationHashChunksFile);
@@ -722,7 +726,7 @@ class MerkleDbDataSourceTest {
                     hashStoreRam.put(i, hash((int) (i + 1)));
                 }
 
-                hashStoreRam.writeToFile(snapshotPaths.hashStoreRamFile);
+                hashStoreRam.writeToFile(hashStoreRamFile);
             }
             if (hashesRamToDiskThreshold <= lastLeafPath) {
                 final Path tmpDir = testDirectory.resolve("migrateHashesToChunks-tmp");
@@ -742,8 +746,8 @@ class MerkleDbDataSourceTest {
                 }
                 hashStoreDisk.endWriting();
 
-                hashStoreDiskIndex.writeToFile(snapshotPaths.pathToDiskLocationInternalNodesFile);
-                hashStoreDisk.snapshot(snapshotPaths.hashStoreDiskDirectory);
+                hashStoreDiskIndex.writeToFile(pathToDiskLocationInternalNodesFile);
+                hashStoreDisk.snapshot(hashStoreDiskDirectory);
             }
 
             // Restore
