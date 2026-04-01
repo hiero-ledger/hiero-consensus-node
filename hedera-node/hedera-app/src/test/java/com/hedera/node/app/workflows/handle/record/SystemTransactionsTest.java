@@ -502,7 +502,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
+        subject.doPostUpgradeSetup(NOW, state);
 
         // Verify createGenesisSimpleFeesSchedule was called since file was missing
         verify(fileSchema).createGenesisSimpleFeesSchedule(any());
@@ -555,7 +555,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
+        subject.doPostUpgradeSetup(NOW, state);
 
         // Verify fileSchema() was never accessed since file already exists
         verify(fileService, never()).fileSchema();
@@ -611,7 +611,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
+        subject.doPostUpgradeSetup(NOW, state);
 
         // Voting metadata should be initialized on first upgrade
         verify(blockInfoSingleton).put(any());
@@ -666,7 +666,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
+        subject.doPostUpgradeSetup(NOW, state);
 
         verify(blockInfoSingleton).put(any());
         verify(blockInfoSingleton).commit();
@@ -735,7 +735,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
+        subject.doPostUpgradeSetup(NOW, state);
 
         // Post-upgrade setup initializes voting metadata on first upgrade.
         verify(blockInfoSingleton).put(any());

@@ -73,21 +73,4 @@ public interface Service {
         requireNonNull(configuration);
         return false;
     }
-
-    /**
-     * Does any state initialization (typically setting default singleton values) that is required after an upgrade.
-     *
-     * @param writableStates the writable states to initialize
-     * @param configuration the configuration to use
-     * @param networkSize the size of the network
-     * @return whether any initialization was done
-     */
-    default boolean doPostUpgradeSetup(
-            @NonNull final WritableStates writableStates,
-            @NonNull final Configuration configuration,
-            final int networkSize) {
-        requireNonNull(writableStates);
-        requireNonNull(configuration);
-        return false;
-    }
 }

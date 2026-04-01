@@ -2,9 +2,13 @@
 package com.hedera.node.app.history.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.history.HistoryService;
@@ -44,6 +48,28 @@ public class V0730HistorySchema extends Schema<SemanticVersion> {
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
         if (!ctx.isGenesis()) {
+            if (ctx.appConfig().getConfigData(TssConfig.class).historyEnabled()) {
+                final var writableStates = ctx.newStates();
+                if (writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID).get() == null) {
+                    writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID).put(ProtoBytes.DEFAULT);
+                }
+                if (writableStates
+                                .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                                .get()
+                        == null) {
+                    writableStates
+                            .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                            .put(HistoryProofConstruction.DEFAULT);
+                }
+                if (writableStates
+                                .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
+                                .get()
+                        == null) {
+                    writableStates
+                            .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
+                            .put(HistoryProofConstruction.DEFAULT);
+                }
+            }
             final var hashState = ctx.newStates().<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
             final var currentProtoBytes = hashState.get();
             if (currentProtoBytes == null) {

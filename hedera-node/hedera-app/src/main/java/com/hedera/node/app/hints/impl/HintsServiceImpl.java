@@ -19,6 +19,7 @@ import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
+import com.hedera.node.app.hints.schemas.V073HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -202,6 +203,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext()));
+        registry.register(new V073HintsSchema(library));
     }
 
     @Override
@@ -225,46 +227,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             crsState.put(CRSState.DEFAULT);
         }
         return true;
-    }
-
-    @Override
-    public boolean doPostUpgradeSetup(
-            @NonNull final WritableStates writableStates,
-            @NonNull final Configuration configuration,
-            final int networkSize) {
-        requireNonNull(writableStates);
-        requireNonNull(configuration);
-        final var tssConfig = configuration.getConfigData(TssConfig.class);
-        if (!tssConfig.hintsEnabled()) {
-            return false;
-        }
-        final var activeConstruction = writableStates
-                .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
-                .get();
-        final var nextConstruction = writableStates
-                .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
-                .get();
-        final var crsState =
-                writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID).get();
-        var initialized = false;
-        if (activeConstruction == null) {
-            writableStates
-                    .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
-                    .put(HintsConstruction.DEFAULT);
-            initialized = true;
-        }
-        if (nextConstruction == null) {
-            writableStates
-                    .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
-                    .put(HintsConstruction.DEFAULT);
-            initialized = true;
-        }
-        if (crsState == null) {
-            final var state = initialCrsState((short) HintsService.partySizeForRosterNodeCount(networkSize));
-            writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID).put(state);
-            initialized = true;
-        }
-        return initialized;
     }
 
     @Override
