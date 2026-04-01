@@ -19,15 +19,15 @@
 #        - Checkout the Block Node repository into a directory, use branch driley/local-wrapped-record-files
 #        - ./gradlew :tools:run --args="blocks wrap -i /absolute/path/to/your/recordstreams -o /absolute/path/to/wrappedBlocks"
 
-#        jumpstart.bin is a compact binary file written in this exact order:
-#        1. Block number: long (8 bytes)
+#        jumpstart.bin is a compact binary file written in this exact order:
+#        1. Block number: long (8 bytes)
 #        2. Previous block root hash: raw SHA-384 bytes (48 bytes)
-#        3. Streaming hasher leaf count: long (8 bytes)
-#        4. Streaming hasher hash count: int (4 bytes)
-#        5. Pending subtree hashes: hashCount entries, each 48 bytes (SHA-384)
+#        3. Streaming hasher leaf count: long (8 bytes)
+#        4. Streaming hasher hash count: int (4 bytes)
+#        5. Pending subtree hashes: hashCount entries, each 48 bytes (SHA-384)
 #        So total size is:
-#        * 68 + (hashCount * 48) bytes
-#        All integer fields are Java DataOutputStream format (big-endian).
+#        * 68 + (hashCount * 48) bytes
+#        All integer fields are Java DataOutputStream format (big-endian).
 
 #- [ ] Upgrade to v0.73.0 -> local build with appropriate application.properties overrides (no block nodes)
 #    - [ ] *** Use WRAPS proving key, verification produced by ceremony
@@ -40,7 +40,7 @@
              #tss.hintsEnabled = true
              #tss.historyEnabled = true
              #tss.wrapsEnabled = true
-             #hedera.recordSream.computeHashesFromWrappedRecordBlocks = true
+             #hedera.recordStream.computeHashesFromWrappedRecordBlocks = true
              #hedera.recordStream.liveWritePrevWrappedRecordHashes = true
              #blockStream.cutoverEnabled = false (*only used for when we cutover to BLOCKS only)
              #blockStream.enableStateProofs = true
@@ -221,7 +221,6 @@ MIRROR_METADATA_LOG="${WORK_DIR}/mirror-metadata.log"
 WRAP_INPUT_PREP_LOG="${WORK_DIR}/wrap-input-prep.log"
 MINIO_DOWNLOAD_LOG="${WORK_DIR}/minio-download.log"
 EXPLORER_ADD_LOG="${WORK_DIR}/explorer-add.log"
-SOLO_073_UPGRADE_LOG="${WORK_DIR}/solo-073-upgrade.log"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
 MIRROR_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-mirror.log"
 GRAFANA_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-grafana.log"
@@ -497,57 +496,6 @@ wait_for_consensus_pods_ready() {
     log "Waiting for network-${pod}-0 to become Ready"
     kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/network-${pod}-0" --timeout="${timeout_secs}s"
   done
-}
-
-capture_consensus_pod_uids() {
-  local node
-  local nodes=()
-  local uids=()
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    uids+=("$(kubectl -n "${SOLO_NAMESPACE}" get pod "network-${node}-0" -o jsonpath='{.metadata.uid}')")
-  done
-
-  (
-    IFS=','
-    echo "${uids[*]}"
-  )
-}
-
-wait_for_consensus_pod_recreation() {
-  local original_uids_csv="$1"
-  local timeout_secs="${2:-900}"
-  local deadline=$((SECONDS + timeout_secs))
-  local node=""
-  local current_uid=""
-  local idx=0
-  local nodes=()
-  local original_uids=()
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  IFS=',' read -r -a original_uids <<< "${original_uids_csv}"
-
-  while (( SECONDS < deadline )); do
-    idx=0
-    for node in "${nodes[@]}"; do
-      current_uid="$(kubectl -n "${SOLO_NAMESPACE}" get pod "network-${node}-0" -o jsonpath='{.metadata.uid}' 2>/dev/null || true)"
-      if [[ -z "${current_uid}" || "${current_uid}" == "${original_uids[$idx]}" ]]; then
-        break
-      fi
-      ((idx++))
-    done
-
-    if (( idx == ${#nodes[@]} )); then
-      log "Detected recreated consensus pods for 0.73 upgrade"
-      return 0
-    fi
-
-    sleep 2
-  done
-
-  echo "Timed out waiting for consensus pods to be recreated during 0.73 upgrade" >&2
-  return 1
 }
 
 wait_for_haproxy_ready() {
@@ -1008,70 +956,6 @@ consensus_pod_implementation_version() {
       | sed -n 's/^Implementation-Version: //p' | head -n 1"
 }
 
-clean_consensus_pod_app_lib_dirs() {
-  local pod="$1"
-  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "mkdir -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps /opt/hgcapp/services-hedera/HapiApp2.0/data/lib \
-      && find /opt/hgcapp/services-hedera/HapiApp2.0/data/apps -mindepth 1 -maxdepth 1 -exec rm -rf {} + \
-      && find /opt/hgcapp/services-hedera/HapiApp2.0/data/lib -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
-}
-
-clean_consensus_node_app_lib_dirs() {
-  local node pod
-  local nodes=()
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    log "Cleaning existing apps/lib on ${pod}"
-    clean_consensus_pod_app_lib_dirs "${pod}"
-  done
-}
-
-stage_local_build_on_consensus_nodes() {
-  local node pod
-  local nodes=()
-  local local_version=""
-  local pod_version=""
-
-  local_version="$(local_build_implementation_version)"
-  if [[ -z "${local_version}" ]]; then
-    echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2
-    return 1
-  fi
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
-    log "Restaging local build apps/lib on ${pod} (local=${local_version}, pod=${pod_version:-unknown})"
-    COPYFILE_DISABLE=1 tar --disable-copyfile --no-mac-metadata --format ustar -C "${LOCAL_BUILD_PATH}" -cf - apps lib \
-      | kubectl -n "${SOLO_NAMESPACE}" exec -i "${pod}" -c root-container -- sh -lc \
-          "tar -xf - -C /opt/hgcapp/services-hedera/HapiApp2.0/data"
-    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
-    if [[ "${pod_version}" != "${local_version}" ]]; then
-      echo "Local build restage did not take effect on ${pod}: expected ${local_version}, found ${pod_version:-unknown}" >&2
-      return 1
-    fi
-  done
-}
-
-enable_network_node_service_on_consensus_nodes() {
-  local node pod
-  local nodes=()
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    log "Enabling network-node service on ${pod}"
-    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "mkdir -p /opt/hgcapp/services-hedera/HapiApp2.0/state \
-        && touch /opt/hgcapp/services-hedera/HapiApp2.0/state/network-node.enabled \
-        && /command/s6-svc -u /run/service/network-node"
-  done
-}
-
 verify_local_build_on_consensus_nodes() {
   local node pod
   local nodes=()
@@ -1151,48 +1035,9 @@ run_073_upgrade_once() {
     --quiet-mode --force
 }
 
-run_073_upgrade_internal() {
-  local ec=1
-  local original_uids_csv=""
-  local solo_pid=""
-
-  original_uids_csv="$(capture_consensus_pod_uids)"
-  : > "${SOLO_073_UPGRADE_LOG}"
-  log "Step 6: executing solo consensus network upgrade (streaming logs; file: ${SOLO_073_UPGRADE_LOG})"
-
-  (
-    run_073_upgrade_once 2>&1 | tee "${SOLO_073_UPGRADE_LOG}"
-  ) &
-  solo_pid="$!"
-
-  if ! wait_for_consensus_pod_recreation "${original_uids_csv}" 900; then
-    if wait "${solo_pid}"; then
-      :
-    else
-      ec=$?
-    fi
-    tail -n 160 "${SOLO_073_UPGRADE_LOG}" >&2 || true
-    return "${ec}"
-  fi
-
-  wait_for_consensus_pods_ready 600
-  log "Step 6: cleaning recreated pods before restaging local 0.73 apps/lib"
-  clean_consensus_node_app_lib_dirs
-  stage_local_build_on_consensus_nodes
-  enable_network_node_service_on_consensus_nodes
-
-  if wait "${solo_pid}"; then
-    :
-  else
-    ec=$?
-    tail -n 160 "${SOLO_073_UPGRADE_LOG}" >&2 || true
-    return "${ec}"
-  fi
-}
-
 run_073_upgrade() {
   run_with_consensus_diagnostics "solo 0.73 local-build network upgrade" \
-    run_073_upgrade_internal
+    run_073_upgrade_once
 }
 
 run_explorer_add_with_retry() {
@@ -2213,5 +2058,8 @@ restart_post_upgrade_port_forwards
 verify_local_build_on_consensus_nodes
 log "Waiting for mirror REST after 0.73 upgrade port-forward restart"
 wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
+log "Step 6: verify post-0.73 crypto create and mirror visibility"
+export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-600000}"
+node "${NODE_SCRIPT}"
 
 log "Cutover phase complete (through 0.73): PASS"
