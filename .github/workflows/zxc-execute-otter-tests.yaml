@@ -135,7 +135,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-full-otter-tests.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-full-otter-tests.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-full-otter-tests.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-full-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -210,7 +211,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-fast-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -285,7 +287,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-chaos-otter-tests.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-chaos-otter-tests.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-chaos-otter-tests.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-chaos-otter-tests.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"

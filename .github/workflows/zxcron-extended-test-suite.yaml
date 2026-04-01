@@ -610,7 +610,7 @@ jobs:
               if [[ "${FAILURE_MODE}" == "infrastructure" ]]; then
                 FAILURE_MODE="infrastructure"
               fi
-              echo "XTS tests failed due to a ${FAILURE_MODE} error."
+              echo "XTS failure - ${FAILURE_MODE} error."
               echo "Failing Test(s):"
               bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.xts-execution.outputs.failed-tests }}"
               echo "------------------------------------"

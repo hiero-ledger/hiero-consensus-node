@@ -199,7 +199,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -278,7 +279,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -357,7 +359,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -436,7 +439,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -515,7 +519,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -594,7 +599,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -673,7 +679,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -752,7 +759,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -831,7 +839,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "skipped"
+          ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -910,7 +920,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -987,7 +998,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -1066,7 +1078,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
@@ -1145,7 +1158,8 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
