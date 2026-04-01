@@ -38,7 +38,7 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * @param maxCompactedFileSizeInMB
  *      Maximum projected output size (MB) per compaction task. Candidates are partitioned into
  *      groups bounded by this size. Also used as the size cap when absorbing files in phase 2.
- *      A non-positive value disables this limit.
+ *      A zero value disables this limit.
  * @param maxCompactionLevel max number of compaction levels, once this level is reached compactors stop increasing levels.
  *      That is, the result of compaction at level N will be a file at level N.
  * @param iteratorInputBufferBytes
@@ -89,7 +89,7 @@ public record MerkleDbConfig(
         @Min(1) @ConfigProperty(defaultValue = "4") int compactionThreads,
         @ConfigProperty(defaultValue = "0.5") double gcRateThreshold,
         /*Default is 10GB*/
-        @ConfigProperty(defaultValue = "10000") long maxCompactedFileSizeInMB,
+        @Min(0) @ConfigProperty(defaultValue = "10000") long maxCompactedFileSizeInMB,
         @Min(3) @ConfigProperty(defaultValue = "10") int maxCompactionLevel,
         /* FUTURE WORK - https://github.com/hashgraph/hedera-services/issues/5178 */
         @Positive @ConfigProperty(defaultValue = "16777216") int iteratorInputBufferBytes,

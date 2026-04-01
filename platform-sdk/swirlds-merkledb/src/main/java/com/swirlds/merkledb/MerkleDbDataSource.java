@@ -227,7 +227,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * {@code index[x]} and {@code index[x + N/2]} may point to the same data location.
      * Created once during construction and reused across flushes.
      */
-    private final GarbageScanner objectkeyToPathScanner;
+    private final GarbageScanner objectKeyToPathScanner;
 
     /**
      * Creates a new MerkleDb data source. The specified storage dir must exist and contain valid
@@ -493,7 +493,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 new GarbageScanner(idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK);
         pathToKeyValueStoreScanner =
                 new GarbageScanner(pathToDiskLocationLeafNodes, keyValueStore.getFileCollection(), PATH_TO_KEY_VALUE);
-        objectkeyToPathScanner = new GarbageScanner(
+        objectKeyToPathScanner = new GarbageScanner(
                 keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), OBJECT_KEY_TO_PATH, true);
         COUNT_OF_OPEN_DATABASES.increment();
         logger.info(
@@ -1461,7 +1461,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (keyToPath.isResizeNeeded(leafPathRange.getMinValidKey(), leafPathRange.getMaxValidKey())) {
             return;
         }
-        compactionCoordinator.submitScanIfNotRunning(OBJECT_KEY_TO_PATH, objectkeyToPathScanner);
+        compactionCoordinator.submitScanIfNotRunning(OBJECT_KEY_TO_PATH, objectKeyToPathScanner);
         compactionCoordinator.submitCompactionTasks(OBJECT_KEY_TO_PATH, this::newKeyToPathCompactor, merkleDbConfig);
     }
 
