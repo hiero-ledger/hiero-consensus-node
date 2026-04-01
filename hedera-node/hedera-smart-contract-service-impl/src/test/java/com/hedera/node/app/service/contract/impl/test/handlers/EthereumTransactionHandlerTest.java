@@ -14,7 +14,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.BATCH_ROLLBACK_CALLBACK_CONSUMER;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.notNull;
@@ -60,6 +60,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
@@ -69,7 +70,8 @@ import com.swirlds.metrics.api.Metrics;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.BiConsumer;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -500,7 +502,7 @@ class EthereumTransactionHandlerTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void handleSetsNewSenderNonceWhenPresent() {
+    void handleSetsRollbackCallback() {
         given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.hydratedEthTxData())
@@ -543,18 +545,17 @@ class EthereumTransactionHandlerTest {
         givenSenderAccountWithNonce(SIGNER_NONCE);
 
         // Mock the dispatch metadata with a callback
-        final var nonceCallback = mock(BiConsumer.class);
         final var dispatchMetadata = mock(HandleContext.DispatchMetadata.class);
-        final var optionalCallback = Optional.of(nonceCallback);
+        final AtomicReference<HandleException.OnRollback> rollbackCallback = new AtomicReference<>();
         given(context.dispatchMetadata()).willReturn(dispatchMetadata);
-        given(dispatchMetadata.getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class))
-                .willReturn(optionalCallback);
+        given(dispatchMetadata.getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class))
+                .willReturn(Optional.of(o -> rollbackCallback.set((HandleException.OnRollback) o)));
 
         // Execute the handler
         assertDoesNotThrow(() -> subject.handle(context));
 
-        // Verify the callback was called with the expected arguments
-        verify(nonceCallback).accept(SENDER_ID, SIGNER_NONCE);
+        // Verify that the rollback callback was provided
+        assertNotNull(rollbackCallback.get());
         // Verify the stream builder was updated with the new nonce
         verify(recordBuilder).newSenderNonce(SIGNER_NONCE);
     }

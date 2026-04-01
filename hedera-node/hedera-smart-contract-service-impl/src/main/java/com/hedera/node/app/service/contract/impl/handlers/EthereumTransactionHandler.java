@@ -11,8 +11,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.BATCH_ROLLBACK_CALLBACK_CONSUMER;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.nonNull;
@@ -29,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStreamBuilder;
+import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -45,7 +45,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.Arrays;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
@@ -160,21 +160,22 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
                 .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
         if (outcome.hasNewSenderNonce()) {
-            final var nonceCallback =
-                    context.dispatchMetadata().getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class);
             final var newNonce = outcome.newSenderNonceOrThrow();
-            nonceCallback.ifPresent(cb -> cb.accept(outcome.txResult().senderId(), newNonce));
             ethStreamBuilder.newSenderNonce(newNonce);
         }
         if (ethTxData.hasToAddress()) {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
             outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
-            throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
         } else {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
             outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
-            throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
         }
+        final var rollbackHandler = new EthereumTransactionRollbackHandler(
+                outcome, component.hederaOperations().gasChargingEvents(), context);
+        context.dispatchMetadata()
+                .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
+                .ifPresent(consumer -> consumer.accept(rollbackHandler));
+        throwIfUnsuccessfulCall(outcome, rollbackHandler);
     }
 
     /**
