@@ -263,14 +263,9 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         } catch (final Exception e) {
             final GrpcException grpcException = findGrpcException(e);
             if (grpcException != null) {
-                logger.warn(
-                        "{} [correlationId={}] Error retrieving block node status (grpcStatus={})",
-                        this,
-                        correlationId,
-                        grpcException.status(),
-                        e);
+                logger.warn("{} Error retrieving block node status (grpcStatus={})", this, grpcException.status(), e);
             } else {
-                logger.warn("{} [correlationId={}] Error retrieving block node status", this, correlationId, e);
+                logger.warn("{} Error retrieving block node status", this, e);
             }
 
             if (future != null) {

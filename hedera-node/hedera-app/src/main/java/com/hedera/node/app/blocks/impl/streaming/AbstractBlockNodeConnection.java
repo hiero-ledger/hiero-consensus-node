@@ -102,16 +102,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     }
 
     /**
-     * Returns a request-level correlation ID for requests that do not belong to a specific block.
-     *
-     * @param requestNumber request number scoped to this connection
-     * @return correlation ID in format N#-[STR|SVC]#-REQ#
-     */
-    final @NonNull String requestCorrelationId(final long requestNumber) {
-        return connectionId + "-REQ" + requestNumber;
-    }
-
-    /**
      * Returns a request-level correlation ID for block-specific requests.
      *
      * @param blockNumber block number
