@@ -132,8 +132,7 @@ jobs:
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
     runs-on: hl-cn-hapi-lin-md
     outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
-    runs-on: hl-cn-hapi-lin-md
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}]
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
