@@ -730,8 +730,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             Files.writeString(
                     settingsPath,
                     System.lineSeparator() + "platformStatus.observingStatusDelay,             0s"
-//                            + System.lineSeparator()
-//                            + "platformStatus.activeStatusDelay,                30s"
                             + System.lineSeparator(),
                     StandardOpenOption.APPEND);
         } catch (IOException e) {

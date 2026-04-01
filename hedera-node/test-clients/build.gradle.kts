@@ -450,18 +450,20 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("junit.jupiter.execution.parallel.enabled", true)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
-    // Limit concurrent test classes to prevent transaction backlog
-    // Use fixed strategy with limited parallelism to balance speed and stability
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
-    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "4")
+    val subprocessConcurrentParallelism =
+        (Runtime.getRuntime().availableProcessors() * 2).coerceIn(8, 12)
+    systemProperty(
+        "junit.jupiter.execution.parallel.config.fixed.parallelism",
+        subprocessConcurrentParallelism.toString(),
+    )
     systemProperty(
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    maxHeapSize = "12g"
+    jvmArgs("-XX:ActiveProcessorCount=$subprocessConcurrentParallelism")
     maxParallelForks = 1
 }
 
