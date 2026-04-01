@@ -14,7 +14,7 @@ on:
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "3"
-        description: "Test execution time options, in seconds"
+        description: "Test execution time, in seconds, per each test (of 6 tests)"
         type: choice
         options:
           - "60"
@@ -24,6 +24,12 @@ on:
           - "1200"
           - "7200"
           - "19800"
+      memory-interval:
+        required: true
+        default: "200"
+        type: string
+        description: 'Interval between memory checks, secs'
+
       add-app-props:
         required: false
         default: ""
@@ -72,6 +78,7 @@ jobs:
   run-single-node-tests:
     name: Single node tests
     runs-on: hl-cn-mem-profiler-lin
+    timeout-minutes: 1440
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -162,9 +169,9 @@ jobs:
           chmod a+rx "${HOME}"/solo
           sudo mv "${HOME}"/solo /usr/bin/solo
 
-          git clone https://github.com/timo0/solo.git solo
+          git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          git checkout fix-semantic-version
+          git checkout 942ec2d0f1738edead5bbc89ece6cd1516c3bae6
           task build:compile
           #npm run build
 
@@ -224,21 +231,26 @@ jobs:
           set +e
           set +x
           cd "${{ github.workspace }}"/solo
-          kubectl get namespaces
-          for i in `kubectl get namespaces | grep 'one-shot' | awk '{print $1}' | grep -v 'solo-setup'`;\
-          do \
-            kubectl -n ${i} exec network-node1-0  -- \
-            bash -c "ps -aef; jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); \
+          count=0
+          while [ true ]
+          do
+            kubectl get namespaces
+            for i in `kubectl get namespaces | grep 'one-shot' | awk '{print $1}' | grep -v 'solo-setup'`
+            do
+              kubectl -n ${i} exec network-node1-0  -- \
+              bash -c "ps -aef; jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); \
               if [ \"\$jpid\" != \"\" ]; then echo \"pod $i:\"; \
                 jcmd \$jpid GC.heap_info; echo \"\"; \
                 jmap -dump:live,format=b,file=/tmp/test.hprof \$jpid; fi"; \
-            kubectl -n ${i} cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/output/recording.jfr "${{ github.workspace }}"/solo/recording.jfr
-            kubectl -n ${i} cp network-node1-0:/tmp/test.hprof "${{ github.workspace }}"/solo/$i.hprof
-            ls -l "${{ github.workspace }}"/solo/$i.hprof
+              kubectl -n ${i} cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/output/recording.jfr "${{ github.workspace }}"/solo/recording.jfr
+              kubectl -n ${i} cp network-node1-0:/tmp/test.hprof "${{ github.workspace }}"/solo/$i_$count.hprof
+              ls -l "${{ github.workspace }}"/solo/$i_$count.hprof
+            done
+            count=`expr $count + 1`
+            sleep ${{ inputs.memory-interval }}
           done
           EOF
-          wait_time=$(expr ${{ inputs.nlg-time }} / 10 \* 9)
-          nohup bash -c "sleep 300; sleep ${wait_time}; sh "${{ github.workspace }}"/solo/heapInfoByPod.sh" > "${{ github.workspace }}"/solo/heapInfoByPod.log 2>&1 &
+          nohup bash -c "sleep 300; sleep ${{ inputs.memory-interval }}; sh "${{ github.workspace }}"/solo/heapInfoByPod.sh" > "${{ github.workspace }}"/solo/heapInfoByPod.log 2>&1 &
 
       - name: Run NLG test
         run: |
