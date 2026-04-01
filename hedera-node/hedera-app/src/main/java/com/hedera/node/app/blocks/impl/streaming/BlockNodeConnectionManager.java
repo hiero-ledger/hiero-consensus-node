@@ -6,6 +6,7 @@ import static java.util.stream.Collectors.toList;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeConnectionHistory;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -81,7 +82,9 @@ public class BlockNodeConnectionManager {
      * Reference to the currently active connection. If this reference is null, then there is no active connection.
      */
     private final AtomicReference<BlockNodeStreamingConnection> activeConnectionRef = new AtomicReference<>();
-
+    /**
+     * Factory for creating new block node clients.
+     */
     private final BlockNodeClientFactory clientFactory;
     /**
      * Supplier for getting instances of an executor service to use for blocking I/O operations.
@@ -95,12 +98,16 @@ public class BlockNodeConnectionManager {
     /**
      * The available block nodes, based on the latest active configuration, by node address.
      */
-    private final ConcurrentMap<String, BlockNode> nodes = new ConcurrentHashMap<>();
-
+    private final ConcurrentMap<BlockNodeEndpoint, BlockNode> nodes = new ConcurrentHashMap<>();
+    /**
+     * Counter for tracking the total number of active block node streaming connections across all block nodes.
+     */
     private final AtomicInteger globalActiveStreamingConnectionCount = new AtomicInteger();
-    private VersionedBlockNodeConfigurationSet activeConfig = null;
-    private Instant globalCoolDownTimestamp = null;
-    private BlockBufferStatus bufferStatus = new BlockBufferStatus(Instant.MIN, 0.0D, false);
+
+    private final AtomicReference<VersionedBlockNodeConfigurationSet> activeConfigRef = new AtomicReference<>();
+    private final AtomicReference<Instant> globalCoolDownTimestampRef = new AtomicReference<>();
+    private final AtomicReference<BlockBufferStatus> bufferStatusRef =
+            new AtomicReference<>(new BlockBufferStatus(Instant.MIN, 0.0D, false));
     private final AtomicReference<Thread> connectionMonitorThreadRef = new AtomicReference<>();
 
     /**
@@ -135,14 +142,15 @@ public class BlockNodeConnectionManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
+            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
+            @NonNull final BlockNodeConfigService blockNodeConfigService) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.blockingIoExecutorSupplier =
                 requireNonNull(blockingIoExecutorSupplier, "Blocking I/O executor supplier is required");
         this.clientFactory = new BlockNodeClientFactory();
-        this.blockNodeConfigService = new BlockNodeConfigService(configProvider);
+        this.blockNodeConfigService = requireNonNull(blockNodeConfigService, "Block node config service is required");
 
         blockingIoExecutor = this.blockingIoExecutorSupplier.get();
     }
@@ -499,7 +507,7 @@ public class BlockNodeConnectionManager {
         activeConnectionRef.compareAndSet(connection, null);
 
         final BlockNodeConfiguration config = connection.configuration();
-        final BlockNode node = nodes.get(config.address());
+        final BlockNode node = nodes.get(config.streamingEndpoint());
 
         if (node == null) {
             logger.warn("{} Connection is not associated with a known block node; ignoring close", connection);
@@ -511,7 +519,7 @@ public class BlockNodeConnectionManager {
     public void notifyConnectionActive(@NonNull final BlockNodeStreamingConnection connection) {
         final BlockNodeConfiguration config = connection.configuration();
 
-        final BlockNode node = nodes.get(config.address());
+        final BlockNode node = nodes.get(config.streamingEndpoint());
 
         if (node == null) {
             logger.warn(
@@ -608,66 +616,88 @@ public class BlockNodeConnectionManager {
 
     private boolean isConfigUpdated() {
         final VersionedBlockNodeConfigurationSet latestConfig = blockNodeConfigService.latestConfiguration();
+        final VersionedBlockNodeConfigurationSet activeConfig = activeConfigRef.get();
+
         if (latestConfig == null && activeConfig != null) {
+            logger.info("All block node configurations removed");
             // config was removed, close all connections
             for (final BlockNode node : nodes.values()) {
                 node.onTerminate(CloseReason.CONFIG_UPDATE);
             }
-            activeConfig = null;
+            activeConfigRef.set(null);
             return true;
         } else if (latestConfig != null
                 && (activeConfig == null || latestConfig.versionNumber() > activeConfig.versionNumber())) {
+            boolean changesDetected = false;
+
             // config has changed, update connections if needed
             final List<BlockNodeConfiguration> newNodeConfigs = latestConfig.configs();
             for (final BlockNodeConfiguration newNodeConfig : newNodeConfigs) {
-                final BlockNode existingNode = nodes.get(newNodeConfig.address());
+                final BlockNode existingNode = nodes.get(newNodeConfig.streamingEndpoint());
                 if (existingNode == null) {
                     // a new node was added
-                    logger.info("Block node (address: {}) was added", newNodeConfig.address());
-                    nodes.put(
+                    logger.info(
+                            "[{}:{}] Block node configuration was added",
                             newNodeConfig.address(),
+                            newNodeConfig.streamingPort());
+                    nodes.put(
+                            newNodeConfig.streamingEndpoint(),
                             new BlockNode(newNodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()));
+                    changesDetected = true;
                 } else if (!existingNode.configuration().equals(newNodeConfig)) {
                     // the node has an updated configuration
-                    logger.info("Block node (address: {}) was updated", newNodeConfig.address());
+                    logger.info(
+                            "[{}:{}] Block node configuration was updated",
+                            newNodeConfig.address(),
+                            newNodeConfig.streamingPort());
                     existingNode.onConfigUpdate(newNodeConfig);
+                    changesDetected = true;
                 }
             }
 
-            final Set<String> newNodeAddresses =
-                    newNodeConfigs.stream().map(BlockNodeConfiguration::address).collect(Collectors.toSet());
+            final Set<BlockNodeEndpoint> newEndpoints = newNodeConfigs.stream()
+                    .map(BlockNodeConfiguration::streamingEndpoint)
+                    .collect(Collectors.toSet());
+
             for (final BlockNode node : nodes.values()) {
-                if (!newNodeAddresses.contains(node.configuration().address())) {
+                if (!newEndpoints.contains(node.configuration().streamingEndpoint())) {
                     // the node was removed from the configuration
                     logger.info(
-                            "Block node (address: {}) was removed",
-                            node.configuration().address());
+                            "[{}:{}] Block node configuration was removed",
+                            node.configuration().address(),
+                            node.configuration().streamingPort());
                     node.onTerminate(CloseReason.CONFIG_UPDATE);
+                    changesDetected = true;
                 }
             }
 
-            activeConfig = latestConfig;
-            return true;
+            if (changesDetected) {
+                activeConfigRef.set(latestConfig);
+            }
+            return changesDetected;
         }
 
         return false;
     }
 
     private boolean isBufferUnhealthy() {
+        final BlockBufferStatus previousBufferStatus = bufferStatusRef.get();
         final BlockBufferStatus latestBufferStatus = blockBufferService.latestBufferStatus();
-        if (latestBufferStatus != null && latestBufferStatus.timestamp().isAfter(bufferStatus.timestamp())) {
+
+        if (latestBufferStatus != null && latestBufferStatus.timestamp().isAfter(previousBufferStatus.timestamp())) {
             // a new block buffer status is available, let's check if things are trending in a good direction or not
+            bufferStatusRef.set(latestBufferStatus);
+
             if (latestBufferStatus.isActionStage()) {
                 // the latest status indicates we are above the action stage and thus should take some action
                 // but, if the saturation is decreasing since the last check, don't switch connections yet and
                 // hope we are able to recover
-                if (latestBufferStatus.saturationPercent() >= bufferStatus.saturationPercent()) {
+                if (latestBufferStatus.saturationPercent() >= previousBufferStatus.saturationPercent()) {
                     // saturation has stayed the same or increased, we need to attempt switching connections
+
                     return true;
                 }
             }
-
-            bufferStatus = latestBufferStatus;
         }
 
         return false;
@@ -678,9 +708,16 @@ public class BlockNodeConnectionManager {
             return false;
         }
 
-        final int activeConnectionPriority = activeConnection.configuration().priority();
-        for (final BlockNode node : nodes.values()) {
-            if (node.isStreamingCandidate() && node.configuration().priority() > activeConnectionPriority) {
+        final BlockNodeConfiguration activeConnConfig = activeConnection.configuration();
+
+        for (final Map.Entry<BlockNodeEndpoint, BlockNode> nodeEntry : nodes.entrySet()) {
+            if (nodeEntry.getKey().equals(activeConnection.configuration().streamingEndpoint())) {
+                continue;
+            }
+
+            final BlockNode node = nodeEntry.getValue();
+
+            if (node.isStreamingCandidate() && node.configuration().priority() < activeConnConfig.priority()) {
                 return true;
             }
         }
@@ -694,7 +731,7 @@ public class BlockNodeConnectionManager {
             return false;
         }
 
-        final long stalledConnectionThresholdMillis = connectionWorkerSleepMillis() * 3;
+        final long stalledConnectionThresholdMillis = connectionWorkerSleepMillis() * 3; // TODO: make configurable
         final long lastHeartbeatTimestamp = activeConnection.heartbeatTimestamp();
         if (lastHeartbeatTimestamp != -1) {
             final long deltaMillis = now.toEpochMilli() - lastHeartbeatTimestamp;
@@ -733,6 +770,8 @@ public class BlockNodeConnectionManager {
 
     private void selectNewBlockNode(final boolean force, @Nullable final CloseReason closeReason) {
         pruneNodes();
+
+        final Instant globalCoolDownTimestamp = globalCoolDownTimestampRef.get();
 
         if (globalCoolDownTimestamp != null && Instant.now().isBefore(globalCoolDownTimestamp) && !force) {
             logger.trace(
@@ -800,12 +839,13 @@ public class BlockNodeConnectionManager {
             }
 
             // set the global cool down so we don't try to switch connections too frequently
-            globalCoolDownTimestamp = Instant.now().plusSeconds(15); // TODO: make configurable
+            globalCoolDownTimestampRef.set(Instant.now().plusSeconds(15)); // TODO: make configurable
         }
     }
 
     private void pruneNodes() {
-        final Iterator<Map.Entry<String, BlockNode>> it = nodes.entrySet().iterator();
+        final Iterator<Map.Entry<BlockNodeEndpoint, BlockNode>> it =
+                nodes.entrySet().iterator();
         while (it.hasNext()) {
             final BlockNode node = it.next().getValue();
             if (node.isRemovable()) {

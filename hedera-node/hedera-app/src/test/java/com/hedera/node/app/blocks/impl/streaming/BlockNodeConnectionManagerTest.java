@@ -182,31 +182,31 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        final List<BlockNodeConfig> availableNodes = new ArrayList<>();
     //        availableNodes.add(BlockNodeConfig.newBuilder()
     //                .address(PBJ_UNIT_TEST_HOST)
-    //                .streamingPort(8080)
+    //                .port(8080)
     //                .servicePort(8081)
     //                .priority(1)
     //                .build());
     //        availableNodes.add(BlockNodeConfig.newBuilder()
     //                .address(PBJ_UNIT_TEST_HOST)
-    //                .streamingPort(8180)
+    //                .port(8180)
     //                .servicePort(8181)
     //                .priority(1)
     //                .build());
     //        availableNodes.add(BlockNodeConfig.newBuilder()
     //                .address(PBJ_UNIT_TEST_HOST)
-    //                .streamingPort(8280)
+    //                .port(8280)
     //                .servicePort(8281)
     //                .priority(2)
     //                .build());
     //        availableNodes.add(BlockNodeConfig.newBuilder()
     //                .address(PBJ_UNIT_TEST_HOST)
-    //                .streamingPort(8380)
+    //                .port(8380)
     //                .servicePort(8381)
     //                .priority(3)
     //                .build());
     //        availableNodes.add(BlockNodeConfig.newBuilder()
     //                .address(PBJ_UNIT_TEST_HOST)
-    //                .streamingPort(8480)
+    //                .port(8480)
     //                .servicePort(8481)
     //                .priority(3)
     //                .build());
@@ -392,7 +392,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //
     //        // verify we are trying to connect to one of the priority 1 nodes
     //        assertThat(nodeConfig.priority()).isEqualTo(3);
-    //        assertThat(nodeConfig.streamingPort()).isEqualTo(8082);
+    //        assertThat(nodeConfig.port()).isEqualTo(8082);
     //        assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
     //
     //        verify(bufferService).getEarliestAvailableBlockNumber();
@@ -452,7 +452,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //
     //        // verify we are trying to connect to one of the priority 1 nodes
     //        assertThat(nodeConfig.priority()).isEqualTo(2);
-    //        assertThat(nodeConfig.streamingPort()).isEqualTo(8082);
+    //        assertThat(nodeConfig.port()).isEqualTo(8082);
     //        assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
     //
     //        verify(bufferService).getEarliestAvailableBlockNumber();
@@ -1073,7 +1073,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //
     //        // Deterministic contract: selected node must come from the highest-priority group.
     //        assertThat(selectedConfig.priority()).isZero();
-    //        assertThat(selectedConfig.streamingPort()).isBetween(8080, 8089);
+    //        assertThat(selectedConfig.port()).isBetween(8080, 8089);
     //    }
     //
     //    @Test
@@ -1168,8 +1168,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        final BlockNodeConfiguration selectedConfig = connection.configuration();
     //
     //        assertThat(selectedConfig.priority()).isZero();
-    //        assertThat(selectedConfig.streamingPort()).isIn(8081, 8082);
-    //        assertThat(selectedConfig.streamingPort()).isNotEqualTo(8080); // Should not select unavailable node
+    //        assertThat(selectedConfig.port()).isIn(8081, 8082);
+    //        assertThat(selectedConfig.port()).isNotEqualTo(8080); // Should not select unavailable node
     //
     //        verify(bufferService).getEarliestAvailableBlockNumber();
     //        verify(bufferService).getLastBlockNumberProduced();
@@ -1224,7 +1224,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        final BlockNodeConfiguration selectedConfig = connection.configuration();
     //
     //        assertThat(selectedConfig.priority()).isEqualTo(1); // Should fall back to priority 1
-    //        assertThat(selectedConfig.streamingPort()).isIn(8082, 8083);
+    //        assertThat(selectedConfig.port()).isIn(8082, 8083);
     //
     //        verify(bufferService).getEarliestAvailableBlockNumber();
     //        verify(bufferService).getLastBlockNumberProduced();
@@ -1271,7 +1271,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        final BlockNodeConfiguration selectedConfig = connection.configuration();
     //
     //        // Should select the node wanting the lowest block (8081 wants 150)
-    //        assertThat(selectedConfig.streamingPort()).isEqualTo(8081);
+    //        assertThat(selectedConfig.port()).isEqualTo(8081);
     //    }
     //
     //    @Test
@@ -1311,7 +1311,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        final BlockNodeConfiguration selectedConfig = connection.configuration();
     //
     //        // Should only select from in-range nodes (8080 or 8081), never 8082
-    //        assertThat(selectedConfig.streamingPort()).isIn(8080, 8081);
+    //        assertThat(selectedConfig.port()).isIn(8080, 8081);
     //    }
     //
     //    @Test
@@ -1350,7 +1350,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        final BlockNodeConfiguration selectedConfig = connection.configuration();
     //
     //        // Deterministic contract: selection must be from the in-range set.
-    //        assertThat(selectedConfig.streamingPort()).isIn(8080, 8081, 8082);
+    //        assertThat(selectedConfig.port()).isIn(8080, 8081, 8082);
     //    }
     //
     //    @Test
@@ -1388,7 +1388,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //
     //        // Should select the highest priority node (priority 0)
     //        assertThat(selectedConfig.priority()).isZero();
-    //        assertThat(selectedConfig.streamingPort()).isEqualTo(8080);
+    //        assertThat(selectedConfig.port()).isEqualTo(8080);
     //    }
     //
     //    @Test
@@ -1437,7 +1437,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        // Priority 0 is all ahead, so it should move to priority 1.
     //        // Priority 1 has an in-range node (8081 wants 100), so it should be selected
     //        assertThat(selectedConfig.priority()).isEqualTo(1);
-    //        assertThat(selectedConfig.streamingPort()).isEqualTo(8081);
+    //        assertThat(selectedConfig.port()).isEqualTo(8081);
     //    }
     //
     //    @Test
@@ -1485,7 +1485,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        // Priority 0 is all ahead, so selection proceeds to next groups.
     //        // Priority 1 has an in-range node, which should be preferred.
     //        assertThat(selectedConfig.priority()).isEqualTo(1);
-    //        assertThat(selectedConfig.streamingPort()).isEqualTo(8082);
+    //        assertThat(selectedConfig.port()).isEqualTo(8082);
     //    }
     //
     //    @Test
@@ -1636,7 +1636,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        final List<BlockNodeConfig> configs = new ArrayList<>();
     //        final BlockNodeConfig config = BlockNodeConfig.newBuilder()
     //                .address("localhost")
-    //                .streamingPort(8080)
+    //                .port(8080)
     //                .servicePort(8081)
     //                .priority(0)
     //                .build();
@@ -1704,7 +1704,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //                  "nodes": [
     //                    {
     //                      "address": "localhost",
-    //                      "streamingPort": 50051,
+    //                      "port": 50051,
     //                      "servicePort": 50052,
     //                      "priority": 1,
     //                      "messageSizeSoftLimitBytes": 1500000,
@@ -1802,7 +1802,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        final List<BlockNodeConfig> configs = new ArrayList<>();
     //        configs.add(BlockNodeConfig.newBuilder()
     //                .address(PBJ_UNIT_TEST_HOST)
-    //                .streamingPort(8080)
+    //                .port(8080)
     //                .servicePort(8081)
     //                .priority(1)
     //                .messageSizeSoftLimitBytes(1_000_000L)
@@ -1876,7 +1876,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //        final List<BlockNodeConfig> configs = new ArrayList<>();
     //        configs.add(BlockNodeConfig.newBuilder()
     //                .address(PBJ_UNIT_TEST_HOST)
-    //                .streamingPort(8080)
+    //                .port(8080)
     //                .servicePort(8081)
     //                .priority(1)
     //                .build());
@@ -2298,7 +2298,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //                        final BlockNodeServiceConnection connection =
     //                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
     //                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-    //                        if (taskNodeConfig.streamingPort() == node1Config.streamingPort()) {
+    //                        if (taskNodeConfig.port() == node1Config.port()) {
     //                            // set one node as unreachable
     //                            futures.add(completedFuture(notReachable()));
     //                        } else {
@@ -2343,9 +2343,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //                        final BlockNodeServiceConnection connection =
     //                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
     //                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-    //                        if (taskNodeConfig.streamingPort() == node1Config.streamingPort()) {
+    //                        if (taskNodeConfig.port() == node1Config.port()) {
     //                            futures.add(completedFuture(notReachable()));
-    //                        } else if (taskNodeConfig.streamingPort() == node2Config.streamingPort()) {
+    //                        } else if (taskNodeConfig.port() == node2Config.port()) {
     //                            // Block node is ahead of this CN, but should still be eligible to stream
     //                            futures.add(completedFuture(reachable(2, latestBlock + 10)));
     //                        } else {
@@ -2399,7 +2399,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //                        final BlockNodeServiceConnection connection =
     //                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
     //                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-    //                        if (taskNodeConfig.streamingPort() == node4Config.streamingPort()) {
+    //                        if (taskNodeConfig.port() == node4Config.port()) {
     //                            // set node 4 (priority 2) as the only reachable node
     //                            futures.add(completedFuture(reachable(3, latestBlock - 10)));
     //                        } else {
@@ -2509,13 +2509,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //                        final BlockNodeServiceConnection connection =
     //                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
     //                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-    //                        if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        if (node1Config.port() == taskNodeConfig.port()) {
     //                            futures.add(node1CfSpy);
-    //                        } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        } else if (node2Config.port() == taskNodeConfig.port()) {
     //                            futures.add(node2CfSpy);
-    //                        } else if (node3Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        } else if (node3Config.port() == taskNodeConfig.port()) {
     //                            futures.add(node3CfSpy);
-    //                        } else if (node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        } else if (node4Config.port() == taskNodeConfig.port()) {
     //                            futures.add(node4CfSpy);
     //                        } else {
     //                            throw new IllegalStateException("Unexpected config: " + taskNodeConfig);
@@ -2720,7 +2720,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
     //                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
     //                        // fail all priority 1 nodes and one of the priority 2 nodes
-    //                        if (node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        if (node4Config.port() == taskNodeConfig.port()) {
     //                            futures.add(completedFuture(reachable(10, earliestBlock + 25)));
     //                        } else {
     //                            futures.add(failedFuture(new RuntimeException("kaboom!")));
@@ -2839,13 +2839,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //                        final BlockNodeServiceConnection connection =
     //                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
     //                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-    //                        if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        if (node1Config.port() == taskNodeConfig.port()) {
     //                            futures.add(completedFuture(reachable(10, 10)));
-    //                        } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        } else if (node2Config.port() == taskNodeConfig.port()) {
     //                            futures.add(completedFuture(reachable(10, -1)));
-    //                        } else if (node3Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        } else if (node3Config.port() == taskNodeConfig.port()) {
     //                            futures.add(completedFuture(reachable(10, 25)));
-    //                        } else if (node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        } else if (node4Config.port() == taskNodeConfig.port()) {
     //                            futures.add(completedFuture(reachable(10, 11)));
     //                        } else {
     //                            throw new IllegalStateException("Unexpected config: " + taskNodeConfig);
@@ -2901,11 +2901,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     //                        final BlockNodeServiceConnection connection =
     //                                (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(tasks.get(i));
     //                        final BlockNodeConfiguration taskNodeConfig = connection.configuration();
-    //                        if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        if (node1Config.port() == taskNodeConfig.port()) {
     //                            futures.add(completedFuture(null));
-    //                        } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()
-    //                                || node3Config.streamingPort() == taskNodeConfig.streamingPort()
-    //                                || node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
+    //                        } else if (node2Config.port() == taskNodeConfig.port()
+    //                                || node3Config.port() == taskNodeConfig.port()
+    //                                || node4Config.port() == taskNodeConfig.port()) {
     //                            futures.add(completedFuture(reachable(10, 15)));
     //                        } else {
     //                            throw new IllegalStateException("Unexpected config: " + taskNodeConfig);

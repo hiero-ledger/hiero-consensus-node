@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,18 +51,20 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle watchServiceRefHandle;
     private static final VarHandle isActiveHandle;
     private static final VarHandle latestConfigRefHandle;
+    private static final VarHandle configVersionCounterHandle;
     private static final MethodHandle loadConfigurationHandle;
 
     static {
         try {
-            final Lookup lookup = MethodHandles.lookup();
-            final Lookup svcLookup = MethodHandles.privateLookupIn(BlockNodeConfigService.class, lookup);
+            final Lookup lookup = MethodHandles.privateLookupIn(BlockNodeConfigService.class, MethodHandles.lookup());
 
-            isActiveHandle = svcLookup.findVarHandle(BlockNodeConfigService.class, "isActive", AtomicBoolean.class);
+            isActiveHandle = lookup.findVarHandle(BlockNodeConfigService.class, "isActive", AtomicBoolean.class);
             watchServiceRefHandle =
-                    svcLookup.findVarHandle(BlockNodeConfigService.class, "watchServiceRef", AtomicReference.class);
+                    lookup.findVarHandle(BlockNodeConfigService.class, "watchServiceRef", AtomicReference.class);
             latestConfigRefHandle =
-                    svcLookup.findVarHandle(BlockNodeConfigService.class, "latestConfigRef", AtomicReference.class);
+                    lookup.findVarHandle(BlockNodeConfigService.class, "latestConfigRef", AtomicReference.class);
+            configVersionCounterHandle =
+                    lookup.findVarHandle(BlockNodeConfigService.class, "configVersionCounter", AtomicInteger.class);
 
             final Method loadConfiguration = BlockNodeConfigService.class.getDeclaredMethod("loadConfiguration");
             loadConfiguration.setAccessible(true);
@@ -215,13 +218,21 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     @Test
     void testStop() throws Exception {
         final WatchService watchService = mock(WatchService.class);
+        final VersionedBlockNodeConfigurationSet config = new VersionedBlockNodeConfigurationSet(1, List.of());
 
         watchServiceRef().set(watchService);
+        latestConfigRef().set(config);
+        configVersionCounter().set(1);
         isActive().set(true);
 
         configService.stop();
 
         verify(watchService).close();
+
+        assertThat(watchServiceRef()).hasNullValue();
+        assertThat(latestConfigRef()).hasNullValue();
+        // a shutdown is treated as a config change since the config is removed, thus the counter is incremented
+        assertThat(configVersionCounter()).hasValue(2);
     }
 
     @Test
@@ -236,7 +247,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     @Test
     void testLoadConfiguration_pathNotExists() throws Throwable {
         // don't write a configuration file
-        invokeLoadConfiguration();
+        invoke_loadConfiguration();
 
         // since there is no configuration file, there should be no configuration set
         assertThat(latestConfigRef()).hasNullValue();
@@ -256,7 +267,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                 }
                 """);
 
-        invokeLoadConfiguration();
+        invoke_loadConfiguration();
 
         // since the config file is bad, there should be no configuration set
         assertThat(latestConfigRef()).hasNullValue();
@@ -281,7 +292,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                 }
                 """);
 
-        invokeLoadConfiguration();
+        invoke_loadConfiguration();
 
         final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
         assertThat(config).isNotNull();
@@ -292,6 +303,108 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(nodeConfig.address()).isEqualTo("localhost");
         assertThat(nodeConfig.streamingPort()).isEqualTo(9999);
         assertThat(nodeConfig.priority()).isEqualTo(1);
+    }
+
+    @Test
+    void testLoadConfiguration_noSuccessfulConfigsFound() throws Throwable {
+        // start with a good configuration
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9999,
+                            "priority": 1
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9998,
+                            "priority": 2
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet initialConfig = configService.latestConfiguration();
+        assertThat(initialConfig).isNotNull();
+        assertThat(initialConfig.versionNumber()).isEqualTo(1L);
+        assertThat(initialConfig.configs()).hasSize(2);
+        assertThat(configVersionCounter()).hasValue(1);
+
+        for (final BlockNodeConfiguration nodeConfig : initialConfig.configs()) {
+            if (nodeConfig.streamingPort() == 9999) {
+                assertThat(nodeConfig).isNotNull();
+                assertThat(nodeConfig.address()).isEqualTo("localhost");
+                assertThat(nodeConfig.streamingPort()).isEqualTo(9999);
+                assertThat(nodeConfig.priority()).isEqualTo(1);
+            } else if (nodeConfig.streamingPort() == 9998) {
+                assertThat(nodeConfig).isNotNull();
+                assertThat(nodeConfig.address()).isEqualTo("localhost");
+                assertThat(nodeConfig.streamingPort()).isEqualTo(9998);
+                assertThat(nodeConfig.priority()).isEqualTo(2);
+            } else {
+                fail("Unexpected configuration found:" + nodeConfig);
+            }
+        }
+
+        // break both configs and try to reload
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": -10,
+                            "priority": 1
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": -11,
+                            "priority": 2
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        // since all configurations are broken, the configuration as a whole is rejected and thus the latest
+        // configuration should not be changed
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull().isEqualTo(initialConfig);
+        assertThat(configVersionCounter()).hasValue(1);
+    }
+
+    @Test
+    void testLoadConfiguration_duplicateConfigsFound() throws Throwable {
+        writeConfig("""
+                {
+                    "nodes": [
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9999,
+                            "priority": 1
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9998,
+                            "priority": 2
+                        },
+                        {
+                            "address": "localhost",
+                            "streamingPort": 9998,
+                            "priority": 3
+                        }
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNull();
+        assertThat(configVersionCounter()).hasValue(0); // no config is loaded
     }
 
     @Test
@@ -313,7 +426,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                 }
                 """);
 
-        invokeLoadConfiguration();
+        invoke_loadConfiguration();
 
         final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
         assertThat(config).isNotNull();
@@ -646,13 +759,17 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
 
     // Utilities =========
 
-    void invokeLoadConfiguration() throws Throwable {
+    void invoke_loadConfiguration() throws Throwable {
         loadConfigurationHandle.invoke(configService);
     }
 
     void writeConfig(final String config) throws IOException {
         final Path filePath = configDir.resolve(BLOCK_NODES_FILE_NAME);
         Files.writeString(filePath, config);
+    }
+
+    AtomicInteger configVersionCounter() {
+        return (AtomicInteger) configVersionCounterHandle.get(configService);
     }
 
     AtomicBoolean isActive() {

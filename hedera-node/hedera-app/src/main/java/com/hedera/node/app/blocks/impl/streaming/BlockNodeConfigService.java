@@ -23,28 +23,75 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.inject.Inject;
+import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * Service for retrieving block node configurations from disk. This service will launch a file watcher process that will
+ * dynamically load newer configurations upon detecting changes.
+ */
+@Singleton
 public class BlockNodeConfigService {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConfigService.class);
+
+    /**
+     * The name of the block node configuration file.
+     */
     private static final String BLOCK_NODES_FILE_NAME = "block-nodes.json";
+    /**
+     * The directory where the block node configuration file will be, if it exists.
+     */
     private final Path configDirectory;
+    /**
+     * Flag indicating whether this service is active or not.
+     */
     private final AtomicBoolean isActive = new AtomicBoolean(false);
+    /**
+     * Counter used to track/identify configuration versions.
+     */
     private final AtomicInteger configVersionCounter = new AtomicInteger(0);
+    /**
+     * Mechanism to access application configurations.
+     */
     private final ConfigProvider configProvider;
+    /**
+     * Holder for the most recent configuration loaded from disk. This may be null if no configuration is present
+     * on disk. Technically, this version of the configuration may not be the latest on disk. In cases where the on-disk
+     * configuration fails to be parsed/read, then the latest configuration held by this reference will not be updated.
+     * In other words, the configuration held by this reference represents the most recent, successfully loaded
+     * configuration.
+     */
     private final AtomicReference<VersionedBlockNodeConfigurationSet> latestConfigRef = new AtomicReference<>();
+    /**
+     * Holder for the file watcher service to detect configuration file changes.
+     */
     private final AtomicReference<WatchService> watchServiceRef = new AtomicReference<>();
 
-    BlockNodeConfigService(@NonNull final ConfigProvider configProvider) {
+    /**
+     * Creates a new configuration monitor service.
+     *
+     * @param configProvider the application configuration provider to use
+     */
+    @Inject
+    public BlockNodeConfigService(@NonNull final ConfigProvider configProvider) {
         this.configProvider = requireNonNull(configProvider, "Configuration provider is required");
-        this.configDirectory = FileUtils.getAbsolutePath(blockNodeConnectionFileDir());
+
+        final String configDir = configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .blockNodeConnectionFileDir();
+
+        this.configDirectory = FileUtils.getAbsolutePath(configDir);
     }
 
     /**
@@ -55,15 +102,9 @@ public class BlockNodeConfigService {
     }
 
     /**
-     * @return the configuration path (as a String) for the block node connections
+     * Starts the configuration service. This will attempt to load the initial configuration from disk, if one exists,
+     * then creates a file watcher to detect modifications to the configuration on disk.
      */
-    private String blockNodeConnectionFileDir() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .blockNodeConnectionFileDir();
-    }
-
     public void start() {
         if (!isActive.compareAndSet(false, true)) {
             logger.debug("Block node configuration watcher is already started");
@@ -73,7 +114,6 @@ public class BlockNodeConfigService {
         logger.info("Starting block node configuration watcher...");
 
         // Perform initial load of the configuration
-
         try {
             loadConfiguration();
         } catch (final RuntimeException e) {
@@ -81,7 +121,6 @@ public class BlockNodeConfigService {
         }
 
         // Start the watcher for config changes
-
         final WatchService watchService;
 
         try {
@@ -102,12 +141,19 @@ public class BlockNodeConfigService {
         logger.info("Block node configuration watcher started");
     }
 
+    /**
+     * Stops the configuration service. This will also clear any previously held configuration and stop the file watcher
+     * that is monitoring configuration file changes.
+     */
     public void stop() {
         if (!isActive.compareAndSet(true, false)) {
             return;
         }
 
         logger.info("Stopping block node configuration watcher...");
+
+        latestConfigRef.set(null);
+        configVersionCounter.incrementAndGet();
 
         final WatchService watchService = watchServiceRef.getAndSet(null);
         if (watchService != null) {
@@ -121,6 +167,10 @@ public class BlockNodeConfigService {
         logger.info("Block node configuration watcher stopped");
     }
 
+    /**
+     * Loads the block node configuration from disk. In general, if there are issues parsing the configuration, the
+     * method will not fail. Instead, the failures are logged and the latest configuration is not updated.
+     */
     private void loadConfiguration() {
         final Path path = configDirectory.resolve(BLOCK_NODES_FILE_NAME);
         final BlockNodeConnectionInfo connectionInfo;
@@ -144,12 +194,36 @@ public class BlockNodeConfigService {
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .defaultMessageHardLimitBytes();
 
+        final Map<String, AtomicInteger> hostCounters = new HashMap<>();
         for (final BlockNodeConfig nodeConfig : connectionInfo.nodes()) {
             try {
                 nodeConfigs.add(BlockNodeConfiguration.from(nodeConfig, defaultHardLimitBytes));
+                hostCounters
+                        .computeIfAbsent(
+                                nodeConfig.address() + ":" + nodeConfig.streamingPort(), _ -> new AtomicInteger())
+                        .incrementAndGet();
             } catch (final RuntimeException e) {
                 logger.warn("Failed to parse block node configuration; skipping block node (config={})", nodeConfig, e);
             }
+        }
+
+        if (nodeConfigs.isEmpty()) {
+            logger.warn("No block node configurations successfully processed; skipping configuration update");
+            return;
+        }
+
+        // check for duplicates
+        boolean duplicatesFound = false;
+        for (final Map.Entry<String, AtomicInteger> hostCounterEntry : hostCounters.entrySet()) {
+            if (hostCounterEntry.getValue().get() > 1) {
+                duplicatesFound = true;
+                logger.warn("Duplicate configurations found for host: {}", hostCounterEntry.getKey());
+            }
+        }
+
+        if (duplicatesFound) {
+            logger.warn("One or more block node hosts have duplicate configurations; skipping configuration update");
+            return;
         }
 
         final long version = configVersionCounter.incrementAndGet();
@@ -174,6 +248,10 @@ public class BlockNodeConfigService {
         }
     }
 
+    /**
+     * Task that checks for configuration file modifications on disk and upon detecting a change, updates the
+     * configuration held in memory.
+     */
     private class ConfigWatcherTask implements Runnable {
 
         @Override

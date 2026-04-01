@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
@@ -38,13 +39,24 @@ public interface BlockStreamModule {
 
     @Provides
     @Singleton
+    static BlockNodeConfigService provideBlockNodeConfigService(@NonNull final ConfigProvider configProvider) {
+        return new BlockNodeConfigService(configProvider);
+    }
+
+    @Provides
+    @Singleton
     static BlockNodeConnectionManager provideBlockNodeConnectionManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
+            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
+            @NonNull final BlockNodeConfigService blockNodeConfigService) {
         final BlockNodeConnectionManager manager = new BlockNodeConnectionManager(
-                configProvider, blockBufferService, blockStreamMetrics, blockingIoExecutorSupplier);
+                configProvider,
+                blockBufferService,
+                blockStreamMetrics,
+                blockingIoExecutorSupplier,
+                blockNodeConfigService);
         manager.start();
         return manager;
     }
