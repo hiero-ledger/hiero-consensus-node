@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
@@ -164,7 +165,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
         connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
@@ -209,7 +210,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.READY);
         verify(grpcServiceClient).publishBlockStream(connection);
-        verify(clientFactory).createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+        verify(clientFactory)
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
     }
 
     @Test

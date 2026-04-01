@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
@@ -147,7 +148,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
         connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
@@ -216,7 +217,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(localFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
 
         final BlockNodeConfiguration cfgWithMax = BlockNodeConfiguration.newBuilder()
                 .address(nodeConfig.address())
