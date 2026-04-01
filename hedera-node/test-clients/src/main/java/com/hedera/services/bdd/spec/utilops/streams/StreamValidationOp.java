@@ -20,6 +20,7 @@ import static java.util.stream.Collectors.joining;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.config.types.BlockStreamWriterMode;
+import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
@@ -198,7 +199,12 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     static Optional<List<Block>> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {
-        final var blockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
+        // Try ThreadLocal first, then fall back to the shared AtomicReference
+        // (DynamicTest execution threads in concurrent mode don't inherit ThreadLocal values)
+        var blockNodeNetwork = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
+        if (blockNodeNetwork == null) {
+            blockNodeNetwork = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+        }
         if (isWriterModeGrpcOnly(spec) && blockNodeNetwork != null) {
             return readBlocksFromBlockNodes(spec, blockNodeNetwork);
         }
