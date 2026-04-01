@@ -204,7 +204,12 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+        run: |
+          if ${{ success() }}; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
 
   verify-artifacts:
     name: "Docker: Verify Artifacts (${{ join(matrix.os, ', ') }})"
@@ -411,8 +416,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.regen-manifest.outcome || 'skipped' }}" == "success" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          # If the job overall succeeded, mark as 'none', otherwise 'workflow'.
+          if ${{ success() }}; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           fi
