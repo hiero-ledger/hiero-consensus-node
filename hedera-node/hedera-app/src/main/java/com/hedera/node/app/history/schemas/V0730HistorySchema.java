@@ -18,6 +18,7 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,8 +36,11 @@ public class V0730HistorySchema extends Schema<SemanticVersion> {
     public static final int WRAPS_PROVING_KEY_HASH_STATE_ID =
             SingletonType.HISTORYSERVICE_I_WRAPS_PROVING_KEY_HASH.protoOrdinal();
 
-    public V0730HistorySchema() {
+    private final HistoryService historyService;
+
+    public V0730HistorySchema(@NonNull final HistoryService historyService) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
+        this.historyService = Objects.requireNonNull(historyService);
     }
 
     @Override
@@ -68,6 +72,12 @@ public class V0730HistorySchema extends Schema<SemanticVersion> {
                     writableStates
                             .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                             .put(HistoryProofConstruction.DEFAULT);
+                }
+                final var activeConstruction = writableStates
+                        .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                        .get();
+                if (activeConstruction != null && activeConstruction.hasTargetProof()) {
+                    historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
                 }
             }
             final var hashState = ctx.newStates().<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);

@@ -203,7 +203,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         requireNonNull(registry);
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext()));
-        registry.register(new V073HintsSchema(library));
+        registry.register(new V073HintsSchema(library, component.signingContext()));
     }
 
     @Override
