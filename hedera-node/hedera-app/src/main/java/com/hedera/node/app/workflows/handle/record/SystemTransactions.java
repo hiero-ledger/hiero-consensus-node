@@ -130,6 +130,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -438,7 +439,10 @@ public class SystemTransactions {
      * @param now the current time
      * @param state the state to set up
      */
-    public void doPostUpgradeSetup(@NonNull final Instant now, @NonNull final State state) {
+    public void doPostUpgradeSetup(
+            @NonNull final Instant now,
+            @NonNull final State state,
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var config = configProvider.getConfiguration();
@@ -506,6 +510,15 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+
+        final int networkSize = networkInfo.addressBook().size();
+        for (final var registration :
+                Optional.ofNullable(servicesRegistry.registrations()).orElse(Set.of())) {
+            final var service = registration.service();
+            final var writableStates = state.getWritableStates(service.getServiceName());
+            stateChangeStreaming.doStreamingChanges(
+                    writableStates, null, () -> service.doPostUpgradeSetup(writableStates, config, networkSize));
+        }
 
         if (configProvider
                 .getConfiguration()

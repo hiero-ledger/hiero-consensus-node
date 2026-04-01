@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -166,6 +167,13 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
+        lenient()
+                .doAnswer(invocation -> {
+                    invocation.getArgument(2, Runnable.class).run();
+                    return null;
+                })
+                .when(stateChangeStreaming)
+                .doStreamingChanges(any(), any(), any());
         subject = new SystemTransactions(
                 initTrigger,
                 parentTxnFactory,
@@ -494,7 +502,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         // Verify createGenesisSimpleFeesSchedule was called since file was missing
         verify(fileSchema).createGenesisSimpleFeesSchedule(any());
@@ -547,7 +555,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         // Verify fileSchema() was never accessed since file already exists
         verify(fileService, never()).fileSchema();
@@ -603,7 +611,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         // Voting metadata should be initialized on first upgrade
         verify(blockInfoSingleton).put(any());
@@ -658,7 +666,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         verify(blockInfoSingleton).put(any());
         verify(blockInfoSingleton).commit();
@@ -727,7 +735,7 @@ class SystemTransactionsTest {
                 wrappedRecordBlockHashMigration,
                 migrationRootHashSubmissions);
 
-        subject.doPostUpgradeSetup(NOW, state);
+        subject.doPostUpgradeSetup(NOW, state, stateChangeStreaming);
 
         // Post-upgrade setup initializes voting metadata on first upgrade.
         verify(blockInfoSingleton).put(any());

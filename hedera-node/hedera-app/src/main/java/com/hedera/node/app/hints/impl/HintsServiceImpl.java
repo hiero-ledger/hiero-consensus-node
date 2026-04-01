@@ -228,6 +228,46 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
+    public boolean doPostUpgradeSetup(
+            @NonNull final WritableStates writableStates,
+            @NonNull final Configuration configuration,
+            final int networkSize) {
+        requireNonNull(writableStates);
+        requireNonNull(configuration);
+        final var tssConfig = configuration.getConfigData(TssConfig.class);
+        if (!tssConfig.hintsEnabled()) {
+            return false;
+        }
+        final var activeConstruction = writableStates
+                .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
+                .get();
+        final var nextConstruction = writableStates
+                .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
+                .get();
+        final var crsState =
+                writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID).get();
+        var initialized = false;
+        if (activeConstruction == null) {
+            writableStates
+                    .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
+                    .put(HintsConstruction.DEFAULT);
+            initialized = true;
+        }
+        if (nextConstruction == null) {
+            writableStates
+                    .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
+                    .put(HintsConstruction.DEFAULT);
+            initialized = true;
+        }
+        if (crsState == null) {
+            final var state = initialCrsState((short) HintsService.partySizeForRosterNodeCount(networkSize));
+            writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID).put(state);
+            initialized = true;
+        }
+        return initialized;
+    }
+
+    @Override
     public void stop() {
         component.controllers().stop();
     }
