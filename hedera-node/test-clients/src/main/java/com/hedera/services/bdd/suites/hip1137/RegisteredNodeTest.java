@@ -492,6 +492,23 @@ public class RegisteredNodeTest {
                         .hasKnownStatus(SUCCESS));
     }
 
+    @HapiTest
+    @DisplayName("create with block node endpoint advertising multiple APIs")
+    final Stream<DynamicTest> createWithMultiApiBlockNodeEndpoint() {
+        final var multiApiEndpoints = List.of(blockNodeEndpoint(
+                "block.example.com",
+                8080,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.SUBSCRIBE_STREAM));
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(multiApiEndpoints)
+                        .hasKnownStatus(SUCCESS));
+    }
+
     // ─── Privileged delete ────────────────────────────────────────
 
     @HapiTest
@@ -816,13 +833,17 @@ public class RegisteredNodeTest {
     // ─── Endpoint factory helpers ──────────────────────────────────
 
     private static RegisteredServiceEndpoint blockNodeEndpoint(
-            final String domain, final int port, final RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi api) {
+            final String domain,
+            final int port,
+            final RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi... apis) {
+        final var blockNodeBuilder = RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder();
+        for (final var api : apis) {
+            blockNodeBuilder.addEndpointApi(api);
+        }
         return RegisteredServiceEndpoint.newBuilder()
                 .setDomainName(domain)
                 .setPort(port)
-                .setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
-                        .setEndpointApi(api)
-                        .build())
+                .setBlockNode(blockNodeBuilder.build())
                 .build();
     }
 
@@ -832,7 +853,7 @@ public class RegisteredNodeTest {
                 .setIpAddress(ByteString.copyFrom(ip))
                 .setPort(port)
                 .setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
-                        .setEndpointApi(api)
+                        .addEndpointApi(api)
                         .build())
                 .build();
     }

@@ -573,6 +573,34 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    @DisplayName("handle succeeds updating block node endpoint to multiple APIs")
+    void handleSucceedsUpdatingEndpointWithMultipleApis() {
+        final var multiApiEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {127, 0, 0, 1}))
+                .port(443)
+                .requiresTls(true)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(List.of(
+                                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS,
+                                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH,
+                                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.SUBSCRIBE_STREAM))
+                        .build())
+                .build();
+        final var txn = txnWithOp(RegisteredNodeUpdateTransactionBody.newBuilder()
+                .registeredNodeId(registeredNodeId)
+                .serviceEndpoint(List.of(multiApiEndpoint))
+                .build());
+        givenHandleContextWithExisting(txn);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
+        verify(writableRegisteredNodeStore).put(captor.capture());
+        final var persisted = captor.getValue().serviceEndpoint().getFirst();
+        assertEquals(3, persisted.blockNodeOrThrow().endpointApi().size());
+    }
+
+    @Test
     @DisplayName("handle with no optional fields leaves node unchanged")
     void handleNoOpUpdateLeavesNodeUnchanged() {
         final var txn = txnWithOp(RegisteredNodeUpdateTransactionBody.newBuilder()
@@ -693,7 +721,7 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
                 .port(443)
                 .requiresTls(true)
                 .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
-                        .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .endpointApi(List.of(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS))
                         .build())
                 .build();
     }

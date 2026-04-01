@@ -143,7 +143,7 @@ public class HapiRegisteredNodeCreate extends HapiTxnOp<HapiRegisteredNodeCreate
                 .setPort(8080)
                 .setRequiresTls(false)
                 .setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
-                        .setEndpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .addEndpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
                         .build())
                 .build();
     }

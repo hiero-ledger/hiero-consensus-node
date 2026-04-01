@@ -634,7 +634,7 @@ class AddressBookValidatorTest {
 
     private static RegisteredServiceEndpoint.BlockNodeEndpoint blockNodeEndpointType() {
         return RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
-                .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                .endpointApi(List.of(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS))
                 .build();
     }
 
