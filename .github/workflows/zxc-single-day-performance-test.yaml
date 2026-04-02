@@ -171,7 +171,9 @@ jobs:
       - name: Setup Helm
         shell: bash
         run: |
-          sudo ln -s /home/runner/_work/_tool/helm/4.1.1/x64/linux-amd64/helm /usr/bin/helm
+          sudo ln -s $(find /home/runner/_work/_tool/helm/ -type f -path '*/linux-amd64/*' -name 'helm') /usr/bin/helm
+          which helm
+          helm version
 
       - name: Setup Java
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
@@ -436,7 +438,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"/solo
-          helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+          /usr/bin/helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
@@ -488,7 +490,7 @@ jobs:
           set +e
           cd "${{ github.workspace }}"/solo
           sed -i -e 's/32Gi/256Gi/g' merkledb-values.yaml
-          helm install --set name=merkle --set appName=merkle merklebench oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+          /usr/bin/helm install --set name=merkle --set appName=merkle merklebench oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
           sleep 180
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
           merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
@@ -1522,6 +1524,8 @@ jobs:
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
       - performance-post-test-validation
+      - single-day-performance-test-result
+
     steps:
       - name: Harden the runner (Audit all outbound calls)
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -1573,11 +1577,18 @@ jobs:
           freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},${freport},\
             {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\"}"
 
+          COLOR="#FF0000"
+          if [[ "${{ needs.single-day-performance-test-result.outputs.result }}" == "success" ]]; then
+            COLOR="#00FF00"
+          elif [[ "${{ needs.single-day-performance-test-result.outputs.result }}" == "cancelled" ]]; then
+            COLOR="#555555"
+          fi
+
           cat <<EOF > slack_payload.json
           {
             "attachments": [
               {
-                "color": "#777777",
+                "color": "${COLOR}",
                 "blocks": [
                   {
                     "type": "header",
