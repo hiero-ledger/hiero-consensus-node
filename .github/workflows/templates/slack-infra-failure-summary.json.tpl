@@ -7,7 +7,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": {{ getenv "SLACK_SUMMARY_TEXT" | data.ToJSON }}
+            "text": {{ getenv "SLACK_SUMMARY_TEXT" | required "SLACK_SUMMARY_TEXT must be set" | data.ToJSON }}
           }
         }
       ]

@@ -256,9 +256,14 @@ jobs:
           environments: "CITR"
 
       - name: Install gomplate
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' || steps.report-category.outputs.category == 'cancelled' }}
         run: |
           curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v3.11.7/gomplate_linux-amd64" \
-            -o /usr/local/bin/gomplate && chmod +x /usr/local/bin/gomplate
+            -o /usr/local/bin/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v3.11.7/checksums.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /usr/local/bin/gomplate" | sha256sum -c -
+          chmod +x /usr/local/bin/gomplate
 
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}

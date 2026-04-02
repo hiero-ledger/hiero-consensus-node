@@ -7,7 +7,7 @@
           "type": "header",
           "text": {
             "type": "plain_text",
-            "text": {{ printf ":x: XTS - eXtended Test Suite Test Failure Report (%s) Failed" (getenv "XTS_INFO") | data.ToJSON }},
+            "text": {{ printf ":x: XTS - eXtended Test Suite Test Failure Report (%s) Failed" (getenv "XTS_INFO" | required "XTS_INFO must be set") | data.ToJSON }},
             "emoji": true
           }
         },
@@ -22,20 +22,20 @@
           },
           "fields": [
             {
-              "type": "plain_text",
-              "text": {{ printf "Fetch XTS Candidate Tag: %s" (getenv "FETCH_XTS_CANDIDATE_RESULT") | data.ToJSON }}
+              "type": "mrkdwn",
+              "text": {{ printf "*Fetch XTS Candidate Tag*: %s" (getenv "FETCH_XTS_CANDIDATE_RESULT") | data.ToJSON }}
             },
             {
-              "type": "plain_text",
-              "text": {{ printf "XTS Execution: %s" (getenv "XTS_EXECUTION_RESULT") | data.ToJSON }}
+              "type": "mrkdwn",
+              "text": {{ printf "*XTS Execution*: %s" (getenv "XTS_EXECUTION_RESULT") | data.ToJSON }}
             },
             {
-              "type": "plain_text",
-              "text": {{ printf "Tag as XTS-Passing: %s" (getenv "TAG_FOR_PROMOTION_RESULT") | data.ToJSON }}
+              "type": "mrkdwn",
+              "text": {{ printf "*Tag as XTS-Passing*: %s" (getenv "TAG_FOR_PROMOTION_RESULT") | data.ToJSON }}
             },
             {
-              "type": "plain_text",
-              "text": {{ printf "Failing Test(s): %s" (getenv "FAILED_TESTS") | data.ToJSON }}
+              "type": "mrkdwn",
+              "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS" | required "FAILED_TESTS must be set") | data.ToJSON }}
             }
           ]
         },
@@ -55,7 +55,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ printf "<%s>" (getenv "COMMIT_URL") | data.ToJSON }}
+              "text": {{ printf "<%s>" (getenv "COMMIT_URL" | required "COMMIT_URL must be set") | data.ToJSON }}
             },
             {
               "type": "mrkdwn",
@@ -63,7 +63,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ getenv "COMMIT_AUTHOR" | data.ToJSON }}
+              "text": {{ getenv "COMMIT_AUTHOR" | required "COMMIT_AUTHOR must be set" | data.ToJSON }}
             },
             {
               "type": "mrkdwn",
@@ -87,7 +87,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ printf "<%s>" (getenv "WORKFLOW_RUN_URL") | data.ToJSON }}
+              "text": {{ printf "<%s>" (getenv "WORKFLOW_RUN_URL" | required "WORKFLOW_RUN_URL must be set") | data.ToJSON }}
             }
           ]
         },
@@ -103,7 +103,7 @@
           "fields": [
             {
               "type": "mrkdwn",
-              "text": {{ getenv "COMMIT_LIST" | data.ToJSON }}
+              "text": {{ getenv "COMMIT_LIST" | required "COMMIT_LIST must be set" | data.ToJSON }}
             }
           ]
         }

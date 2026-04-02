@@ -31,7 +31,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS") | data.ToJSON }}
+              "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS" | required "FAILED_TESTS must be set") | data.ToJSON }}
             }
           ]
         },
@@ -51,7 +51,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ printf "<%s>" (getenv "COMMIT_URL") | data.ToJSON }}
+              "text": {{ printf "<%s>" (getenv "COMMIT_URL" | required "COMMIT_URL must be set") | data.ToJSON }}
             },
             {
               "type": "mrkdwn",
@@ -59,7 +59,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ getenv "COMMIT_AUTHOR" | data.ToJSON }}
+              "text": {{ getenv "COMMIT_AUTHOR" | required "COMMIT_AUTHOR must be set" | data.ToJSON }}
             },
             {
               "type": "mrkdwn",
@@ -83,7 +83,7 @@
             },
             {
               "type": "mrkdwn",
-              "text": {{ printf "<%s>" (getenv "WORKFLOW_RUN_URL") | data.ToJSON }}
+              "text": {{ printf "<%s>" (getenv "WORKFLOW_RUN_URL" | required "WORKFLOW_RUN_URL must be set") | data.ToJSON }}
             }
           ]
         }
