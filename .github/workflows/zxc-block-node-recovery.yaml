@@ -329,7 +329,9 @@ jobs:
 
       - name: Show running pods and services
         run: |
+          echo "### k8s pods"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          echo "### k8s services"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
         continue-on-error: true
 
@@ -427,7 +429,7 @@ jobs:
             -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
-            localhost:40841 \
+            localhost:40840 \
             org.hiero.block.api.BlockNodeService/serverStatus)
 
           # Extract values
@@ -461,7 +463,7 @@ jobs:
             -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
-            localhost:40842 \
+            localhost:40840 \
             org.hiero.block.api.BlockNodeService/serverStatus)
 
           # Extract values
@@ -495,7 +497,7 @@ jobs:
             -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
-            localhost:40843 \
+            localhost:40840 \
             org.hiero.block.api.BlockNodeService/serverStatus)
 
           # Extract values
