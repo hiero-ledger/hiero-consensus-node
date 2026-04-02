@@ -396,7 +396,7 @@ jobs:
       - name: Download & Untar Protobuf Sources
         working-directory: block-node-protobuf
         run: |
-          curl -L ${{ env.BLOCK_NODE_PROTO_URL }}
+          curl -L ${{ env.BLOCK_NODE_PROTO_URL }} -o block-node-protobuf-${{ env.BLOCK_NODE_TAG }}.tgz
           # Use the generated protobuf artifact (matches local project version)
           PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
           if [[ -z "$PROTO_FILE" ]]; then
@@ -407,6 +407,7 @@ jobs:
           echo "Using protobuf artifact: $PROTO_FILE"
           # untar the artifact
           tar -xzf "$PROTO_FILE" -C proto
+          rm "$PROTO_FILE"
 
       - name: Install grpcurl
         run: |
