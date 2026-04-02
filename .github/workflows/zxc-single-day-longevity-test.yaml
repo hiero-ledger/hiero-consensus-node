@@ -1573,7 +1573,7 @@ jobs:
 
       - name: Publish logs
         if: false
-        if: ${{ !cancelled() }}
+        #if: ${{ !cancelled() }}
         run: |
           cd "${{ github.workspace }}"/
 
@@ -1589,7 +1589,7 @@ jobs:
 
       - name: Delete namespace
         if: false
-        if: ${{ inputs.delete-namespace == true }}
+        #if: ${{ inputs.delete-namespace == true }}
         run: |
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.longevity-tests-start.outputs.namespace }}"
 
