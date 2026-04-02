@@ -5,3 +5,4 @@ bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
 networkAdmin.exportCandidateRoster=true
 addressBook.useRosterLifecycle=true
 nodes.gossipFqdnRestricted=false
+tss.forceMockSignatures=false
