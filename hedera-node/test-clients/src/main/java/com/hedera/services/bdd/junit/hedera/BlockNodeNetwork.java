@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
+import com.hedera.services.bdd.junit.hedera.containers.BlockNodeSubscribeClient;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeController;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -74,6 +75,48 @@ public class BlockNodeNetwork {
 
         // First start block nodes if needed
         startBlockNodesAsApplicable();
+
+        // Wait for gRPC readiness on real block node containers.
+        awaitGrpcReadiness(Duration.ofSeconds(30));
+    }
+
+    /**
+     * Polls each real block node container's gRPC server status endpoint until it responds,
+     * ensuring gRPC is ready before consensus nodes start. The HTTP health check only covers
+     * port 16007; the gRPC streaming port (40840) may still be initializing.
+     */
+    private void awaitGrpcReadiness(@NonNull final Duration timeout) {
+        if (blockNodeContainerById.isEmpty()) {
+            return;
+        }
+        final long deadline = System.currentTimeMillis() + timeout.toMillis();
+        for (final Entry<Long, BlockNodeContainer> entry : blockNodeContainerById.entrySet()) {
+            final long id = entry.getKey();
+            final BlockNodeContainer container = entry.getValue();
+            boolean ready = false;
+            while (System.currentTimeMillis() < deadline) {
+                try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
+                    client.getLastAvailableBlock();
+                    logger.info(
+                            "Block node container {} gRPC ready at {}:{}",
+                            id,
+                            container.getHost(),
+                            container.getPort());
+                    ready = true;
+                    break;
+                } catch (final Exception e) {
+                    try {
+                        Thread.sleep(500);
+                    } catch (final InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+            if (!ready) {
+                logger.warn("Block node container {} gRPC not ready after {}s timeout", id, timeout.toSeconds());
+            }
+        }
     }
 
     public void terminate(@NonNull final Path scopeRoot) {
