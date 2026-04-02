@@ -37,6 +37,7 @@ done
 # Print table
 echo "================================================================"
 echo "  MEMORY PROFILING RESULTS SUMMARY"
+echo "  Generated: $(date '+%Y-%m-%d %H:%M:%S')"
 echo "================================================================"
 printf "%-45s %10s %10s %10s %10s %6s\n" "TEST" "PEAK(MiB)" "PEAK(GiB)" "TIME(s)" "TIME(min)" "EXIT"
 printf "%-45s %10s %10s %10s %10s %6s\n" "----" "---------" "---------" "-------" "--------" "----"

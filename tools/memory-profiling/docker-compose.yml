@@ -16,5 +16,6 @@ services:
     deploy:
       resources:
         limits:
+          cpus: 4
           memory: 16G
     command: ["sleep", "infinity"]

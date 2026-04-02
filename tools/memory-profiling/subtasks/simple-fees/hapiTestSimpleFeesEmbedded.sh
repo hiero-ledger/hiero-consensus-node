@@ -2,4 +2,4 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 "$SCRIPT_DIR/run-test.sh" simple-fees-hapiTestSimpleFeesEmbedded \
-  './gradlew hapiTestSimpleFeesEmbedded --no-daemon --rerun-tasks --no-build-cache'
+  './gradlew hapiTestSimpleFeesEmbedded --no-daemon --rerun-tasks --no-build-cache --no-configuration-cache'

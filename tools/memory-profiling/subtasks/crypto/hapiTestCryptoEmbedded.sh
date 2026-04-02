@@ -2,4 +2,4 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 "$SCRIPT_DIR/run-test.sh" crypto-hapiTestCryptoEmbedded \
-  './gradlew hapiTestCryptoEmbedded --no-daemon --rerun-tasks --no-build-cache'
+  './gradlew hapiTestCryptoEmbedded --no-daemon --rerun-tasks --no-build-cache --no-configuration-cache'

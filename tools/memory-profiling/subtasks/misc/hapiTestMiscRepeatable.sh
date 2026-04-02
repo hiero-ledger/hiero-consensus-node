@@ -2,4 +2,4 @@
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 "$SCRIPT_DIR/run-test.sh" misc-hapiTestMiscRepeatable \
-  './gradlew hapiTestMiscRepeatable --no-daemon --rerun-tasks --no-build-cache'
+  './gradlew hapiTestMiscRepeatable --no-daemon --rerun-tasks --no-build-cache --no-configuration-cache'
