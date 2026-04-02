@@ -725,8 +725,12 @@ public class EnhancedKeyStoreLoader {
                         nodeId,
                         KeyCertPurpose.SIGNING);
             }
-        } catch (final NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException
-                | RuntimeException e) {
+        } catch (
+                // NoSuchAlgorithmException / NoSuchProviderException: KeyFactory.getInstance() if RSA or BouncyCastle unavailable
+                // InvalidKeySpecException: kf.generatePublic() if the private key's CRT params are corrupt
+                // RuntimeException: cert.getPublicKey() declares no checked throws but can throw unchecked on malformed certs
+                final NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException
+                        | RuntimeException e) {
             logger.warn(
                     STARTUP.getMarker(),
                     "Unable to verify signing key/cert correspondence for nodeId {} [ purpose = {} ]",
