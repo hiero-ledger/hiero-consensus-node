@@ -342,6 +342,40 @@ public class UpdateRegisteredNodesCommandsTest {
     // -------------------------------------------------------------------------
 
     /**
+     * Attempts to update a registered node's block node endpoint with duplicate APIs
+     * (PUBLISH,PUBLISH). The network rejects this with INVALID_REGISTERED_ENDPOINT.
+     */
+    @HapiTest
+    final Stream<DynamicTest> updateWithDuplicateBlockNodeApisFails() {
+        final var createdId = new AtomicLong();
+        final var adminKeyFile = "rn_upd_dup_apis.pem";
+        return hapiTest(
+                newKeyNamed("adminKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080:STATUS")
+                                .exposingOutputTo(newRegisteredNodeCapturer(createdId::set)))),
+                sourcingContextual(spec -> yahcliRegisteredNodes(
+                                "update",
+                                "-n",
+                                Long.toString(createdId.get()),
+                                "-k",
+                                asYcDefaultNetworkKey(adminKeyFile),
+                                "--blockNodeEndpoint",
+                                "127.0.0.1:8080:PUBLISH,PUBLISH")
+                        .expectFail()
+                        .exposingOutputTo(output -> assertTrue(
+                                output.contains("FAILED"), "Expected failure for duplicate APIs in update"))));
+    }
+
+    /**
      * Attempts to update a registered node without supplying the admin key. The
      * payer signature alone is insufficient, so the update must fail.
      */

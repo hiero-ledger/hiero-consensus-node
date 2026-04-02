@@ -542,6 +542,36 @@ class AddressBookValidatorTest {
         assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
     }
 
+    @Test
+    void registeredEndpointRejectsBlockNodeWithEmptyApiList() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))
+                .port(443)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(List.of())
+                        .build())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
+    }
+
+    @Test
+    void registeredEndpointRejectsBlockNodeWithDuplicateApis() {
+        final var endpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {10, 0, 0, 1}))
+                .port(443)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(List.of(
+                                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS,
+                                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS))
+                        .build())
+                .build();
+        final var e = assertThrows(HandleException.class, () -> new AddressBookValidator()
+                .validateRegisteredServiceEndpoints(List.of(endpoint), newNodesConfig()));
+        assertEquals(INVALID_REGISTERED_ENDPOINT, e.getStatus());
+    }
+
     // --- Associated registered node validation tests ---
 
     @Test

@@ -509,6 +509,39 @@ public class RegisteredNodeTest {
                         .hasKnownStatus(SUCCESS));
     }
 
+    @HapiTest
+    @DisplayName("create fails with block node endpoint having empty API list")
+    final Stream<DynamicTest> createWithEmptyApiListFails() {
+        final var emptyApiEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .setDomainName("block.example.com")
+                .setPort(8080)
+                .setBlockNode(
+                        RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder().build())
+                .build();
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(List.of(emptyApiEndpoint))
+                        .hasKnownStatus(INVALID_REGISTERED_ENDPOINT));
+    }
+
+    @HapiTest
+    @DisplayName("create fails with block node endpoint having duplicate APIs")
+    final Stream<DynamicTest> createWithDuplicateApisFails() {
+        final var duplicateApiEndpoints = List.of(blockNodeEndpoint(
+                "block.example.com",
+                8080,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS,
+                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS));
+        return hapiTest(
+                newKeyNamed(ADMIN_KEY),
+                registeredNodeCreate(REGISTERED_NODE)
+                        .adminKey(ADMIN_KEY)
+                        .serviceEndpoints(duplicateApiEndpoints)
+                        .hasKnownStatus(INVALID_REGISTERED_ENDPOINT));
+    }
+
     // ─── Privileged delete ────────────────────────────────────────
 
     @HapiTest

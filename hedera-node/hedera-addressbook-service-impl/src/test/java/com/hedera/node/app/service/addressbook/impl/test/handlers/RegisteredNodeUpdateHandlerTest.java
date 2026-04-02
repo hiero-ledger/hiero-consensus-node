@@ -308,6 +308,46 @@ class RegisteredNodeUpdateHandlerTest extends AddressBookTestBase {
         assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT);
     }
 
+    @Test
+    @DisplayName("handle fails for block node endpoint with empty API list")
+    void handleFailsForBlockNodeWithEmptyApiList() {
+        final var badEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {127, 0, 0, 1}))
+                .port(443)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(List.of())
+                        .build())
+                .build();
+        final var txn =
+                txnWithOp(opBuilder().serviceEndpoint(List.of(badEndpoint)).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT);
+    }
+
+    @Test
+    @DisplayName("handle fails for block node endpoint with duplicate APIs")
+    void handleFailsForBlockNodeWithDuplicateApis() {
+        final var badEndpoint = RegisteredServiceEndpoint.newBuilder()
+                .ipAddress(Bytes.wrap(new byte[] {127, 0, 0, 1}))
+                .port(443)
+                .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                        .endpointApi(List.of(
+                                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH,
+                                RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH))
+                        .build())
+                .build();
+        final var txn =
+                txnWithOp(opBuilder().serviceEndpoint(List.of(badEndpoint)).build());
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_ENDPOINT);
+    }
+
     // ========== handle — successful update tests ==========
 
     @Test

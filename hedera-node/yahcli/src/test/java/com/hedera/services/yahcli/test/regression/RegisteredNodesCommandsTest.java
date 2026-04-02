@@ -329,6 +329,32 @@ public class RegisteredNodesCommandsTest {
     }
 
     /**
+     * Attempts to create a registered node with duplicate APIs (STATUS,STATUS) on a single
+     * block node endpoint. The network rejects this with INVALID_REGISTERED_ENDPOINT.
+     */
+    @HapiTest
+    final Stream<DynamicTest> createWithDuplicateBlockNodeApisFails() {
+        final var adminKeyFile = "rn_dup_apis.pem";
+        return hapiTest(
+                newKeyNamed("adminKey")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080:STATUS,STATUS",
+                                        "-d",
+                                        "Should fail with duplicate APIs")
+                                .expectFail()
+                                .exposingOutputTo(output -> assertTrue(
+                                        output.contains("FAILED"), "Expected failure for duplicate APIs")))));
+    }
+
+    /**
      * Creates a registered node that exposes all four service types: block node, mirror node,
      * RPC relay, and general service — all with TLS. Represents a full-service Hiero infrastructure node.
      */
