@@ -221,32 +221,12 @@ public class BlockNodeConnectionManager {
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final NetworkInfo networkInfo,
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
-        this(
-                configProvider,
-                blockBufferService,
-                blockStreamMetrics,
-                networkInfo.selfNodeInfo().nodeId(),
-                blockingIoExecutorSupplier);
-    }
-
-    public BlockNodeConnectionManager(
-            @NonNull final ConfigProvider configProvider,
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockStreamMetrics blockStreamMetrics,
-            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
-        this(configProvider, blockBufferService, blockStreamMetrics, 0L, blockingIoExecutorSupplier);
-    }
-
-    public BlockNodeConnectionManager(
-            @NonNull final ConfigProvider configProvider,
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockStreamMetrics blockStreamMetrics,
-            final long selfNodeId,
-            @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
-        this.selfNodeId = selfNodeId;
+        this.selfNodeId = requireNonNull(networkInfo, "networkInfo must not be null")
+                .selfNodeInfo()
+                .nodeId();
         this.blockingIoExecutorSupplier =
                 requireNonNull(blockingIoExecutorSupplier, "Blocking I/O executor supplier is required");
         this.nodeStats = new ConcurrentHashMap<>();

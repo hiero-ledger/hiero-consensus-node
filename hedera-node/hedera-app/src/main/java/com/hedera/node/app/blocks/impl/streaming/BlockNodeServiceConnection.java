@@ -61,15 +61,8 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
      * @param nodeConfig the block node configuration to use for this connection
      * @param blockingIoExecutor the executor service to use for executing blocking I/O tasks
      * @param clientFactory the factory to use for creating clients to the block node
+     * @param nodeId the id of the node owning this connection
      */
-    public BlockNodeServiceConnection(
-            @NonNull final ConfigProvider configProvider,
-            @NonNull final BlockNodeConfiguration nodeConfig,
-            @NonNull final ExecutorService blockingIoExecutor,
-            @NonNull final BlockNodeClientFactory clientFactory) {
-        this(configProvider, nodeConfig, blockingIoExecutor, clientFactory, 0L);
-    }
-
     public BlockNodeServiceConnection(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockNodeConfiguration nodeConfig,
@@ -257,7 +250,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         final long durationMillis;
 
         try {
-            future = blockingIoExecutor.submit(new GetBlockNodeStatusTask(clientHolder.client, correlationId));
+            future = blockingIoExecutor.submit(new GetBlockNodeStatusTask(clientHolder.client));
             response = future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
             durationMillis = System.currentTimeMillis() - startMillis;
         } catch (final Exception e) {
@@ -280,7 +273,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
 
         logger.debug(
-                "{} [correlationId={}] Received the following block node server status: lastAvailableBlock={} (latency: {}ms)",
+                "{} Received the following block node server status: lastAvailableBlock={} (latency: {}ms)",
                 this,
                 correlationId,
                 response.lastAvailableBlock(),
@@ -302,12 +295,8 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         private final String correlationId;
 
         GetBlockNodeStatusTask(@NonNull final BlockNodeServiceClient client) {
-            this(client, connectionId());
-        }
-
-        GetBlockNodeStatusTask(@NonNull final BlockNodeServiceClient client, @NonNull final String correlationId) {
             this.client = requireNonNull(client, "client is required");
-            this.correlationId = requireNonNull(correlationId, "correlationId is required");
+            this.correlationId = connectionId();
         }
 
         @Override

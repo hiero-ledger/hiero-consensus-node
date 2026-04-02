@@ -46,6 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
+    private static final long NODE_ID = 0L;
 
     private static final VarHandle connectionStateHandle;
     private static final VarHandle clientRefHandle;
@@ -92,7 +93,8 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
                 .when(clientFactory)
                 .requestOptionsForCorrelationId(anyString());
 
-        connection = new BlockNodeServiceConnection(configProvider, nodeConfiguration, executorService, clientFactory);
+        connection = new BlockNodeServiceConnection(
+                configProvider, nodeConfiguration, executorService, clientFactory, NODE_ID);
     }
 
     @AfterEach
