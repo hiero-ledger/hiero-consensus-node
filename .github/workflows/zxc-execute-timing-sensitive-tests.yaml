@@ -109,7 +109,7 @@ jobs:
             "${{ steps.publish-test-report.outcome || 'skipped' }}"
             "${{ steps.upload-test-report-artifacts.outcome || 'skipped' }}"
           )
-          general_statuses=(
+          test_statuses=(
             "${{ steps.gradle-timing-sensitive.outcome || 'skipped' }}"
           )
 
@@ -123,8 +123,8 @@ jobs:
             return 1
           }
 
-          if has_failure "${general_statuses[@]}"; then
-            failure_mode="general"
+          if has_failure "${test_statuses[@]}"; then
+            failure_mode="test"
           fi
 
           if has_failure "${workflow_statuses[@]}"; then

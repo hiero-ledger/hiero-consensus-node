@@ -148,7 +148,7 @@ jobs:
             "${{ steps.publish-snyk-report.outcome || 'skipped' }}"
             "${{ steps.check-snyk-files.outcome || 'skipped' }}"
           )
-          general_statuses=(
+          test_statuses=(
             "${{ steps.snyk-scan.outcome || 'skipped' }}"
             "${{ steps.snyk-code.outcome || 'skipped' }}"
           )
@@ -163,8 +163,8 @@ jobs:
             return 1
           }
 
-          if has_failure "${general_statuses[@]}"; then
-            failure_mode="general"
+          if has_failure "${test_statuses[@]}"; then
+            failure_mode="test"
           fi
 
           if has_failure "${workflow_statuses[@]}"; then
