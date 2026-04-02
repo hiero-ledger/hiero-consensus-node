@@ -40,6 +40,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -709,30 +710,52 @@ public class EnhancedKeyStoreLoader {
      * embedded in the signing certificate loaded from the roster. The node is allowed to continue
      * starting — this is a diagnostic warning, not a hard failure.
      *
+     * <p>Only RSA keys in CRT form ({@link RSAPrivateCrtKey}) are checked. CRT form is required
+     * because deriving the corresponding public key requires the public exponent, which is only
+     * available on {@link RSAPrivateCrtKey} and not on the base {@link java.security.interfaces.RSAPrivateKey}.
+     * Non-RSA keys (e.g. Ed25519) are silently skipped with a DEBUG log.
+     *
      * @param nodeId the {@link NodeId} whose key/cert pair should be checked.
      */
     private void warnIfSigKeyMismatch(@NonNull final NodeId nodeId) {
         final PrivateKey privateKey = sigPrivateKeys.get(nodeId);
         final Certificate cert = sigCertificates.get(nodeId);
 
+        if (privateKey == null || cert == null) {
+            return;
+        }
+
         if (!(privateKey instanceof final RSAPrivateCrtKey rsaKey)) {
+            logger.debug(
+                    STARTUP.getMarker(),
+                    "Skipping key/cert mismatch check for nodeId {} — key type {} is not RSA",
+                    nodeId,
+                    privateKey.getAlgorithm());
             return;
         }
 
         try {
+            // RSAPrivateCrtKey contains the public exponent, allowing us to reconstruct the public key.
             final RSAPublicKeySpec pubSpec =
                     new RSAPublicKeySpec(rsaKey.getModulus(), rsaKey.getPublicExponent());
             final KeyFactory kf =
                     KeyFactory.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
             final PublicKey derivedPublicKey = kf.generatePublic(pubSpec);
 
-            if (!derivedPublicKey.equals(cert.getPublicKey())) {
+            // Compare DER-encoded SubjectPublicKeyInfo bytes rather than using PublicKey.equals().
+            // equals() is not specified by the JCA contract and can return false for mathematically
+            // identical keys when the derived key (BouncyCastle provider) and the cert's key
+            // (JDK SunRsaSign provider) are from different providers.
+            if (!Arrays.equals(derivedPublicKey.getEncoded(), cert.getPublicKey().getEncoded())) {
                 logger.warn(
                         STARTUP.getMarker(),
                         "Signing private key does not match certificate public key for nodeId {} "
-                                + "[ purpose = {} ] — node may fail to establish gossip connections",
+                                + "[ purpose = {}, certFingerprint = {}, derivedKeyFingerprint = {} ]"
+                                + " — node may fail to establish gossip connections",
                         nodeId,
-                        KeyCertPurpose.SIGNING);
+                        KeyCertPurpose.SIGNING,
+                        certFingerprint(cert),
+                        certFingerprint(derivedPublicKey));
             }
         } catch (
                 // NoSuchAlgorithmException / NoSuchProviderException: KeyFactory.getInstance() if RSA or BouncyCastle unavailable
@@ -750,26 +773,46 @@ public class EnhancedKeyStoreLoader {
     }
 
     /**
-     * Returns a SHA-384 fingerprint of the certificate's encoded bytes, formatted as
-     * {@code XX:XX:XX:...} (colon-separated hex octets). Safe to log — contains no key material.
-     * Returns {@code "<unavailable>"} if the digest cannot be computed.
+     * Returns a SHA-384 fingerprint of the certificate's DER-encoded bytes, formatted as
+     * {@code XX:XX:XX:...} (colon-separated uppercase hex octets). Safe to log — contains no key
+     * material. Returns {@code "<unavailable>"} if the digest cannot be computed.
+     *
+     * <p>SHA-384 is used to match the DevOps operational tooling used during incident triage
+     * ({@code openssl x509 -fingerprint -sha384}), allowing operators to directly cross-reference
+     * log output against manual certificate inspection.
      *
      * @param cert the certificate to fingerprint.
-     * @return a colon-separated hex fingerprint string.
+     * @return a colon-separated uppercase hex fingerprint string.
      */
     @NonNull
     private static String certFingerprint(@NonNull final Certificate cert) {
         try {
-            final byte[] digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(cert.getEncoded());
-            final StringBuilder sb = new StringBuilder(digest.length * 3 - 1);
-            for (int i = 0; i < digest.length; i++) {
-                if (i > 0) {
-                    sb.append(':');
-                }
-                sb.append(String.format("%02X", digest[i] & 0xFF));
-            }
-            return sb.toString();
+            final byte[] digest =
+                    MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(cert.getEncoded());
+            return HexFormat.ofDelimiter(":").withUpperCase().formatHex(digest);
         } catch (final Exception e) {
+            logger.trace(STARTUP.getMarker(), "Unable to compute certificate fingerprint", e);
+            return "<unavailable>";
+        }
+    }
+
+    /**
+     * Returns a SHA-384 fingerprint of a public key's DER-encoded {@code SubjectPublicKeyInfo} bytes,
+     * formatted as {@code XX:XX:XX:...} (colon-separated uppercase hex octets). Used to fingerprint
+     * a derived public key for comparison logging when no {@link Certificate} wrapper is available.
+     * Returns {@code "<unavailable>"} if the digest cannot be computed.
+     *
+     * @param publicKey the public key to fingerprint.
+     * @return a colon-separated uppercase hex fingerprint string.
+     */
+    @NonNull
+    private static String certFingerprint(@NonNull final PublicKey publicKey) {
+        try {
+            final byte[] digest =
+                    MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(publicKey.getEncoded());
+            return HexFormat.ofDelimiter(":").withUpperCase().formatHex(digest);
+        } catch (final Exception e) {
+            logger.trace(STARTUP.getMarker(), "Unable to compute public key fingerprint", e);
             return "<unavailable>";
         }
     }
