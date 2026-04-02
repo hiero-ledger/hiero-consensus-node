@@ -21,6 +21,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,10 +32,8 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
@@ -51,12 +50,14 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
  * Note these only require changing {@link MessageCallProcessor#start(MessageFrame, OperationTracer)},
  * and the core {@link MessageCallProcessor#process(MessageFrame, OperationTracer)} logic we inherit.
  */
-public class CustomMessageCallProcessor extends MessageCallProcessor {
+public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     private final FeatureFlags featureFlags;
     private final AddressChecks addressChecks;
     private final PrecompileContractRegistry precompiles;
     private final Map<Address, HederaSystemContract> systemContracts;
     private final ContractMetrics contractMetrics;
+
+    public final HEVM _evm;
 
     private enum ForLazyCreation {
         YES,
@@ -72,13 +73,14 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
      * @param systemContracts the Hedera system contracts
      */
     public CustomMessageCallProcessor(
-            @NonNull final EVM evm,
+            @NonNull final HEVM evm,
             @NonNull final FeatureFlags featureFlags,
             @NonNull final PrecompileContractRegistry precompiles,
             @NonNull final AddressChecks addressChecks,
             @NonNull final Map<Address, HederaSystemContract> systemContracts,
             @NonNull final ContractMetrics contractMetrics) {
         super(evm, precompiles);
+        _evm = evm;
         this.featureFlags = Objects.requireNonNull(featureFlags);
         this.precompiles = Objects.requireNonNull(precompiles);
         this.addressChecks = Objects.requireNonNull(addressChecks);
@@ -166,6 +168,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
 
         frame.setState(MessageFrame.State.CODE_EXECUTING);
     }
+
     /**
      * Checks if the message frame is not executing a hook dispatch and if the contract address is not
      * the allowance hook address
@@ -362,9 +365,12 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             if (forLazyCreation == ForLazyCreation.YES) {
                 operationTracer.traceAccountCreationResult(frame, Optional.of(reason));
             } else {
-                operationTracer.tracePostExecution(
-                        frame, new Operation.OperationResult(frame.getRemainingGas(), reason));
+                ((ActionSidecarContentTracer) operationTracer).traceNotExecuting(frame);
             }
         }
+    }
+
+    public HederaSystemContract systemContractsRead(Address key) {
+        return systemContracts.get(key);
     }
 }

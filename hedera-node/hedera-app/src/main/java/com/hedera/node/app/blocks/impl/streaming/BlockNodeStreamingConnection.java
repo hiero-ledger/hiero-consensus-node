@@ -161,6 +161,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param blockingIoExecutor the executor service used for blocking I/O operations (e.g. sending a message)
      * @param initialBlockToStream the initial block number to start streaming from, or null to use default
      * @param clientFactory the factory for creating block stream clients
+     * @param nodeId the id of the node owning this connection
      */
     public BlockNodeStreamingConnection(
             @NonNull final ConfigProvider configProvider,
@@ -171,8 +172,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             @NonNull final ScheduledExecutorService executorService,
             @NonNull final ExecutorService blockingIoExecutor,
             @Nullable final Long initialBlockToStream,
-            @NonNull final BlockNodeClientFactory clientFactory) {
-        super(ConnectionType.BLOCK_STREAMING, nodeConfig, configProvider);
+            @NonNull final BlockNodeClientFactory clientFactory,
+            final long nodeId) {
+        super(ConnectionType.BLOCK_STREAMING, nodeConfig, configProvider, nodeId);
         this.connectionManager = requireNonNull(connectionManager, "blockNodeConnectionManager must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
@@ -222,7 +224,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         // Execute entire pipeline creation (including gRPC client creation) with timeout
         // to prevent blocking on network operations
         final Future<?> future = blockingIoExecutor.submit(() -> {
-            client = clientFactory.createStreamingClient(configuration(), timeoutDuration);
+            client = clientFactory.createStreamingClient(configuration(), timeoutDuration, connectionId());
             final Pipeline<? super PublishStreamRequest> pipeline = client.publishBlockStream(this);
             requestPipelineRef.set(pipeline);
         });
@@ -735,15 +737,19 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             return false;
         }
 
+        final String correlationId;
         if (request instanceof final BlockRequest br) {
+            correlationId = blockRequestCorrelationId(br.blockNumber(), br.requestNumber());
             logger.debug(
-                    "{} [block={}, request={}] Sending request to block node (type={})",
-                    this,
-                    br.blockNumber(),
-                    br.requestNumber(),
+                    "{} Sending request to block node (type={})",
+                    connectionContext(correlationId),
                     br.streamRequestType());
         } else {
-            logger.debug("{} Sending ad hoc request to block node (type={})", this, request.streamRequestType());
+            correlationId = connectionId();
+            logger.debug(
+                    "{} Sending ad hoc request to block node (type={})",
+                    connectionContext(correlationId),
+                    request.streamRequestType());
         }
 
         final long startMs = System.currentTimeMillis();
@@ -794,14 +800,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         blockStreamMetrics.recordRequestLatency(durationMs);
 
         if (request instanceof final BlockRequest br) {
-            logger.trace(
-                    "{} [block={}, request={}] Request took {}ms to send",
-                    this,
-                    br.blockNumber(),
-                    br.requestNumber(),
-                    durationMs);
+            logger.trace("{} Request took {}ms to send", connectionContext(correlationId), durationMs);
         } else {
-            logger.trace("{} Ad hoc request took {}ms to send", this, durationMs);
+            logger.trace("{} Ad hoc request took {}ms to send", connectionContext(correlationId), durationMs);
         }
 
         switch (request) {

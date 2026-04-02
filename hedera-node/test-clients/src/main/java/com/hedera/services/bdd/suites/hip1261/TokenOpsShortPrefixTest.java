@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.UNIQUE_PREFIXES;
@@ -31,7 +30,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoUpdateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
@@ -43,8 +42,10 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnfreezeFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnpauseFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUpdateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -67,7 +68,6 @@ import org.junit.jupiter.api.Tag;
  * depending on actual key material, making the exact serialized transaction size
  * non-deterministic at authoring time.
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class TokenOpsShortPrefixTest {
@@ -164,7 +164,11 @@ public class TokenOpsShortPrefixTest {
                         .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
                         .fee(ONE_HUNDRED_HBARS)
                         .via("wipeTxn"),
-                validateChargedUsdWithin("wipeTxn", expectedTokenWipeFungibleFullFeeUsd(2L), 5.0));
+                validateChargedUsdWithinWithTxnSize(
+                        "wipeTxn",
+                        txnSize ->
+                                expectedTokenWipeFullFeeUsd(Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                        5.0));
     }
 
     @HapiTest
@@ -210,7 +214,7 @@ public class TokenOpsShortPrefixTest {
                         .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
                         .fee(ONE_HUNDRED_HBARS)
                         .via("burnTxn"),
-                validateChargedUsdWithin("burnTxn", expectedTokenBurnFungibleFullFeeUsd(2L), 5.0));
+                validateChargedUsdWithin("burnTxn", expectedTokenBurnFullFeeUsd(2L), 5.0));
     }
 
     @HapiTest
