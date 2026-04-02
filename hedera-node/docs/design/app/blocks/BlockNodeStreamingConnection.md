@@ -8,7 +8,8 @@
 4. [Component Interaction](#component-interaction)
 5. [Lifecycle](#lifecycle)
 6. [State Machine Diagrams](#state-machine-diagrams)
-7. [Error Handling](#error-handling)
+7. [gRPC Metadata Correlation IDs](#grpc-metadata-correlation-ids)
+8. [Error Handling](#error-handling)
    - [Consensus Node Behavior on EndOfStream Response Codes](#consensus-node-behavior-on-endofstream-response-codes)
    - [Consensus Node Behavior on BehindPublisher Response](#consensus-node-behavior-on-behindpublisher-response)
    - [EndOfStream Rate Limiting](#endofstream-rate-limiting)
@@ -124,6 +125,50 @@ largest block items currently supported are 6 MB, and the additional 1 KB is for
 smaller than 6 MB and one of these large items are produced, then it cannot be sent to a block node.
 
 The default soft limit size is 2 MB. The default hard limit size is 6 MB + 1 KB.
+
+## gRPC Metadata Correlation IDs
+
+To support traceability between CN and BN logs, CN sends a correlation ID in gRPC metadata.
+
+- Header name: `hiero-correlation-id`
+- Applied on both streaming and service gRPC clients
+
+### Correlation ID format
+
+Connection-level IDs:
+
+- `N#-STR#` for block streaming connections
+- `N#-SVC#` for block node service/status connections
+
+Where:
+
+- `N#` is the consensus node **node ID** (`NodeInfo.nodeId()`)
+- `STR#` and `SVC#` are monotonically increasing connection sequence numbers per type
+
+Block request IDs (streaming requests only):
+
+- `N#-STR#-BLK#-REQ#`
+
+Where:
+
+- `BLK#` is the block number being sent
+- `REQ#` is the request number within that block
+
+### Logging format
+
+For block streaming request sends, logs include the full block request correlation ID in the connection context:
+
+`[bn-conn-worker] [N3-STR1-BLK0-REQ2/localhost:37753/ACTIVE] Sending request to block node (type=BLOCK_ITEMS)`
+
+For non-block-specific operations (e.g. service/status calls), logs use the connection-level ID:
+
+`[N3-SVC1/localhost:37753/ACTIVE] ...`
+
+### Notes
+
+- The metadata value is attached via PBJ `RequestOptions.metadata()`.
+- For service/status requests, metadata uses the connection-level ID (`N#-SVC#`) without `REQ#`.
+- For streaming block-item sends, logs carry `BLK#` and `REQ#` to make searching for a specific block/request straightforward.
 
 ### Graceful Connection Close
 
