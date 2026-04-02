@@ -116,7 +116,7 @@ jobs:
       - detect-change-type
       - mats-pr-checks
     # Skip flaky test processing when the PR is a draft
-    if: ${{ !cancelled() && always() && !github.event.pull_request.draft }}
+    if: ${{  !github.event.pull_request.draft && !cancelled() && always() }}
     uses: ./.github/workflows/800-call-report-flaky-test.yaml
     with:
       workflow-context: pr-checks
