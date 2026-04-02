@@ -130,8 +130,6 @@ jobs:
       - detect-change-type
       - mats-pr-checks
       - report-flaky-tests
-    # Skip this job when the PR is a draft.
-    if: ${{ !cancelled() && always() && !github.event.pull_request.draft }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
