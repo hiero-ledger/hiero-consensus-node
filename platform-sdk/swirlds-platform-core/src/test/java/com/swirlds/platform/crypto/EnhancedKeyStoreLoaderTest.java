@@ -9,6 +9,7 @@ import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.swirlds.common.test.fixtures.logging.MockAppender;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.test.fixtures.resource.ResourceLoader;
@@ -17,14 +18,21 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.Logger;
 import org.hiero.base.crypto.config.CryptoConfig_;
+import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -230,6 +238,104 @@ class EnhancedKeyStoreLoaderTest {
                     assert (false);
                 }
             });
+        }
+    }
+
+    // --------------------------------------------------------------------------
+    //                     KEY/CERT MISMATCH WARNING TESTS
+    // --------------------------------------------------------------------------
+
+    /**
+     * Verifies that a WARN is logged during {@link EnhancedKeyStoreLoader#verify()} when the
+     * on-disk signing private key does not correspond to the gossip CA certificate in the roster.
+     * The node must still be allowed to start — this is a diagnostic warning, not a hard failure.
+     */
+    @Test
+    @DisplayName("Mismatched signing key and cert logs a WARN during verify")
+    void mismatchedSigningKeyAndCertLogsWarn()
+            throws IOException, KeyLoadingException, KeyStoreException,
+                   NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
+        final Path keyDirectory = testDataDirectory.resolve("mismatch-keys");
+        Files.createDirectories(keyDirectory);
+        final NodeId nodeId = NodeId.of(0);
+        final KeysAndCerts kc = KeysAndCertsGenerator.generate(nodeId);
+        EnhancedKeyStoreLoader.writePemFile(
+                true,
+                keyDirectory.resolve("s-private-node1.pem"),
+                kc.sigKeyPair().getPrivate().getEncoded());
+
+        // Roster entry uses a pre-generated cert that does NOT match the private key above.
+        final List<RosterEntry> rosterEntries = List.of(
+                RandomRosterEntryBuilder.create(new Random()).withNodeId(0L).build());
+
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(configure(keyDirectory), Set.of(nodeId), rosterEntries);
+
+        final MockAppender appender = new MockAppender("MismatchTest");
+        final Logger logger = (Logger) LogManager.getLogger(EnhancedKeyStoreLoader.class);
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            assertThatCode(loader::scan).doesNotThrowAnyException();
+            assertThatCode(loader::generate).doesNotThrowAnyException();
+            assertThatCode(loader::verify).doesNotThrowAnyException();
+
+            final boolean hasMismatchWarn = IntStream.range(0, appender.size())
+                    .mapToObj(appender::get)
+                    .anyMatch(msg -> msg.contains("does not match certificate public key"));
+            assertThat(hasMismatchWarn).isTrue();
+        } finally {
+            logger.removeAppender(appender);
+            appender.stop();
+        }
+    }
+
+    /**
+     * Verifies that no WARN is logged during {@link EnhancedKeyStoreLoader#verify()} when the
+     * on-disk signing private key matches the gossip CA certificate in the roster.
+     */
+    @Test
+    @DisplayName("Matching signing key and cert does not log a WARN during verify")
+    void matchingSigningKeyAndCertNoWarnLogged()
+            throws IOException, KeyLoadingException, KeyStoreException,
+                   NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
+        final Path keyDirectory = testDataDirectory.resolve("matching-keys");
+        Files.createDirectories(keyDirectory);
+        final NodeId nodeId = NodeId.of(0);
+        final KeysAndCerts kc = KeysAndCertsGenerator.generate(nodeId);
+        EnhancedKeyStoreLoader.writePemFile(
+                true,
+                keyDirectory.resolve("s-private-node1.pem"),
+                kc.sigKeyPair().getPrivate().getEncoded());
+
+        // Roster entry uses the cert that MATCHES the private key above.
+        final List<RosterEntry> rosterEntries = List.of(
+                RandomRosterEntryBuilder.create(new Random())
+                        .withNodeId(0L)
+                        .withSigCert(kc.sigCert())
+                        .build());
+
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(configure(keyDirectory), Set.of(nodeId), rosterEntries);
+
+        final MockAppender appender = new MockAppender("MatchTest");
+        final Logger logger = (Logger) LogManager.getLogger(EnhancedKeyStoreLoader.class);
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            assertThatCode(loader::scan).doesNotThrowAnyException();
+            assertThatCode(loader::generate).doesNotThrowAnyException();
+            assertThatCode(loader::verify).doesNotThrowAnyException();
+
+            final boolean hasMismatchWarn = IntStream.range(0, appender.size())
+                    .mapToObj(appender::get)
+                    .anyMatch(msg -> msg.contains("does not match certificate public key"));
+            assertThat(hasMismatchWarn).isFalse();
+        } finally {
+            logger.removeAppender(appender);
+            appender.stop();
         }
     }
 
