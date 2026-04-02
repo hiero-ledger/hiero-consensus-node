@@ -5,7 +5,6 @@ import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import java.util.Arrays;
@@ -48,14 +47,7 @@ public class HalfDiskMapBench extends BaseBench {
 
         final var store = new HalfDiskHashMap(configuration, maxKey, getTestDir(), storeName, null, false);
         final var dataFileCompactor = new DataFileCompactor(
-                getConfig(MerkleDbConfig.class),
-                storeName,
-                store.getFileCollection(),
-                store.getBucketIndexToBucketLocation(),
-                null,
-                null,
-                null,
-                null);
+                storeName, store.getFileCollection(), store.getBucketIndexToBucketLocation(), null, null, null, null);
 
         // Write files
         long start = System.currentTimeMillis();
@@ -76,7 +68,8 @@ public class HalfDiskMapBench extends BaseBench {
 
         // Merge files
         start = System.currentTimeMillis();
-        dataFileCompactor.compact();
+        dataFileCompactor.compactSingleLevel(
+                dataFileCompactor.getDataFileCollection().getAllCompletedFiles(), 1);
         logger.info("Compacted files in {} ms", System.currentTimeMillis() - start);
 
         // Verify merged content

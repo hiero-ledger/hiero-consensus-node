@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator;
 
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
+import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -153,21 +153,22 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                 && hashMismatchCount.get() == 0
                 && chunkHeightMismatchCount.get() == 0;
 
-        ValidationAssertions.requireTrue(
-                ok,
-                getName(),
-                ("%s validation failed. "
-                                + "successCount=%d vs expectedCount=%d, "
-                                + "idMismatchCount=%d, pathMismatchCount=%d, hashMismatchCount=%d, "
-                                + "chunkHeightMismatchCount=%d, exceptionCount=%d")
-                        .formatted(
-                                getName(),
-                                successCount.get(),
-                                expectedCount,
-                                idMismatchCount.get(),
-                                pathMismatchCount.get(),
-                                hashMismatchCount.get(),
-                                chunkHeightMismatchCount.get(),
-                                exceptionCount.get()));
+        if (!ok) {
+            throw new ValidationException(
+                    getName(),
+                    ("%s validation failed. "
+                                    + "successCount=%d vs expectedCount=%d, "
+                                    + "idMismatchCount=%d, pathMismatchCount=%d, hashMismatchCount=%d, "
+                                    + "chunkHeightMismatchCount=%d, exceptionCount=%d")
+                            .formatted(
+                                    getName(),
+                                    successCount.get(),
+                                    expectedCount,
+                                    idMismatchCount.get(),
+                                    pathMismatchCount.get(),
+                                    hashMismatchCount.get(),
+                                    chunkHeightMismatchCount.get(),
+                                    exceptionCount.get()));
+        }
     }
 }
