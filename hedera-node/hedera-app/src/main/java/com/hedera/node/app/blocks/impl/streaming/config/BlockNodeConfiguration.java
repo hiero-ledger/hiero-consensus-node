@@ -20,9 +20,9 @@ public class BlockNodeConfiguration {
      */
     private final BlockNodeEndpoint streamingEndpoint;
     /**
-     * Port to use when connecting to the block node for accessing the service API.
+     * The service endpoint associated with this block node.
      */
-    private final int servicePort;
+    private final BlockNodeEndpoint serviceEndpoint;
     /**
      * Priority of the block node.
      */
@@ -50,7 +50,7 @@ public class BlockNodeConfiguration {
         clientHttpConfig = requireNonNull(builder.clientHttpConfig, "Client HTTP config must be specified");
         clientGrpcConfig = requireNonNull(builder.clientGrpcConfig, "Client gRPC config must be specified");
         // default the service port to the streaming port
-        servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
+        final int servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
         priority = builder.priority;
         messageSizeSoftLimitBytes = builder.messageSizeSoftLimitBytes;
         messageSizeHardLimitBytes = builder.messageSizeHardLimitBytes;
@@ -76,10 +76,15 @@ public class BlockNodeConfiguration {
         }
 
         streamingEndpoint = new BlockNodeEndpoint(builder.address, builder.streamingPort);
+        serviceEndpoint = new BlockNodeEndpoint(builder.address, servicePort);
     }
 
     public @NonNull BlockNodeEndpoint streamingEndpoint() {
         return streamingEndpoint;
+    }
+
+    public @NonNull BlockNodeEndpoint serviceEndpoint() {
+        return serviceEndpoint;
     }
 
     public @NonNull String address() {
@@ -91,7 +96,7 @@ public class BlockNodeConfiguration {
     }
 
     public int servicePort() {
-        return servicePort;
+        return serviceEndpoint.port();
     }
 
     public int priority() {
@@ -120,11 +125,11 @@ public class BlockNodeConfiguration {
             return false;
         }
         final BlockNodeConfiguration that = (BlockNodeConfiguration) o;
-        return servicePort == that.servicePort
-                && priority == that.priority
+        return priority == that.priority
                 && messageSizeSoftLimitBytes == that.messageSizeSoftLimitBytes
                 && messageSizeHardLimitBytes == that.messageSizeHardLimitBytes
                 && Objects.equals(streamingEndpoint, that.streamingEndpoint)
+                && Objects.equals(serviceEndpoint, that.serviceEndpoint)
                 && Objects.equals(clientHttpConfig, that.clientHttpConfig)
                 && Objects.equals(clientGrpcConfig, that.clientGrpcConfig);
     }
@@ -133,7 +138,7 @@ public class BlockNodeConfiguration {
     public int hashCode() {
         return Objects.hash(
                 streamingEndpoint,
-                servicePort,
+                serviceEndpoint,
                 priority,
                 messageSizeSoftLimitBytes,
                 messageSizeHardLimitBytes,
@@ -144,8 +149,8 @@ public class BlockNodeConfiguration {
     @Override
     public String toString() {
         return "BlockNodeConfiguration{" + "streamingEndpoint="
-                + streamingEndpoint + ", servicePort="
-                + servicePort + ", priority="
+                + streamingEndpoint + ", serviceEndpoint="
+                + serviceEndpoint + ", priority="
                 + priority + ", messageSizeSoftLimitBytes="
                 + messageSizeSoftLimitBytes + ", messageSizeHardLimitBytes="
                 + messageSizeHardLimitBytes + ", clientHttpConfig="
