@@ -264,8 +264,8 @@ jobs:
           solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
 
       # port forwards
       - name: Solo Port forwards
