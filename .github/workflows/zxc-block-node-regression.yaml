@@ -44,6 +44,7 @@ env:
 jobs:
   # Execute Block Node Regression Tests using specified version of hiero-consensus-node
   block-node-regression:
+    timeout-minutes: 180
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-bn-regression-lin-lg
     steps:
@@ -353,6 +354,7 @@ jobs:
 
       # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
+        timeout-minutes: 150
         env:
           OPERATOR_ACCOUNT_ID: "0.0.2"
           OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
