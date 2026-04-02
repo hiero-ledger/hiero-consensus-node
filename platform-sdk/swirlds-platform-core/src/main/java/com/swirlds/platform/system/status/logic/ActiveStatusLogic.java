@@ -14,6 +14,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.DurationUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.actions.DoneReplayingEventsAction;
@@ -23,6 +25,8 @@ import org.hiero.consensus.pces.actions.StartedReplayingEventsAction;
  * Class containing the state machine logic for the {@link PlatformStatus#ACTIVE} status.
  */
 public class ActiveStatusLogic implements PlatformStatusLogic {
+    private static final Logger logger = LogManager.getLogger(ActiveStatusLogic.class);
+
     /**
      * The platform status config
      */
@@ -176,8 +180,10 @@ public class ActiveStatusLogic implements PlatformStatusLogic {
     @Override
     public PlatformStatusLogic processTimeElapsedAction(@NonNull final TimeElapsedAction action) {
         final var isQuiescing = action.quiescingStatus().isQuiescing();
+        final Duration timeSinceQuiescenceStateChanged =
+                Duration.between(action.quiescingStatus().since(), action.instant());
         final boolean stopQuiesceGracePeriodElapsed = DurationUtils.isLonger(
-                Duration.between(action.quiescingStatus().since(), action.instant()), config.activeStatusDelay());
+                timeSinceQuiescenceStateChanged, config.activeStatusDelay());
 
         if (isQuiescing || !stopQuiesceGracePeriodElapsed) {
             return this;
@@ -187,6 +193,16 @@ public class ActiveStatusLogic implements PlatformStatusLogic {
                 Duration.between(lastWallClockTimeSelfEventReachedConsensus, action.instant());
 
         if (DurationUtils.isLonger(timeSinceSelfEventReachedConsensus, config.activeStatusDelay())) {
+            logger.warn(
+                    "Transitioning from ACTIVE to CHECKING after {} without a self event reaching consensus "
+                            + "[lastWallClockTimeSelfEventReachedConsensus={}, activeStatusDelay={}, "
+                            + "isQuiescing={}, quiescenceStateSince={}, timeSinceQuiescenceStateChanged={}]",
+                    timeSinceSelfEventReachedConsensus,
+                    lastWallClockTimeSelfEventReachedConsensus,
+                    config.activeStatusDelay(),
+                    isQuiescing,
+                    action.quiescingStatus().since(),
+                    timeSinceQuiescenceStateChanged);
             return new CheckingStatusLogic(config);
         } else {
             return this;

@@ -18,6 +18,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -29,6 +31,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * Monitors the uptime of nodes in the network.
  */
 public class UptimeTracker {
+    private static final Logger logger = LogManager.getLogger(UptimeTracker.class);
 
     private final NodeId selfId;
     private final Time time;
@@ -159,6 +162,21 @@ public class UptimeTracker {
             final Instant lastSelfEventConsensusTimestamp = lastSelfEvent.getConsensusTimestamp();
             if (!lastSelfEventConsensusTimestamp.equals(previousSelfEventConsensusTimestamp)) {
                 lastSelfEventTime.set(lastSelfEventConsensusTimestamp);
+                if (previousSelfEventConsensusTimestamp != null) {
+                    final Duration selfEventConsensusGap =
+                            Duration.between(previousSelfEventConsensusTimestamp, lastSelfEventConsensusTimestamp);
+                    if (CompareTo.isGreaterThan(selfEventConsensusGap, degradationThreshold)) {
+                        logger.info(
+                                "A self event reached consensus after a long gap [round={}, previousConsensusTimestamp={}, "
+                                        + "currentConsensusTimestamp={}, selfEventConsensusGap={}, "
+                                        + "degradationThreshold={}]",
+                                round.getRoundNum(),
+                                previousSelfEventConsensusTimestamp,
+                                lastSelfEventConsensusTimestamp,
+                                selfEventConsensusGap,
+                                degradationThreshold);
+                    }
+                }
                 return true;
             }
         }

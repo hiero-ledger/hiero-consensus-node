@@ -63,9 +63,19 @@ public class DefaultSignedStateSentinel implements SignedStateSentinel {
 
         if (CompareTo.isGreaterThan(signedStateGap, maxSignedStateAge) && rateLimiter.requestAndTrigger()) {
             final SignedStateHistory history = oldest.getMetadata();
+            final Duration oldestAge = Duration.between(oldest.getCreationTime(), now);
+            final Duration newestAge = Duration.between(newest.getCreationTime(), now);
             logger.error(
                     EXCEPTION.getMarker(),
-                    "Old signed state detected. The most likely causes are either that the node has gotten stuck or that there has been a memory leak.\n{}",
+                    "Old signed state detected. The most likely causes are either that the node has gotten stuck or "
+                            + "that there has been a memory leak. [signedStateGap={}, maxSignedStateAge={}, "
+                            + "oldestCreationTime={}, newestCreationTime={}, oldestAge={}, newestAge={}]\n{}",
+                    signedStateGap,
+                    maxSignedStateAge,
+                    oldest.getCreationTime(),
+                    newest.getCreationTime(),
+                    oldestAge,
+                    newestAge,
                     history);
         }
     }
