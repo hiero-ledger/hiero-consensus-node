@@ -130,6 +130,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -506,33 +507,41 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+    }
 
+    public OptionalLong maybeSetupJumpstartHashVoting(
+            @NonNull final State state, @NonNull final StateChangeStreaming stateChangeStreaming) {
         if (configProvider
                 .getConfiguration()
                 .getConfigData(BlockRecordStreamConfig.class)
                 .liveWritePrevWrappedRecordHashes()) {
             final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+
             final var blockInfoSingleton =
                     blockRecordStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
             final var existingBlockInfo = requireNonNull(blockInfoSingleton.get());
             if (existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0 || existingBlockInfo.votingComplete()) {
                 // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
-                startupMigrationVoteSubmissionRequested = true;
-                log.info(
-                        "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
-                        existingBlockInfo.votingCompletionDeadlineBlockNumber(),
-                        existingBlockInfo.votingComplete());
+                if (!startupMigrationVoteSubmissionRequested) {
+                    startupMigrationVoteSubmissionRequested = true;
+                    log.info(
+                            "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
+                            existingBlockInfo.votingCompletionDeadlineBlockNumber(),
+                            existingBlockInfo.votingComplete());
+                }
             } else {
                 final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
-                blockInfoSingleton.put(existingBlockInfo
-                        .copyBuilder()
-                        .votingComplete(false)
-                        .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
-                        .build());
-                ((WritableSingletonStateBase<BlockInfo>) blockInfoSingleton).commit();
-                log.info(
-                        "Initialized wrapped record voting singleton with deadline={}",
-                        votingCompletionDeadlineBlockNumber);
+                stateChangeStreaming.doStreamingChanges(blockRecordStates, null, () -> {
+                    blockInfoSingleton.put(existingBlockInfo
+                            .copyBuilder()
+                            .votingComplete(false)
+                            .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                            .build());
+                    ((WritableSingletonStateBase<BlockInfo>) blockInfoSingleton).commit();
+                    log.info(
+                            "Initialized wrapped record voting singleton with deadline={}",
+                            votingCompletionDeadlineBlockNumber);
+                });
 
                 // Keep migration result available for asynchronous submission once gossip is active.
                 final var migration = wrappedRecordBlockHashMigration.result();
@@ -551,8 +560,10 @@ public class SystemTransactions {
                             "No local startup migration root hash result for node{}",
                             networkInfo.selfNodeInfo().nodeId());
                 }
+                return OptionalLong.of(votingCompletionDeadlineBlockNumber);
             }
         }
+        return OptionalLong.empty();
     }
 
     /**
