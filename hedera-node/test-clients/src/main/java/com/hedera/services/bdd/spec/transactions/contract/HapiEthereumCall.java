@@ -518,7 +518,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         return this;
     }
 
-    public HapiEthereumCall addCodeDelegationWithNonce(final Address target, final long nonce, final String privateKeyRef) {
+    public HapiEthereumCall addCodeDelegationWithNonce(
+            final Address target, final long nonce, final String privateKeyRef) {
         authorizationListItems.add(new AuthorizationListItem(target, hapiSpec -> nonce, privateKeyRef));
         return this;
     }

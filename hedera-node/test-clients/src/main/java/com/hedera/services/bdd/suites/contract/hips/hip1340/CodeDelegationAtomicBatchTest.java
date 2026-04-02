@@ -30,6 +30,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
@@ -45,14 +47,9 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -113,17 +110,18 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(delegatingAccount),
                 getAliasedAccountInfo(delegatingAccount).hasNoDelegation(),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(delegatingAccount)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
-                                .hasKnownStatus(SUCCESS)
-                                .batchKey(RELAYER)).payingWith(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(delegatingAccount)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
+                        .payingWith(RELAYER),
                 getAliasedAccountInfo(delegatingAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
@@ -136,17 +134,17 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(delegatingAccount),
                 getAliasedAccountInfo(delegatingAccount).hasNoDelegation(),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(delegatingAccount)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(delegatingAccount)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
@@ -155,7 +153,8 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(delegatingAccount).hasNoDelegation());
     }
 
-    // 1.3: atomicBatch(type-4 sets delegation + calls contract that reverts) - batch fails due to CONTRACT_REVERT_EXECUTED
+    // 1.3: atomicBatch(type-4 sets delegation + calls contract that reverts) - batch fails due to
+    // CONTRACT_REVERT_EXECUTED
     @HapiTest
     final Stream<DynamicTest> testDelegationSurvivesRevertingType4InAtomicBatch() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -163,8 +162,7 @@ public class CodeDelegationAtomicBatchTest {
         return hapiTest(
                 createFundedAccount(delegatingAccount),
                 getAliasedAccountInfo(delegatingAccount).hasNoDelegation(),
-                atomicBatch(
-                        ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
+                atomicBatch(ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
                                 .signingWith(delegatingAccount)
                                 .payingWith(RELAYER)
                                 .type(EthTransactionType.EIP7702)
@@ -189,20 +187,19 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(delegatingAccount),
                 getAliasedAccountInfo(delegatingAccount).hasNoDelegation(),
                 atomicBatch(
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER),
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(delegatingAccount)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER))
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(delegatingAccount)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-
                 getAliasedAccountInfo(delegatingAccount).hasNoDelegation());
     }
 
@@ -214,18 +211,18 @@ public class CodeDelegationAtomicBatchTest {
         return hapiTest(
                 newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
                 atomicBatch(
-                        cryptoCreate(accountInBatch)
-                                .key(accountInBatch)
-                                .withMatchingEvmAddress()
-                                .balance(ONE_HUNDRED_HBARS)
-                                .batchKey(RELAYER),
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(accountInBatch)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER))
+                                cryptoCreate(accountInBatch)
+                                        .key(accountInBatch)
+                                        .withMatchingEvmAddress()
+                                        .balance(ONE_HUNDRED_HBARS)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(accountInBatch)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER),
                 // Account A exists and delegation is set
                 getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress));
@@ -241,32 +238,31 @@ public class CodeDelegationAtomicBatchTest {
                 newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
                 createFundedAccount(delegatingAccount),
                 atomicBatch(
-                        cryptoCreate(accountInBatch)
-                                .key(accountInBatch)
-                                .withMatchingEvmAddress()
-                                .balance(ONE_HUNDRED_HBARS)
-                                .batchKey(RELAYER),
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(delegatingAccount)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addCodeDelegationWithSpecNonce(delegationTargetAddress, accountInBatch)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                cryptoCreate(accountInBatch)
+                                        .key(accountInBatch)
+                                        .withMatchingEvmAddress()
+                                        .balance(ONE_HUNDRED_HBARS)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(delegatingAccount)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, accountInBatch)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // Account A rolled back (does not exist). No delegation persisted.
-                getAliasedAccountInfo(accountInBatch)
-                        .hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID)
+                getAliasedAccountInfo(accountInBatch).hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID)
 
                 // TODO (dsinyakov): Add below assert when atomic batch delegation persistence is fixed
                 // When delegation survives rollback, account A should exist with delegation set
                 // getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress)
-        );
+                );
     }
 
     // 2.3: atomicBatch(CryptoCreate(A, initialDelegation=D1), type-4 updates A delegation to D2) - batch succeeds
@@ -278,19 +274,19 @@ public class CodeDelegationAtomicBatchTest {
         return hapiTest(
                 newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
                 atomicBatch(
-                        cryptoCreate(accountInBatch)
-                                .key(accountInBatch)
-                                .withMatchingEvmAddress()
-                                .balance(ONE_HUNDRED_HBARS)
-                                .delegationAddress(initialDelegationAddress)
-                                .batchKey(RELAYER),
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(accountInBatch)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER))
+                                cryptoCreate(accountInBatch)
+                                        .key(accountInBatch)
+                                        .withMatchingEvmAddress()
+                                        .balance(ONE_HUNDRED_HBARS)
+                                        .delegationAddress(initialDelegationAddress)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(accountInBatch)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER),
                 // Type 4 update should override the delegation set by native create in the same batch.
                 getAliasedAccountInfo(accountInBatch).hasDelegationAddress(delegationTargetAddress));
@@ -307,17 +303,17 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(authorityAccount),
                 getAliasedAccountInfo(authorityAccount).hasNoDelegation(),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(sender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addCodeDelegationWithSpecNonce(delegationTargetAddress, authorityAccount)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, authorityAccount)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
@@ -327,7 +323,8 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(authorityAccount).hasNoDelegation());
     }
 
-    // 3.2: Account A exists with delegation D1. atomicBatch(type-4 changes A delegation to D2, invalid transfer) - batch fails
+    // 3.2: Account A exists with delegation D1. atomicBatch(type-4 changes A delegation to D2, invalid transfer) -
+    // batch fails
     @HapiTest
     final Stream<DynamicTest> testExistingDelegationUpdatedByType4SurvivesRollback() {
         final var delegationTargetAddress = DELEGATION_TARGET.get(); // d1
@@ -339,17 +336,18 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccountWithDelegation(authorityAccount, delegationTargetAddress),
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(sender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addCodeDelegationWithSpecNonce(revertingDelegationTargetAddress, authorityAccount)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(
+                                                revertingDelegationTargetAddress, authorityAccount)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
@@ -359,7 +357,8 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
-    // 4.1: Account A has delegation. atomicBatch(type-4 sets A delegation to zero address, valid transfer) - batch succeeds
+    // 4.1: Account A has delegation. atomicBatch(type-4 sets A delegation to zero address, valid transfer) - batch
+    // succeeds
     @HapiTest
     final Stream<DynamicTest> testDelegationClearedByZeroAddress() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -370,24 +369,24 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccountWithDelegation(authorityAccount, delegationTargetAddress),
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(sender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, authorityAccount)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
-                                .hasKnownStatus(SUCCESS)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, authorityAccount)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
-
                 getAliasedAccountInfo(authorityAccount).hasNoDelegation());
     }
 
-    // 4.2: Account A has delegation. atomicBatch(type-4 sets A delegation to zero address, invalid transfer) - batch fails
+    // 4.2: Account A has delegation. atomicBatch(type-4 sets A delegation to zero address, invalid transfer) - batch
+    // fails
     @HapiTest
     final Stream<DynamicTest> testDelegationClearedByZeroAddressSurvivesRollback() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -398,17 +397,17 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccountWithDelegation(authorityAccount, delegationTargetAddress),
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(sender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, authorityAccount)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(ZERO_ADDRESS, authorityAccount)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
@@ -418,7 +417,8 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
-    // 6.1: atomicBatch(CryptoUpdate sets delegation on D, type-4 with 2 valid + 2 invalid auth entries) - batch succeeds
+    // 6.1: atomicBatch(CryptoUpdate sets delegation on D, type-4 with 2 valid + 2 invalid auth entries) - batch
+    // succeeds
     @HapiTest
     final Stream<DynamicTest> testAtomicBatchType4PartialCommitAcrossAccountsWithInvalidAuthorization() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -434,22 +434,22 @@ public class CodeDelegationAtomicBatchTest {
                 cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 atomicBatch(
-                        cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
-                                .delegationAddress(delegationAddress)
-                                .batchKey(RELAYER),
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(sender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .addCodeDelegationWithSpecNonce(delegationTargetAddress, authority1)
-                                // We set wrong nonce on purpose to simulate invalid auth entries.
-                                // These should be skipped, but valid delegations should still be committed.
-                                .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority2)
-                                .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority3)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .hasKnownStatus(SUCCESS)
-                                .batchKey(RELAYER))
+                                cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
+                                        .delegationAddress(delegationAddress)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, authority1)
+                                        // We set wrong nonce on purpose to simulate invalid auth entries.
+                                        // These should be skipped, but valid delegations should still be committed.
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority2)
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority3)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
                 // Atomic batch commits back all delegations.
@@ -460,7 +460,8 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(authority3).hasNoDelegation());
     }
 
-    // 6.2: atomicBatch(CryptoUpdate sets delegation on D, type-4 with 2 valid + 2 invalid auth entries, invalid transfer) - batch fails
+    // 6.2: atomicBatch(CryptoUpdate sets delegation on D, type-4 with 2 valid + 2 invalid auth entries, invalid
+    // transfer) - batch fails
     @HapiTest
     final Stream<DynamicTest> testAtomicBatchType4PartialCommitIsRolledBackOnInnerTxFailureAcrossAccounts() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -476,26 +477,26 @@ public class CodeDelegationAtomicBatchTest {
                 cryptoCreate(CRYPTO_CREATE_DELEGATING_ACCOUNT).key(RELAYER).balance(ONE_HUNDRED_HBARS),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 atomicBatch(
-                        cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
-                                .delegationAddress(initialDelegationAddress)
-                                .batchKey(RELAYER),
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(sender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .addCodeDelegationWithSpecNonce(delegationTargetAddress, authority1)
-                                // We set wrong nonce on purpose to simulate invalid auth entries.
-                                // These should be skipped, but valid delegations should still be committed.
-                                .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority2)
-                                .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority3)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .hasKnownStatus(ResponseCodeEnum.REVERTED_SUCCESS)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
+                                        .delegationAddress(initialDelegationAddress)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, authority1)
+                                        // We set wrong nonce on purpose to simulate invalid auth entries.
+                                        // These should be skipped, but valid delegations should still be committed.
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority2)
+                                        .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority3)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .hasKnownStatus(ResponseCodeEnum.REVERTED_SUCCESS)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
@@ -536,8 +537,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceBefore::set),
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceBefore::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceBefore::set),
-                atomicBatch(
-                        ethereumCall(CONTRACT, "create")
+                atomicBatch(ethereumCall(CONTRACT, "create")
                                 .signingWith(sender)
                                 .payingWith(RELAYER)
                                 .type(EthTransactionType.EIP7702)
@@ -590,22 +590,21 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceBefore::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceBefore::set),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(sender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .addCodeDelegationWithSpecNonce(delegationTargetAddress, authAccount1)
-                                .addCodeDelegationWithSpecNonce(delegationTargetAddress, authAccount2)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, authAccount1)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, authAccount2)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceAfter::set),
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceAfter::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceAfter::set),
@@ -615,14 +614,14 @@ public class CodeDelegationAtomicBatchTest {
                             senderNonceAfter.get(),
                             "Sender nonce should increment by 2 (tx + auth)");
                     // TODO (dsinyakov): add below asserts when atomic batch nonce persistence if fixed
-//                            assertEquals(
-//                                    auth1NonceBefore.get() + 1,
-//                                    auth1NonceAfter.get(),
-//                                    "Auth1 nonce should increment by 1 (auth only)");
-//                            assertEquals(
-//                                    auth2NonceBefore.get() + 1,
-//                                    auth2NonceAfter.get(),
-//                                    "Auth2 nonce should increment by 1 (auth only)");
+                    //                            assertEquals(
+                    //                                    auth1NonceBefore.get() + 1,
+                    //                                    auth1NonceAfter.get(),
+                    //                                    "Auth1 nonce should increment by 1 (auth only)");
+                    //                            assertEquals(
+                    //                                    auth2NonceBefore.get() + 1,
+                    //                                    auth2NonceAfter.get(),
+                    //                                    "Auth2 nonce should increment by 1 (auth only)");
                 }),
 
                 // TODO (dsinyakov): switch to below asserts when atomic batch delegation persistence is fixed
@@ -657,18 +656,18 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(sender),
                 getAccountBalance(sender).exposingBalanceTo(senderBalanceBefore::set),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(sender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .via(type4Txn)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
-                                .hasKnownStatus(SUCCESS)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(sender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(type4Txn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
                 getAccountBalance(sender).exposingBalanceTo(senderBalanceAfter::set),
@@ -679,21 +678,21 @@ public class CodeDelegationAtomicBatchTest {
                     allRunFor(spec, type4Record);
 
                     final var type4Fee = type4Record.getResponseRecord().getTransactionFee();
-                    final var gasUsed = type4Record.getResponseRecord()
-                            .getContractCallResult().getGasUsed();
+                    final var gasUsed = type4Record
+                            .getResponseRecord()
+                            .getContractCallResult()
+                            .getGasUsed();
                     final var expectedGasCharge = gasUsed * gasPriceTinybars;
                     final var senderDelta = senderBalanceBefore.get() - senderBalanceAfter.get();
 
                     // gasUsed must exceed intrinsic gas (execution of create() costs extra)
-                    assertTrue(gasUsed > EXPECTED_INTRINSIC_GAS,
+                    assertTrue(
+                            gasUsed > EXPECTED_INTRINSIC_GAS,
                             "gasUsed must exceed intrinsic gas (create() deploys a contract)");
                     // Sender pays exactly gasUsed * gasPrice (EVM gas)
-                    assertEquals(expectedGasCharge, senderDelta,
-                            "Sender must be charged gasUsed * gasPriceTinybars");
+                    assertEquals(expectedGasCharge, senderDelta, "Sender must be charged gasUsed * gasPriceTinybars");
                     // The type4 fee in the record should match the sender's balance change
-                    assertEquals(type4Fee, senderDelta,
-                            "Type4 record fee must equal sender balance change");
-
+                    assertEquals(type4Fee, senderDelta, "Type4 record fee must equal sender balance change");
                 }));
     }
 
@@ -719,18 +718,18 @@ public class CodeDelegationAtomicBatchTest {
                 // Rollback
                 getAccountBalance(rollbackSender).exposingBalanceTo(rollbackSenderBefore::set),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(rollbackSender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .via(rollbackType4Txn)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(rollbackSender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(rollbackType4Txn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 getAccountBalance(rollbackSender).exposingBalanceTo(rollbackSenderAfter::set),
@@ -738,18 +737,18 @@ public class CodeDelegationAtomicBatchTest {
                 // Success
                 getAccountBalance(successSender).exposingBalanceTo(successSenderBefore::set),
                 atomicBatch(
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(successSender)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .via(successType4Txn)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
-                                .hasKnownStatus(SUCCESS)
-                                .batchKey(RELAYER))
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(successSender)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(successType4Txn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
                 getAccountBalance(successSender).exposingBalanceTo(successSenderAfter::set),
@@ -762,10 +761,14 @@ public class CodeDelegationAtomicBatchTest {
                     final var rollbackRecord = getTxnRecord(rollbackType4Txn);
                     allRunFor(spec, successRecord, rollbackRecord);
 
-                    final var successGasUsed = successRecord.getResponseRecord()
-                            .getContractCallResult().getGasUsed();
-                    final var rollbackGasUsed = rollbackRecord.getResponseRecord()
-                            .getContractCallResult().getGasUsed();
+                    final var successGasUsed = successRecord
+                            .getResponseRecord()
+                            .getContractCallResult()
+                            .getGasUsed();
+                    final var rollbackGasUsed = rollbackRecord
+                            .getResponseRecord()
+                            .getContractCallResult()
+                            .getGasUsed();
 
                     final var successSenderDelta = successSenderBefore.get() - successSenderAfter.get();
                     final var rollbackSenderDelta = rollbackSenderBefore.get() - rollbackSenderAfter.get();
@@ -773,10 +776,14 @@ public class CodeDelegationAtomicBatchTest {
                     final var expectedSuccessCharge = successGasUsed * gasPriceTinybars;
                     final var expectedRollbackCharge = rollbackGasUsed * gasPriceTinybars;
 
-                    assertEquals(successGasUsed, rollbackGasUsed,
+                    assertEquals(
+                            successGasUsed,
+                            rollbackGasUsed,
                             "gasUsed must be identical for same contract call on fresh contracts");
                     // Both paths should charge the sender gasUsed * gasPrice
-                    assertEquals(expectedSuccessCharge, successSenderDelta,
+                    assertEquals(
+                            expectedSuccessCharge,
+                            successSenderDelta,
                             "Success sender charge must equal gasUsed * gasPriceTinybars");
                     // TODO(dsinyakov): add below assert when atomic batch when issue with replay of fees for atomic
                     //  batch is fixed
@@ -816,52 +823,49 @@ public class CodeDelegationAtomicBatchTest {
 
                 // Rollback
                 atomicBatch(
-                        cryptoCreate(accountInBatchRollback)
-                                .key(accountInBatchRollback)
-                                .withMatchingEvmAddress()
-                                .balance(ONE_HUNDRED_HBARS)
-                                .batchKey(RELAYER),
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(rollbackPayer)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addCodeDelegationWithSpecNonce(delegationTargetAddress, accountInBatchRollback)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .via(type4TxnRollback)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                cryptoCreate(accountInBatchRollback)
+                                        .key(accountInBatchRollback)
+                                        .withMatchingEvmAddress()
+                                        .balance(ONE_HUNDRED_HBARS)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(rollbackPayer)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, accountInBatchRollback)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(type4TxnRollback)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-
                 getAccountBalance(rollbackPayer).exposingBalanceTo(rollbackPayerBalanceAfter::set),
 
                 // Success
                 atomicBatch(
-                        cryptoCreate(accountInBatch)
-                                .key(accountInBatch)
-                                .withMatchingEvmAddress()
-                                .balance(ONE_HUNDRED_HBARS)
-                                .batchKey(RELAYER),
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(payer)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addCodeDelegationWithSpecNonce(delegationTargetAddress, accountInBatch)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .via(type4Txn)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
-                                .hasKnownStatus(SUCCESS)
-                                .batchKey(RELAYER))
+                                cryptoCreate(accountInBatch)
+                                        .key(accountInBatch)
+                                        .withMatchingEvmAddress()
+                                        .balance(ONE_HUNDRED_HBARS)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(payer)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addCodeDelegationWithSpecNonce(delegationTargetAddress, accountInBatch)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(type4Txn)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(ACCOUNT_WITH_BALANCE, RELAYER))
+                                        .hasKnownStatus(SUCCESS)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(SUCCESS),
-
                 getAccountBalance(payer).exposingBalanceTo(payerBalanceAfter::set),
-
                 assertionsHold((spec, opLog) -> {
                     final var gasPriceTinybars = spec.ratesProvider().currentTinybarGasPrice();
 
@@ -869,11 +873,17 @@ public class CodeDelegationAtomicBatchTest {
                     final var type4Record = getTxnRecord(type4Txn);
                     allRunFor(spec, type4RecordRollback, type4Record);
 
-                    final var recordedType4FeeOnRollback = type4RecordRollback.getResponseRecord().getTransactionFee();
+                    final var recordedType4FeeOnRollback =
+                            type4RecordRollback.getResponseRecord().getTransactionFee();
                     final var recorderType4Fee = type4Record.getResponseRecord().getTransactionFee();
-                    final var gasUsedOnRollback = type4RecordRollback.getResponseRecord()
-                            .getContractCallResult().getGasUsed();
-                    final var gasUsed = type4Record.getResponseRecord().getContractCallResult().getGasUsed();
+                    final var gasUsedOnRollback = type4RecordRollback
+                            .getResponseRecord()
+                            .getContractCallResult()
+                            .getGasUsed();
+                    final var gasUsed = type4Record
+                            .getResponseRecord()
+                            .getContractCallResult()
+                            .getGasUsed();
                     final var expectedGasChargeOnRollback = gasUsedOnRollback * gasPriceTinybars;
                     final var expectedGasCharge = gasUsed * gasPriceTinybars;
 
@@ -882,23 +892,19 @@ public class CodeDelegationAtomicBatchTest {
 
                     // TODO (dsinyakov): add commented below asserts when atomic batch when issue with replay of fees
                     //  for atomic batch is fixed
-//                    assertTrue(gasUsedOnRollback > gasUsed,
-//                            "gas used on rollback should be higher since account creation is rolled back and " +
-//                                    "re-played as part of the type4 tx execution");
-//
-//                    assertTrue(expectedGasChargeOnRollback > expectedGasCharge, "Expected gas charge " +
-//                            "on rollback should be higher since account creation is rolled back and re-played as part " +
-//                            "of the type4 tx execution");
-
+                    //                    assertTrue(gasUsedOnRollback > gasUsed,"gas used on rollback should be higher
+                    // since account creation is rolled back and re-played as part of the type4 tx execution");
+                    //                    assertTrue(expectedGasChargeOnRollback > expectedGasCharge,"Expected gas
+                    // charge on rollback should be higher since account creation is rolled back and re-played as part
+                    // of the type4 tx execution");
+                    //
                     final var rollbackPayerDelta = rollbackPayerBalanceBefore.get() - rollbackPayerBalanceAfter.get();
                     final var payerDelta = payerBalanceBefore.get() - payerBalanceAfter.get();
-//                    assertEquals(expectedGasChargeOnRollback, rollbackPayerDelta,
-//                            "Rollback payer charge must equal gasUsed * gasPriceTinybars");
-                    assertEquals(expectedGasCharge, payerDelta,
-                            "Payer charge must equal gasUsed * gasPriceTinybars");
+                    //  assertEquals(expectedGasChargeOnRollback, rollbackPayerDelta,
+                    //   "Rollback payer charge must equal gasUsed * gasPriceTinybars");
+                    assertEquals(expectedGasCharge, payerDelta, "Payer charge must equal gasUsed * gasPriceTinybars");
                 }));
     }
-
 
     // 10.1: atomicBatch(CryptoUpdate sets delegation on A, invalid transfer) - batch fails
     @HapiTest
@@ -909,13 +915,13 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(preCreatedAccount),
                 getAliasedAccountInfo(preCreatedAccount).hasNoDelegation(),
                 atomicBatch(
-                        cryptoUpdate(preCreatedAccount)
-                                .delegationAddress(delegationAddress)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                cryptoUpdate(preCreatedAccount)
+                                        .delegationAddress(delegationAddress)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 // CryptoUpdate delegation should be rolled back
@@ -933,21 +939,21 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(CRYPTO_CREATE_DELEGATING_ACCOUNT),
                 getAccountInfo(CRYPTO_CREATE_DELEGATING_ACCOUNT).hasNoDelegation(),
                 atomicBatch(
-                        cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
-                                .delegationAddress(initialDelegationAddress)
-                                .batchKey(RELAYER),
-                        ethereumCall(CONTRACT, "create")
-                                .signingWith(delegatingAccount)
-                                .payingWith(RELAYER)
-                                .type(EthTransactionType.EIP7702)
-                                .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
-                                .gasLimit(GAS_LIMIT_2M)
-                                .via(DELEGATION_SET)
-                                .batchKey(RELAYER),
-                        cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
-                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
-                                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
-                                .batchKey(RELAYER))
+                                cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
+                                        .delegationAddress(initialDelegationAddress)
+                                        .batchKey(RELAYER),
+                                ethereumCall(CONTRACT, "create")
+                                        .signingWith(delegatingAccount)
+                                        .payingWith(RELAYER)
+                                        .type(EthTransactionType.EIP7702)
+                                        .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
+                                        .gasLimit(GAS_LIMIT_2M)
+                                        .via(DELEGATION_SET)
+                                        .batchKey(RELAYER),
+                                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR)
+                                                .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
+                                        .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
+                                        .batchKey(RELAYER))
                         .payingWith(RELAYER)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
