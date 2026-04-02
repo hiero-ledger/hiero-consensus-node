@@ -751,7 +751,7 @@ class SystemTransactionsTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
 
-        // BlockInfo already has a positive deadline — previous upgrade already initialized voting
+        // BlockInfo already has a positive deadline — previous upgrade initialized voting
         final var existingBlockInfo =
                 BlockInfo.newBuilder().votingCompletionDeadlineBlockNumber(10).build();
 

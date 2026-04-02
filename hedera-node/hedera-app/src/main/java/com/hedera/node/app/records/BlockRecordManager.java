@@ -156,10 +156,8 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
             @NonNull Bytes prevWrappedRecordBlockRootHash, @NonNull List<Bytes> intermediateHashes, long leafCount);
 
     /**
-     * Syncs the voting metadata fields into the in-memory BlockInfo cache. Must be called after
-     * {@link com.hedera.node.app.workflows.handle.record.SystemTransactions#maybeSetupJumpstartHashVoting}
-     * writes these fields to state, so that subsequent {@code putLastBlockInfo} calls do not
-     * overwrite them with stale cached values.
+     * Syncs the voting metadata fields into the in-memory BlockInfo cache. Used to ensure
+     * {@code putLastBlockInfo} calls don't write stale cached values.
      *
      * @param votingComplete whether voting is complete
      * @param votingCompletionDeadlineBlockNumber the deadline block number for voting completion

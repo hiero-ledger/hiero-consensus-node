@@ -591,12 +591,11 @@ class HandleWorkflowTest {
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
         givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
 
-        // First round: default BlockInfo has votingCompletionDeadlineBlockNumber=0 (<=0),
-        // so maybeSetupJumpstartHashVoting should be called
+        // First round should initialize jumpstart hash voting
         subject.handleRound(state, round, txns -> {});
         verify(systemTransactions).maybeSetupJumpstartHashVoting(same(state), any());
 
-        // Second round: the flag prevents a second call even though readable state is unchanged
+        // Second round should not re-initialize jumpstart hash voting
         org.mockito.Mockito.clearInvocations(systemTransactions);
         subject.handleRound(state, round, txns -> {});
         verify(systemTransactions, never()).maybeSetupJumpstartHashVoting(any(), any());

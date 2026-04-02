@@ -328,7 +328,14 @@ public class HandleWorkflow {
 
         if (!jumpstartHashVotingSetupDone) {
             final var deadline = systemTransactions.maybeSetupJumpstartHashVoting(state, this::doStreamingAllChanges);
-            deadline.ifPresent(d -> blockRecordManager.syncVotingMetadata(false, d));
+            if (deadline.isPresent()) {
+                blockRecordManager.syncVotingMetadata(false, deadline.getAsLong());
+                logger.info(
+                        "Jumpstart hash voting initialized with deadline {}",
+                        deadline.stream().mapToObj(Long::toString));
+            } else {
+                logger.info("Skipping jumpstart hash voting setup");
+            }
             jumpstartHashVotingSetupDone = true;
         }
 
