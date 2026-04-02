@@ -592,12 +592,12 @@ class HandleWorkflowTest {
         givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
 
         // First round should initialize jumpstart hash voting
-        subject.handleRound(state, round, txns -> {});
+        subject.handleRound(state, round, ignored -> {});
         verify(systemTransactions).maybeSetupJumpstartHashVoting(same(state), any());
 
         // Second round should not re-initialize jumpstart hash voting
         org.mockito.Mockito.clearInvocations(systemTransactions);
-        subject.handleRound(state, round, txns -> {});
+        subject.handleRound(state, round, ignored -> {});
         verify(systemTransactions, never()).maybeSetupJumpstartHashVoting(any(), any());
     }
 
