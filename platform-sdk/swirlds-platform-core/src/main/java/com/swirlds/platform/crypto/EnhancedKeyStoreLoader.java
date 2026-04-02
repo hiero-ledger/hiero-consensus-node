@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Key;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -32,6 +33,9 @@ import java.security.Security;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.RSAPrivateCrtKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.RSAPublicKeySpec;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -60,6 +64,7 @@ import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.KeystorePasswordPolicy;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.base.crypto.config.CryptoConfig_;
@@ -350,6 +355,8 @@ public class EnhancedKeyStoreLoader {
                     throw new KeyLoadingException("No certificate found for nodeId %s [purpose = %s ]"
                             .formatted(nodeId, KeyCertPurpose.SIGNING));
                 }
+
+                warnIfSigKeyMismatch(nodeId);
             } catch (final KeyLoadingException e) {
                 logger.warn(STARTUP.getMarker(), e.getMessage());
                 throw e;
@@ -698,6 +705,47 @@ public class EnhancedKeyStoreLoader {
     // ----------------------------------------------------------------------------------------------
 
     /**
+     * Logs a warning if the signing private key loaded from disk does not correspond to the public key
+     * embedded in the signing certificate loaded from the roster. The node is allowed to continue
+     * starting — this is a diagnostic warning, not a hard failure.
+     *
+     * @param nodeId the {@link NodeId} whose key/cert pair should be checked.
+     */
+    private void warnIfSigKeyMismatch(@NonNull final NodeId nodeId) {
+        final PrivateKey privateKey = sigPrivateKeys.get(nodeId);
+        final Certificate cert = sigCertificates.get(nodeId);
+
+        if (!(privateKey instanceof final RSAPrivateCrtKey rsaKey)) {
+            return;
+        }
+
+        try {
+            final RSAPublicKeySpec pubSpec =
+                    new RSAPublicKeySpec(rsaKey.getModulus(), rsaKey.getPublicExponent());
+            final KeyFactory kf =
+                    KeyFactory.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
+            final PublicKey derivedPublicKey = kf.generatePublic(pubSpec);
+
+            if (!derivedPublicKey.equals(cert.getPublicKey())) {
+                logger.warn(
+                        STARTUP.getMarker(),
+                        "Signing private key does not match certificate public key for nodeId {} "
+                                + "[ purpose = {} ] — node may fail to establish gossip connections",
+                        nodeId,
+                        KeyCertPurpose.SIGNING);
+            }
+        } catch (final NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException
+                | RuntimeException e) {
+            logger.warn(
+                    STARTUP.getMarker(),
+                    "Unable to verify signing key/cert correspondence for nodeId {} [ purpose = {} ]",
+                    nodeId,
+                    KeyCertPurpose.SIGNING,
+                    e);
+        }
+    }
+
+    /**
      * Returns a SHA-384 fingerprint of the certificate's encoded bytes, formatted as
      * {@code XX:XX:XX:...} (colon-separated hex octets). Safe to log — contains no key material.
      * Returns {@code "<unavailable>"} if the digest cannot be computed.
@@ -708,7 +756,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private static String certFingerprint(@NonNull final Certificate cert) {
         try {
-            final byte[] digest = MessageDigest.getInstance("SHA-384").digest(cert.getEncoded());
+            final byte[] digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(cert.getEncoded());
             final StringBuilder sb = new StringBuilder(digest.length * 3 - 1);
             for (int i = 0; i < digest.length; i++) {
                 if (i > 0) {
