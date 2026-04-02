@@ -418,7 +418,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress));
     }
 
-    // 6.1: atomicBatch(type-4 with 2 valid + 2 invalid auth entries) - batch succeeds
+    // 6.1: atomicBatch(CryptoUpdate sets delegation on D, type-4 with 2 valid + 2 invalid auth entries) - batch succeeds
     @HapiTest
     final Stream<DynamicTest> testAtomicBatchType4PartialCommitAcrossAccountsWithInvalidAuthorization() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -460,7 +460,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(authority3).hasNoDelegation());
     }
 
-    // 6.2: atomicBatch(type-4 with 2 valid + 2 invalid auth entries, invalid transfer) - batch fails
+    // 6.2: atomicBatch(CryptoUpdate sets delegation on D, type-4 with 2 valid + 2 invalid auth entries, invalid transfer) - batch fails
     @HapiTest
     final Stream<DynamicTest> testAtomicBatchType4PartialCommitIsRolledBackOnInnerTxFailureAcrossAccounts() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
@@ -517,7 +517,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(authority3).hasNoDelegation());
     }
 
-    // 8.1: atomicBatch(type-4 tx, valid transfer) - batch succeeds. Nonces incremented.
+    // 8.1: atomicBatch(type-4 with 3 auth entries) - batch succeeds. Nonces incremented.
     @HapiTest
     final Stream<DynamicTest> testAtomicBatchType4NoncesOnSuccess() {
         final var sender = "SenderAccount";
