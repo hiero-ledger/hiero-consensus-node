@@ -35,13 +35,8 @@ public final class DataFileMetadata {
     private static final FieldDefinition FIELD_CREATION_NANOS =
             new FieldDefinition("creationDateNanos", FieldType.UINT32, false, false, false, 3);
 
-    @Deprecated
     private static final FieldDefinition FIELD_ITEMS_COUNT =
             new FieldDefinition("itemsCount", FieldType.FIXED64, false, false, false, 4);
-
-    @Deprecated
-    private static final FieldDefinition FIELD_ITEM_VERSION =
-            new FieldDefinition("itemsVersion", FieldType.UINT64, false, true, false, 5);
 
     private static final FieldDefinition FIELD_COMPACTION_LEVEL =
             new FieldDefinition("compactionLevel", FieldType.UINT32, false, true, false, 6);
@@ -60,6 +55,9 @@ public final class DataFileMetadata {
     /** The level of compaction this file has. See {@link DataFileCompactor}*/
     private final byte compactionLevel;
 
+    /** Total number of items in this file */
+    private final long itemsCount;
+
     /**
      * Create a new metadata with complete set of data
      *
@@ -67,13 +65,16 @@ public final class DataFileMetadata {
      * @param creationDate The creation data of this file, this is critical as it is used when
      *     merging two files to know which files data is newer.
      * @param compactionLevel The level of compaction this file has. See {@link DataFileCompactor}
+     * @param itemsCount Total number of items in this file.
      */
-    public DataFileMetadata(final int index, final Instant creationDate, final int compactionLevel) {
+    public DataFileMetadata(
+            final int index, final Instant creationDate, final int compactionLevel, final long itemsCount) {
         assert compactionLevel >= 0 && compactionLevel < MAX_COMPACTION_LEVEL;
 
         this.index = index;
         this.creationDate = creationDate;
         this.compactionLevel = (byte) compactionLevel;
+        this.itemsCount = itemsCount;
     }
 
     /**
@@ -88,6 +89,7 @@ public final class DataFileMetadata {
         long creationSeconds = 0;
         int creationNanos = 0;
         byte compactionLevel = 0;
+        long itemsCount = 0;
 
         // Read values from the file, skipping all data items
         try (final ReadableStreamingData in = new ReadableStreamingData(file)) {
@@ -109,9 +111,7 @@ public final class DataFileMetadata {
                             } else if (metadataFieldNum == FIELD_CREATION_NANOS.number()) {
                                 creationNanos = in.readVarInt(false);
                             } else if (metadataFieldNum == FIELD_ITEMS_COUNT.number()) {
-                                in.readLong(); // data items count is not used
-                            } else if (metadataFieldNum == FIELD_ITEM_VERSION.number()) {
-                                in.readVarLong(false); // this field is no longer used
+                                itemsCount = in.readLong();
                             } else if (metadataFieldNum == FIELD_COMPACTION_LEVEL.number()) {
                                 final int compactionLevelInt = in.readVarInt(false);
                                 assert compactionLevelInt < MAX_COMPACTION_LEVEL;
@@ -142,7 +142,8 @@ public final class DataFileMetadata {
             throw new IllegalArgumentException("No metadata found in file: " + file);
         }
 
-        return new DataFileMetadata(index, Instant.ofEpochSecond(creationSeconds, creationNanos), compactionLevel);
+        return new DataFileMetadata(
+                index, Instant.ofEpochSecond(creationSeconds, creationNanos), compactionLevel, itemsCount);
     }
 
     <T extends WritableSequentialData> void writeTo(final T out) {
@@ -165,6 +166,9 @@ public final class DataFileMetadata {
         ProtoWriterTools.writeTag(out, FIELD_CREATION_NANOS);
         out.writeVarInt(creationInstant.getNano(), false);
 
+        ProtoWriterTools.writeTag(out, FIELD_ITEMS_COUNT);
+        out.writeLong(getItemsCount());
+
         if (getCompactionLevel() != 0) {
             ProtoWriterTools.writeTag(out, FIELD_COMPACTION_LEVEL);
             out.writeVarInt(compactionLevel, false);
@@ -179,6 +183,10 @@ public final class DataFileMetadata {
     /** Get the date the file was created in UTC */
     public Instant getCreationDate() {
         return creationDate;
+    }
+
+    public long getItemsCount() {
+        return itemsCount;
     }
 
     // For testing purposes
@@ -198,6 +206,9 @@ public final class DataFileMetadata {
         size += ProtoWriterTools.sizeOfTag(FIELD_CREATION_NANOS, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
         size += ProtoWriterTools.sizeOfVarInt64(creationDate.getNano());
 
+        size += ProtoWriterTools.sizeOfTag(FIELD_ITEMS_COUNT, ProtoConstants.WIRE_TYPE_FIXED_64_BIT);
+        size += Long.BYTES;
+
         if (compactionLevel != 0) {
             size += ProtoWriterTools.sizeOfTag(FIELD_COMPACTION_LEVEL, ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG);
             size += ProtoWriterTools.sizeOfVarInt32(compactionLevel);
@@ -215,6 +226,7 @@ public final class DataFileMetadata {
         return new ToStringBuilder(this)
                 .append("index", index)
                 .append("creationDate", creationDate)
+                .append("itemsCount", itemsCount)
                 .toString();
     }
 
@@ -232,6 +244,7 @@ public final class DataFileMetadata {
         final DataFileMetadata that = (DataFileMetadata) o;
         return index == that.index
                 && compactionLevel == that.compactionLevel
+                && itemsCount == that.itemsCount
                 && Objects.equals(this.creationDate, that.creationDate);
     }
 
@@ -240,6 +253,6 @@ public final class DataFileMetadata {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(index, creationDate, compactionLevel);
+        return Objects.hash(index, creationDate, compactionLevel, itemsCount);
     }
 }

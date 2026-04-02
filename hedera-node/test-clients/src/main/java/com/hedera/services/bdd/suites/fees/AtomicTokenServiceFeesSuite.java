@@ -52,8 +52,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCancelAirdropFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateWithCustomFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleWithCustomFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
@@ -602,7 +603,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 txnFor(commonNoFees),
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateFullFeeUsd(
+                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
@@ -643,7 +644,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 txnFor(commonWithFees),
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateWithCustomFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateFungibleWithCustomFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
                                         KEYS, 2L,
                                         PROCESSING_BYTES, (long) txnSize)),
@@ -687,7 +688,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 uniqueNoFees,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
                                         KEYS, 2L,
                                         PROCESSING_BYTES, (long) txnSize)),
@@ -733,7 +734,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 "innerTxn",
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateWithCustomFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateNftWithCustomFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
                                         KEYS, 3L,
                                         PROCESSING_BYTES, (long) txnSize)),

@@ -236,6 +236,7 @@ tasks {
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -357,6 +358,7 @@ tasks.register<Test>("testSubprocess") {
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -474,6 +476,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -569,6 +572,7 @@ tasks {
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -629,6 +633,7 @@ tasks {
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
