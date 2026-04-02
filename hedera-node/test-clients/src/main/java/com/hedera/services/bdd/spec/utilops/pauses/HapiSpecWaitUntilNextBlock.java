@@ -217,14 +217,19 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
                     .max()
                     .orElse(-1L);
         } else if (mode == BlockNodeMode.REAL) {
+            long best = -1L;
             for (final var entry : blockNodeNetwork.getBlockNodeContainerById().entrySet()) {
                 try (final var client = new BlockNodeSubscribeClient(
                         entry.getValue().getHost(), entry.getValue().getPort())) {
-                    return client.getLastAvailableBlock();
+                    final long last = client.getLastAvailableBlock();
+                    if (last > best) {
+                        best = last;
+                    }
                 } catch (Exception e) {
                     log.warn("Failed to query real block node {} for latest block", entry.getKey(), e);
                 }
             }
+            return best;
         }
         return -1L;
     }
@@ -241,7 +246,9 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
             for (final var entry : blockNodeNetwork.getBlockNodeContainerById().entrySet()) {
                 try (final var client = new BlockNodeSubscribeClient(
                         entry.getValue().getHost(), entry.getValue().getPort())) {
-                    return client.getLastAvailableBlock() >= blockNumber;
+                    if (client.getLastAvailableBlock() >= blockNumber) {
+                        return true;
+                    }
                 } catch (Exception e) {
                     log.warn("Failed to query real block node {} for block {}", entry.getKey(), blockNumber, e);
                 }
