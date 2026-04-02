@@ -110,6 +110,8 @@ Environment:
   JUMPSTART_BIN_PATH        Optional explicit jumpstart.bin path (if tool writes elsewhere)
   APP_PROPS_073_FILE         application.properties for the 0.73 consensus upgrade
                             (default: resources/0.73/application.properties next to this script)
+  APP_ENV_073_FILE           application.env for the 0.73 consensus upgrade
+                            (default: resources/0.73/application.env next to this script)
   SOLO_073_NODE_COPY_CONCURRENT  Solo NODE_COPY_CONCURRENT for 0.73 step (default: 1)
   SOLO_073_LOCAL_BUILD_COPY_RETRY Solo LOCAL_BUILD_COPY_RETRY for 0.73 step (default: 300)
   FILE121_UPDATE_RETRIES         Retry count for Step 6 File 121 update (default: 3)
@@ -156,6 +158,7 @@ LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
 APP_PROPS_071_FILE="${SCRIPT_DIR}/resources/0.71/application.properties"
 APP_PROPS_072_FILE="${SCRIPT_DIR}/resources/0.72/application.properties"
 APP_PROPS_073_FILE="${APP_PROPS_073_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
+APP_ENV_073_FILE="${APP_ENV_073_FILE:-${SCRIPT_DIR}/resources/0.73/application.env}"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.71.2}"
 UPGRADE_072_RELEASE_TAG="${UPGRADE_072_RELEASE_TAG:-v0.72.0-rc.2}"
 UPGRADE_073_RELEASE_TAG="${UPGRADE_073_RELEASE_TAG:-0.73.0}"
@@ -240,6 +243,14 @@ TOTAL_STEPS=6
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+}
+
+build_local_project() {
+  log "Building local project with ./gradlew clean assemble"
+  (
+    cd "${REPO_ROOT}"
+    ./gradlew clean assemble
+  )
 }
 
 log_banner() {
@@ -1027,12 +1038,20 @@ run_with_consensus_diagnostics() {
 }
 
 run_073_upgrade_once() {
+  local upgrade_cmd=(
+    solo consensus network upgrade
+    --deployment "${SOLO_DEPLOYMENT}"
+    --node-aliases "${NODE_ALIASES}"
+    --local-build-path "${LOCAL_BUILD_PATH}"
+    --application-properties "${APP_PROPS_073_FILE}"
+    --application-env "${APP_ENV_073_FILE}"
+    --quiet-mode
+    --force
+  )
+
   env NODE_COPY_CONCURRENT="${SOLO_073_NODE_COPY_CONCURRENT}" \
     LOCAL_BUILD_COPY_RETRY="${SOLO_073_LOCAL_BUILD_COPY_RETRY}" \
-    solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
-    --local-build-path "${LOCAL_BUILD_PATH}" \
-    --application-properties "${APP_PROPS_073_FILE}" \
-    --quiet-mode --force
+    "${upgrade_cmd[@]}"
 }
 
 run_073_upgrade() {
@@ -1893,6 +1912,17 @@ if [[ ! -f "${APP_PROPS_073_FILE}" ]]; then
   echo "application.properties file not found: ${APP_PROPS_073_FILE}" >&2
   exit 1
 fi
+if [[ ! -f "${APP_ENV_073_FILE}" ]]; then
+  echo "application.env file not found: ${APP_ENV_073_FILE}" >&2
+  exit 1
+fi
+if [[ ! -x "${REPO_ROOT}/gradlew" ]]; then
+  echo "Missing executable gradlew: ${REPO_ROOT}/gradlew" >&2
+  exit 1
+fi
+
+build_local_project
+
 if ! validate_local_build_path "${LOCAL_BUILD_PATH}"; then
   echo "Invalid LOCAL_BUILD_PATH content: ${LOCAL_BUILD_PATH}" >&2
   echo "Expected jar artifacts under both data/lib and data/apps (run ./gradlew assemble)." >&2
