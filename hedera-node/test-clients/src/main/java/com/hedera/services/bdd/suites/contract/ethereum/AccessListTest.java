@@ -22,7 +22,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
-
+import com.hedera.services.bdd.suites.HapiSuite;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -30,8 +30,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
-import com.hedera.services.bdd.suites.HapiSuite;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.api.Assertions;
@@ -176,9 +174,8 @@ public class AccessListTest {
                                                         Bytes32.fromHexString(SLOT_KEY_2)))),
                                         () -> legacyGas.get()
                                                 - 500) // -100 for CALL, -100 x 3 for SLOAD x 3, -100 for SSTORE
-                        ))
-                        .toList()
-        ));
+                                ))
+                        .toList()));
     }
 
     @HapiTest
@@ -187,8 +184,7 @@ public class AccessListTest {
         return hapiTest(flattened(
                 // prepare sender
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(
-                        GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 // set code delegation
                 ethereumCall(callerContract.name(), "callDelegation")
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -206,6 +202,6 @@ public class AccessListTest {
                         .exposingGasTo((status, gas) -> Assertions.assertEquals(originalGas.get() - 100, gas))
                 // We cant test access list storage keys for code delegation because the address is 23 bytes
                 // (Prefixed with delegation indicator 0xef0100...)
-        ));
+                ));
     }
 }
