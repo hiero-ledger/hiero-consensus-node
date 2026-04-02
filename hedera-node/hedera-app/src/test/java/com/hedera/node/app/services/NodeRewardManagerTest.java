@@ -1108,6 +1108,22 @@ class NodeRewardManagerTest {
     }
 
     @Test
+    void testFindBlockNodeEligibleNodeIdsNodeWithNonPublishBlockNodeEndpoint() {
+        givenAssociatedBlockNodes(NODE_0_ID, REGISTERED_BLOCK_NODE_ID);
+        givenRegisteredNode(
+                REGISTERED_BLOCK_NODE_ID,
+                RegisteredServiceEndpoint.newBuilder()
+                        .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                                .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                                .build())
+                        .build());
+
+        final var result = nodeRewardManager.findBlockNodeEligibleNodeIds(state, activitiesForNodes(NODE_0_ID));
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
     void testFindBlockNodeEligibleNodeIdsNodeWithMirrorNodeEndpointOnly() {
         givenAssociatedBlockNodes(NODE_0_ID, REGISTERED_MIRROR_NODE_ID);
         givenRegisteredMirrorNode(REGISTERED_MIRROR_NODE_ID);
@@ -1277,6 +1293,7 @@ class NodeRewardManagerTest {
                 registeredNodeId,
                 RegisteredServiceEndpoint.newBuilder()
                         .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                                .endpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH)
                                 .build())
                         .build());
     }
