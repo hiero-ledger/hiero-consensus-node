@@ -750,12 +750,13 @@ public class EnhancedKeyStoreLoader {
                 logger.warn(
                         STARTUP.getMarker(),
                         "Signing private key does not match certificate public key for nodeId {} "
-                                + "[ purpose = {}, certFingerprint = {}, derivedKeyFingerprint = {} ]"
+                                + "[ purpose = {}, certFingerprint = {}, rosterPubKeyFingerprint = {}, diskPubKeyFingerprint = {} ]"
                                 + " — node may fail to establish gossip connections",
                         nodeId,
                         KeyCertPurpose.SIGNING,
                         certFingerprint(cert),
-                        certFingerprint(derivedPublicKey));
+                        keyFingerprint(cert.getPublicKey()),
+                        keyFingerprint(derivedPublicKey));
             }
         } catch (
                 // NoSuchAlgorithmException / NoSuchProviderException: KeyFactory.getInstance() if RSA or BouncyCastle unavailable
@@ -773,7 +774,7 @@ public class EnhancedKeyStoreLoader {
     }
 
     /**
-     * Returns a SHA-384 fingerprint of the certificate's DER-encoded bytes, formatted as
+     * Returns a SHA-384 fingerprint of the certificate's full DER-encoded bytes, formatted as
      * {@code XX:XX:XX:...} (colon-separated uppercase hex octets). Safe to log — contains no key
      * material. Returns {@code "<unavailable>"} if the digest cannot be computed.
      *
@@ -787,9 +788,7 @@ public class EnhancedKeyStoreLoader {
     @NonNull
     private static String certFingerprint(@NonNull final Certificate cert) {
         try {
-            final byte[] digest =
-                    MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(cert.getEncoded());
-            return HexFormat.ofDelimiter(":").withUpperCase().formatHex(digest);
+            return fingerprint(cert.getEncoded());
         } catch (final Exception e) {
             logger.trace(STARTUP.getMarker(), "Unable to compute certificate fingerprint", e);
             return "<unavailable>";
@@ -798,23 +797,38 @@ public class EnhancedKeyStoreLoader {
 
     /**
      * Returns a SHA-384 fingerprint of a public key's DER-encoded {@code SubjectPublicKeyInfo} bytes,
-     * formatted as {@code XX:XX:XX:...} (colon-separated uppercase hex octets). Used to fingerprint
-     * a derived public key for comparison logging when no {@link Certificate} wrapper is available.
-     * Returns {@code "<unavailable>"} if the digest cannot be computed.
+     * formatted as {@code XX:XX:XX:...} (colon-separated uppercase hex octets). Safe to log —
+     * contains no private key material. Returns {@code "<unavailable>"} if the digest cannot be
+     * computed.
+     *
+     * <p>Unlike {@link #certFingerprint(Certificate)}, this hashes only the key bytes, not the full
+     * certificate. Two values from this method are directly comparable to each other.
      *
      * @param publicKey the public key to fingerprint.
      * @return a colon-separated uppercase hex fingerprint string.
      */
     @NonNull
-    private static String certFingerprint(@NonNull final PublicKey publicKey) {
+    private static String keyFingerprint(@NonNull final PublicKey publicKey) {
         try {
-            final byte[] digest =
-                    MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(publicKey.getEncoded());
-            return HexFormat.ofDelimiter(":").withUpperCase().formatHex(digest);
+            return fingerprint(publicKey.getEncoded());
         } catch (final Exception e) {
             logger.trace(STARTUP.getMarker(), "Unable to compute public key fingerprint", e);
             return "<unavailable>";
         }
+    }
+
+    /**
+     * Core SHA-384 digest helper. Computes the SHA-384 hash of the given bytes and returns them
+     * formatted as colon-separated uppercase hex octets (e.g. {@code "A1:B2:C3:..."}).
+     *
+     * @param encoded the raw bytes to hash.
+     * @return a colon-separated uppercase hex string.
+     * @throws Exception if the SHA-384 algorithm is unavailable.
+     */
+    @NonNull
+    private static String fingerprint(@NonNull final byte[] encoded) throws Exception {
+        final byte[] digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(encoded);
+        return HexFormat.ofDelimiter(":").withUpperCase().formatHex(digest);
     }
 
     // ----------------------------------------------------------------------------------------------

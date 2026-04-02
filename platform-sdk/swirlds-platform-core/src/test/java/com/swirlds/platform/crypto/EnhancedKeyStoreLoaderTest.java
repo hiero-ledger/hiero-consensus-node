@@ -266,7 +266,7 @@ class EnhancedKeyStoreLoaderTest {
 
         // Roster entry uses a pre-generated cert that does NOT match the private key above.
         final List<RosterEntry> rosterEntries = List.of(
-                RandomRosterEntryBuilder.create(new Random()).withNodeId(0L).build());
+                RandomRosterEntryBuilder.create(new Random(42)).withNodeId(0L).build());
 
         final EnhancedKeyStoreLoader loader =
                 EnhancedKeyStoreLoader.using(configure(keyDirectory), Set.of(nodeId), rosterEntries);
@@ -283,7 +283,7 @@ class EnhancedKeyStoreLoaderTest {
 
             final boolean hasMismatchWarn = IntStream.range(0, appender.size())
                     .mapToObj(appender::get)
-                    .anyMatch(msg -> msg.contains("does not match certificate public key"));
+                    .anyMatch(msg -> msg.contains("WARN") && msg.contains("does not match certificate public key"));
             assertThat(hasMismatchWarn).isTrue();
         } finally {
             logger.removeAppender(appender);
@@ -311,7 +311,7 @@ class EnhancedKeyStoreLoaderTest {
 
         // Roster entry uses the cert that MATCHES the private key above.
         final List<RosterEntry> rosterEntries = List.of(
-                RandomRosterEntryBuilder.create(new Random())
+                RandomRosterEntryBuilder.create(new Random(42))
                         .withNodeId(0L)
                         .withSigCert(kc.sigCert())
                         .build());
@@ -331,7 +331,7 @@ class EnhancedKeyStoreLoaderTest {
 
             final boolean hasMismatchWarn = IntStream.range(0, appender.size())
                     .mapToObj(appender::get)
-                    .anyMatch(msg -> msg.contains("does not match certificate public key"));
+                    .anyMatch(msg -> msg.contains("WARN") && msg.contains("does not match certificate public key"));
             assertThat(hasMismatchWarn).isFalse();
         } finally {
             logger.removeAppender(appender);
