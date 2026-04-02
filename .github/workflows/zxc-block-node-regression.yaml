@@ -372,7 +372,7 @@ jobs:
         run: |
           solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
-          npm run test:serial
+          npm run test
         working-directory: sdk-tck/regression # required
 
       - name: BN Based - SDK TCK Regression Test Report
