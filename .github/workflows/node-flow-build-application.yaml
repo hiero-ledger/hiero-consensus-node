@@ -255,207 +255,43 @@ jobs:
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
 
+      - name: Install gomplate
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v3.11.7/gomplate_linux-amd64" \
+            -o /usr/local/bin/gomplate && chmod +x /usr/local/bin/gomplate
+
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
-        run: |
-          cat <<SLACKEOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#FF0000",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":x: Hiero Consensus Node - MATS Test Failure Report",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*MATS test failure on \`main\`. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*MATS Tests*: ${{ needs.mats-tests.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Deploy CI Triggers*: ${{ needs.deploy-ci-trigger.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Failing Test(s)*: ${{ needs.mats-tests.outputs.failed-tests }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Slack user*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          SLACKEOF
+        env:
+          MATS_TESTS_RESULT: ${{ needs.mats-tests.result }}
+          DEPLOY_CI_TRIGGER_RESULT: ${{ needs.deploy-ci-trigger.result }}
+          FAILED_TESTS: ${{ needs.mats-tests.outputs.failed-tests }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
+          COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
+          SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-mats-test-failure-detailed.json.tpl -o slack_payload.json
 
       - name: Build Infrastructure Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
-        run: |
-          cat <<SLACKEOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#FF8C00",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":warning: Hiero Consensus Node - MATS Infrastructure Failure Report",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Infrastructure issue detected on \`main\` — not a test failure.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*MATS Tests*: ${{ needs.mats-tests.result }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Deploy CI Triggers*: ${{ needs.deploy-ci-trigger.result }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow run URL*:"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          SLACKEOF
+        env:
+          MATS_TESTS_RESULT: ${{ needs.mats-tests.result }}
+          DEPLOY_CI_TRIGGER_RESULT: ${{ needs.deploy-ci-trigger.result }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-mats-infra-failure-detailed.json.tpl -o slack_payload.json
 
       - name: Build Infrastructure Failure Summary Payload
         if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
-        run: |
-          cat <<SLACKEOF > slack_payload_summary.json
-          {
-            "attachments": [
-              {
-                "color": "#FF8C00",
-                "blocks": [
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": ":warning: MATS infrastructure failure on \`main\` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-          SLACKEOF
+        env:
+          SLACK_SUMMARY_TEXT: ":warning: MATS infrastructure failure on `main` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+        run: gomplate -f .github/workflows/templates/slack-infra-failure-summary.json.tpl -o slack_payload_summary.json
 
       - name: Build Cancelled Summary Payload
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
-        run: |
-          cat <<SLACKEOF > slack_payload_summary.json
-          {
-            "attachments": [
-              {
-                "color": "#808080",
-                "blocks": [
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": ":no_entry_sign: MATS run cancelled on \`main\` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-          SLACKEOF
+        env:
+          SLACK_SUMMARY_TEXT: ":no_entry_sign: MATS run cancelled on `main` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+        run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_summary.json
 
       # Notification routing:
       #   test failures       -> citr-operations (detailed)

@@ -651,231 +651,48 @@ jobs:
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
 
+      - name: Install gomplate
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v3.11.7/gomplate_linux-amd64" \
+            -o /usr/local/bin/gomplate && chmod +x /usr/local/bin/gomplate
+
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
-        run: |
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#FF0000",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":x: XTS - eXtended Test Suite Test Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*XTS test failure. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "plain_text",
-                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "XTS Execution: ${{ needs.xts-execution.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Failing Test(s): ${{ needs.xts-execution.outputs.failed-tests }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Slack user*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Commit List*:"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+        env:
+          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
+          XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
+          TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
+          FAILED_TESTS: ${{ needs.xts-execution.outputs.failed-tests }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          COMMIT_AUTHOR: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}
+          SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_LIST: ${{ needs.fetch-xts-candidate.outputs.commit-list }}
+        run: gomplate -f .github/workflows/templates/slack-xts-test-failure-detailed.json.tpl -o slack_payload.json
 
       - name: Build Infrastructure Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
-        run: |
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#FF8C00",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":warning: XTS - eXtended Test Suite Infrastructure Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }})",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Infrastructure issue detected — not a test failure.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "plain_text",
-                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "XTS Execution: ${{ needs.xts-execution.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow run URL*:"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+        env:
+          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
+          XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
+          TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-xts-infra-failure-detailed.json.tpl -o slack_payload.json
 
       - name: Build Infrastructure Failure Summary Payload
         if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
-        run: |
-          cat <<EOF > slack_payload_summary.json
-          {
-            "attachments": [
-              {
-                "color": "#FF8C00",
-                "blocks": [
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": ":warning: XTS infrastructure failure (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+        env:
+          SLACK_SUMMARY_TEXT: ":warning: XTS infrastructure failure (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+        run: gomplate -f .github/workflows/templates/slack-infra-failure-summary.json.tpl -o slack_payload_summary.json
 
       - name: Build Cancelled Summary Payload
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
-        run: |
-          cat <<EOF > slack_payload_summary.json
-          {
-            "attachments": [
-              {
-                "color": "#808080",
-                "blocks": [
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": ":no_entry_sign: XTS run cancelled (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
-                    }
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+        env:
+          SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS run cancelled (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+        run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_summary.json
 
         # Notification routing:
         #   test failures       -> citr-operations (detailed)
