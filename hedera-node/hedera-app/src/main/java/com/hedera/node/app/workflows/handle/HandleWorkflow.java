@@ -181,6 +181,8 @@ public class HandleWorkflow {
     private final NodeFeeManager nodeFeeManager;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
+    // Flag to indicate whether jumpstart hash voting setup has already been attempted
+    private boolean jumpstartHashVotingSetupDone;
 
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
@@ -322,6 +324,19 @@ public class HandleWorkflow {
             } catch (Exception e) {
                 logger.error("Failed to submit startup migration root-hash vote", e);
             }
+        }
+
+        if (!jumpstartHashVotingSetupDone) {
+            final var deadline = systemTransactions.maybeSetupJumpstartHashVoting(state, this::doStreamingAllChanges);
+            if (deadline.isPresent()) {
+                blockRecordManager.syncVotingMetadata(false, deadline.getAsLong());
+                logger.info(
+                        "Jumpstart hash voting initialized with deadline {}",
+                        deadline.stream().mapToObj(Long::toString));
+            } else {
+                logger.info("Skipping jumpstart hash voting setup");
+            }
+            jumpstartHashVotingSetupDone = true;
         }
 
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
