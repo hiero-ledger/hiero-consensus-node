@@ -62,7 +62,7 @@ public class DataFileCollectionBench extends BaseBench {
                     }
                 };
 
-        final var compactor = new DataFileCompactor(dbConfig, storeName, store, index, null, null, null, null);
+        final var compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
 
         // Write files
         long start = System.currentTimeMillis();
@@ -83,7 +83,7 @@ public class DataFileCollectionBench extends BaseBench {
         // Merge files
         start = System.currentTimeMillis();
         final List<DataFileReader> filesToMerge = store.getAllCompletedFiles();
-        compactor.compact();
+        compactor.compactSingleLevel(compactor.getDataFileCollection().getAllCompletedFiles(), 1);
         logger.info("Merged {} files in {} ms", filesToMerge.size(), System.currentTimeMillis() - start);
 
         // Verify merged content
