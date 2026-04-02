@@ -30,8 +30,8 @@ import org.hiero.sloth.fixtures.specs.SlothSpecs;
                 "-XX:+ZGenerational",
                 //"-XX:+AlwaysPreTouch",
                 "-XX:ConcGCThreads=1",
-                "-Xms6g",
-                "-Xmx6g"
+                "-Xms3g",
+                "-Xmx3g"
         })
 public class CombinedOptimizationsExperiment {
 
