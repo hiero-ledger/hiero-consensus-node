@@ -272,8 +272,8 @@ public class CodeDelegationAtomicBatchTest {
     // 2.3: atomicBatch(CryptoCreate(A, initialDelegation=D1), type-4 updates A delegation to D2) - batch succeeds
     @HapiTest
     final Stream<DynamicTest> testAtomicBatchCryptoCreateSetsDelegationThenType4UpdatesIt() {
-        final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET_2.get()));
-        final var delegationTargetAddress = DELEGATION_TARGET.get();
+        final var initialDelegationAddress = ByteString.copyFrom(explicitFromHeadlong(DELEGATION_TARGET.get())); // D1
+        final var delegationTargetAddress = DELEGATION_TARGET_2.get(); // D2
         final var accountInBatch = "AccountCreatedInBatch";
         return hapiTest(
                 newKeyNamed(accountInBatch).shape(SECP_256K1_SHAPE),
@@ -443,8 +443,10 @@ public class CodeDelegationAtomicBatchTest {
                                 .type(EthTransactionType.EIP7702)
                                 .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
                                 .addCodeDelegationWithSpecNonce(delegationTargetAddress, authority1)
-                                .addCodeDelegationWithNonce(delegationTargetAddress, 1L, authority2)
-                                .addCodeDelegationWithNonce(delegationTargetAddress, 1L, authority3)
+                                // We set wrong nonce on purpose to simulate invalid auth entries.
+                                // These should be skipped, but valid delegations should still be committed.
+                                .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority2)
+                                .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority3)
                                 .gasLimit(GAS_LIMIT_2M)
                                 .hasKnownStatus(SUCCESS)
                                 .batchKey(RELAYER))
@@ -483,7 +485,8 @@ public class CodeDelegationAtomicBatchTest {
                                 .type(EthTransactionType.EIP7702)
                                 .addSenderCodeDelegationWithSpecNonce(delegationTargetAddress)
                                 .addCodeDelegationWithSpecNonce(delegationTargetAddress, authority1)
-                                // Insert invalid nonces
+                                // We set wrong nonce on purpose to simulate invalid auth entries.
+                                // These should be skipped, but valid delegations should still be committed.
                                 .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority2)
                                 .addCodeDelegationWithNonce(delegationTargetAddress, 999L, authority3)
                                 .gasLimit(GAS_LIMIT_2M)
