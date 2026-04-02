@@ -29,7 +29,7 @@ import org.hiero.sloth.fixtures.specs.SlothSpecs;
                 "-XX:+UseZGC",
                 "-XX:+ZGenerational",
                 //"-XX:+AlwaysPreTouch",
-                "-XX:ConcGCThreads=1",
+                "-XX:ConcGCThreads=4",
                 "-Xms4g",
                 "-Xmx4g"
         })
