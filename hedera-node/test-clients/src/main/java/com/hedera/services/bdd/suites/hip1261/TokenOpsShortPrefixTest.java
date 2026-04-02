@@ -33,7 +33,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateFullFeeUsd;
@@ -227,8 +227,8 @@ public class TokenOpsShortPrefixTest {
                         .via("burnTxn"),
                 validateChargedUsdWithinWithTxnSize(
                         "burnTxn",
-                        txnSize -> expectedTokenBurnFungibleFullFeeUsd(
-                                Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                        txnSize ->
+                                expectedTokenBurnFullFeeUsd(Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                         5.0));
     }
 
@@ -502,8 +502,8 @@ public class TokenOpsShortPrefixTest {
                         .via("burnNftTxn"),
                 validateChargedUsdWithinWithTxnSize(
                         "burnNftTxn",
-                        txnSize -> expectedTokenBurnFungibleFullFeeUsd(
-                                Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                        txnSize ->
+                                expectedTokenBurnFullFeeUsd(Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                         5.0));
     }
 
