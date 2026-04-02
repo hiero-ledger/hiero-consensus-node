@@ -46,6 +46,7 @@ env:
 jobs:
   # Execute Block Node Tests using specified version of hiero-consensus-node
   block-node-recovery:
+    timeout-minutes: 90
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-bn-regression-lin-lg
     steps:
@@ -395,7 +396,7 @@ jobs:
       # untar protobuf sources
       - name: Download & Untar Protobuf Sources
         run: |
-          mkdir -p block-node
+          mkdir -p block-node && cd "$_"
           curl -L ${{ env.BLOCK_NODE_PROTO_URL }} -o block-node-protobuf-${{ env.BLOCK_NODE_TAG }}.tgz
           # Use the generated protobuf artifact (matches local project version)
           PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
