@@ -456,7 +456,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
     // Use fixed strategy with limited parallelism to balance speed and stability
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
     val subprocessConcurrentParallelism =
-        (Runtime.getRuntime().availableProcessors() * 2).coerceIn(8, 12)
+        (Runtime.getRuntime().availableProcessors() * 2).coerceIn(2, 24)
 
     systemProperty(
         "junit.jupiter.execution.parallel.config.fixed.parallelism",
