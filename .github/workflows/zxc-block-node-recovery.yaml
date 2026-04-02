@@ -46,7 +46,7 @@ env:
 jobs:
   # Execute Block Node Tests using specified version of hiero-consensus-node
   block-node-recovery:
-    timeout-minutes: 90
+    timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-bn-regression-lin-lg
     steps:
@@ -396,7 +396,7 @@ jobs:
       # untar protobuf sources
       - name: Download & Untar Protobuf Sources
         run: |
-          mkdir -p block-node && cd "$_"
+          mkdir -p block-node-proto && cd "$_"
           curl -L ${{ env.BLOCK_NODE_PROTO_URL }} -o block-node-protobuf-${{ env.BLOCK_NODE_TAG }}.tgz
           # Use the generated protobuf artifact (matches local project version)
           PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
@@ -407,11 +407,11 @@ jobs:
           fi
           echo "Using protobuf artifact: $PROTO_FILE"
           # untar the artifact
-          tar -xzf "$PROTO_FILE" -C proto
+          tar -xzf "$PROTO_FILE" -C .
           rm "$PROTO_FILE"
 
       - name: Install grpcurl
-        working-directory: block-node
+        working-directory: block-node-proto
         run: |
           curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
           sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
@@ -419,13 +419,12 @@ jobs:
 
         # Verify the BN1 is getting blocks
       - name: Get ServerStatus from Block Node 1
-        working-directory: block-node
         run: |
           # Call serverStatus once
           STATUS_JSON=$(grpcurl \
             -plaintext \
             -emit-defaults \
-            -import-path protobuf-sources/proto \
+            -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
             localhost:40841 \
@@ -454,13 +453,12 @@ jobs:
 
         # Verify the BN2 is getting blocks
       - name: Get ServerStatus from Block Node 2
-        working-directory: block-node
         run: |
           # Call serverStatus once
           STATUS_JSON=$(grpcurl \
             -plaintext \
             -emit-defaults \
-            -import-path protobuf-sources/proto \
+            -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
             localhost:40842 \
@@ -489,13 +487,12 @@ jobs:
 
         # Verify the BN3 is getting blocks
       - name: Get ServerStatus from Block Node 3
-        working-directory: block-node
         run: |
           # Call serverStatus once
           STATUS_JSON=$(grpcurl \
             -plaintext \
             -emit-defaults \
-            -import-path protobuf-sources/proto \
+            -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
             localhost:40843 \
@@ -524,7 +521,6 @@ jobs:
 
         # Verify the available blocks from BNs 1-3 are within a reasonable range to showcase catchup
       - name: Validate server status block ranges
-        working-directory: block-node
         run: |          
           # Calculate min and max first available blocks
           min_first_available=${{ env.BN1_FIRST_AVAILABLE_BLOCK }} < ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}
