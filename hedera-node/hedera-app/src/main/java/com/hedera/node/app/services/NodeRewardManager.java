@@ -584,10 +584,14 @@ public class NodeRewardManager {
     }
 
     /**
-     * Returns {@code true} if the given registered node has at least one Block Node service endpoint.
+     * Returns {@code true} if the given registered node has at least one Block Node service endpoint
+     * with a {@link RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi#PUBLISH PUBLISH} API.
      */
     private static boolean isBlockNodeType(@NonNull final RegisteredNode registeredNode) {
-        return registeredNode.serviceEndpoint().stream().anyMatch(RegisteredServiceEndpoint::hasBlockNode);
+        return registeredNode.serviceEndpoint().stream()
+                .anyMatch(endpoint -> endpoint.hasBlockNode()
+                        && endpoint.blockNodeOrThrow().endpointApi()
+                                == RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH);
     }
 
     /**
