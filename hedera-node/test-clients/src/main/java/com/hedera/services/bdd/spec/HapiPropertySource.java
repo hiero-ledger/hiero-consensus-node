@@ -479,7 +479,11 @@ public interface HapiPropertySource {
         setAddress(builder, addr);
         builder.setPort(port);
         final var blockNodeBuilder = RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder();
-        for (final String apiName : parts[2].split(",")) {
+        for (final String apiName : parts[2].split(",", -1)) {
+            if (apiName.isEmpty()) {
+                throw new IllegalArgumentException("Empty API name in block node endpoint '" + v
+                        + "'. Expected format: addr:port:api1[,api2][:tls]");
+            }
             try {
                 blockNodeBuilder.addEndpointApi(
                         RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.valueOf(apiName.toUpperCase()));

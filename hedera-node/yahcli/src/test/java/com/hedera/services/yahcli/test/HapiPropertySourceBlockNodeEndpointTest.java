@@ -105,6 +105,13 @@ class HapiPropertySourceBlockNodeEndpointTest {
         final var ex = assertThrows(
                 IllegalArgumentException.class,
                 () -> HapiPropertySource.asBlockNodeEndpoint("127.0.0.1:8080:STATUS,,PUBLISH"));
-        assertTrue(ex.getMessage().contains("Invalid blockNodeApi"));
+        assertTrue(ex.getMessage().contains("Empty API name"));
+    }
+
+    @Test
+    void throwsOnTrailingCommaInApiList() {
+        final var ex = assertThrows(
+                IllegalArgumentException.class, () -> HapiPropertySource.asBlockNodeEndpoint("127.0.0.1:8080:STATUS,"));
+        assertTrue(ex.getMessage().contains("Empty API name"));
     }
 }
