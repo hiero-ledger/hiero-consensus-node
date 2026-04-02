@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
-import com.hedera.services.bdd.junit.support.StreamFileAccess;
-import com.hedera.services.stream.proto.RecordStreamFile;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -26,28 +24,14 @@ public class BlockContentsValidator implements BlockStreamValidator {
     private static final int REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE = 3;
 
     public static void main(String[] args) {
-        final var recordStreamsDir = "/Users/derektriley/Downloads/hapi-test 7/node0/data/recordStreams/record11.12.3";
-        final Set<Long> targetBlocks = Set.of(294L);
-
-        try {
-            final var streamData = StreamFileAccess.STREAM_FILE_ACCESS.readStreamDataFrom(recordStreamsDir, "sidecar");
-            final var matchingFiles = streamData.files().stream()
-                    .filter(file -> targetBlocks.contains(file.getBlockNumber()))
-                    .toList();
-
-            for (final var file : matchingFiles) {
-                System.out.printf("%n=== Block %d ===%n%s%n", file.getBlockNumber(), file);
-            }
-
-            final var foundBlocks =
-                    matchingFiles.stream().map(RecordStreamFile::getBlockNumber).collect(Collectors.toSet());
-            targetBlocks.stream()
-                    .filter(blockNo -> !foundBlocks.contains(blockNo))
-                    .sorted()
-                    .forEach(blockNo -> System.out.printf("No record stream file found for block %d%n", blockNo));
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read record stream files from " + recordStreamsDir, e);
-        }
+        final var node0Dir = Paths.get("hedera-node/test-clients")
+                .resolve(workingDirFor(0, "hapi"))
+                .toAbsolutePath()
+                .normalize();
+        final var validator = new BlockContentsValidator();
+        final var blocks =
+                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
+        validator.validateBlocks(blocks);
     }
 
     public static final Factory FACTORY = spec -> new BlockContentsValidator();
