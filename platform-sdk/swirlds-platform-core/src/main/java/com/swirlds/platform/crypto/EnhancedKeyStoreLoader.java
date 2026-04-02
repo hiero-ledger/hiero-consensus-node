@@ -22,6 +22,7 @@ import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
@@ -245,7 +246,7 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     public EnhancedKeyStoreLoader scan() throws KeyLoadingException, KeyStoreException {
-        logger.debug(STARTUP.getMarker(), "Starting key store enumeration");
+        logger.debug(STARTUP.getMarker(), "Starting key store enumeration [ keyStoreDirectory = {} ]", keyStoreDirectory);
 
         for (final NodeId nodeId : this.nodeIds) {
             logger.debug(STARTUP.getMarker(), "Attempting to locate key stores for nodeId {}", nodeId);
@@ -257,7 +258,11 @@ public class EnhancedKeyStoreLoader {
             sigCertificates.compute(nodeId, (k, v) -> resolveNodeCertificate(nodeId));
         }
 
-        logger.trace(STARTUP.getMarker(), "Completed key store enumeration");
+        logger.debug(
+                STARTUP.getMarker(),
+                "Completed key store enumeration [ sigKeysLoaded = {}, sigCertsLoaded = {} ]",
+                sigPrivateKeys.size(),
+                sigCertificates.size());
         return this;
     }
 
@@ -434,7 +439,7 @@ public class EnhancedKeyStoreLoader {
         // Check for the enhanced private key store. The enhance key store is preferred over the legacy key store.
         Path ksLocation = privateKeyStore(nodeId);
         if (Files.exists(ksLocation)) {
-            logger.trace(
+            logger.info(
                     STARTUP.getMarker(),
                     "Found enhanced private key store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
@@ -446,7 +451,7 @@ public class EnhancedKeyStoreLoader {
         // Check for the legacy private key store.
         ksLocation = legacyPrivateKeyStore(nodeId);
         if (Files.exists(ksLocation)) {
-            logger.trace(
+            logger.info(
                     STARTUP.getMarker(),
                     "Found legacy private key store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
@@ -476,12 +481,29 @@ public class EnhancedKeyStoreLoader {
     private Certificate resolveNodeCertificate(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
 
-        return rosterEntries.stream()
+        final Certificate cert = rosterEntries.stream()
                 .filter(e -> e.nodeId() == nodeId.id())
                 .map(RosterUtils::fetchGossipCaCertificate)
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
+
+        if (cert != null) {
+            logger.info(
+                    STARTUP.getMarker(),
+                    "Loaded signing certificate from roster for nodeId: {} [ purpose = {}, fingerprint = {} ]",
+                    nodeId,
+                    KeyCertPurpose.SIGNING,
+                    certFingerprint(cert));
+        } else {
+            logger.warn(
+                    STARTUP.getMarker(),
+                    "No signing certificate found in roster for nodeId: {} [ purpose = {} ]",
+                    nodeId,
+                    KeyCertPurpose.SIGNING);
+        }
+
+        return cert;
     }
 
     /**
@@ -659,6 +681,35 @@ public class EnhancedKeyStoreLoader {
                     "Unable to extract a private key from the specified entry [ entryType = %s ]"
                             .formatted(entry.getClass().getName()),
                     e);
+        }
+    }
+
+    // ----------------------------------------------------------------------------------------------
+    //                               VERIFICATION HELPERS
+    // ----------------------------------------------------------------------------------------------
+
+    /**
+     * Returns a SHA-384 fingerprint of the certificate's encoded bytes, formatted as
+     * {@code XX:XX:XX:...} (colon-separated hex octets). Safe to log — contains no key material.
+     * Returns {@code "<unavailable>"} if the digest cannot be computed.
+     *
+     * @param cert the certificate to fingerprint.
+     * @return a colon-separated hex fingerprint string.
+     */
+    @NonNull
+    private static String certFingerprint(@NonNull final Certificate cert) {
+        try {
+            final byte[] digest = MessageDigest.getInstance("SHA-384").digest(cert.getEncoded());
+            final StringBuilder sb = new StringBuilder(digest.length * 3 - 1);
+            for (int i = 0; i < digest.length; i++) {
+                if (i > 0) {
+                    sb.append(':');
+                }
+                sb.append(String.format("%02X", digest[i] & 0xFF));
+            }
+            return sb.toString();
+        } catch (final Exception e) {
+            return "<unavailable>";
         }
     }
 
