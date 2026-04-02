@@ -353,6 +353,12 @@ jobs:
           echo "FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
 
+      - name: Show running pods and services
+        run: |
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+        continue-on-error: true
+
       # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
         timeout-minutes: 30
@@ -366,8 +372,7 @@ jobs:
         run: |
           solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
-          npm run test:file src/tests/crypto-service/test-transfer-hbar-transaction.ts
-          npm run test:file src/tests/contract-service/test-contract-delete-transaction.ts
+          npm run test:serial
         working-directory: sdk-tck/regression # required
 
       - name: BN Based - SDK TCK Regression Test Report
