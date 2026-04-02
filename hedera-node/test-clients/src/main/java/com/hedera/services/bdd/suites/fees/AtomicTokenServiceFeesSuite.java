@@ -86,6 +86,7 @@ import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_ASSOCIATE;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 
 import com.google.protobuf.ByteString;
@@ -861,7 +862,7 @@ class AtomicTokenServiceFeesSuite {
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
-                                        TOKEN_TYPES, 1L,
+                                        TOKEN_MINT_NFT, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
@@ -919,7 +920,7 @@ class AtomicTokenServiceFeesSuite {
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
-                                        TOKEN_TYPES, 10L,
+                                        TOKEN_MINT_NFT, 10L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 1.0);
                     } else {

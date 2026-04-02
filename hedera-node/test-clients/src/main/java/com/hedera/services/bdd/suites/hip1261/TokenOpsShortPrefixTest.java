@@ -55,6 +55,7 @@ import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 
 import com.google.protobuf.ByteString;
@@ -474,7 +475,7 @@ public class TokenOpsShortPrefixTest {
                         "mintNftTxn",
                         txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                 SIGNATURES, 2L,
-                                KEYS, 1L,
+                                TOKEN_MINT_NFT, 1L,
                                 PROCESSING_BYTES, (long) txnSize)),
                         5.0));
     }
