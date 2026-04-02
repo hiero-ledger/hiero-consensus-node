@@ -394,8 +394,8 @@ jobs:
 
       # untar protobuf sources
       - name: Download & Untar Protobuf Sources
-        working-directory: block-node-protobuf
         run: |
+          mkdir -p block-node
           curl -L ${{ env.BLOCK_NODE_PROTO_URL }} -o block-node-protobuf-${{ env.BLOCK_NODE_TAG }}.tgz
           # Use the generated protobuf artifact (matches local project version)
           PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
@@ -410,6 +410,7 @@ jobs:
           rm "$PROTO_FILE"
 
       - name: Install grpcurl
+        working-directory: block-node
         run: |
           curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
           sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
