@@ -823,10 +823,10 @@ public class EnhancedKeyStoreLoader {
      *
      * @param encoded the raw bytes to hash.
      * @return a colon-separated uppercase hex string.
-     * @throws Exception if the SHA-384 algorithm is unavailable.
+     * @throws NoSuchAlgorithmException if the SHA-384 algorithm is unavailable.
      */
     @NonNull
-    private static String fingerprint(@NonNull final byte[] encoded) throws Exception {
+    private static String fingerprint(@NonNull final byte[] encoded) throws NoSuchAlgorithmException {
         final byte[] digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(encoded);
         return HexFormat.ofDelimiter(":").withUpperCase().formatHex(digest);
     }
