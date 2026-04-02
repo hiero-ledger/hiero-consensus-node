@@ -18,7 +18,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.utility.MemoryUtils;
 
 /**
  * A {@link LongList} that stores its contents off-heap via {@link MemorySegment}s backed by
@@ -321,21 +320,23 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         final long currentMinValidIndex = minValidIndex.get();
         final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
 
-        // A single reusable direct buffer, decoupled from any arena. We copy chunk data
-        // into this buffer before writing, so FileChannel.write never touches arena-scoped
-        // memory directly.
-        final ByteBuffer writeBuf = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.nativeOrder());
-        final MemorySegment writeBufSegment = MemorySegment.ofBuffer(writeBuf);
-        try {
+        // A confined arena for the temporary write buffer. Confined is sufficient because
+        // writeLongsData is a single-threaded operation (snapshot/flush), and it is cheaper
+        // than a shared arena. The buffer is decoupled from any chunk arena, so
+        // FileChannel.write never touches chunk-scoped memory directly.
+        try (final Arena writeArena = Arena.ofConfined()) {
+            final MemorySegment writeBufSegment = writeArena.allocate(memoryChunkSize, Long.BYTES);
+            final ByteBuffer writeBuf = writeBufSegment.asByteBuffer().order(ByteOrder.nativeOrder());
+
             for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
                 writeBuf.clear();
 
                 final SegmentChunk segChunk = chunkList.get(i);
                 if (segChunk != null) {
                     try {
-                        // Bulk copy from the arena-scoped segment into the detached buffer.
-                        // After this copy completes, writeBuf holds a snapshot of the chunk
-                        // data that is independent of the arena's lifetime.
+                        // Bulk copy from the chunk's arena-scoped segment into the detached
+                        // buffer. After this copy completes, writeBuf holds a snapshot of the
+                        // chunk data that is independent of the chunk arena's lifetime.
                         MemorySegment.copy(segChunk.segment(), 0, writeBufSegment, 0, memoryChunkSize);
                     } catch (final IllegalStateException e) {
                         // Arena was closed between chunkList.get and the copy — treat as empty
@@ -362,8 +363,6 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
 
                 MerkleDbFileUtils.completelyWrite(fc, writeBuf);
             }
-        } finally {
-            MemoryUtils.closeDirectByteBuffer(writeBuf);
         }
     }
 

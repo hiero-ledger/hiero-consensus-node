@@ -45,55 +45,56 @@ class DataFileReaderCloseTest {
         final int COUNT = 100;
         collection.updateValidKeyRange(0, COUNT - 1);
         collection.startWriting();
-        final LongList index = new LongListSegment(COUNT / 10, COUNT, COUNT / 10);
-        index.updateValidRange(0, COUNT - 1);
-        for (int i = 0; i < COUNT; i++) {
-            final int fi = i;
-            index.put(
-                    i,
-                    collection.storeDataItem(
-                            o -> {
-                                o.writeLong(fi);
-                                o.writeLong(fi + 1);
-                            },
-                            2 * Long.BYTES));
-        }
-        //noinspection resource
-        collection.endWriting();
-        final AtomicBoolean readingThreadStarted = new AtomicBoolean(false);
-        final AtomicReference<IOException> exceptionOccurred = new AtomicReference<>();
-        final Thread readingThread = new Thread(() -> {
-            final Random rand = new Random();
-            try {
-                while (!Thread.currentThread().isInterrupted()) {
-                    final int i = rand.nextInt(COUNT);
-                    final long dataLocation = index.get(i);
-                    final BufferedData itemBytes = collection.readDataItem(dataLocation);
-                    Assertions.assertEquals(i, itemBytes.readLong());
-                    Assertions.assertEquals(i + 1, itemBytes.readLong());
-                    readingThreadStarted.set(true);
-                }
-            } catch (final ClosedByInterruptException e) {
-                // This is expected
-            } catch (final IOException e) {
-                exceptionOccurred.set(e);
+        try (final LongList index = new LongListSegment(COUNT / 10, COUNT, COUNT / 10)) {
+            index.updateValidRange(0, COUNT - 1);
+            for (int i = 0; i < COUNT; i++) {
+                final int fi = i;
+                index.put(
+                        i,
+                        collection.storeDataItem(
+                                o -> {
+                                    o.writeLong(fi);
+                                    o.writeLong(fi + 1);
+                                },
+                                2 * Long.BYTES));
             }
-        });
-        readingThread.start();
-        while (!readingThreadStarted.get()) {
-            //noinspection BusyWait
-            Thread.sleep(1);
-        }
-        readingThread.interrupt();
-        readingThread.join(4000);
-        if (exceptionOccurred.get() != null) {
-            exceptionOccurred.get().printStackTrace();
-            Assertions.assertNull(exceptionOccurred.get(), "No IOException is expected");
-        }
-        for (int i = 0; i < COUNT; i++) {
-            final BufferedData itemBytes = collection.readDataItemUsingIndex(index, i);
-            Assertions.assertEquals(i, itemBytes.readLong());
-            Assertions.assertEquals(i + 1, itemBytes.readLong());
+            //noinspection resource
+            collection.endWriting();
+            final AtomicBoolean readingThreadStarted = new AtomicBoolean(false);
+            final AtomicReference<IOException> exceptionOccurred = new AtomicReference<>();
+            final Thread readingThread = new Thread(() -> {
+                final Random rand = new Random();
+                try {
+                    while (!Thread.currentThread().isInterrupted()) {
+                        final int i = rand.nextInt(COUNT);
+                        final long dataLocation = index.get(i);
+                        final BufferedData itemBytes = collection.readDataItem(dataLocation);
+                        Assertions.assertEquals(i, itemBytes.readLong());
+                        Assertions.assertEquals(i + 1, itemBytes.readLong());
+                        readingThreadStarted.set(true);
+                    }
+                } catch (final ClosedByInterruptException e) {
+                    // This is expected
+                } catch (final IOException e) {
+                    exceptionOccurred.set(e);
+                }
+            });
+            readingThread.start();
+            while (!readingThreadStarted.get()) {
+                //noinspection BusyWait
+                Thread.sleep(1);
+            }
+            readingThread.interrupt();
+            readingThread.join(4000);
+            if (exceptionOccurred.get() != null) {
+                exceptionOccurred.get().printStackTrace();
+                Assertions.assertNull(exceptionOccurred.get(), "No IOException is expected");
+            }
+            for (int i = 0; i < COUNT; i++) {
+                final BufferedData itemBytes = collection.readDataItemUsingIndex(index, i);
+                Assertions.assertEquals(i, itemBytes.readLong());
+                Assertions.assertEquals(i + 1, itemBytes.readLong());
+            }
         }
     }
 

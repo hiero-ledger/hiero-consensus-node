@@ -38,7 +38,9 @@ class DataFileCollectionCompactionTest {
     // Would be nice to add a test to make sure files get deleted
     private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
-    /** Temporary directory provided by JUnit */
+    /**
+     * Temporary directory provided by JUnit
+     */
     @TempDir
     Path tempFileDir;
 
@@ -452,121 +454,124 @@ class DataFileCollectionCompactionTest {
         String storeName = "testMergeSnapshotRestore";
         final Path testDir = tempFileDir.resolve(storeName);
         Files.createDirectories(testDir);
-        final LongListSegment index = new LongListSegment(numValues, numFiles * numValues, 0);
-        index.updateValidRange(0, numFiles * numValues - 1);
-        final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
-        final DataFileCompactor compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
-        // Create a few files initially
-        for (int i = 0; i < numFiles; i++) {
+        try (final LongListSegment index = new LongListSegment(numValues, numFiles * numValues, 0)) {
+            index.updateValidRange(0, numFiles * numValues - 1);
+            final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
+            final DataFileCompactor compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
+            // Create a few files initially
+            for (int i = 0; i < numFiles; i++) {
+                store.startWriting();
+                for (int j = 0; j < numValues; j++) {
+                    final long dataLocation = storeDataItem(store, new long[] {i * numValues + j, i * numValues + j});
+                    index.put(i * numValues + j, dataLocation);
+                }
+                store.updateValidKeyRange(0, index.size());
+                store.endWriting();
+            }
+            // Start compaction
+            // Test scenario 0: start merging with mergingPaused semaphore locked, so merging
+            // won't proceed more than to the first index update
+            if (testParam == 0) {
+                compactor.pauseCompaction();
+            }
+            final int filesCountBeforeMerge = store.getAllCompletedFiles().size();
+            assertEquals(numFiles, filesCountBeforeMerge);
+            final CountDownLatch mergeCompleteLatch = new CountDownLatch(1);
+            final CountDownLatch newFileWriteCompleteLatch = new CountDownLatch(1);
+            final ExecutorService exec = Executors.newSingleThreadExecutor();
+            final Future<?> f = exec.submit(() -> {
+                try {
+                    final List<DataFileReader> filesToMerge = getFilesToMerge(store);
+                    // Data file collection may create a new file before the compaction starts
+                    assertTrue(filesToMerge.size() == numFiles || filesToMerge.size() == numFiles + 1);
+                    compactor.compactFiles(index, filesToMerge, 1);
+                    // Wait for the new file to be available. Without this wait, there
+                    // may be 1 or 2
+                    // files available for merge, as this thread may be complete before
+                    // endWriting()
+                    // below is called
+                    newFileWriteCompleteLatch.await();
+                    // 2 = new file with updated values below + one or two files created
+                    // during merge,
+                    // it depends on where pauseCompaction() happens inside
+                    // compactFiles() above
+                    // depending on the test scenario there may be 1, 2 or 3 files
+                    assertTrue(
+                            List.of(1, 2, 3)
+                                    .contains(store.getAllCompletedFiles().size()),
+                            "Unexpected files after compaction: " + store.getAllCompletedFiles());
+                } catch (final Exception e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    // Make sure the main thread is unblocked regardless. If any
+                    // exceptions are thrown
+                    // above, they will be checked in the end of the test
+                    mergeCompleteLatch.countDown();
+                }
+            });
+            // Test scenario 1: let compaction and update run in parallel for a while
+            if (testParam == 1) {
+                compactor.pauseCompaction();
+            }
+            // Update values as if it was a flush before a snapshot. It will create a new file in the
+            // store
+            // in parallel to writing to another file during compaction
             store.startWriting();
-            for (int j = 0; j < numValues; j++) {
-                final long dataLocation = storeDataItem(store, new long[] {i * numValues + j, i * numValues + j});
-                index.put(i * numValues + j, dataLocation);
+            for (int i = 0; i < numFiles; i++) {
+                for (int j = 0; j < numValues; j++) {
+                    final long dataLocation =
+                            storeDataItem(store, new long[] {i * numValues + j, i * numValues + j + 1});
+                    index.put(i * numValues + j, dataLocation);
+                }
             }
             store.updateValidKeyRange(0, index.size());
             store.endWriting();
-        }
-        // Start compaction
-        // Test scenario 0: start merging with mergingPaused semaphore locked, so merging
-        // won't proceed more than to the first index update
-        if (testParam == 0) {
-            compactor.pauseCompaction();
-        }
-        final int filesCountBeforeMerge = store.getAllCompletedFiles().size();
-        assertEquals(numFiles, filesCountBeforeMerge);
-        final CountDownLatch mergeCompleteLatch = new CountDownLatch(1);
-        final CountDownLatch newFileWriteCompleteLatch = new CountDownLatch(1);
-        final ExecutorService exec = Executors.newSingleThreadExecutor();
-        final Future<?> f = exec.submit(() -> {
-            try {
-                final List<DataFileReader> filesToMerge = getFilesToMerge(store);
-                // Data file collection may create a new file before the compaction starts
-                assertTrue(filesToMerge.size() == numFiles || filesToMerge.size() == numFiles + 1);
-                compactor.compactFiles(index, filesToMerge, 1);
-                // Wait for the new file to be available. Without this wait, there
-                // may be 1 or 2
-                // files available for merge, as this thread may be complete before
-                // endWriting()
-                // below is called
-                newFileWriteCompleteLatch.await();
-                // 2 = new file with updated values below + one or two files created
-                // during merge,
-                // it depends on where pauseCompaction() happens inside
-                // compactFiles() above
-                // depending on the test scenario there may be 1, 2 or 3 files
-                assertTrue(
-                        List.of(1, 2, 3).contains(store.getAllCompletedFiles().size()),
-                        "Unexpected files after compaction: " + store.getAllCompletedFiles());
-            } catch (final Exception e) {
-                throw new RuntimeException(e);
-            } finally {
-                // Make sure the main thread is unblocked regardless. If any
-                // exceptions are thrown
-                // above, they will be checked in the end of the test
-                mergeCompleteLatch.countDown();
+            newFileWriteCompleteLatch.countDown();
+            // Test scenario 2: lock the semaphore just before taking a snapshot. Compaction may still
+            // be
+            // in progress or may be completed
+            if (testParam == 2) {
+                compactor.pauseCompaction();
             }
-        });
-        // Test scenario 1: let compaction and update run in parallel for a while
-        if (testParam == 1) {
-            compactor.pauseCompaction();
-        }
-        // Update values as if it was a flush before a snapshot. It will create a new file in the
-        // store
-        // in parallel to writing to another file during compaction
-        store.startWriting();
-        for (int i = 0; i < numFiles; i++) {
-            for (int j = 0; j < numValues; j++) {
-                final long dataLocation = storeDataItem(store, new long[] {i * numValues + j, i * numValues + j + 1});
-                index.put(i * numValues + j, dataLocation);
+            // Test scenario 3: wait for compaction to complete, then take a snapshot
+            if (testParam == 3) {
+                mergeCompleteLatch.await();
+                compactor.pauseCompaction();
             }
-        }
-        store.updateValidKeyRange(0, index.size());
-        store.endWriting();
-        newFileWriteCompleteLatch.countDown();
-        // Test scenario 2: lock the semaphore just before taking a snapshot. Compaction may still
-        // be
-        // in progress or may be completed
-        if (testParam == 2) {
-            compactor.pauseCompaction();
-        }
-        // Test scenario 3: wait for compaction to complete, then take a snapshot
-        if (testParam == 3) {
-            mergeCompleteLatch.await();
-            compactor.pauseCompaction();
-        }
-        // Snapshot. It's in the middle of compaction, as compaction should be stopped at this point
-        // waiting
-        // to acquire mergingPaused semaphore
-        final Path snapshotDir = tempFileDir.resolve("testMergeSnapshotRestore-snapshot");
-        Files.createDirectories(snapshotDir);
-        index.writeToFile(snapshotDir.resolve("index.ll"));
-        store.snapshot(snapshotDir);
-        // Release the semaphore to unpause merging and wait for it to complete
-        compactor.resumeCompaction();
-        if (testParam != 3) {
-            mergeCompleteLatch.await();
-        }
-        // Close the store
-        store.close();
+            // Snapshot. It's in the middle of compaction, as compaction should be stopped at this point
+            // waiting
+            // to acquire mergingPaused semaphore
+            final Path snapshotDir = tempFileDir.resolve("testMergeSnapshotRestore-snapshot");
+            Files.createDirectories(snapshotDir);
+            index.writeToFile(snapshotDir.resolve("index.ll"));
+            store.snapshot(snapshotDir);
+            // Release the semaphore to unpause merging and wait for it to complete
+            compactor.resumeCompaction();
+            if (testParam != 3) {
+                mergeCompleteLatch.await();
+            }
+            // Close the store
+            store.close();
 
-        // Restore
-        final LongListOffHeap index2 =
-                new LongListOffHeap(snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0, CONFIGURATION);
-        final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshotDir, storeName, null);
-        // Check index size
-        assertEquals(numFiles * numValues, index2.size());
-        // Check the values
-        for (int i = 0; i < index2.size(); i++) {
-            final long dataLocation = index2.get(i);
-            final long[] value = readDataItem(store2, dataLocation);
-            assertNotNull(value);
-            assertEquals(i, value[0]);
-            assertEquals(i + 1, value[1]);
-        }
-        store2.close();
+            // Restore
+            final LongListOffHeap index2 = new LongListOffHeap(
+                    snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0, CONFIGURATION);
+            final DataFileCollection store2 = new DataFileCollection(MERKLE_DB_CONFIG, snapshotDir, storeName, null);
+            // Check index size
+            assertEquals(numFiles * numValues, index2.size());
+            // Check the values
+            for (int i = 0; i < index2.size(); i++) {
+                final long dataLocation = index2.get(i);
+                final long[] value = readDataItem(store2, dataLocation);
+                assertNotNull(value);
+                assertEquals(i, value[0]);
+                assertEquals(i + 1, value[1]);
+            }
+            store2.close();
 
-        // Check exceptions from the compaction thread
-        f.get();
+            // Check exceptions from the compaction thread
+            f.get();
+        }
     }
 
     @Test
