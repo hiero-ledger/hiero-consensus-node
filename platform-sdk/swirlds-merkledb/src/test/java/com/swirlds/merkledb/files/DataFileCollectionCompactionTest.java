@@ -47,10 +47,7 @@ class DataFileCollectionCompactionTest {
     private static final long DATE = 1004;
     private static final long EGGPLANT = 1005;
     private static final long FIG = 1006;
-    private static final long GRAPE = 1007;
-    private static final long AARDVARK = 2001;
     private static final long CUTTLEFISH = 2003;
-    private static final long FOX = 1006;
 
     private static long storeDataItem(final DataFileCollection coll, long[] values) throws IOException {
         return coll.storeDataItem(
@@ -130,13 +127,7 @@ class DataFileCollectionCompactionTest {
                 return true;
             }
         };
-        final var compactor =
-                new DataFileCompactor(MERKLE_DB_CONFIG, storeName, coll, indexUpdater, null, null, null, null) {
-                    @Override
-                    int getMinNumberOfFilesToCompact() {
-                        return 2;
-                    }
-                };
+        final var compactor = new DataFileCompactor(storeName, coll, indexUpdater, null, null, null, null);
         compactor.compactFiles(indexUpdater, getFilesToMerge(coll), 1);
 
         long prevKey = -1;
@@ -196,54 +187,47 @@ class DataFileCollectionCompactionTest {
         final CountDownLatch snapshotComplete = new CountDownLatch(1);
 
         // Do merge in a separate thread but pause before files are deleted
-        new Thread(() -> {
-                    final AtomicInteger updateCount = new AtomicInteger(0);
-                    final List<DataFileReader> filesToMerge = getFilesToMerge(store);
-                    final CASableLongIndex indexUpdater = new CASableLongIndex() {
-                        public long get(long key) {
-                            return index[(int) key];
+        final Thread compactionThread = new Thread(() -> {
+            final AtomicInteger updateCount = new AtomicInteger(0);
+            final List<DataFileReader> filesToMerge = getFilesToMerge(store);
+            final CASableLongIndex indexUpdater = new CASableLongIndex() {
+                public long get(long key) {
+                    return index[(int) key];
+                }
+
+                public boolean putIfEqual(long key, long oldValue, long newValue) {
+                    assertEquals(index[(int) key], oldValue, "Index value does not match");
+                    index[(int) key] = newValue;
+                    if (updateCount.incrementAndGet() == MAXKEYS) {
+                        compactionAboutComplete.countDown();
+                        try {
+                            snapshotComplete.await();
+                        } catch (final InterruptedException e) {
+                            throw new RuntimeException(e);
                         }
-
-                        public boolean putIfEqual(long key, long oldValue, long newValue) {
-                            assertEquals(index[(int) key], oldValue, "Index value does not match");
-                            index[(int) key] = newValue;
-                            if (updateCount.incrementAndGet() == MAXKEYS) {
-                                compactionAboutComplete.countDown();
-                                try {
-                                    snapshotComplete.await();
-                                } catch (final InterruptedException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                            return true;
-                        }
-
-                        public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
-                                throws InterruptedException, T {
-                            for (int i = 0; i < MAXKEYS; i++) {
-                                action.handle(i, index[i]);
-                            }
-                            return true;
-                        }
-                    };
-
-                    final DataFileCompactor compactor =
-                            new DataFileCompactor(
-                                    MERKLE_DB_CONFIG, storeName, store, indexUpdater, null, null, null, null) {
-                                @Override
-                                int getMinNumberOfFilesToCompact() {
-                                    return 2;
-                                }
-                            };
-
-                    try {
-                        compactor.compactFiles(indexUpdater, filesToMerge, 1);
-                        store.close();
-                    } catch (Exception ex) {
-                        ex.printStackTrace();
                     }
-                })
-                .start();
+                    return true;
+                }
+
+                public <T extends Throwable> boolean forEach(final LongAction<T> action, BooleanSupplier cond)
+                        throws InterruptedException, T {
+                    for (int i = 0; i < MAXKEYS; i++) {
+                        action.handle(i, index[i]);
+                    }
+                    return true;
+                }
+            };
+
+            final DataFileCompactor compactor =
+                    new DataFileCompactor(storeName, store, indexUpdater, null, null, null, null);
+
+            try {
+                compactor.compactFiles(indexUpdater, filesToMerge, 1);
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+        compactionThread.start();
 
         compactionAboutComplete.await();
 
@@ -286,16 +270,13 @@ class DataFileCollectionCompactionTest {
             };
 
             final DataFileCompactor compactor =
-                    new DataFileCompactor(MERKLE_DB_CONFIG, storeName, store2, indexUpdater, null, null, null, null) {
-                        @Override
-                        int getMinNumberOfFilesToCompact() {
-                            return 2;
-                        }
-                    };
+                    new DataFileCompactor(storeName, store2, indexUpdater, null, null, null, null);
 
-            compactor.compactFiles(indexUpdater, filesToMerge, 1);
+            if (filesToMerge.size() > 1) {
+                compactor.compactFiles(indexUpdater, filesToMerge, 1);
+            }
         } finally {
-            store2.close();
+            compactionThread.join();
         }
     }
 
@@ -346,8 +327,8 @@ class DataFileCollectionCompactionTest {
                 };
 
                 if (filesToMerge.size() > 1) {
-                    final DataFileCompactor compactor = new DataFileCompactor(
-                            MERKLE_DB_CONFIG, storeName, store, indexUpdater, null, null, null, null);
+                    final DataFileCompactor compactor =
+                            new DataFileCompactor(storeName, store, indexUpdater, null, null, null, null);
                     try {
                         compactor.compactFiles(indexUpdater, filesToMerge, 1);
                     } catch (Exception ex) {
@@ -422,8 +403,8 @@ class DataFileCollectionCompactionTest {
                 };
 
                 if (filesToMerge.size() > 1) {
-                    final DataFileCompactor compactor = new DataFileCompactor(
-                            MERKLE_DB_CONFIG, storeName, store, indexUpdater, null, null, null, null);
+                    final DataFileCompactor compactor =
+                            new DataFileCompactor(storeName, store, indexUpdater, null, null, null, null);
                     try {
                         compactor.compactFiles(indexUpdater, filesToMerge, 1);
                     } catch (Exception ex) {
@@ -473,8 +454,7 @@ class DataFileCollectionCompactionTest {
         final LongListOffHeap index = new LongListOffHeap(numValues, numFiles * numValues, 0);
         index.updateValidRange(0, numFiles * numValues - 1);
         final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
-        final DataFileCompactor compactor =
-                new DataFileCompactor(MERKLE_DB_CONFIG, storeName, store, index, null, null, null, null);
+        final DataFileCompactor compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
         // Create a few files initially
         for (int i = 0; i < numFiles; i++) {
             store.startWriting();
@@ -596,8 +576,7 @@ class DataFileCollectionCompactionTest {
         String storeName = "testInconsistentIndex";
         final Path testDir = tempFileDir.resolve(storeName);
         final DataFileCollection store = new DataFileCollection(MERKLE_DB_CONFIG, testDir, storeName, null);
-        final DataFileCompactor compactor =
-                new DataFileCompactor(MERKLE_DB_CONFIG, storeName, store, index, null, null, null, null);
+        final DataFileCompactor compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
 
         final int numFiles = 10; // should be greater than min number of files to compact
         index.updateValidRange(0, MAXKEYS - 1);
