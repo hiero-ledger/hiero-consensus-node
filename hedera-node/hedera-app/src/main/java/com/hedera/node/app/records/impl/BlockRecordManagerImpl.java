@@ -365,7 +365,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
             if (currentBlockStartRunningHash != null) {
                 final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
-                if (votingBlockNumInitialized() && liveWritePrevWrappedRecordHashes()) {
+                if ((votingBlockNumInitialized() || votingComplete) && liveWritePrevWrappedRecordHashes()) {
                     final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
                             justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
                     if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
@@ -957,6 +957,15 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 "Synced in-memory wrapped hash state from finalized vote: prevHash={}, leafCount={}",
                 prevWrappedRecordBlockRootHash.toHex(),
                 leafCount);
+    }
+
+    @Override
+    public void syncVotingMetadata(final boolean votingComplete, final long votingCompletionDeadlineBlockNumber) {
+        this.lastBlockInfo = this.lastBlockInfo
+                .copyBuilder()
+                .votingComplete(votingComplete)
+                .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                .build();
     }
 
     private boolean writeWrappedRecordFileBlockHashesToDisk() {

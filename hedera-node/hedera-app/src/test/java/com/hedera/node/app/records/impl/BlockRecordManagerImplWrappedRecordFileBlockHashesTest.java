@@ -1506,7 +1506,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     }
 
     @Test
-    void liveWrappingSkippedWhenJumpstartBlockNumNotPositive() {
+    void liveWrappingSkippedWhenJumpstartBlockNumNotPositiveAndVotingNotComplete() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
@@ -1515,7 +1515,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withConfigValue("blockStream.jumpstart.blockNum", -1L)
                 .build();
 
-        // Genesis init with voting complete so the live path would normally write wrapped hashes
+        // Genesis init with voting NOT complete and no jumpstart blockNum — live wrapping should be skipped
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
@@ -1528,7 +1528,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
                                 .lastIntervalProcessTime(EPOCH)
-                                .votingComplete(true)
+                                .votingComplete(false)
                                 .build())
                 .withSingletonState(
                         RUNNING_HASHES_STATE_ID,
