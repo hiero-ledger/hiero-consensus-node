@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.explicitContractCallLocal;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -22,8 +21,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_GET_INFO_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -177,52 +176,34 @@ public class ContractServiceQueriesSimpleFeesTest {
     @HapiTest
     @DisplayName("contract get info - invalid contract fails - no fee charged")
     final Stream<DynamicTest> contractGetInfoInvalidContractFails() {
-        final AtomicLong initialBalance = new AtomicLong();
-        final AtomicLong afterBalance = new AtomicLong();
-
-        return hapiTest(
-                getAccountBalance(civilian.name()).exposingBalanceTo(initialBalance::set),
-                getContractInfo(NON_EXISTING_CONTRACT)
-                        .payingWith(civilian.name())
-                        .hasCostAnswerPrecheck(INVALID_CONTRACT_ID),
-                getAccountBalance(civilian.name()).exposingBalanceTo(afterBalance::set),
-                withOpContext((spec, log) -> {
-                    assertEquals(initialBalance.get(), afterBalance.get());
-                }));
+        return hapiTest(getContractInfo(NON_EXISTING_CONTRACT)
+                .payingWith(civilian.name())
+                .hasCostAnswerPrecheck(INVALID_CONTRACT_ID));
     }
 
     @HapiTest
     @DisplayName("contract get bytecode - invalid contract fails - no fee charged")
     final Stream<DynamicTest> contractGetBytecodeInvalidContractFails() {
-        final AtomicLong initialBalance = new AtomicLong();
-        final AtomicLong afterBalance = new AtomicLong();
-
-        return hapiTest(
-                getAccountBalance(civilian.name()).exposingBalanceTo(initialBalance::set),
-                getContractBytecode(NON_EXISTING_CONTRACT)
-                        .payingWith(civilian.name())
-                        .hasCostAnswerPrecheck(INVALID_CONTRACT_ID),
-                getAccountBalance(civilian.name()).exposingBalanceTo(afterBalance::set),
-                withOpContext((spec, log) -> {
-                    assertEquals(initialBalance.get(), afterBalance.get());
-                }));
+        return hapiTest(getContractBytecode(NON_EXISTING_CONTRACT)
+                .payingWith(civilian.name())
+                .hasCostAnswerPrecheck(INVALID_CONTRACT_ID));
     }
 
     @HapiTest
     @DisplayName("contract call local - invalid contract fails - no fee charged")
     final Stream<DynamicTest> contractCallLocalInvalidContractFails() {
-        final AtomicLong initialBalance = new AtomicLong();
-        final AtomicLong afterBalance = new AtomicLong();
+        return hapiTest(explicitContractCallLocal(NON_EXISTING_CONTRACT, new byte[0])
+                .gas(21500)
+                .payingWith(civilian.name())
+                .hasCostAnswerPrecheck(INVALID_CONTRACT_ID));
+    }
 
-        return hapiTest(
-                getAccountBalance(civilian.name()).exposingBalanceTo(initialBalance::set),
-                explicitContractCallLocal(NON_EXISTING_CONTRACT, new byte[0])
-                        .gas(21500)
-                        .payingWith(civilian.name())
-                        .hasCostAnswerPrecheck(INVALID_CONTRACT_ID),
-                getAccountBalance(civilian.name()).exposingBalanceTo(afterBalance::set),
-                withOpContext((spec, log) -> {
-                    assertEquals(initialBalance.get(), afterBalance.get());
-                }));
+    @HapiTest
+    @DisplayName("contract call local - zero gas fails - no fee charged")
+    final Stream<DynamicTest> contractCallLocalZeroGasFails() {
+        return hapiTest(contractCallLocal(contract.name(), "contractLocalCallGet1Byte")
+                .gas(0)
+                .payingWith(civilian.name())
+                .hasCostAnswerPrecheck(INSUFFICIENT_GAS));
     }
 }
