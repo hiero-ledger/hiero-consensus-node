@@ -10,7 +10,7 @@ import com.hedera.hapi.node.hooks.*;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;

@@ -24,5 +24,14 @@ public final class VirtualMapReconnectMode {
      */
     public static final String PULL_TWO_PHASE_PESSIMISTIC = "pullTwoPhasePessimistic";
 
+    /**
+     * "Pull / parallel-synchronous" reconnect mode, when learner sends request to teacher, starting
+     * from leaf parent nodes, then leaves. "Synchronous" means that learner doesn't send a request
+     * for the next node, until a response about the last node is received from teacher. "Parallel"
+     * indicates that internal nodes are processed in chunks, each chunk is sent in this sync mode,
+     * but different chunks are processed independently in parallel
+     */
+    public static final String PULL_PARALLEL_SYNC = "pullParallelSync";
+
     private VirtualMapReconnectMode() {}
 }

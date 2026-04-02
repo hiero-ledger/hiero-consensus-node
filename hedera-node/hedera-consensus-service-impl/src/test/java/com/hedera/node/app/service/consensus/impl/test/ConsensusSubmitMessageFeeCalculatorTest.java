@@ -15,7 +15,7 @@ import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusSubmitMessageFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
@@ -135,7 +135,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                         makeServiceFee(
                                 HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE,
                                 498500000L,
-                                makeExtraIncluded(Extra.SIGNATURES, 1),
+                                makeExtraIncluded(Extra.STATE_BYTES, 1024),
                                 makeExtraIncluded(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, 0))))
                 .build();
     }

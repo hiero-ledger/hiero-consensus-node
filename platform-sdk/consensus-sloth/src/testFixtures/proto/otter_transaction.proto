@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package org.hiero.sloth.fixtures.network.transactions;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_multiple_files = true;
+
+import "platform/event/state_signature_transaction.proto";
+import "services/timestamp.proto";
+
+message SlothTransaction {
+
+  uint64 nonce = 1;
+
+  oneof data {
+    EmptyTransaction emptyTransaction = 100;
+    com.hedera.hapi.platform.event.StateSignatureTransaction stateSignatureTransaction = 102;
+    BenchmarkTransaction benchmarkTransaction = 104;
+  }
+}
+
+message EmptyTransaction {
+}
+
+
+message HashPartition {
+  repeated uint64 node_id = 1;
+}
+
+// A transaction used for benchmark measurements.
+// Contains a submission timestamp to calculate latency when the transaction reaches consensus.
+message BenchmarkTransaction {
+  // The timestamp (in epoch microseconds) when this transaction was submitted.
+  uint64 submission_time_micros = 1;
+}
+

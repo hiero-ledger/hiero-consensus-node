@@ -38,6 +38,7 @@ module com.hedera.node.app {
     requires transitive io.helidon.grpc.core;
     requires transitive io.helidon.webclient.grpc;
     requires transitive io.helidon.webclient.http2;
+    requires transitive java.net.http;
     requires transitive javax.inject;
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
@@ -130,9 +131,11 @@ module com.hedera.node.app {
     exports com.hedera.node.app.grpc.impl.netty;
     exports com.hedera.node.app.blocks.schemas;
     exports com.hedera.node.app.records.schemas;
+    exports com.hedera.node.app.records.handlers;
     exports com.hedera.node.app.hints.schemas;
     exports com.hedera.node.app.blocks.impl.streaming.config;
     exports com.hedera.node.app.history.schemas;
+    exports com.hedera.node.app.fees.context;
 
     provides com.swirlds.config.api.ConfigurationExtension with
             com.hedera.node.app.config.ServicesConfigExtension;

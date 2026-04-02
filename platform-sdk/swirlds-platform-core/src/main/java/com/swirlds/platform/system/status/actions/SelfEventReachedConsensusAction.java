@@ -3,6 +3,7 @@ package com.swirlds.platform.system.status.actions;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import org.hiero.consensus.model.status.PlatformStatusAction;
 
 /**
  * An action that is triggered when the platform observes a self event reaching consensus.

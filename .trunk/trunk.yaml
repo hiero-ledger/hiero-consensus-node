@@ -1,0 +1,54 @@
+version: 0.1
+merge:
+  required_statuses:
+
+    # MATS
+    - "MATS / Get Commit Info"
+    - "MATS / Standard Compile Code / Compile Application Code"
+    - "MATS / Unit Tests / Unit Tests"
+    - "MATS / Standard Spotless / Spotless Check"
+    - "MATS / Standard Dependency (Module Info) / Dependency Module Check"
+    - "MATS / HAPI Tests / HAPI Tests (Misc)"
+    - "MATS / HAPI Tests / HAPI Tests (Misc Records)"
+    - "MATS / HAPI Tests / HAPI Tests (ISS)"
+    - "MATS / HAPI Tests / HAPI Tests (Smart Contracts)"
+    - "MATS / HAPI Tests / HAPI Tests (Restart)"
+    - "MATS / HAPI Tests / HAPI Tests (ND Reconnect)"
+    - "MATS / HAPI Tests / HAPI Tests (Atomic Batch)"
+    - "MATS / HAPI Tests / HAPI Tests (Crypto)"
+    - "MATS / HAPI Tests / HAPI Tests (Token)"
+    - "MATS / HAPI Tests / HAPI Tests (Time Consuming)"
+    - "MATS / HAPI Tests / HAPI Tests (State Throttling)"
+    - "MATS / HAPI Tests / HAPI Tests (Simple Fees)"
+    - "MATS / Snyk Scan / Snyk Checks"
+    - "MATS / Otter Tests / Fast Otter Tests"
+
+    # MATS Gradle Determinism
+    - "MQ MATS / Gradle Determinism / Gradle: Generate OS Matrix"
+    - "MQ MATS / Gradle Determinism / Gradle: Generate Baseline"
+    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (windows-2025)"
+    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (windows-2022)"
+    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (ubuntu-24.04)"
+    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (ubuntu-22.04)"
+    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (hl-cn-gradle-determinism-lin-md)"
+    - "MQ MATS / Gradle Determinism / Gradle: Verify Artifacts (hl-cn-gradle-determinism-lin-lg)"
+
+    # MATS Docker Determinism
+    - "MQ MATS / Docker Determinism / Docker: Generate Baseline"
+    - "MQ MATS / Docker Determinism / Docker: Verify Artifacts (ubuntu-24.04)"
+    - "MQ MATS / Docker Determinism / Docker: Verify Artifacts (hl-cn-docker-determinism-lin-lg)"
+
+    # MATS Snyk
+    - "MQ MATS / Snyk Scan / Snyk Checks"
+
+    # XTS Required Checks
+    - "MQ XTS / XTS Timing Sensitive Tests / Timing Sensitive Tests"
+    - "MQ XTS / XTS Hammer Tests / Hammer Tests"
+    - "MQ XTS / XTS HAPI Tests / HAPI Tests (BN Comms)"
+    - "MQ XTS / XTS Otter Tests / Full Otter Tests"
+    - "MQ XTS / XTS Chaos Otter Tests / Chaos Otter Tests"
+    - "MQ XTS / Hedera Node JRS Panel / Merge Queue XTS: Abbrev Update Test"
+    - "MQ XTS / SDK TCK Regression Panel / Merge Queue XTS: SDK TCK Regression"
+
+    # Merge Queue Checks
+    - "MQPT / Start"

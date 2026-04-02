@@ -149,7 +149,10 @@ public final class DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCo
             container.add(1.0);
         }
 
-        double get() {
+        /**
+         * @return the current value
+         */
+        public double get() {
             return container.sum();
         }
 

@@ -2,7 +2,6 @@
 package com.swirlds.platform.system;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.system.status.actions.PlatformStatusAction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -12,6 +11,7 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.status.PlatformStatusAction;
 
 /**
  * Monitors the platform and updates the platform's status state machine.

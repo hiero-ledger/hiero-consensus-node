@@ -35,7 +35,7 @@ public class VirtualReconnectUtils {
         return totalBytesRead;
     }
 
-    public static VirtualLeafBytes readLeafRecord(final SerializableDataInputStream in) throws IOException {
+    public static VirtualLeafBytes<?> readLeafRecord(final SerializableDataInputStream in) throws IOException {
         final long leafPath = in.readLong();
         final int leafKeyLen = in.readInt();
         final byte[] leafKeyBytes = new byte[leafKeyLen];
@@ -52,10 +52,10 @@ public class VirtualReconnectUtils {
         } else {
             leafValue = Bytes.EMPTY;
         }
-        return new VirtualLeafBytes(leafPath, leafKey, leafValue);
+        return new VirtualLeafBytes<>(leafPath, leafKey, leafValue);
     }
 
-    public static void writeLeafRecord(final SerializableDataOutputStream out, final VirtualLeafBytes leaf)
+    public static void writeLeafRecord(final SerializableDataOutputStream out, final VirtualLeafBytes<?> leaf)
             throws IOException {
         out.writeLong(leaf.path());
         final Bytes key = leaf.keyBytes();

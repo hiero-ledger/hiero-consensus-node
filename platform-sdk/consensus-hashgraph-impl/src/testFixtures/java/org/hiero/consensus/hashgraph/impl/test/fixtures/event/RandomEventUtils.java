@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -39,7 +40,7 @@ public class RandomEventUtils {
         final byte[] sig = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(sig);
 
-        return new PlatformEvent(unsignedEvent, Bytes.wrap(sig));
+        return new PlatformEvent(unsignedEvent, Bytes.wrap(sig), EventOrigin.GOSSIP);
     }
 
     /**

@@ -12,6 +12,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
@@ -124,13 +125,7 @@ public class MerkleTestBase extends StateTestBase {
 
             // It may have been configured during some other test, so we reset it
             registry.reset();
-            registry.registerConstructables("com.swirlds.merkledb");
-            registry.registerConstructables("com.swirlds.virtualmap");
-            registry.registerConstructables("com.swirlds.common.merkle");
-            registry.registerConstructables("com.swirlds.common");
-            registry.registerConstructables("org.hiero");
-            registry.registerConstructables("com.swirlds.merkle");
-            registry.registerConstructables("com.swirlds.merkle.tree");
+            ConstructableRegistration.registerAllConstructables();
         } catch (ConstructableRegistryException ex) {
             throw new AssertionError(ex);
         }
@@ -138,7 +133,7 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Creates a new arbitrary virtual map */
     protected VirtualMap createVirtualMap() {
-        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
+        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100);
         return new VirtualMap(builder, CONFIGURATION);
     }
 

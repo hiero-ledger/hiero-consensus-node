@@ -6,10 +6,10 @@ Saved states allow tests to bootstrap from a previously generated network state 
 
 ## Generating a State
 
-Use the `GenerateStateTool` command-line tool to create a new saved state:
+Use the `generateSavedState` gradle command to create a new saved state:
 
 ```bash
-./gradlew :consensus-otter-tests:run --args="org.hiero.otter.fixtures.tools.GenerateStateTool"
+./gradlew :consensus-otter-tests:generateSavedState
 ```
 
 This tool:

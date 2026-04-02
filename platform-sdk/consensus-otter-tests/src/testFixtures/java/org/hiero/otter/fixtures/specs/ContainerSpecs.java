@@ -20,4 +20,16 @@ public @interface ContainerSpecs {
      * tests.
      */
     boolean proxyEnabled() default true;
+
+    /**
+     * Whether GC logging should be enabled for all consensus node processes in this test. GC logs are written to
+     * {@code output/gc.log} inside each container and are copied to the local output directory after the test.
+     */
+    boolean gcLogging() default false;
+
+    /**
+     * Additional JVM arguments to pass to all consensus node processes in this test (e.g. {@code "-Xmx16g"}).
+     * Arguments are applied in the order they are specified.
+     */
+    String[] jvmArgs() default {};
 }

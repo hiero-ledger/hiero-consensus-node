@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM;
@@ -76,7 +77,7 @@ public class TransactionChecker {
     private static final int USER_TRANSACTION_NONCE = 0;
     // These are inner transactions that are not jumbo but sometimes are bigger than 6kb.
     private static final List<HederaFunctionality> NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB =
-            List.of(CRS_PUBLICATION, HISTORY_PROOF_VOTE);
+            List.of(CRS_PUBLICATION, HISTORY_PROOF_VOTE, HINTS_PREPROCESSING_VOTE);
 
     // Metric config for keeping track of the number of deprecated transactions received
     private static final String COUNTER_DEPRECATED_TXNS_NAME = "DeprTxnsRcv";

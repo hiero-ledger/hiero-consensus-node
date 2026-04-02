@@ -45,11 +45,15 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_GET_INFO;
@@ -196,6 +200,10 @@ import java.util.function.Function;
  * @param createNode                  the permission for {@link HederaFunctionality#NODE_CREATE} functionality
  * @param updateNode                  the permission for {@link HederaFunctionality#NODE_UPDATE} functionality
  * @param deleteNode                  the permission for {@link HederaFunctionality#NODE_DELETE} functionality
+ *
+ * @param createRegisteredNode        the permission for {@link HederaFunctionality#REGISTERED_NODE_CREATE} functionality
+ * @param updateRegisteredNode        the permission for {@link HederaFunctionality#REGISTERED_NODE_UPDATE} functionality
+ * @param deleteRegisteredNode        the permission for {@link HederaFunctionality#REGISTERED_NODE_DELETE} functionality
  */
 @ConfigData
 public record ApiPermissionConfig(
@@ -286,7 +294,11 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange hookStore,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange ledgerIdPublication) {
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange ledgerIdPublication,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange migrationRootHashVote,
+        @ConfigProperty(defaultValue = "2-55") PermissionedAccountsRange createRegisteredNode,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange updateRegisteredNode,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteRegisteredNode) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -378,6 +390,10 @@ public record ApiPermissionConfig(
         permissionKeys.put(CRS_PUBLICATION, c -> c.crsPublication);
         permissionKeys.put(NODE_STAKE_UPDATE, c -> c.nodeStakeUpdate);
         permissionKeys.put(LEDGER_ID_PUBLICATION, c -> c.ledgerIdPublication);
+        permissionKeys.put(MIGRATION_ROOT_HASH_VOTE, c -> c.migrationRootHashVote);
+        permissionKeys.put(REGISTERED_NODE_CREATE, c -> c.createRegisteredNode);
+        permissionKeys.put(REGISTERED_NODE_UPDATE, c -> c.updateRegisteredNode);
+        permissionKeys.put(REGISTERED_NODE_DELETE, c -> c.deleteRegisteredNode);
     }
 
     /**

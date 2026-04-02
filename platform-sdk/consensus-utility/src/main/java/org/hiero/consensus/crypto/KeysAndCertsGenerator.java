@@ -42,6 +42,18 @@ public class KeysAndCertsGenerator {
      */
     public static KeysAndCerts generate(final NodeId nodeId)
             throws NoSuchAlgorithmException, NoSuchProviderException, KeyStoreException, KeyGeneratingException {
+        return generate(nodeId, SigningSchema.RSA);
+    }
+
+    /**
+     * Creates an instance holding all the keys and certificates. The key pairs are generated as a function of the
+     * node ID.
+     *
+     * @param nodeId the node identifier
+     * @param schema the signing shema that determines the type of signing keys to generate
+     */
+    public static KeysAndCerts generate(final NodeId nodeId, @NonNull final SigningSchema schema)
+            throws NoSuchAlgorithmException, NoSuchProviderException, KeyStoreException, KeyGeneratingException {
 
         final byte[] masterKey = new byte[CryptoConstants.SYM_KEY_SIZE_BYTES];
         final byte[] swirldId = new byte[CryptoConstants.HASH_SIZE_BYTES];
@@ -70,7 +82,7 @@ public class KeysAndCertsGenerator {
         agrDetRandom.setSeed(memberId);
         agrDetRandom.setSeed(AGR_SEED);
 
-        return generate(nodeId, SigningSchema.RSA, sigDetRandom, agrDetRandom);
+        return generate(nodeId, schema, sigDetRandom, agrDetRandom);
     }
 
     /**

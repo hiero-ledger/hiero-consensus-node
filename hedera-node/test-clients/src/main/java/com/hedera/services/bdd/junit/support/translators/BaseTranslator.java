@@ -17,6 +17,7 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.EntityType.ACCOUNT;
 import static com.hedera.node.app.hapi.utils.EntityType.FILE;
 import static com.hedera.node.app.hapi.utils.EntityType.NODE;
+import static com.hedera.node.app.hapi.utils.EntityType.REGISTERED_NODE;
 import static com.hedera.node.app.hapi.utils.EntityType.SCHEDULE;
 import static com.hedera.node.app.hapi.utils.EntityType.TOKEN;
 import static com.hedera.node.app.hapi.utils.EntityType.TOPIC;
@@ -113,6 +114,8 @@ public class BaseTranslator {
      * These fields are context maintained for the full lifetime of the translator.
      */
     private long highestKnownEntityNum = 0L;
+
+    private long highestKnownNodeId = -1L;
 
     private boolean externalizeNonces = true;
 
@@ -285,6 +288,14 @@ public class BaseTranslator {
         });
         highestKnownEntityNum =
                 nextCreatedNums.values().stream().mapToLong(List::getLast).max().orElse(highestKnownEntityNum);
+        final var nodeNums = nextCreatedNums.getOrDefault(NODE, emptyList());
+        final var regNodeNums = nextCreatedNums.getOrDefault(REGISTERED_NODE, emptyList());
+        if (!nodeNums.isEmpty()) {
+            highestKnownNodeId = Math.max(highestKnownNodeId, nodeNums.getLast());
+        }
+        if (!regNodeNums.isEmpty()) {
+            highestKnownNodeId = Math.max(highestKnownNodeId, regNodeNums.getLast());
+        }
     }
 
     /**
@@ -394,6 +405,25 @@ public class BaseTranslator {
             return -1L;
         }
         return nextCreatedNums.get(type).removeFirst();
+    }
+
+    /**
+     * Consumes a specific created entity number of the given type from the ongoing transactional unit.
+     * Unlike {@link #nextCreatedNum(EntityType)}, this removes a specific number rather than the first
+     * in sorted order, which is important when multiple entities of the same type are created in a unit
+     * and the consumption order doesn't match sorted order.
+     *
+     * @param type the type of entity
+     * @param num the specific entity number to consume
+     * @return true if the number was found and consumed
+     */
+    public boolean consumeCreatedNum(@NonNull final EntityType type, final long num) {
+        final var createdNums = nextCreatedNums.get(type);
+        if (createdNums == null) {
+            log.error("No created numbers found for entity type {} when consuming {}", type, num);
+            return false;
+        }
+        return createdNums.remove(Long.valueOf(num));
     }
 
     /**
@@ -520,6 +550,9 @@ public class BaseTranslator {
                 .paidStakingRewards(parts.paidStakingRewards());
         final var receiptBuilder = TransactionReceipt.newBuilder()
                 .status(requireNonNull(parts.transactionResult()).status());
+        if (parts.transactionResult().highVolumePricingMultiplier() != 0) {
+            recordBuilder.highVolumePricingMultiplier(parts.transactionResult().highVolumePricingMultiplier());
+        }
         if (!txnId.scheduled() || parts.isTopLevel()) {
             recordBuilder.parentConsensusTimestamp(parts.parentConsensusTimestamp());
         } else {
@@ -996,9 +1029,18 @@ public class BaseTranslator {
                     final var value = mapUpdate.valueOrThrow();
                     if (value.hasNodeValue()) {
                         final long nodeId = key.entityNumberKeyOrThrow();
-                        nextCreatedNums
-                                .computeIfAbsent(NODE, ignore -> new LinkedList<>())
-                                .add(nodeId);
+                        if (nodeId > highestKnownNodeId) {
+                            nextCreatedNums
+                                    .computeIfAbsent(NODE, ignore -> new LinkedList<>())
+                                    .add(nodeId);
+                        }
+                    } else if (value.hasRegisteredNodeValue()) {
+                        final long registeredNodeId = key.entityNumberKeyOrThrow();
+                        if (registeredNodeId > highestKnownNodeId) {
+                            nextCreatedNums
+                                    .computeIfAbsent(REGISTERED_NODE, ignore -> new LinkedList<>())
+                                    .add(registeredNodeId);
+                        }
                     }
                 } else if (key.hasNftIdKey()) {
                     final var nftId = key.nftIdKeyOrThrow();

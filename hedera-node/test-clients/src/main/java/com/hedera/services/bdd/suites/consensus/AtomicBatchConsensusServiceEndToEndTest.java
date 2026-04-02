@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.consensus;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
@@ -21,15 +20,13 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.hts
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.maxCustomFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFeeFromBytesFor;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchChargedCorrectly;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchFee;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EXCEEDED;
@@ -126,7 +123,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic memo is updated
                     getTopicInfo(TOPIC_ID)
@@ -161,8 +158,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    withOpContext((spec, log) -> validateChargedUsd(
-                            "batchTxn", BASE_FEE_BATCH_TRANSACTION + expectedFeeFromBytesFor(spec, log, "batchTxn"))),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is deleted
                     getTopicInfo(TOPIC_ID)
@@ -205,7 +201,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn")));
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION)));
         }
 
         @HapiTest
@@ -243,7 +239,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn")));
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION)));
         }
 
         @HapiTest
@@ -279,7 +275,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is deleted
                     getTopicInfo(TOPIC_ID)
@@ -320,7 +316,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not deleted
                     getTxnRecord("innerTxnAfterDelete").logged(),
@@ -366,7 +362,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not deleted
                     getTopicInfo(TOPIC_ID)
@@ -410,7 +406,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not deleted
                     getTopicInfo(TOPIC_ID)
@@ -455,7 +451,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -503,7 +499,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -552,7 +548,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -598,7 +594,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -644,7 +640,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -686,7 +682,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -697,7 +693,6 @@ class AtomicBatchConsensusServiceEndToEndTest {
         }
 
         @HapiTest
-        @Tag(MATS)
         Stream<DynamicTest> updateMutableTopicWithNewAdminKeyAndSubmitMessagesSuccessInBatch() {
 
             // submit message to topic inner transactions
@@ -730,7 +725,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -774,7 +769,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -818,7 +813,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -872,7 +867,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -927,7 +922,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is not updated
                     getTopicInfo(TOPIC_ID)
@@ -970,7 +965,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1024,7 +1019,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1071,7 +1066,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic memo is updated
                     getTopicInfo(TOPIC_ID)
@@ -1117,7 +1112,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic memo is updated
                     getTopicInfo(TOPIC_ID)
@@ -1159,8 +1154,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    withOpContext((spec, log) -> validateChargedUsd(
-                            "batchTxn", BASE_FEE_BATCH_TRANSACTION + expectedFeeFromBytesFor(spec, log, "batchTxn"))),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm accounts balances
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(HBAR_FEE),
@@ -1209,7 +1203,45 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+
+                    // confirm accounts balances
+                    getAccountBalance(HBAR_COLLECTOR).hasTinyBars(0),
+                    getAccountBalance(HTS_COLLECTOR).hasTokenBalance(DENOM_TOKEN, 0),
+                    getAccountBalance(PAYER).hasTokenBalance(DENOM_TOKEN, denomTokenPayerInitialSupply),
+                    getAccountBalance(TREASURY_FOR_CUSTOM_FEE_TOKEN)
+                            .hasTokenBalance(DENOM_TOKEN, denomTokenInitialSupply - denomTokenPayerInitialSupply)));
+        }
+
+        @HapiTest
+        Stream<DynamicTest> submitMessagesToTopicWithCustomFeesWithInsufficientPayerBalanceFailsInBatch() {
+
+            // submit message to topic inner transactions
+            final var submitMessageToFirstTopic = submitMessageTo(TOPIC_ID)
+                    .message(TOPIC_MESSAGE)
+                    .signedBy(PAYER_INSUFFICIENT_BALANCE, submitKey)
+                    .payingWith(PAYER_INSUFFICIENT_BALANCE)
+                    .via("innerTxnBeforeUpdate")
+                    .batchKey(BATCH_OPERATOR);
+
+            final var submitMessageToSecondTopic = submitMessageTo(TOPIC_ID_SECOND)
+                    .message(TOPIC_MESSAGE)
+                    .signedBy(PAYER_INSUFFICIENT_BALANCE, submitKey)
+                    .payingWith(PAYER_INSUFFICIENT_BALANCE)
+                    .via("innerTxnAfterUpdate")
+                    .batchKey(BATCH_OPERATOR)
+                    .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE);
+
+            return hapiTest(flattened(
+                    createAccountsAndKeys(),
+                    createMutableTopicWithSubmitKeyAndHBARFixedFee(adminKey, submitKey, feeScheduleKey, TOPIC_ID),
+                    createMutableTopicWithSubmitKeyAndHTSFixedFee(adminKey, submitKey, feeScheduleKey, TOPIC_ID_SECOND),
+                    tokenAssociate(PAYER_INSUFFICIENT_BALANCE, DENOM_TOKEN),
+                    atomicBatch(submitMessageToFirstTopic, submitMessageToSecondTopic)
+                            .payingWith(BATCH_OPERATOR)
+                            .via("batchTxn")
+                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm accounts balances
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(0),
@@ -1250,8 +1282,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    withOpContext((spec, log) -> validateChargedUsd(
-                            "batchTxn", BASE_FEE_BATCH_TRANSACTION + expectedFeeFromBytesFor(spec, log, "batchTxn"))),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm accounts balances
                     getAccountBalance(HBAR_COLLECTOR).hasTinyBars(0),
@@ -1266,7 +1297,6 @@ class AtomicBatchConsensusServiceEndToEndTest {
     @DisplayName("Atomic Batch Consensus Service End-to-End Tests with Updates of Topics with Custom Fees")
     class AtomicBatchConsensusServiceWithCustomFeesUpdates {
         @HapiTest
-        @Tag(MATS)
         Stream<DynamicTest> submitMessagesToMultipleTopicsWithCustomFeesUpdatesSuccessInBatch() {
 
             // submit message to topic inner transactions
@@ -1320,7 +1350,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1374,7 +1404,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1428,7 +1458,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID_SECOND)
@@ -1482,8 +1512,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    // account for extra bytes in the node + network fee
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1550,8 +1579,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    withOpContext((spec, log) -> validateChargedUsd(
-                            "batchTxn", BASE_FEE_BATCH_TRANSACTION + expectedFeeFromBytesFor(spec, log, "batchTxn"))),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1605,8 +1633,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    // account for extra bytes in the node + network fee
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1670,7 +1697,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1718,8 +1745,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    withOpContext((spec, log) -> validateChargedUsd(
-                            "batchTxn", BASE_FEE_BATCH_TRANSACTION + expectedFeeFromBytesFor(spec, log, "batchTxn"))),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1759,8 +1785,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    withOpContext((spec, log) -> validateChargedUsd(
-                            "batchTxn", BASE_FEE_BATCH_TRANSACTION + expectedFeeFromBytesFor(spec, log, "batchTxn"))),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1812,7 +1837,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1866,7 +1891,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -1930,7 +1955,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateBatchChargedCorrectly("batchTxn"),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // confirm topic is updated
                     getTopicInfo(TOPIC_ID)
@@ -2020,7 +2045,7 @@ class AtomicBatchConsensusServiceEndToEndTest {
         return List.of(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(PAYER_INSUFFICIENT_BALANCE).balance(ONE_HBAR / 10),
+                cryptoCreate(PAYER_INSUFFICIENT_BALANCE).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(PAYER_EXEMPT_FEES).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(PAYER_EXEMPT_FEES_SECOND).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(PAYER_EXEMPT_FEES_THIRD).balance(ONE_HUNDRED_HBARS),

@@ -33,10 +33,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
             @NonNull final ConfigProvider configProvider,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
+            @NonNull final BlockBufferService blockBufferService) {
         this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
-        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
+        this.grpcBlockItemWriter =
+                new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
     }
 
@@ -77,26 +77,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
         requireNonNull(pendingProof);
         this.fileBlockItemWriter.flushPendingBlock(pendingProof);
-        if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.flushPendingBlock(pendingProof);
-        }
     }
 
     @Override
     public void writePbjItem(@NonNull final BlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
-    }
-
-    /**
-     * Jumps to a specific block number after a freeze event.
-     * This method only affects the gRPC writer, not the file writer.
-     *
-     * @param blockNumber the block number to jump to after freeze
-     */
-    @Override
-    public void jumpToBlockAfterFreeze(final long blockNumber) {
-        if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.jumpToBlockAfterFreeze(blockNumber);
-        }
     }
 }

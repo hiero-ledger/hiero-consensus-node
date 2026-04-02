@@ -9,7 +9,7 @@ import static com.hedera.node.app.service.file.impl.FileServiceImpl.THREE_MONTHS
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.preValidate;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateContent;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -123,7 +123,7 @@ public class FileAppendHandler implements TransactionHandler {
         final var file = optionalFile.get();
 
         // First validate this file is mutable; and the pending mutations are allowed
-        validateFalse(file.keys() == null, UNAUTHORIZED);
+        validateTrue(file.hasKeys() && !file.keys().keys().isEmpty(), UNAUTHORIZED);
 
         if (file.deleted()) {
             throw new HandleException(FILE_DELETED);

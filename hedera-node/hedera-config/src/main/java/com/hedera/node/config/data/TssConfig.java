@@ -13,22 +13,72 @@ import java.time.Duration;
  */
 @ConfigData("tss")
 public record TssConfig(
-        @ConfigProperty(defaultValue = "60s") @NetworkProperty Duration bootstrapHintsKeyGracePeriod,
-        @ConfigProperty(defaultValue = "300s") @NetworkProperty Duration transitionHintsKeyGracePeriod,
-        @ConfigProperty(defaultValue = "10s") @NetworkProperty Duration wrapsMessageGracePeriod,
-        @ConfigProperty(defaultValue = "60s") @NetworkProperty Duration bootstrapProofKeyGracePeriod,
-        @ConfigProperty(defaultValue = "300s") @NetworkProperty Duration transitionProofKeyGracePeriod,
-        @ConfigProperty(defaultValue = "10s") @NetworkProperty Duration crsUpdateContributionTime,
-        @ConfigProperty(defaultValue = "5s") @NetworkProperty Duration crsFinalizationDelay,
-        @ConfigProperty(defaultValue = "data/keys/tss") @NodeProperty String tssKeysPath,
-        @ConfigProperty(defaultValue = "512") @NetworkProperty short initialCrsParties,
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hintsEnabled,
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
+        @ConfigProperty(defaultValue = "60s") @NetworkProperty
+        Duration bootstrapHintsKeyGracePeriod,
+
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
+        Duration transitionHintsKeyGracePeriod,
+
+        @ConfigProperty(defaultValue = "10s") @NetworkProperty
+        Duration wrapsMessageGracePeriod,
+
+        @ConfigProperty(defaultValue = "60s") @NetworkProperty
+        Duration bootstrapProofKeyGracePeriod,
+
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
+        Duration transitionProofKeyGracePeriod,
+
+        @ConfigProperty(defaultValue = "10s") @NetworkProperty
+        Duration crsUpdateContributionTime,
+
+        @ConfigProperty(defaultValue = "5s") @NetworkProperty
+        Duration crsFinalizationDelay,
+
+        @ConfigProperty(defaultValue = "data/keys/tss") @NodeProperty
+        String tssKeysPath,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean useDeterministicHintsSignatures,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean hintsEnabled,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean historyEnabled,
         // Whether to switch to the WrapsHistoryProver after the genesis block
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean wrapsEnabled,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean wrapsEnabled,
         // Must be true if enabling TSS while also using an override network,
         // to give express consent for breaking the address book chain of trust
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs,
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean forceHandoffs,
         // Denominator used to compute signing threshold: totalWeight / signingThresholdDivisor
-        @ConfigProperty(defaultValue = "2") @Min(1) @NetworkProperty int signingThresholdDivisor,
-        @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank) {}
+        @ConfigProperty(defaultValue = "2") @Min(1) @NetworkProperty
+        int signingThresholdDivisor,
+
+        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty
+        int maxWrapsRetries,
+
+        @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank,
+
+        // Whether to double-check aggregate hinTS signature during block signing
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean validateBlockSignatures,
+
+        // Whether to force BlockProof#signed_block_proof.proof fields to SHA-384 hash of block hash; true
+        // in prod until release that fully cuts over to streamMode=BLOCKS
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean forceMockSignatures,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean wrapsProvingKeyDownloadEnabled,
+
+        @ConfigProperty(defaultValue = "data/keys/wraps") @NodeProperty
+        String wrapsProvingKeyPath,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyHash,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty String wrapsProvingKeyDownloadUrl,
+
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
+        Duration wrapsProvingKeyRetryInterval) {}

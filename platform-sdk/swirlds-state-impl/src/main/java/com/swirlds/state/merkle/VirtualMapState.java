@@ -4,7 +4,6 @@ package com.swirlds.state.merkle;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
 import com.swirlds.virtualmap.VirtualMap;
-import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Represent a state backed up by the Virtual Map tree. It's a {@link State} and {@link BinaryState}
@@ -18,17 +17,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *
  */
 public interface VirtualMapState extends State, BinaryState {
-
     /**
      * @return an instance representing a root of the Merkle tree. For most of the implementations
      * this default implementation will be sufficient.
      */
     VirtualMap getRoot();
-
-    /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    VirtualMapState copy();
 }

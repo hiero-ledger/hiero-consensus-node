@@ -31,6 +31,7 @@ public class ProofControllers {
     private final ProofKeysAccessor keyAccessor;
     private final HistoryLibrary historyLibrary;
     private final HistoryService historyService;
+    private final HistoryProofMetrics historyProofMetrics;
     private final HistorySubmissions submissions;
     private final WrapsMpcStateMachine machine;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
@@ -50,6 +51,7 @@ public class ProofControllers {
             @NonNull final HistorySubmissions submissions,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
             @NonNull final HistoryService historyService,
+            @NonNull final HistoryProofMetrics historyProofMetrics,
             @NonNull final WrapsMpcStateMachine machine) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
@@ -57,6 +59,7 @@ public class ProofControllers {
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.historyService = requireNonNull(historyService);
+        this.historyProofMetrics = requireNonNull(historyProofMetrics);
         this.machine = requireNonNull(machine);
     }
 
@@ -165,6 +168,7 @@ public class ProofControllers {
                     historyLibrary,
                     proverFactory,
                     sourceProof,
+                    historyProofMetrics,
                     tssConfig);
         }
     }

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOP
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_APPEND;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
@@ -49,7 +50,24 @@ class HighVolumePricingCalculatorTest {
                         TOKEN_CLAIM_AIRDROP,
                         TOKEN_MINT,
                         TOKEN_CREATE),
-                HighVolumePricingCalculator.HIGH_VOLUME_FUNCTIONS);
+                HighVolumePricingCalculator.HIGH_VOLUME_PRICING_FUNCTIONS);
+        assertEquals(
+                Set.of(
+                        CRYPTO_CREATE,
+                        CONSENSUS_CREATE_TOPIC,
+                        SCHEDULE_CREATE,
+                        CRYPTO_APPROVE_ALLOWANCE,
+                        FILE_CREATE,
+                        FILE_APPEND,
+                        CONTRACT_CREATE,
+                        HOOK_STORE,
+                        TOKEN_ASSOCIATE_TO_ACCOUNT,
+                        TOKEN_AIRDROP,
+                        TOKEN_CLAIM_AIRDROP,
+                        TOKEN_MINT,
+                        TOKEN_CREATE,
+                        CRYPTO_TRANSFER),
+                HighVolumePricingCalculator.HIGH_VOLUME_THROTTLE_FUNCTIONS);
     }
 
     @Test
@@ -121,6 +139,16 @@ class HighVolumePricingCalculatorTest {
     @Nested
     @DisplayName("Linear interpolation without pricing curve")
     class LinearInterpolationWithoutCurve {
+
+        @Test
+        @DisplayName("Uses linear interpolation when pricing curve exists without piecewise points")
+        void linearInterpolationWhenPricingCurvePresentWithoutPiecewiseLinear() {
+            final var variableRate = VariableRateDefinition.newBuilder()
+                    .maxMultiplier(5000)
+                    .pricingCurve(PricingCurve.newBuilder().build())
+                    .build();
+            assertEquals(3000, HighVolumePricingCalculator.calculateMultiplier(variableRate, 5000));
+        }
 
         @Test
         @DisplayName("Linear interpolation at 0% utilization")

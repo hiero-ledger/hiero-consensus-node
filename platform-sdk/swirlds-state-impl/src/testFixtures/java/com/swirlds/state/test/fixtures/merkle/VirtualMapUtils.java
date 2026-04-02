@@ -17,7 +17,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 public final class VirtualMapUtils {
 
-    static final Configuration CONFIGURATION = ConfigurationBuilder.create()
+    public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(MerkleDbConfig.class)
             .withSource(new SimpleConfigSource().withValue(MerkleDbConfig_.INITIAL_CAPACITY, "" + 65_536L))
             .withConfigDataType(VirtualMapConfig.class)
@@ -41,9 +41,7 @@ public final class VirtualMapUtils {
     }
 
     public static VirtualMap createVirtualMap(@NonNull Configuration configuration, final long maxNumberOfKeys) {
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        final var dsBuilder = new MerkleDbDataSourceBuilder(
-                configuration, maxNumberOfKeys, merkleDbConfig.hashesRamToDiskThreshold());
+        final var dsBuilder = new MerkleDbDataSourceBuilder(configuration, maxNumberOfKeys);
         return new VirtualMap(dsBuilder, configuration);
     }
 }

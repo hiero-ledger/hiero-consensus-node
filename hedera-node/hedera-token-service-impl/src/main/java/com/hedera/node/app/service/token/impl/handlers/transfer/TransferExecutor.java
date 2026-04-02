@@ -204,7 +204,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
-                        ctx -> refundHookFee(
+                        (ctx, ignored) -> refundHookFee(
                                 context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
             }
         }
@@ -229,7 +229,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 // for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
-                        ctx -> refundHookFee(
+                        (ctx, ignored) -> refundHookFee(
                                 context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
             }
         }
@@ -322,14 +322,17 @@ public class TransferExecutor extends BaseTokenHandler {
             @NonNull final HandleContext context,
             @NonNull final List<TokenTransferList> tokenTransferList,
             @NonNull final CryptoTransferStreamBuilder recordBuilder) {
+        final var isHighVolume = context.body().highVolume();
         var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
                 .tokenTransfers(tokenTransferList)
                 .build();
 
-        final var syntheticCryptoTransferTxn =
-                TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
+        final var syntheticCryptoTransferTxn = TransactionBody.newBuilder()
+                .cryptoTransfer(cryptoTransferBody)
+                .highVolume(isHighVolume)
+                .build();
 
-        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true);
+        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true, isHighVolume);
 
         // We should skip custom fee steps here, because they must be already prepaid
         executeCryptoTransferWithoutCustomFee(syntheticCryptoTransferTxn, transferContext, context, recordBuilder);

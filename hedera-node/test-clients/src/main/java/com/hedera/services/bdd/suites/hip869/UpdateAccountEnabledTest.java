@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.hip869;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -40,12 +39,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 /**
  * Tests expected behavior when the {@code nodes.updateAccountIdAllowed} feature flag is on for
  * <a href="https://hips.hedera.com/hip/hip-869">HIP-869, "Dynamic Address Book - Stage 1 - HAPI Endpoints"</a>.
  */
+// nodes.updateAccountIdAllowed is true by default so it is safe to run this concurrently
 @HapiTestLifecycle
 public class UpdateAccountEnabledTest {
     private static List<X509Certificate> gossipCertificates;
@@ -84,7 +83,6 @@ public class UpdateAccountEnabledTest {
             reason = MUST_SKIP_INGEST,
             requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/mainnet-throttles.json")
-    @Tag(MATS)
     final Stream<DynamicTest> validateFees() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
         final var nodeAccount = "nodeAccount";
@@ -110,7 +108,7 @@ public class UpdateAccountEnabledTest {
                         .via("failedUpdate"),
                 getTxnRecord("failedUpdate").logged(),
                 // The fee is charged here because the payer is not privileged
-                validateChargedUsdWithin("failedUpdate", 0.001, 3.0),
+                safeValidateChargedUsdWithin("failedUpdate", 0.001, 1.0, NODE_UPDATE_BASE_FEE_USD, 1.0),
                 nodeUpdate("node100")
                         .adminKey("testKey")
                         .accountId(nodeAccount2)

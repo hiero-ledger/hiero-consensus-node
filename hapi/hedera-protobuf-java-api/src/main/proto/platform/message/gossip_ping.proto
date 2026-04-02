@@ -12,11 +12,6 @@ option java_multiple_files = true;
  * Ping will be measured as time until receiving a reply with corresponding correlationId, NOT based on timestamp embedded in remote message.
  */
 message GossipPing {
-  /**
-   * Timestamp in milliseconds since start of epoch of when the ping message was created according to sender clock.
-   * Only informational, as we cannot fully trust remote clocks to be true or perfectly in sync.
-   */
-  int64 timestamp = 1;
 
   /**
    * Correlation id assigned by sender, to be repeated in reply

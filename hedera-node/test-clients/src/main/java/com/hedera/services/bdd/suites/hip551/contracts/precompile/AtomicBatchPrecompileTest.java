@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asHeadlongAddress;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asTokenString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -1988,7 +1987,6 @@ class AtomicBatchPrecompileTest {
      * DelegatePrecompileSuite
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> atomicDelegateCallForTransfer() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
@@ -3201,7 +3199,6 @@ class AtomicBatchPrecompileTest {
      * WipeTokenAccountPrecompileSuite
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> atomicWipeFungibleTokenScenarios() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> secondAccountAddress = new AtomicReference<>();

@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
@@ -51,6 +52,11 @@ public class RandomRosterBuilder {
      * If true then generate real cryptographic keys.
      */
     private boolean realKeys;
+
+    /**
+     * The signing schema to use when generating real cryptographic keys.
+     */
+    private SigningSchema signingSchema = SigningSchema.RSA;
 
     /**
      * If we are using real keys, this map will hold the private keys for each address.
@@ -179,6 +185,18 @@ public class RandomRosterBuilder {
     }
 
     /**
+     * Set the signing schema to use when generating real cryptographic keys. Default is {@link SigningSchema#RSA}.
+     *
+     * @param signingSchema the signing schema to use
+     * @return this object
+     */
+    @NonNull
+    public RandomRosterBuilder withSigningSchema(@NonNull final SigningSchema signingSchema) {
+        this.signingSchema = Objects.requireNonNull(signingSchema);
+        return this;
+    }
+
+    /**
      * Generate the next node ID.
      */
     @NonNull
@@ -203,7 +221,7 @@ public class RandomRosterBuilder {
                 final byte[] masterKey = new byte[64];
                 random.nextBytes(masterKey);
 
-                final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
+                final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId, signingSchema);
                 privateKeys.put(nodeId, keysAndCerts);
 
                 addressBuilder.withSigCert(keysAndCerts.sigCert());

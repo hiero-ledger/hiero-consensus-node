@@ -18,6 +18,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -81,10 +82,25 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     HistoryProofConstruction failForReason(long constructionId, @NonNull String reason);
 
     /**
+     * Restarts WRAPS signing for the given construction by purging persisted WRAPS messages from the given source
+     * nodes and resetting the WRAPS signing state to {@code R1} while incrementing retry count.
+     * @param constructionId the construction ID
+     * @param sourceNodeIds the source node IDs whose WRAPS messages should be purged
+     * @return the updated construction
+     */
+    HistoryProofConstruction restartWrapsSigning(long constructionId, @NonNull Set<Long> sourceNodeIds);
+
+    /**
      * Sets the ledger ID to the given bytes.
      * @param bytes the bytes
      */
     void setLedgerId(@NonNull Bytes bytes);
+
+    /**
+     * Sets the expected WRAPS proving key hash.
+     * @param hash the hash
+     */
+    void setWrapsProvingKeyHash(@NonNull Bytes hash);
 
     /**
      * Hands off from the active construction to the next construction if appropriate.

@@ -14,6 +14,7 @@ import com.hedera.services.stream.proto.HashObject;
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.SignatureFile;
 import com.hedera.services.stream.proto.SignatureObject;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.StreamType;
 import com.swirlds.common.stream.internal.StreamTypeFromJson;
@@ -49,7 +50,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
@@ -230,17 +230,7 @@ public class FileSignTool {
     }
 
     public static void prepare(final StreamType streamType) throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero");
-
-        if (streamType.getExtension().equalsIgnoreCase(RECORD_STREAM_EXTENSION)) {
-            LOGGER.info(MARKER, "registering Constructables for parsing record stream files");
-            // if we are parsing new record stream files,
-            // we need to add HederaNode.jar and hedera-protobuf-java-*.jar into class path,
-            // so that we can register for parsing RecordStreamObject
-            registry.registerConstructables("com.hedera.services.stream");
-        }
+        ConstructableRegistration.registerAllConstructables();
     }
 
     private static ByteString wrapUnsafely(@NonNull final byte[] bytes) {

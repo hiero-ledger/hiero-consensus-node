@@ -38,8 +38,16 @@ public final class BlockRecordService implements Service {
     /**
      * The block info at genesis.
      */
-    public static final BlockInfo GENESIS_BLOCK_INFO =
-            new BlockInfo(-1, EPOCH, Bytes.EMPTY, EPOCH, true, EPOCH, EPOCH, EPOCH);
+    public static final BlockInfo GENESIS_BLOCK_INFO = BlockInfo.newBuilder()
+            .lastBlockNumber(-1)
+            .firstConsTimeOfLastBlock(EPOCH)
+            .blockHashes(Bytes.EMPTY)
+            .consTimeOfLastHandledTxn(EPOCH)
+            .migrationRecordsStreamed(true)
+            .firstConsTimeOfCurrentBlock(EPOCH)
+            .lastUsedConsTime(EPOCH)
+            .lastIntervalProcessTime(EPOCH)
+            .build();
     /**
      * The running hashes at genesis.
      */

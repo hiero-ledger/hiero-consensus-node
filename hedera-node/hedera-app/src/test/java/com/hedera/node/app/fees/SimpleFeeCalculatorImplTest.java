@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_CREATE;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -8,6 +9,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -17,6 +19,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -25,6 +28,9 @@ import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.config.data.FeesConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
@@ -60,12 +66,27 @@ class SimpleFeeCalculatorImplTest {
     @Mock
     private FeeContext feeContext;
 
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private FeesConfig feesConfig;
+
+    @Mock
+    private NetworkAdminConfig networkAdminConfig;
+
     private FeeSchedule testSchedule;
     private Set<ServiceFeeCalculator> serviceFeeCalculators;
 
     @BeforeEach
     void setUp() {
         testSchedule = createTestFeeSchedule();
+        lenient().when(feeContext.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
+        lenient().when(feesConfig.simpleFeesEnabled()).thenReturn(true);
+        lenient().when(configuration.getConfigData(NetworkAdminConfig.class)).thenReturn(networkAdminConfig);
+        lenient().when(networkAdminConfig.highVolumeThrottlesEnabled()).thenReturn(true);
+
         // Create a mock service fee calculator for FILE_CREATE
         ServiceFeeCalculator mockFileCreateCalculator = new ServiceFeeCalculator() {
             @Override
@@ -159,6 +180,7 @@ class SimpleFeeCalculatorImplTest {
 
         // The total fee should be 7x the base fee
         assertThat(result.totalTinycents()).isEqualTo(baseFee * 7);
+        assertThat(result.getHighVolumeMultiplier()).isEqualTo(DEFAULT_HIGH_VOLUME_MULTIPLIER);
     }
 
     @Test
@@ -280,11 +302,13 @@ class SimpleFeeCalculatorImplTest {
                 .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder().build())
                 .highVolume(true)
                 .build();
+        when(simpleFeeContext.body()).thenReturn(txnBody);
 
         var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
 
         assertThat(result.getServiceTotalTinycents()).isEqualTo(4000L);
         assertThat(result.totalTinycents()).isEqualTo(4000L);
+        assertThat(result.getHighVolumeMultiplier()).isEqualTo(4000L);
     }
 
     @Test
@@ -340,11 +364,131 @@ class SimpleFeeCalculatorImplTest {
                 .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder().build())
                 .highVolume(true)
                 .build();
+        when(simpleFeeContext.body()).thenReturn(txnBody);
 
         var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
 
         assertThat(result.getServiceTotalTinycents()).isEqualTo(4000L);
         assertThat(result.totalTinycents()).isEqualTo(4000L);
+        assertThat(result.getHighVolumeMultiplier()).isEqualTo(4000L);
+    }
+
+    @Test
+    @DisplayName("Transaction with nodeNetworkFeeExempt=true has zero node and network fees")
+    void calculateTxFee_withNodeNetworkExempt_returnsZeroNodeAndNetworkFees() {
+        // Create a fee schedule with a nodeNetworkFeeExempt service fee definition
+        final var exemptServiceFee = ServiceFeeDefinition.newBuilder()
+                .name(CONTRACT_CALL)
+                .baseFee(0)
+                .nodeNetworkFeeExempt(true)
+                .build();
+        final var schedule = FeeSchedule.DEFAULT
+                .copyBuilder()
+                .node(NodeFee.newBuilder()
+                        .baseFee(100000L)
+                        .extras(makeExtraIncluded(Extra.SIGNATURES, 1))
+                        .build())
+                .network(NetworkFee.newBuilder().multiplier(9).build())
+                .extras(makeExtraDef(Extra.SIGNATURES, 1000000))
+                .services(makeService("ContractService", exemptServiceFee))
+                .build();
+
+        ServiceFeeCalculator contractCallCalculator = new ServiceFeeCalculator() {
+            @Override
+            public void accumulateServiceFee(
+                    @NonNull TransactionBody txnBody,
+                    @NonNull SimpleFeeContext simpleFeeContext,
+                    @NonNull FeeResult feeResult,
+                    @NonNull org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
+                // ContractCall: no-op, baseFee=0, no extras
+            }
+
+            @Override
+            public TransactionBody.DataOneOfType getTransactionType() {
+                return TransactionBody.DataOneOfType.CONTRACT_CALL;
+            }
+        };
+
+        var calculator = new SimpleFeeCalculatorImpl(schedule, Set.of(contractCallCalculator), Set.of());
+        var simpleFeeContext = createMockSimpleFeeContext(CONTRACT_CALL);
+        when(simpleFeeContext.feeContext()).thenReturn(null);
+
+        var txnBody = TransactionBody.newBuilder()
+                .contractCall(ContractCallTransactionBody.newBuilder().build())
+                .build();
+
+        var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
+
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
+    }
+
+    @Test
+    @DisplayName("Transaction with nodeNetworkFeeExempt=true still charges service fee")
+    void calculateTxFee_withNodeNetworkExempt_chargesServiceFee() {
+        // Create a fee schedule with a nodeNetworkFeeExempt service fee with non-zero baseFee
+        final var exemptServiceFee = ServiceFeeDefinition.newBuilder()
+                .name(CONTRACT_CALL)
+                .baseFee(10000)
+                .nodeNetworkFeeExempt(true)
+                .build();
+        final var schedule = FeeSchedule.DEFAULT
+                .copyBuilder()
+                .node(NodeFee.newBuilder()
+                        .baseFee(100000L)
+                        .extras(makeExtraIncluded(Extra.SIGNATURES, 1))
+                        .build())
+                .network(NetworkFee.newBuilder().multiplier(9).build())
+                .extras(makeExtraDef(Extra.SIGNATURES, 1000000))
+                .services(makeService("ContractService", exemptServiceFee))
+                .build();
+
+        ServiceFeeCalculator contractCallCalculator = new ServiceFeeCalculator() {
+            @Override
+            public void accumulateServiceFee(
+                    @NonNull TransactionBody txnBody,
+                    @NonNull SimpleFeeContext simpleFeeContext,
+                    @NonNull FeeResult feeResult,
+                    @NonNull org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
+                feeResult.setServiceBaseFeeTinycents(10000L);
+            }
+
+            @Override
+            public TransactionBody.DataOneOfType getTransactionType() {
+                return TransactionBody.DataOneOfType.CONTRACT_CALL;
+            }
+        };
+
+        var calculator = new SimpleFeeCalculatorImpl(schedule, Set.of(contractCallCalculator), Set.of());
+        var simpleFeeContext = createMockSimpleFeeContext(CONTRACT_CALL);
+        when(simpleFeeContext.feeContext()).thenReturn(null);
+
+        var txnBody = TransactionBody.newBuilder()
+                .contractCall(ContractCallTransactionBody.newBuilder().build())
+                .build();
+
+        var result = calculator.calculateTxFee(txnBody, simpleFeeContext);
+
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(10000L);
+    }
+
+    @Test
+    @DisplayName("Transaction with nodeNetworkFeeExempt=false (default) computes all fees normally")
+    void calculateTxFee_withoutNodeNetworkExempt_computesAllFees() {
+        var simpleFeeContext = createMockSimpleFeeContext(FILE_CREATE);
+        when(simpleFeeContext.feeContext()).thenReturn(null);
+
+        var calculator = new SimpleFeeCalculatorImpl(testSchedule, serviceFeeCalculators, Set.of());
+
+        var result = calculator.calculateTxFee(createFileCreateTxnBody(), simpleFeeContext);
+
+        // Node and network fees should be non-zero
+        assertThat(result.getNodeTotalTinycents()).isGreaterThan(0);
+        assertThat(result.getNetworkTotalTinycents()).isGreaterThan(0);
+        assertThat(result.getServiceTotalTinycents()).isGreaterThan(0);
     }
 
     private SimpleFeeContext createMockSimpleFeeContext(final HederaFunctionality function) {
@@ -360,6 +504,7 @@ class SimpleFeeCalculatorImplTest {
         lenient().when(simpleFeeContext.functionality()).thenReturn(function);
         lenient().when(simpleFeeContext.numTxnBytes()).thenReturn(100);
         lenient().when(simpleFeeContext.feeContext()).thenReturn(feeContext);
+        lenient().when(feeContext.functionality()).thenReturn(function);
         lenient().when(feeContext.readableStoreFactory()).thenReturn(storeFactory);
         lenient()
                 .when(simpleFeeContext.getHighVolumeThrottleUtilization(function))

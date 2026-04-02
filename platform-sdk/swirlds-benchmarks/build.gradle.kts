@@ -20,6 +20,7 @@ jmhModuleInfo {
     requires("com.swirlds.merkledb")
     requires("com.swirlds.virtualmap")
     requires("org.hiero.base.crypto")
+    requires("org.hiero.base.concurrent")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.concurrent")
     requires("org.hiero.consensus.gossip")

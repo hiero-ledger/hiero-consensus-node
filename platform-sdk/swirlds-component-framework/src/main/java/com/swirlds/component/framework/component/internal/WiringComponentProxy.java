@@ -5,15 +5,36 @@ import com.swirlds.component.framework.component.ComponentWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.Objects;
 
 /**
  * This dynamic proxy is used by the {@link ComponentWiring} to capture the most
  * recently invoked method.
  */
-public class WiringComponentProxy implements InvocationHandler {
+public class WiringComponentProxy<T> implements InvocationHandler {
 
+    private final T proxyComponent;
     private Method mostRecentlyInvokedMethod = null;
+
+    /**
+     * Create a new WiringComponentProxy for the given component class.
+     * @param clazz the class of the component being wired
+     */
+    @SuppressWarnings("unchecked")
+    public WiringComponentProxy(@NonNull final Class<T> clazz) {
+        proxyComponent = (T) Proxy.newProxyInstance(clazz.getClassLoader(), new Class[] {clazz}, this);
+    }
+
+    /**
+     * Get the proxy component instance. This is the instance has the same interface as the component being wired, but
+     * is a dynamic proxy that captures the most recently invoked method.
+     *
+     * @return the proxy component instance
+     */
+    public T getProxyComponent() {
+        return proxyComponent;
+    }
 
     /**
      * {@inheritDoc}

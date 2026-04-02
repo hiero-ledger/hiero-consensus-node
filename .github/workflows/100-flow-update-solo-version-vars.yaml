@@ -1,0 +1,130 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "100: [FLOW] Update Solo Version Variables"
+on:
+  workflow_dispatch:
+    inputs:
+      solo-version:
+        description: "Solo Version (e.g. v0.56.0)"
+        required: true
+        type: string
+      change-citr:
+        description: "Change for CITR"
+        required: true
+        type: boolean
+        default: false
+      change-xts:
+        description: "Change for XTS"
+        required: true
+        type: boolean
+        default: false
+      change-adhoc:
+        description: "Change for Adhoc"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check-permission:
+    name: Check User Permission
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Check Maintainer Permission
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          PERMISSION=$(gh api "repos/${{ github.repository }}/collaborators/${{ github.triggering_actor }}/permission" --jq '.permission')
+          echo "User permission level: ${PERMISSION}"
+
+          if [[ "${PERMISSION}" != "admin" && "${PERMISSION}" != "maintain" ]]; then
+            echo "::error::User ${{ github.triggering_actor }} does not have maintain or admin permissions on this repository."
+            exit 1
+          fi
+
+          echo "User ${{ github.triggering_actor }} has sufficient permissions (${PERMISSION})."
+
+  update-solo-version-vars:
+    name: Update Solo Version Variables
+    runs-on: hl-cn-default-lin-sm
+    needs: check-permission
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Print Parameters
+        run: |
+          echo "### Update Solo Version Variables" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Solo Version: ${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Change for CITR: ${{ inputs.change-citr }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Change for XTS: ${{ inputs.change-xts }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Change for Adhoc: ${{ inputs.change-adhoc }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+
+      - name: Update CITR_SOLO_VERSION
+        if: ${{ inputs.change-citr == true }}
+        uses: step-security/set-github-variable@fdeecea0283ae9cfd15757ab69d1467ebb280318 # v1.0.1
+        with:
+          name: "CITR_SOLO_VERSION"
+          value: ${{ inputs.solo-version }}
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Update ADHOC_XTS_SOLO_VERSION
+        if: ${{ inputs.change-xts == true }}
+        uses: step-security/set-github-variable@fdeecea0283ae9cfd15757ab69d1467ebb280318 # v1.0.1
+        with:
+          name: "ADHOC_XTS_SOLO_VERSION"
+          value: ${{ inputs.solo-version }}
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Update ADHOC_SOLO_VERSION
+        if: ${{ inputs.change-adhoc == true }}
+        uses: step-security/set-github-variable@fdeecea0283ae9cfd15757ab69d1467ebb280318 # v1.0.1
+        with:
+          name: "ADHOC_SOLO_VERSION"
+          value: ${{ inputs.solo-version }}
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Report Updated Variables
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          CITR_VAL=$(gh api "repos/${{ github.repository }}/actions/variables/CITR_SOLO_VERSION" --jq '.value')
+          XTS_VAL=$(gh api "repos/${{ github.repository }}/actions/variables/ADHOC_XTS_SOLO_VERSION" --jq '.value')
+          ADHOC_VAL=$(gh api "repos/${{ github.repository }}/actions/variables/ADHOC_SOLO_VERSION" --jq '.value')
+
+          echo "### Variable Report" >> "${GITHUB_STEP_SUMMARY}"
+
+          CITR_ICON=":no_entry_sign:"
+          XTS_ICON=":no_entry_sign:"
+          ADHOC_ICON=":no_entry_sign:"
+
+          if [[ "${{ inputs.change-citr }}" == "true" ]]; then
+            CITR_ICON=":white_check_mark:"
+          fi
+          if [[ "${{ inputs.change-xts }}" == "true" ]]; then
+            XTS_ICON=":white_check_mark:"
+          fi
+          if [[ "${{ inputs.change-adhoc }}" == "true" ]]; then
+            ADHOC_ICON=":white_check_mark:"
+          fi
+
+          echo "| Variable | Value | Updated |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| --- | --- | --- |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| CITR_SOLO_VERSION | ${CITR_VAL} | ${CITR_ICON} |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| ADHOC_XTS_SOLO_VERSION | ${XTS_VAL} | ${XTS_ICON} |" >> "${GITHUB_STEP_SUMMARY}"
+          echo "| ADHOC_SOLO_VERSION | ${ADHOC_VAL} | ${ADHOC_ICON} |" >> "${GITHUB_STEP_SUMMARY}"

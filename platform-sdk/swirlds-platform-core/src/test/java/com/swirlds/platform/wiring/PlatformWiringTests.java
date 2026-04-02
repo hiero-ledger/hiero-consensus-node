@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpGossipModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpHashgraphModule;
-import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpPcesModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpGossipModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpHashgraphModule;
+import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpPcesModule;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -27,7 +27,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
@@ -130,7 +129,6 @@ class PlatformWiringTests {
 
         platformComponents.bind(
                 componentBuilder,
-                mock(PcesReplayer.class),
                 mock(StateSignatureCollector.class),
                 mock(EventWindowManager.class),
                 mock(SignedStateNexus.class),

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.spec.utilops.streams;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.doIfNotInterrupted;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -12,10 +11,9 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.file.Files;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
-import org.junit.jupiter.api.Assertions;
 
 /**
  * A {@link UtilOp} that validates that the selected nodes' application or platform log contains or
@@ -28,15 +26,8 @@ public class LogContainmentOp extends UtilOp {
     }
 
     private final NodeSelector selector;
-    private final ExternalPath path;
     private final Containment containment;
-
-    @Nullable
-    private final String text;
-
-    @Nullable
-    private final Pattern pattern;
-
+    private final LogContainmentCondition condition;
     private final Duration delay;
 
     public LogContainmentOp(
@@ -46,38 +37,30 @@ public class LogContainmentOp extends UtilOp {
             @Nullable final String text,
             @Nullable final Pattern pattern,
             @NonNull final Duration delay) {
-        if (path != ExternalPath.APPLICATION_LOG
-                && path != ExternalPath.BLOCK_NODE_COMMS_LOG
-                && path != ExternalPath.SWIRLDS_LOG) {
-            throw new IllegalArgumentException(path + " is not a log");
-        }
-        if ((text == null && pattern == null) || (text != null && pattern != null)) {
-            throw new IllegalArgumentException("Exactly one of text or pattern must be non-null");
-        }
-        this.path = requireNonNull(path);
         this.delay = requireNonNull(delay);
-        this.text = text;
-        this.pattern = pattern;
         this.selector = requireNonNull(selector);
         this.containment = requireNonNull(containment);
+        this.condition = new LogContainmentCondition(path, text, pattern);
+    }
+
+    /**
+     * When using a pattern match, captures the given group from the matched line on each node and
+     * asserts all nodes agree on the same value, then exposes it via {@code ref}. May be called
+     * multiple times to capture different groups.
+     *
+     * @param group the capture group index (1-based)
+     * @param ref the reference to populate with the captured value
+     * @return {@code this}
+     */
+    public LogContainmentOp exposingMatchGroupTo(final int group, @NonNull final AtomicReference<String> ref) {
+        condition.exposingMatchGroupTo(group, ref);
+        return this;
     }
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         doIfNotInterrupted(() -> MILLISECONDS.sleep(delay.toMillis()));
-        spec.targetNetworkOrThrow().nodesFor(selector).forEach(node -> {
-            final var logContents = rethrowIO(() -> Files.readString(node.getExternalPath(path)));
-            final var isThere = text != null
-                    ? logContents.contains(text)
-                    : requireNonNull(pattern).matcher(logContents).find();
-            final var searchTerm = text != null ? text : pattern.pattern();
-            if (isThere && containment == Containment.DOES_NOT_CONTAIN) {
-                Assertions.fail("Log for node '" + node.getName() + "' contains '" + searchTerm + "' and should not");
-            } else if (!isThere && containment == Containment.CONTAINS) {
-                Assertions.fail(
-                        "Log for node '" + node.getName() + "' does not contain '" + searchTerm + "' but should");
-            }
-        });
+        condition.assertContainment(spec.targetNetworkOrThrow().nodesFor(selector), containment);
         return false;
     }
 }

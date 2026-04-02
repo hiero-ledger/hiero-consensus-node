@@ -166,7 +166,10 @@ public final class LongAccumulatorGauge extends SettableMetric<LongSupplier, Lon
             accumulator.accumulate(value);
         }
 
-        long get() {
+        /**
+         * @return the current accumulated value
+         */
+        public long get() {
             return accumulator.get();
         }
 

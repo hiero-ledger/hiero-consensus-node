@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * A {@link TranslationContext} implementation with a new total supply for a token.
  *
  * @param memo The memo for the transaction
+ * @param transactionExchangeRates The exchange rate for the transaction
  * @param txnId The transaction ID
  * @param signedTx The transaction
  * @param functionality The functionality of the transaction

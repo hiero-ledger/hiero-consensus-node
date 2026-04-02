@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.staking;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -50,7 +49,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
 /**
@@ -102,7 +100,6 @@ public class RepeatableStakingTests {
      */
     @Order(2)
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-    @Tag(MATS)
     Stream<DynamicTest> scheduledTransactionCrossingThresholdTriggersExpectedRewards() {
         final AtomicReference<Instant> secondBoundary = new AtomicReference<>();
         return hapiTest(
@@ -140,7 +137,6 @@ public class RepeatableStakingTests {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
             overrides = {"staking.perHbarRewardRate", "staking.rewardBalanceThreshold"})
-    @Tag(MATS)
     Stream<DynamicTest> rewardRateSmoothedToZeroSafely() {
         final AtomicLong stakerBalanceAfter = new AtomicLong();
         final AtomicLong stakerBalanceBefore = new AtomicLong();

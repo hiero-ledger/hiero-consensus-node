@@ -34,7 +34,7 @@ public final class EventSerializationUtils {
             out.flush();
             final SerializableDataInputStream in =
                     new SerializableDataInputStream(new ByteArrayInputStream(io.toByteArray()));
-            return new PlatformEvent(in.readPbjRecord(GossipEvent.PROTOBUF));
+            return new PlatformEvent(in.readPbjRecord(GossipEvent.PROTOBUF), original.getOrigin());
         }
     }
 }

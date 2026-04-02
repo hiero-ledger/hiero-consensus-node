@@ -66,6 +66,10 @@
 | node-flow-pull-request-checks.yaml                    | Node: PR Checks                                                   |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # QOL                                                 |                                                                   |                  |                      |
+| 100-flow-update-solo-version-vars.yaml                | 100: [FLOW] Update Solo Version Variables                         |                  |                      |
 | zxf-update-gs-state-variable.yaml                     | ZXF: Update GS_STATE Variable                                     |                  |                      |
 | flow-pull-request-formatting.yaml                     | PR Formatting                                                     |                  |                      |
 | node-zxf-snyk-monitor.yaml                            | ZXF: Snyk Monitor                                                 |                  |                      |
+|                                                       |                                                                   |                  |                      |
+| # AdHoc Profiling                                     |                                                                   |                  |                      |
+| 050-user-memory-profile-ctrl.yaml                     | 050: [USER] Memory Profile Ctrl                                   |                  |                      |

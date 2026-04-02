@@ -4,7 +4,6 @@ package com.swirlds.platform.test.fixtures;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -23,12 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
-import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -93,50 +86,6 @@ public class PlatformTestUtils {
             platformContextModifier.apply(platformContextBuilder);
         }
         return platformContextBuilder.build();
-    }
-
-    @NonNull
-    public static List<PlatformEvent> generateEvents(
-            @NonNull final PlatformContext context,
-            int numEvents,
-            long seed,
-            @NonNull final Roster roster,
-            @NonNull final KeysAndCerts keysAndCerts) {
-        List<PlatformEvent> events = new ArrayList<>(numEvents);
-
-        final List<EventSource> sources = roster.rosterEntries().stream()
-                .map(e -> (EventSource) new StandardEventSource(false))
-                .toList();
-        // Generate events using GraphGenerator with valid transactions
-        final StandardGraphGenerator generator = new StandardGraphGenerator(
-                context, seed,
-                sources, roster);
-
-        final var signer = new PlatformSigner(keysAndCerts);
-        for (int i = 0; i < numEvents; i++) {
-            // Generate event with hash but fake signature
-            final PlatformEvent unsignedEvent = generator.generateEvent();
-
-            // Sign the ACTUAL hash
-            final Signature signature =
-                    signer.sign(unsignedEvent.getHash().getBytes().toByteArray());
-
-            // Create new GossipEvent with real signature using Builder
-            final GossipEvent signedGossipEvent = new GossipEvent.Builder()
-                    .eventCore(unsignedEvent.getGossipEvent().eventCore())
-                    .signature(signature.getBytes()) // Real signature
-                    .transactions(unsignedEvent.getGossipEvent().transactions()) // Transactions
-                    .parents(unsignedEvent.getGossipEvent().parents()) // Parents
-                    .build();
-
-            // Create PlatformEvent from signed GossipEvent
-            final PlatformEvent signedEvent = new PlatformEvent(signedGossipEvent);
-            signedEvent.setHash(unsignedEvent.getHash()); // Preserve the hash
-
-            events.add(signedEvent);
-        }
-
-        return events;
     }
 
     /**

@@ -14,7 +14,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
@@ -32,7 +31,6 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
-import com.swirlds.platform.wiring.components.PcesReplayerWiring;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -71,7 +69,6 @@ public record PlatformComponents(
         ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         RunningEventHashOverrideWiring runningEventHashOverrideWiring,
         ComponentWiring<StateHasher, ReservedSignedState> stateHasherWiring,
-        PcesReplayerWiring pcesReplayerWiring,
         ComponentWiring<EventWindowManager, EventWindow> eventWindowManagerWiring,
         ComponentWiring<IssDetector, List<IssNotification>> issDetectorWiring,
         ComponentWiring<IssHandler, Void> issHandlerWiring,
@@ -90,7 +87,6 @@ public record PlatformComponents(
      * Bind components to the wiring.
      *
      * @param builder                   builds platform components that need to be bound to wires
-     * @param pcesReplayer              the PCES replayer to bind
      * @param stateSignatureCollector   the signed state manager to bind
      * @param eventWindowManager        the event window manager to bind
      * @param latestImmutableStateNexus the latest immutable state nexus to bind
@@ -100,7 +96,6 @@ public record PlatformComponents(
      */
     public void bind(
             @NonNull final PlatformComponentBuilder builder,
-            @NonNull final PcesReplayer pcesReplayer,
             @NonNull final StateSignatureCollector stateSignatureCollector,
             @NonNull final EventWindowManager eventWindowManager,
             @NonNull final SignedStateNexus latestImmutableStateNexus,
@@ -110,7 +105,6 @@ public record PlatformComponents(
 
         stateSnapshotManagerWiring.bind(builder::buildStateSnapshotManager);
         stateSignerWiring.bind(builder::buildStateSigner);
-        pcesReplayerWiring.bind(pcesReplayer);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
@@ -175,7 +169,6 @@ public record PlatformComponents(
                         StateHasher.class,
                         config.stateHasher(),
                         data -> data instanceof final StateWithHashComplexity swhc ? swhc.hashComplexity() : 1),
-                PcesReplayerWiring.create(model),
                 new ComponentWiring<>(model, EventWindowManager.class, DIRECT_THREADSAFE_CONFIGURATION),
                 new ComponentWiring<>(model, IssDetector.class, config.issDetector()),
                 new ComponentWiring<>(model, IssHandler.class, config.issHandler()),

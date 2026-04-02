@@ -25,6 +25,8 @@ public abstract class AbstractNode implements HederaNode {
     private static final String SWIRLDS_LOG = "swirlds.log";
     private static final String LOG4J2_XML = "log4j2.xml";
     private static final String BLOCK_NODE_COMMS_LOG = "block-node-comms.log";
+    private static final String WRAPPED_RECORD_HASHES_DIR = "wrappedRecordHashes";
+    private static final String WRAPPED_RECORD_HASHES_FILE_NAME = "wrapped-record-hashes.pb";
 
     protected NodeMetadata metadata;
 
@@ -80,6 +82,11 @@ public abstract class AbstractNode implements HederaNode {
                 workingDir.resolve(DATA_DIR).resolve(CONFIG_DIR).resolve(APPLICATION_PROPERTIES);
             case LOG4J2_XML -> workingDir.resolve(LOG4J2_XML);
             case DATA_CONFIG_DIR -> workingDir.resolve(DATA_DIR).resolve(CONFIG_DIR);
+            case WRAPPED_RECORD_HASHES_FILE ->
+                workingDir
+                        .resolve(DATA_DIR)
+                        .resolve(WRAPPED_RECORD_HASHES_DIR)
+                        .resolve(WRAPPED_RECORD_HASHES_FILE_NAME);
             case RECORD_STREAMS_DIR ->
                 workingDir
                         .resolve(DATA_DIR)
@@ -98,6 +105,7 @@ public abstract class AbstractNode implements HederaNode {
                                 getAccountId().shardNum(),
                                 getAccountId().realmNum(),
                                 getAccountId().accountNumOrThrow()));
+            case BLOCK_STREAMS_PARENT_DIR -> workingDir.resolve(DATA_DIR).resolve(BLOCK_STREAMS_DIR);
             case UPGRADE_ARTIFACTS_DIR ->
                 workingDir.resolve(DATA_DIR).resolve(UPGRADE_DIR).resolve(CURRENT_DIR);
             case SAVED_STATES_DIR ->
@@ -107,6 +115,12 @@ public abstract class AbstractNode implements HederaNode {
                         .resolve(Hedera.APP_NAME)
                         .resolve("" + getNodeId())
                         .resolve(Hedera.SWIRLD_NAME);
+            case PCES_DIR ->
+                workingDir
+                        .resolve(DATA_DIR)
+                        .resolve(SAVED_STATES_DIR)
+                        .resolve("preconsensus-events")
+                        .resolve("" + getNodeId());
         };
     }
 

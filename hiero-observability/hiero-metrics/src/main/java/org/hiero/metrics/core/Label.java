@@ -22,6 +22,11 @@ public record Label(@NonNull String name, @NonNull String value) implements Comp
     }
 
     @Override
+    public String toString() {
+        return name + "=" + value;
+    }
+
+    @Override
     public int compareTo(Label other) {
         int nameCompare = name.compareTo(other.name);
         return nameCompare != 0 ? nameCompare : value.compareTo(other.value);

@@ -21,7 +21,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
@@ -455,6 +455,7 @@ class CryptoTransferFeeCalculatorTest {
                         makeExtraDef(Extra.KEYS, 100000000L),
                         makeExtraDef(Extra.STATE_BYTES, 110L),
                         makeExtraDef(Extra.ACCOUNTS, 0L),
+                        makeExtraDef(Extra.GAS, 3),
                         makeExtraDef(Extra.TOKEN_TYPES, TOKEN_TYPES_EXTRA_FEE),
                         makeExtraDef(Extra.TOKEN_TRANSFER_BASE, TOKEN_TRANSFER_FEE),
                         makeExtraDef(Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES, TOKEN_TRANSFER_CUSTOM_FEE),
@@ -464,6 +465,7 @@ class CryptoTransferFeeCalculatorTest {
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_TRANSFER,
                                 0L, // HBAR-only transfers have no service fee
+                                makeExtraIncluded(Extra.GAS, 0),
                                 makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE, 0),
                                 makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES, 0),
                                 makeExtraIncluded(Extra.HOOK_EXECUTION, 0),

@@ -180,16 +180,6 @@ public class StandardWiringModel extends TraceableWiringModel {
      * {@inheritDoc}
      */
     @Override
-    @NonNull
-    public OutputWire<Instant> buildHeartbeatWire(final double frequency) {
-        throwIfStarted();
-        return getHeartbeatScheduler().buildHeartbeatWire(frequency, getHeartbeatExceptionHandler());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void registerScheduler(@NonNull final TaskScheduler<?> scheduler, @Nullable final String hyperlink) {
         super.registerScheduler(scheduler, hyperlink);
         if (scheduler.getType() == SEQUENTIAL_THREAD) {

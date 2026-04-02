@@ -10,9 +10,8 @@ interface IERC20 {
 contract MockSupraRegistry is ISupraRegistry {
     mapping(uint256 => TokenPair) private pairs;
 
-    // How the next verifyOracleProofV2() call should behave
-    struct NextCallConfig {
-        bool isSet;
+    // Queue of verifyOracleProofV2() behaviors.
+    struct CallConfig {
         bool shouldRevert;
         uint256 pairId;
         uint256 price;
@@ -21,7 +20,8 @@ contract MockSupraRegistry is ISupraRegistry {
         uint256 round;
     }
 
-    NextCallConfig internal nextCallConfig;
+    CallConfig[] internal callConfigs;
+    uint256 internal callConfigHead;
 
     /// --- Mock setup functions ---
 
@@ -34,20 +34,14 @@ contract MockSupraRegistry is ISupraRegistry {
             tokenB == address(0) ? 8 : IERC20(tokenB).decimals());
     }
 
-    /// Configure the next call to verifyOracleProofV2() to revert
+    /// Configure a single next call to verifyOracleProofV2() to revert, clearing any queued behavior.
     function mockNextRevert() external {
-        nextCallConfig = NextCallConfig({
-            isSet: true,
-            shouldRevert: true,
-            pairId: 0,
-            price: 0,
-            timestamp: 0,
-            decimal: 0,
-            round: 0
-        });
+        _resetQueue();
+        _enqueueRevert();
     }
 
-    /// Configure the next call to verifyOracleProofV2() to return a single-entry PriceInfo
+    /// Configure a single next call to verifyOracleProofV2() to return a single-entry PriceInfo,
+    /// clearing any queued behavior.
     function mockNextPriceInfo(
         uint256 pairId,
         uint256 price,
@@ -55,15 +49,24 @@ contract MockSupraRegistry is ISupraRegistry {
         uint256 decimal,
         uint256 round
     ) external {
-        nextCallConfig = NextCallConfig({
-            isSet: true,
-            shouldRevert: false,
-            pairId: pairId,
-            price: price,
-            timestamp: timestamp,
-            decimal: decimal,
-            round: round
-        });
+        _resetQueue();
+        _enqueuePriceInfo(pairId, price, timestamp, decimal, round);
+    }
+
+    /// Enqueue a revert for the next verifyOracleProofV2() call without clearing the queue.
+    function enqueueRevert() external {
+        _enqueueRevert();
+    }
+
+    /// Enqueue a single-entry PriceInfo response without clearing the queue.
+    function enqueuePriceInfo(
+        uint256 pairId,
+        uint256 price,
+        uint256 timestamp,
+        uint256 decimal,
+        uint256 round
+    ) external {
+        _enqueuePriceInfo(pairId, price, timestamp, decimal, round);
     }
 
     /// --- Public API ---
@@ -74,11 +77,11 @@ contract MockSupraRegistry is ISupraRegistry {
     }
 
     function verifyOracleProofV2(bytes calldata) external override returns (PriceInfo memory info) {
-        // Snapshot and consume config (one-shot behavior)
-        NextCallConfig memory cfg = nextCallConfig;
-        delete nextCallConfig;
-
-        require(cfg.isSet, "MockSupraRegistry: behavior not configured");
+        require(callConfigHead < callConfigs.length, "MockSupraRegistry: behavior not configured");
+        CallConfig memory cfg = callConfigs[callConfigHead++];
+        if (callConfigHead == callConfigs.length) {
+            _resetQueue();
+        }
 
         if (cfg.shouldRevert) {
             revert("MockSupraRegistry: forced revert");
@@ -98,5 +101,37 @@ contract MockSupraRegistry is ISupraRegistry {
 
         return info;
     }
-}
 
+    function _resetQueue() internal {
+        delete callConfigs;
+        callConfigHead = 0;
+    }
+
+    function _enqueueRevert() internal {
+        callConfigs.push(CallConfig({
+            shouldRevert: true,
+            pairId: 0,
+            price: 0,
+            timestamp: 0,
+            decimal: 0,
+            round: 0
+        }));
+    }
+
+    function _enqueuePriceInfo(
+        uint256 pairId,
+        uint256 price,
+        uint256 timestamp,
+        uint256 decimal,
+        uint256 round
+    ) internal {
+        callConfigs.push(CallConfig({
+            shouldRevert: false,
+            pairId: pairId,
+            price: price,
+            timestamp: timestamp,
+            decimal: decimal,
+            round: round
+        }));
+    }
+}

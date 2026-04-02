@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.impl.HintsContext;
@@ -15,13 +14,13 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -33,8 +32,6 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
 
     @NonNull
     private final ConcurrentMap<Bytes, HintsContext.Signing> signings;
-
-    private final AtomicReference<Roster> currentRoster;
 
     private final HintsContext hintsContext;
 
@@ -49,7 +46,10 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
      * @param body           the partial signature
      */
     private record PartialSignature(
-            long constructionId, @NonNull Bytes crs, long nodeId, @NonNull HintsPartialSignatureTransactionBody body) {
+            long constructionId,
+            @NonNull Bytes crs,
+            long nodeId,
+            @NonNull HintsPartialSignatureTransactionBody body) {
         private PartialSignature {
             requireNonNull(crs);
             requireNonNull(body);
@@ -60,11 +60,10 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     public HintsPartialSignatureHandler(
             @NonNull final Duration blockPeriod,
             @NonNull final ConcurrentMap<Bytes, HintsContext.Signing> signings,
-            @NonNull final HintsContext context,
-            @NonNull final AtomicReference<Roster> currentRoster) {
+            @NonNull final HintsContext context) {
         this.signings = requireNonNull(signings);
         this.hintsContext = requireNonNull(context);
-        this.currentRoster = requireNonNull(currentRoster);
+        // Only used when waiting for consensus to construct deterministic signatures
         cache = Caffeine.newBuilder()
                 .expireAfterAccess(Math.max(1, 2 * blockPeriod.getSeconds()), TimeUnit.SECONDS)
                 .softValues()
@@ -80,15 +79,26 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
         final var hintsStore = context.createStore(ReadableHintsStore.class);
-        // We don't care about the result, just that it's in the cache
+        final var crs = requireNonNull(hintsStore.crsIfKnown());
+        final var creatorId = context.creatorInfo().nodeId();
         try {
-            cache.get(new PartialSignature(
-                    hintsContext.constructionIdOrThrow(),
-                    requireNonNull(hintsStore.crsIfKnown()),
-                    context.creatorInfo().nodeId(),
-                    context.body().hintsPartialSignatureOrThrow()));
-        } catch (Exception ignore) {
-            // Ignore any exceptions
+            final var op = context.body().hintsPartialSignatureOrThrow();
+            final var partialSignature = new PartialSignature(hintsContext.constructionIdOrThrow(), crs, creatorId, op);
+            final var tssConfig = context.configuration().getConfigData(TssConfig.class);
+            if (tssConfig.useDeterministicHintsSignatures()) {
+                //noinspection ResultOfMethodCallIgnored
+                cache.get(partialSignature);
+            } else {
+                final boolean isValid = hintsContext.validate(
+                        partialSignature.nodeId(), partialSignature.crs(), partialSignature.body());
+                if (isValid) {
+                    signings.computeIfAbsent(
+                                    op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
+                            .incorporateValid(crs, creatorId, op.partialSignature());
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Ignoring partial signature in pre-handle for node {}", creatorId, e);
         }
     }
 
@@ -99,29 +109,33 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         final var creatorId = context.creatorInfo().nodeId();
         final var hintsStore = context.storeFactory().readableStore(ReadableHintsStore.class);
         final var crs = requireNonNull(hintsStore.crsIfKnown());
-        final boolean isValid = Boolean.TRUE.equals(cache.get(new PartialSignature(
-                hintsContext.constructionIdOrThrow(), crs, context.creatorInfo().nodeId(), op)));
-        if (isValid) {
-            signings.computeIfAbsent(op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
-                    .incorporateValid(crs, creatorId, op.partialSignature());
-        } else {
-            log.warn("Ignoring invalid partial signature on '{}' from node{}", op.message(), creatorId);
+        final var tssConfig = context.configuration().getConfigData(TssConfig.class);
+        // Only something to do at handle if using deterministic hinTS signatures
+        if (tssConfig.useDeterministicHintsSignatures()) {
+            final boolean isValid = Boolean.TRUE.equals(cache.get(new PartialSignature(
+                    hintsContext.constructionIdOrThrow(),
+                    crs,
+                    context.creatorInfo().nodeId(),
+                    op)));
+            if (isValid) {
+                signings.computeIfAbsent(
+                                op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
+                        .incorporateValid(crs, creatorId, op.partialSignature());
+            }
         }
     }
 
     /**
      * Validates the given partial signature.
-     *
+     * <p>
      * @param partialSignature the partial signature to validate
      * @return whether the partial signature is valid
      */
     private @Nullable Boolean validate(@NonNull final PartialSignature partialSignature) {
         try {
-            // It's technically _possible_ this could throw some form of CME during pre-handle, so
-            // just return null in that case (i.e., don't cache the result); and then revalidate
-            // synchronously during handle in that edge case.
+            // Should never throw, but if it does, we don't want to cache the result, so we catch and return null
             return hintsContext.validate(partialSignature.nodeId(), partialSignature.crs(), partialSignature.body());
-        } catch (Exception ignore) {
+        } catch (Exception e) {
             return null;
         }
     }

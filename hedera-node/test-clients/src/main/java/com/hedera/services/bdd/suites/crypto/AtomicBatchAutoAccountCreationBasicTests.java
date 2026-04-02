@@ -21,14 +21,13 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchFee;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
@@ -101,7 +100,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION);
 
                     // validate account is created and has the expected balance
                     final var senderBalanceCheck = getAccountBalance(OWNER).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 99L);
@@ -163,7 +162,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION);
 
                     // validate account is created and has the expected balance
                     final var senderBalanceCheck = getAccountBalance(OWNER).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 99L);
@@ -234,7 +233,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .payingWith(BATCH_OPERATOR)
                             .via(batchTxnName)
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee(batchTxnName, BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account is created and has the expected balance
                     getAliasedAccountInfo(alias)
@@ -284,7 +283,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .payingWith(BATCH_OPERATOR)
                             .via(batchTxnName)
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee(batchTxnName, BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account is created and has the expected balance
                     getAccountBalance(OWNER).hasTokenBalance(FT_FOR_AUTO_ACCOUNT, 99L),
@@ -355,7 +354,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .payingWith(BATCH_OPERATOR)
                             .via(batchTxnName)
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee(batchTxnName, BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account is created and has the expected balance
                     getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 2L),
@@ -431,7 +430,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .payingWith(BATCH_OPERATOR)
                             .via(batchTxnName)
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd(batchTxnName, BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee(batchTxnName, BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account is created and has the expected balance
                     getAccountBalance(OWNER).hasTokenBalance(NFT_FOR_AUTO_ACCOUNT, 2L),
@@ -508,7 +507,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .hasKnownStatus(SUCCESS);
 
                     final var batchTxnFeeCheck =
-                            validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
+                            validateBatchFee("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
 
                     // validate the hollow account creation and transfers
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -575,7 +574,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .hasKnownStatus(SUCCESS);
 
                     final var batchTxnFeeCheck =
-                            validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
+                            validateBatchFee("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
 
                     // validate the hollow account creation and transfers
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -642,7 +641,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .hasKnownStatus(SUCCESS);
 
                     final var batchTxnFeeCheck =
-                            validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
+                            validateBatchFee("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
 
                     // validate the hollow account creation and transfers
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -709,7 +708,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .hasKnownStatus(SUCCESS);
 
                     final var batchTxnFeeCheck =
-                            validateChargedUsd("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
+                            validateBatchFee("batchTxn_" + VALID_ALIAS_ECDSA, BASE_FEE_BATCH_TRANSACTION);
 
                     // validate the hollow account creation and transfers
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -789,13 +788,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
-                            "batchTxnAllAccounts",
-                            BASE_FEE_BATCH_TRANSACTION,
-                            1,
-                            // account for extra bytes in the node + network fee
-                            BASE_FEE_BATCH_TRANSACTION + 199 * PROCESSING_BYTES_FEE_USD * 10,
-                            2);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -902,13 +895,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
-                            "batchTxnAllAccounts",
-                            BASE_FEE_BATCH_TRANSACTION,
-                            1,
-                            // account for extra bytes in the node + network fee
-                            BASE_FEE_BATCH_TRANSACTION + 210 * PROCESSING_BYTES_FEE_USD * 10,
-                            2);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -1023,13 +1010,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxnAllAccounts")
                             .hasKnownStatus(SUCCESS);
 
-                    final var batchTxnFeeCheck = safeValidateChargedUsdWithin(
-                            "batchTxnAllAccounts",
-                            BASE_FEE_BATCH_TRANSACTION,
-                            1,
-                            // account for extra bytes in the node + network fee
-                            BASE_FEE_BATCH_TRANSACTION + 235 * PROCESSING_BYTES_FEE_USD * 10,
-                            2);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
 
                     // validate ED25519 account is created and has the expected balance
                     final var ED25519_AccountCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -1143,7 +1124,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .andAllChildRecords()
                             .logged();
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
 
                     // validate the hollow account creation and transfers resulting in accumulated HBAR amount
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -1228,7 +1209,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .andAllChildRecords()
                             .logged();
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxnAllAccounts", BASE_FEE_BATCH_TRANSACTION);
 
                     // validate the hollow account creation and transfers resulting in accumulated HBAR amount
                     final var infoCheck = getAliasedAccountInfo(evmAlias.get())
@@ -1303,7 +1284,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                                 .hasPriority(recordWith().status(INVALID_ALIAS_KEY))
                                 .logged();
 
-                        final var batchTxnFeeCheck = validateChargedUsd(batchTxn, BASE_FEE_BATCH_TRANSACTION);
+                        final var batchTxnFeeCheck = validateBatchFee(batchTxn, BASE_FEE_BATCH_TRANSACTION);
 
                         final var invalidAliasCheck = getAliasedAccountInfo(invalidEvmAliasBytes)
                                 .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)
@@ -1370,7 +1351,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                                 .hasPriority(recordWith().status(INVALID_ALIAS_KEY))
                                 .logged();
 
-                        final var batchTxnFeeCheck = validateChargedUsd(batchTxn, BASE_FEE_BATCH_TRANSACTION);
+                        final var batchTxnFeeCheck = validateBatchFee(batchTxn, BASE_FEE_BATCH_TRANSACTION);
 
                         final var invalidAliasCheck = getAliasedAccountInfo(invalidKeyBytes)
                                 .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)
@@ -1418,7 +1399,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED);
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION);
 
                     final var invalidAliasCheck = getAliasedAccountInfo(VALID_ALIAS_ECDSA)
                             .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)
@@ -1456,7 +1437,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED);
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION);
 
                     final var invalidAliasCheck = getAliasedAccountInfo(VALID_ALIAS_ED25519)
                             .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)
@@ -1515,7 +1496,7 @@ class AtomicBatchAutoAccountCreationBasicTests {
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED);
 
-                    final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                    final var batchTxnFeeCheck = validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION);
 
                     final var invalidAliasCheck = getAliasedAccountInfo(evmAlias.get())
                             .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID)

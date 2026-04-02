@@ -165,23 +165,27 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     protected void writeLongsData(final FileChannel fc) throws IOException {
         // write data
         final ByteBuffer tempBuffer = allocateDirect(1024 * 1024);
-        tempBuffer.order(ByteOrder.nativeOrder());
-        final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
-        for (long i = minValidIndex.get(); i < size(); i++) {
-            // if buffer is full then write
-            if (!tempLongBuffer.hasRemaining()) {
-                tempBuffer.clear();
-                MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
-                tempLongBuffer.clear();
+        try {
+            tempBuffer.order(ByteOrder.nativeOrder());
+            final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
+            for (long i = minValidIndex.get(); i < size(); i++) {
+                // if buffer is full then write
+                if (!tempLongBuffer.hasRemaining()) {
+                    tempBuffer.clear();
+                    MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
+                    tempLongBuffer.clear();
+                }
+                // add value to buffer
+                tempLongBuffer.put(get(i, 0));
             }
-            // add value to buffer
-            tempLongBuffer.put(get(i, 0));
-        }
-        // write any remaining
-        if (tempLongBuffer.position() > 0) {
-            tempBuffer.position(0);
-            tempBuffer.limit(tempLongBuffer.position() * Long.BYTES);
-            MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
+            // write any remaining
+            if (tempLongBuffer.position() > 0) {
+                tempBuffer.position(0);
+                tempBuffer.limit(tempLongBuffer.position() * Long.BYTES);
+                MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
+            }
+        } finally {
+            MemoryUtils.closeDirectByteBuffer(tempBuffer);
         }
     }
 

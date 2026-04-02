@@ -20,6 +20,7 @@ import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.signing.GeneratorEventSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -143,7 +144,8 @@ public class GeneratorEventGraphSource implements EventGraphSource {
                 coin);
         hasher.hashUnsignedEvent(unsignedEvent);
 
-        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, eventSigner.signEvent(unsignedEvent));
+        final PlatformEvent platformEvent =
+                new PlatformEvent(unsignedEvent, eventSigner.signEvent(unsignedEvent), EventOrigin.GOSSIP);
         consensus.updateConsensus(platformEvent);
 
         // The event given to consensus will be modified by it with consensus information as some point. We do not want

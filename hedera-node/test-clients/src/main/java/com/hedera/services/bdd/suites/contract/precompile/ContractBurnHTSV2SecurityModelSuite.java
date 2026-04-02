@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asDotDelimitedLongArray;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -42,7 +41,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @SuppressWarnings("java:S1192")
 public class ContractBurnHTSV2SecurityModelSuite {
@@ -638,7 +636,6 @@ public class ContractBurnHTSV2SecurityModelSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> V2SecurityBurnTokenWithFullPrefixAndPartialPrefixKeys() {
         final var firstBurnTxn = "firstBurnTxn";
         final var secondBurnTxn = "secondBurnTxn";
@@ -879,7 +876,6 @@ public class ContractBurnHTSV2SecurityModelSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> V2SecurityHscsPrec011BurnAfterNestedMint() {
         final var innerContract = "MintToken";
         final var outerContract = "NestedBurn";

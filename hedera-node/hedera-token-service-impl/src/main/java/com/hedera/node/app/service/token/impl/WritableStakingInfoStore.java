@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
@@ -24,7 +24,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
     /** The underlying data storage class that holds the staking data. */
     private final WritableKVState<EntityNumber, StakingNodeInfo> stakingInfoState;
 
-    private final WritableEntityCounters entityCounters;
+    private final WritableEntityIdStore entityCounters;
 
     /**
      * Create a new {@link WritableStakingInfoStore} instance.
@@ -32,7 +32,7 @@ public class WritableStakingInfoStore extends ReadableStakingInfoStoreImpl {
      * @param states         The state to use
      * @param entityCounters
      */
-    public WritableStakingInfoStore(@NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
+    public WritableStakingInfoStore(@NonNull final WritableStates states, final WritableEntityIdStore entityCounters) {
         super(states, entityCounters);
         requireNonNull(states);
 

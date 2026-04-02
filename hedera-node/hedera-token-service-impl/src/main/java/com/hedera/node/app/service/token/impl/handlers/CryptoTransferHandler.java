@@ -218,8 +218,8 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         validator.validateSemantics(op, ledgerConfig, accountsConfig, hooksConfig, transactionCategory, payer);
 
         // create a new transfer context that is specific only for this transaction
-        final var transferContext =
-                new TransferContextImpl(context, enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments);
+        final var transferContext = new TransferContextImpl(
+                context, enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments, txn.highVolume());
         final var recordBuilder = context.savepointStack().getBaseBuilder(CryptoTransferStreamBuilder.class);
 
         executeCryptoTransfer(txn, transferContext, context, recordBuilder);

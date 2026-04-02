@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -99,7 +99,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
-import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
@@ -136,7 +135,7 @@ public class ContractCreateSuite {
 
     public static final String EMPTY_CONSTRUCTOR_CONTRACT = "EmptyConstructor";
     public static final String PARENT_INFO = "parentInfo";
-    private static final String PAYER = "payer";
+    private static final String PAYER = "contractCreatePayer";
 
     private static final Logger log = LogManager.getLogger(ContractCreateSuite.class);
 
@@ -170,7 +169,6 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> createContractWithStakingFields() {
         final var contract = "CreateTrivial";
         return hapiTest(
@@ -350,7 +348,7 @@ public class ContractCreateSuite {
                         .maxFeePerGas(50L)
                         .maxPriorityGas(2L)
                         .gasLimit(1_000_000L)
-                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 getContractInfo(initCreateContract)
                         .has(contractWith().maxAutoAssociations(0))
                         .logged(),
@@ -367,7 +365,6 @@ public class ContractCreateSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
-    @Tag(MATS)
     final Stream<DynamicTest> childCreationsHaveExpectedKeysWithOmittedAdminKey() {
         final AtomicLong firstStickId = new AtomicLong();
         final AtomicLong secondStickId = new AtomicLong();
@@ -538,7 +535,6 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> rejectsInvalidBytecode() {
         final var contract = "InvalidBytecode";
         return hapiTest(
@@ -557,14 +553,15 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(SERIAL)
     final Stream<DynamicTest> delegateContractIdRequiredForTransferInDelegateCall() {
         final var justSendContract = "JustSend";
         final var sendInternalAndDelegateContract = "SendInternalAndDelegate";
 
         final var beneficiary = "civilian";
         final var totalToSend = 1_000L;
-        final var origKey = KeyShape.threshOf(1, SIMPLE, CONTRACT);
-        final var revisedKey = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
+        final var origKey = threshOf(1, SIMPLE, CONTRACT);
+        final var revisedKey = threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var newKey = "delegateContractKey";
 
         final AtomicReference<ContractID> justSendContractId = new AtomicReference<>();

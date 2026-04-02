@@ -20,6 +20,8 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
 
+    public static final int VK_LENGTH = 1096;
+
     @Override
     public Bytes newCrs(final short n) {
         return Bytes.wrap(BRIDGE.initCRS(n));

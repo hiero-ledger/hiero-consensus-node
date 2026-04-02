@@ -28,6 +28,7 @@ public class BlockStreamMetrics {
     private static final String GROUP_CONN_SEND = "connSend";
     private static final String GROUP_CONN_RECV = "connRecv";
     private static final String GROUP_BUFFER = "buffer";
+    private static final String GROUP_RECORD_HASHES = "recordHashes";
 
     private final Metrics metrics;
 
@@ -92,6 +93,12 @@ public class BlockStreamMetrics {
     private LongGauge buffer_oldestBlockGauge;
     private LongGauge buffer_newestBlockGauge;
 
+    // wrapped record hashes (record stream) metrics
+    // (FUTURE) Remove after cutover
+    private LongGauge recordHashes_lowestBlockGauge;
+    private LongGauge recordHashes_highestBlockGauge;
+    private LongGauge recordHashes_hasGapsGauge;
+
     /**
      * Constructor of this class.
      *
@@ -105,6 +112,7 @@ public class BlockStreamMetrics {
         registerConnectionRecvMetrics();
         registerConnectivityMetrics();
         registerBufferMetrics();
+        registerWrappedRecordHashesMetrics();
     }
 
     // Buffer metrics --------------------------------------------------------------------------------------------------
@@ -167,6 +175,32 @@ public class BlockStreamMetrics {
                 .withDescription("The average size in bytes of a Block in the buffer")
                 .withFormat("%,.2f");
         buffer_blockBytes = metrics.getOrCreate(blockBytesCfg);
+    }
+
+    private void registerWrappedRecordHashesMetrics() {
+        final LongGauge.Config lowestCfg = newLongGauge(GROUP_RECORD_HASHES, "lowestBlock")
+                .withDescription("Lowest record block number present in wrapped record hashes file (-1 if empty)");
+        recordHashes_lowestBlockGauge = metrics.getOrCreate(lowestCfg);
+
+        final LongGauge.Config highestCfg = newLongGauge(GROUP_RECORD_HASHES, "highestBlock")
+                .withDescription("Highest record block number present in wrapped record hashes file (-1 if empty)");
+        recordHashes_highestBlockGauge = metrics.getOrCreate(highestCfg);
+
+        final LongGauge.Config hasGapsCfg = newLongGauge(GROUP_RECORD_HASHES, "hasGaps")
+                .withDescription("Whether there are gaps between lowest and highest (0=no gaps, 1=gaps)");
+        recordHashes_hasGapsGauge = metrics.getOrCreate(hasGapsCfg);
+    }
+
+    public void recordWrappedRecordHashesLowestBlock(final long blockNumber) {
+        recordHashes_lowestBlockGauge.set(blockNumber);
+    }
+
+    public void recordWrappedRecordHashesHighestBlock(final long blockNumber) {
+        recordHashes_highestBlockGauge.set(blockNumber);
+    }
+
+    public void recordWrappedRecordHashesHasGaps(final boolean hasGaps) {
+        recordHashes_hasGapsGauge.set(hasGaps ? 1 : 0);
     }
 
     /**

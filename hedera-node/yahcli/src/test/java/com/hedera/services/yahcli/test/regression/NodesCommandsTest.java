@@ -8,12 +8,14 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.yahcli.test.YahcliTestBase.REGRESSION;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.asYcDefaultNetworkKey;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.loadResourceFile;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newNodeCapturer;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.newRegisteredNodeCapturer;
 import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliNodes;
+import static com.hedera.services.yahcli.test.bdd.YahcliVerbs.yahcliRegisteredNodes;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -62,7 +64,7 @@ public class NodesCommandsTest {
                                 .exposingOutputTo(newNodeCapturer(newNodeNum::set)),
                         // TODO: add state validation
                         // Update the just created node
-                        sourcingContextual(spec1 -> yahcliNodes(
+                        sourcing(() -> yahcliNodes(
                                         "update",
                                         "-n",
                                         Long.toString(newNodeNum.get()),
@@ -73,7 +75,7 @@ public class NodesCommandsTest {
                                 .exposingOutputTo(output ->
                                         assertTrue(output.contains("node" + newNodeNum.get() + " has been updated")))),
                         // Finally delete the just created node
-                        sourcingContextual(spec2 -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                        sourcing(() -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
                                 .exposingOutputTo(output -> assertTrue(
                                         output.contains("node" + newNodeNum.get() + " has been deleted")))))));
     }
@@ -165,6 +167,194 @@ public class NodesCommandsTest {
                         yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
                                 .exposingOutputTo(output -> assertTrue(
                                         output.contains("node" + newNodeNum.get() + " has been deleted"))))));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> createNodeWithAssociatedRegisteredNode() {
+        final var registeredNodeId = new AtomicLong();
+        final var newNodeNum = new AtomicLong();
+        final var adminKeyFileName = "create_areg_dab.pem";
+        final var rnAdminKeyFile = "create_areg_rn.pem";
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
+        return hapiTest(
+                newKeyNamed("create_areg_dab_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
+                newKeyNamed("create_areg_rn_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(rnAdminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(rnAdminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080:STATUS",
+                                        "-d",
+                                        "Block node for association test")
+                                .exposingOutputTo(newRegisteredNodeCapturer(registeredNodeId::set)),
+                        sourcing(() -> yahcliNodes(
+                                        "create",
+                                        "-a",
+                                        "23",
+                                        "-d",
+                                        "Node with associated registered node",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--gossipCaCertificate",
+                                        certFilePath.toString(),
+                                        "-h",
+                                        certFilePath.toString(),
+                                        "-g",
+                                        "127.0.0.1:50211",
+                                        "-s",
+                                        "a.b.com:50212",
+                                        "--associatedRegisteredNode",
+                                        Long.toString(registeredNodeId.get()))
+                                .exposingOutputTo(newNodeCapturer(newNodeNum::set))),
+                        sourcing(() -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("node" + newNodeNum.get() + " has been deleted")))),
+                        sourcing(() -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
+                                .exposingOutputTo(output -> assertTrue(output.contains(
+                                        "registeredNode" + registeredNodeId.get() + " has been deleted")))))));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> updateNodeAssociatedRegisteredNodes() {
+        final var registeredNodeId = new AtomicLong();
+        final var newNodeNum = new AtomicLong();
+        final var adminKeyFileName = "update_areg_dab.pem";
+        final var rnAdminKeyFile = "update_areg_rn.pem";
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
+        return hapiTest(
+                newKeyNamed("update_areg_dab_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
+                newKeyNamed("update_areg_rn_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(rnAdminKeyFile), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliRegisteredNodes(
+                                        "create",
+                                        "-k",
+                                        asYcDefaultNetworkKey(rnAdminKeyFile),
+                                        "--blockNodeEndpoint",
+                                        "127.0.0.1:8080:STATUS",
+                                        "-d",
+                                        "Block node for update association test")
+                                .exposingOutputTo(newRegisteredNodeCapturer(registeredNodeId::set)),
+                        yahcliNodes(
+                                        "create",
+                                        "-a",
+                                        "23",
+                                        "-d",
+                                        "Node to update associations",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--gossipCaCertificate",
+                                        certFilePath.toString(),
+                                        "-h",
+                                        certFilePath.toString(),
+                                        "-g",
+                                        "127.0.0.1:50211",
+                                        "-s",
+                                        "a.b.com:50212")
+                                .exposingOutputTo(newNodeCapturer(newNodeNum::set)),
+                        sourcing(() -> yahcliNodes(
+                                        "update",
+                                        "-n",
+                                        Long.toString(newNodeNum.get()),
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--associatedRegisteredNode",
+                                        Long.toString(registeredNodeId.get()))
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("node" + newNodeNum.get() + " has been updated")))),
+                        sourcing(() -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("node" + newNodeNum.get() + " has been deleted")))),
+                        sourcing(() -> yahcliRegisteredNodes("delete", "-n", Long.toString(registeredNodeId.get()))
+                                .exposingOutputTo(output -> assertTrue(output.contains(
+                                        "registeredNode" + registeredNodeId.get() + " has been deleted")))))));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> createNodeWithNonExistentAssociatedRegisteredNodeFails() {
+        final var adminKeyFileName = "create_bogus_areg_dab.pem";
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
+        return hapiTest(
+                newKeyNamed("create_bogus_areg_dab_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliNodes(
+                                        "create",
+                                        "-a",
+                                        "23",
+                                        "-d",
+                                        "Node with bogus associated registered node",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--gossipCaCertificate",
+                                        certFilePath.toString(),
+                                        "-h",
+                                        certFilePath.toString(),
+                                        "-g",
+                                        "127.0.0.1:50211",
+                                        "-s",
+                                        "a.b.com:50212",
+                                        "--associatedRegisteredNode",
+                                        "999999")
+                                .expectFail()
+                                .exposingOutputTo(output -> assertTrue(output.contains("FAILED to create node"))))));
+    }
+
+    @LeakyHapiTest
+    final Stream<DynamicTest> updateNodeWithNonExistentAssociatedRegisteredNodeFails() {
+        final var newNodeNum = new AtomicLong();
+        final var adminKeyFileName = "update_bogus_areg_dab.pem";
+        final var certFilePath = loadResourceFile("testFiles/s-public-node1.pem");
+        return hapiTest(
+                newKeyNamed("update_bogus_areg_dab_key")
+                        .shape(SigControl.ED25519_ON)
+                        .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
+                doingContextual(spec -> allRunFor(
+                        spec,
+                        yahcliNodes(
+                                        "create",
+                                        "-a",
+                                        "23",
+                                        "-d",
+                                        "Node to update with bogus association",
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--gossipCaCertificate",
+                                        certFilePath.toString(),
+                                        "-h",
+                                        certFilePath.toString(),
+                                        "-g",
+                                        "127.0.0.1:50211",
+                                        "-s",
+                                        "a.b.com:50212")
+                                .exposingOutputTo(newNodeCapturer(newNodeNum::set)),
+                        sourcing(() -> yahcliNodes(
+                                        "update",
+                                        "-n",
+                                        Long.toString(newNodeNum.get()),
+                                        "-k",
+                                        asYcDefaultNetworkKey(adminKeyFileName),
+                                        "--associatedRegisteredNode",
+                                        "999999")
+                                .expectFail()
+                                .exposingOutputTo(output ->
+                                        assertTrue(output.contains("FAILED to update node" + newNodeNum.get())))),
+                        sourcing(() -> yahcliNodes("delete", "-n", Long.toString(newNodeNum.get()))
+                                .exposingOutputTo(output -> assertTrue(
+                                        output.contains("node" + newNodeNum.get() + " has been deleted")))))));
     }
 
     // Helpers

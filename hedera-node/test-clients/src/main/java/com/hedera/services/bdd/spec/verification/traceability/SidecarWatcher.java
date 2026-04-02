@@ -14,8 +14,10 @@ import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Queue;
@@ -50,11 +52,13 @@ public class SidecarWatcher {
      */
     private static final long EXPECTATIONS_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(10);
 
-    private static final long EXPECTATIONS_POLL_SLEEP_MILLIS = 50L;
+    private static final int FINAL_DRAIN_ATTEMPTS = 3;
 
+    private final Path streamFilesPath;
     private final Runnable unsubscribe;
     private final Queue<ExpectedSidecar> expectedSidecars = new LinkedBlockingDeque<>();
     private final Queue<TransactionSidecarRecord> actualSidecars = new LinkedBlockingDeque<>();
+    private final HashSet<TransactionSidecarRecord> seenActualSidecars = new HashSet<>();
     // LinkedHashMap lets us easily print mismatches _in the order added_. Important if the
     // records get out-of-sync at one particular test, then all the _rest_ of the tests fail
     // too: It's good to know the _first_ test which fails.
@@ -65,10 +69,11 @@ public class SidecarWatcher {
     private record ConstructionDetails(String creatingThread, String stackTrace) {}
 
     public SidecarWatcher(@NonNull final Path path) {
-        this.unsubscribe = STREAM_FILE_ACCESS.subscribe(guaranteedExtantDir(path), new StreamDataListener() {
+        this.streamFilesPath = guaranteedExtantDir(path);
+        this.unsubscribe = STREAM_FILE_ACCESS.subscribe(streamFilesPath, new StreamDataListener() {
             @Override
             public void onNewSidecar(@NonNull final TransactionSidecarRecord sidecar) {
-                actualSidecars.add(sidecar);
+                enqueueActualSidecar(sidecar);
             }
         });
     }
@@ -108,27 +113,30 @@ public class SidecarWatcher {
         triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
         triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
         // Drain sidecars until we either satisfy all expectations, or a bounded timeout elapses.
-        // This avoids racing the file monitor: the sidecar marker file can arrive a bit later than
-        // record stream file closure, especially on busy CI runners.
+        // We also synchronously scan sidecar files from disk to avoid relying only on asynchronous
+        // file monitor callbacks, which can lag under debugger pauses or slow CI.
         final long deadlineNanos = System.nanoTime() + EXPECTATIONS_TIMEOUT_NANOS;
         while (!expectedSidecars.isEmpty() && System.nanoTime() < deadlineNanos) {
-            final var drainedAtLeastOne = drainActualSidecars();
+            final var drainedAtLeastOne = drainActualSidecars() || drainUnseenSidecarsFromDisk();
             if (expectedSidecars.isEmpty()) {
                 break;
             }
-            // If nothing new arrived yet, avoid busy-waiting.
+            // If nothing new arrived yet, actively force another record/sidecar file closure cycle.
             if (!drainedAtLeastOne) {
-                try {
-                    Thread.sleep(EXPECTATIONS_POLL_SLEEP_MILLIS);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
+                triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
             }
+        }
+
+        // If still pending, perform a few final forced close+drain attempts before failing.
+        for (int i = 0; i < FINAL_DRAIN_ATTEMPTS && !expectedSidecars.isEmpty(); i++) {
+            triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
+            drainUnseenSidecarsFromDisk();
+            drainActualSidecars();
         }
 
         // Stop listening for any more actual sidecars, then drain anything already queued.
         unsubscribe.run();
+        drainUnseenSidecarsFromDisk();
         drainActualSidecars();
 
         assertTrue(thereAreNoMismatchedSidecars(), getMismatchErrors());
@@ -164,6 +172,39 @@ public class SidecarWatcher {
             }
         }
         return drainedAtLeastOne;
+    }
+
+    private void enqueueActualSidecar(@NonNull final TransactionSidecarRecord sidecar) {
+        synchronized (seenActualSidecars) {
+            if (seenActualSidecars.add(sidecar)) {
+                actualSidecars.add(sidecar);
+            }
+        }
+    }
+
+    private boolean drainUnseenSidecarsFromDisk() {
+        try {
+            final var streamData = STREAM_FILE_ACCESS.readStreamDataFrom(streamFilesPath.toString(), "sidecar");
+            int added = 0;
+            for (final var recordWithSidecars : streamData.records()) {
+                for (final var sidecarFile : recordWithSidecars.sidecarFiles()) {
+                    for (final var sidecar : sidecarFile.getSidecarRecordsList()) {
+                        synchronized (seenActualSidecars) {
+                            if (seenActualSidecars.add(sidecar)) {
+                                actualSidecars.add(sidecar);
+                                added++;
+                            }
+                        }
+                    }
+                }
+            }
+            return added > 0;
+        } catch (final UncheckedIOException | IllegalArgumentException e) {
+            // Sidecar files may still be in-flight while this assertion loop is polling.
+            return false;
+        } catch (final Exception e) {
+            return false;
+        }
     }
 
     private void assertIncomingSidecar(final TransactionSidecarRecord actualSidecarRecord) {

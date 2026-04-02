@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -67,6 +67,7 @@ import org.junit.jupiter.api.Tag;
 /**
  * Includes tests covering scheduled execution of operations that are not yet allowed to be scheduled, but will be.
  */
+@Tag(SERIAL)
 @HapiTestLifecycle
 public class FutureSchedulableOpsTest {
 
@@ -77,7 +78,6 @@ public class FutureSchedulableOpsTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduledPermissionedFileUpdateWorksAsExpected() {
         return hapiTest(
                 cryptoCreate(PAYING_ACCOUNT),
@@ -235,7 +235,6 @@ public class FutureSchedulableOpsTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> sharedKeyWorksAsExpected() {
         return hapiTest(
                 newKeyNamed(SHARED_KEY),

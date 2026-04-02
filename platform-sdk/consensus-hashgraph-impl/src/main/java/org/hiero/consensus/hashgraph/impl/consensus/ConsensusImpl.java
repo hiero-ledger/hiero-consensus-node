@@ -713,7 +713,7 @@ public class ConsensusImpl implements Consensus {
                         .map(EventImpl::getBaseEvent)
                         .toList();
         // all rounds before this round are now decided, and appropriate events marked consensus
-        consensusMetrics.consensusReachedOnRound();
+        consensusMetrics.consensusReachedOnRound(decidedRoundNumber);
 
         // lastConsensusTime is updated above with the last transaction in the last event that reached consensus
         // if no events reach consensus, then we need to calculate the lastConsensusTime differently

@@ -22,7 +22,7 @@ import com.hedera.hapi.node.token.TokenCancelAirdropTransactionBody;
 import com.hedera.hapi.node.token.TokenClaimAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.config.data.TokensConfig;
@@ -161,7 +161,8 @@ class TokenAirdropFeeCalculatorsTest {
                         makeExtraDef(Extra.KEYS, 100000000L),
                         makeExtraDef(Extra.TOKEN_TYPES, 1000000L),
                         makeExtraDef(Extra.TOKEN_TRANSFER_BASE, 9000000L),
-                        makeExtraDef(Extra.AIRDROPS, 5000000L))
+                        makeExtraDef(Extra.AIRDROPS, 5000000L),
+                        makeExtraDef(Extra.ACCOUNTS, 1000000))
                 .services(makeService(
                         "Token",
                         makeServiceFee(HederaFunctionality.TOKEN_CLAIM_AIRDROP, 299000000),
@@ -170,7 +171,8 @@ class TokenAirdropFeeCalculatorsTest {
                                 HederaFunctionality.CRYPTO_TRANSFER,
                                 100L,
                                 makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE, 0),
-                                makeExtraIncluded(Extra.TOKEN_TYPES, 1))))
+                                makeExtraIncluded(Extra.TOKEN_TYPES, 1),
+                                makeExtraIncluded(Extra.ACCOUNTS, 2))))
                 .build();
     }
 }

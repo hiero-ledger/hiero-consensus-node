@@ -58,6 +58,7 @@ public class RoundHandlingMetrics {
         eventsPerRound = metrics.getOrCreate(eventsPerRoundConfig);
 
         this.roundHandlerPhase = new PhaseTimerBuilder<>(metrics, time, "platform", TransactionHandlerPhase.class)
+                .enableAbsoluteTimeMetrics()
                 .enableFractionalMetrics()
                 .setInitialPhase(IDLE)
                 .setMetricsNamePrefix("consensus")

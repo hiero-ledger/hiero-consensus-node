@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -70,7 +69,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
-@Tag(MATS)
 class AtomicBatchEthereumCallKeysTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 

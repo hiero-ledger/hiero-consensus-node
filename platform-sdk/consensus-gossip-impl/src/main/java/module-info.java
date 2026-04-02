@@ -6,7 +6,8 @@ import org.hiero.consensus.gossip.impl.reconnect.ReconnectProtocolFactory;
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.gossip.impl {
     exports org.hiero.consensus.gossip.impl.gossip to
-            org.hiero.otter.fixtures;
+            org.hiero.otter.fixtures,
+            org.hiero.sloth.fixtures;
     exports org.hiero.consensus.gossip.impl.gossip.shadowgraph to
             org.hiero.consensus.gossip.impl.test.fixtures;
     exports org.hiero.consensus.gossip.impl.gossip.sync to

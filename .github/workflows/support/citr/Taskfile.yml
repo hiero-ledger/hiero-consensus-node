@@ -15,6 +15,7 @@ env:
   SOLO_HOME: "{{.solo_home_override_dir}}"
   LOG4J2_FLAG: "--log4j2-xml {{.USER_WORKING_DIR}}/log4j2.xml"
   APPLICATION_PROPERTIES_FLAG: "--application-properties {{.USER_WORKING_DIR}}/application.properties"
+  APPLICATION_ENVIRONMENT_FLAG: "--application-env {{.USER_WORKING_DIR}}/application.environment"
   HEDERA_SERVICES_ROOT: "%HEDERA_SERVICES_ROOT%"
   LOCAL_BUILD_FLAG: "--local-build-path {{.HEDERA_SERVICES_ROOT}}/hedera-node/data"
 

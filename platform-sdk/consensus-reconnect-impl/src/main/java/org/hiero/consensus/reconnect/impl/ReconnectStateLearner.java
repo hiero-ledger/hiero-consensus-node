@@ -2,6 +2,7 @@
 package org.hiero.consensus.reconnect.impl;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.base.units.UnitConstants.MILLISECONDS_TO_SECONDS;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.Objects.requireNonNull;
 
@@ -14,6 +15,7 @@ import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationEx
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
+import com.swirlds.logging.legacy.payload.SynchronizationCompletePayload;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
@@ -59,6 +61,7 @@ public class ReconnectStateLearner {
     private final Metrics metrics;
 
     private SigSet sigSet;
+
     /**
      * After reconnect is finished, restore the socket timeout to the original value.
      */
@@ -197,8 +200,7 @@ public class ReconnectStateLearner {
         final SerializableDataInputStream in = new SerializableDataInputStream(connection.getDis());
         final SerializableDataOutputStream out = new SerializableDataOutputStream(connection.getDos());
 
-        connection.getDis().getSyncByteCounter().resetCount();
-        connection.getDos().getSyncByteCounter().resetCount();
+        connection.getDis().byteCounter().getAndReset();
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
@@ -208,6 +210,7 @@ public class ReconnectStateLearner {
         final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
+        final long syncStartTime = System.currentTimeMillis();
         try {
             synchronizer.synchronize();
             logger.info(RECONNECT.getMarker(), mapStats::format);
@@ -221,6 +224,11 @@ public class ReconnectStateLearner {
             throw new MerkleSynchronizationException(e);
         }
 
+        final long synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;
+        logger.info(RECONNECT.getMarker(), () -> new SynchronizationCompletePayload("Finished synchronization")
+                .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
+                .toString());
+
         final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(reconnectRoot);
         final SignedState newSignedState = new SignedState(
                 configuration,
@@ -233,7 +241,7 @@ public class ReconnectStateLearner {
         SignedStateFileReader.registerServiceStates(newSignedState);
         newSignedState.setSigSet(sigSet);
 
-        final double mbReceived = connection.getDis().getSyncByteCounter().getMebiBytes();
+        final double mbReceived = connection.getDis().byteCounter().getMebiBytes();
         logger.info(
                 RECONNECT.getMarker(),
                 () -> new ReconnectDataUsagePayload("Reconnect data usage report", mbReceived).toString());

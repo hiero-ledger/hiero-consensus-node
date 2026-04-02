@@ -22,6 +22,7 @@ option java_multiple_files = true;
 import "services/basic_types.proto";
 import "services/response_code.proto";
 import "services/exchange_rate.proto";
+import "google/protobuf/wrappers.proto";
 
 /**
  * The summary of a transaction's result so far.<br/>
@@ -194,4 +195,24 @@ message TransactionReceipt {
      * This value SHALL NOT be set following any other transaction.
      */
     uint64 node_id = 15;
+
+    /**
+     * The identifier of a newly created RegisteredNode.
+     * <p>
+     * This value SHALL be set following a `createRegisteredNode`
+     * transaction.<br/>
+     * This value SHALL NOT be set following any other transaction.<br/>
+     * This value SHALL be unique within a given network.
+    */
+    uint64 registered_node_id = 16;
+
+    /**
+     * The block number containing this transaction.
+     * <p>
+     * This value SHALL be unset or default if consensus has not been reached
+     * or the block assignment is not yet known.<br/>
+     * Once known, this value SHALL identify the block containing the
+     * transaction represented by this receipt.
+     */
+    google.protobuf.UInt64Value block_number = 17;
 }

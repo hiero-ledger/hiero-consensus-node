@@ -91,6 +91,12 @@ public final class HandlerUtility {
                 case NODE_CREATE -> ordinary.nodeCreate(scheduledBody.nodeCreateOrThrow());
                 case NODE_UPDATE -> ordinary.nodeUpdate(scheduledBody.nodeUpdateOrThrow());
                 case NODE_DELETE -> ordinary.nodeDelete(scheduledBody.nodeDeleteOrThrow());
+                case REGISTERED_NODE_CREATE ->
+                    ordinary.registeredNodeCreate(scheduledBody.registeredNodeCreateOrThrow());
+                case REGISTERED_NODE_UPDATE ->
+                    ordinary.registeredNodeUpdate(scheduledBody.registeredNodeUpdateOrThrow());
+                case REGISTERED_NODE_DELETE ->
+                    ordinary.registeredNodeDelete(scheduledBody.registeredNodeDeleteOrThrow());
                 case UNSET -> throw new HandleException(ResponseCodeEnum.INVALID_TRANSACTION);
             }
         }
@@ -151,6 +157,9 @@ public final class HandlerUtility {
             case TOKEN_CANCEL_AIRDROP -> HederaFunctionality.TOKEN_CANCEL_AIRDROP;
             case TOKEN_CLAIM_AIRDROP -> HederaFunctionality.TOKEN_CLAIM_AIRDROP;
             case TOKEN_AIRDROP -> HederaFunctionality.TOKEN_AIRDROP;
+            case REGISTERED_NODE_CREATE -> HederaFunctionality.REGISTERED_NODE_CREATE;
+            case REGISTERED_NODE_UPDATE -> HederaFunctionality.REGISTERED_NODE_UPDATE;
+            case REGISTERED_NODE_DELETE -> HederaFunctionality.REGISTERED_NODE_DELETE;
             case UNSET -> HederaFunctionality.NONE;
         };
     }

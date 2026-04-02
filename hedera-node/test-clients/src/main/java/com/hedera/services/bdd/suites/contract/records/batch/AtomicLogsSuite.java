@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.records.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -48,7 +47,6 @@ class AtomicLogsSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> log0Works() {
         return hapiTest(
                 uploadInitCode(CONTRACT),

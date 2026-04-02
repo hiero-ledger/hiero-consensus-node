@@ -23,8 +23,12 @@ public abstract class DefaultSwirldMain implements SwirldMain {
     private final TransactionPoolNexus transactionPool;
 
     public DefaultSwirldMain() {
-        this.transactionPool =
-                new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, new NoOpMetrics(), Time.getCurrent());
+        this.transactionPool = new TransactionPoolNexus(
+                getTransactionLimits(),
+                TX_QUEUE_SIZE,
+                TransactionPoolNexus.DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION,
+                new NoOpMetrics(),
+                Time.getCurrent());
     }
 
     @Override

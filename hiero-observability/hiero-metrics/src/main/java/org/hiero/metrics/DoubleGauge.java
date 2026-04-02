@@ -131,7 +131,10 @@ public final class DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaug
             container.set(Double.doubleToRawLongBits(value));
         }
 
-        double get() {
+        /**
+         * @return the latest set value
+         */
+        public double get() {
             return Double.longBitsToDouble(container.get());
         }
 

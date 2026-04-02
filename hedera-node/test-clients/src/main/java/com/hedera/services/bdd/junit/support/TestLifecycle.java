@@ -13,12 +13,25 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 
+/**
+ * Concurrency notes for nested test classes using injected {@link TestLifecycle}:
+ * <ul>
+ *     <li>{@link #doAdhoc(SpecOperation...)} is safe to call from nested {@code @BeforeAll} methods in concurrently
+ *     executing nested classes.</li>
+ *     <li>{@link #overrideInClass(Map)} is class-scoped and not safe when called from nested {@code @BeforeAll}
+ *     methods in concurrently executing nested classes. Such root test classes should be annotated with
+ *     {@code @OrderedInIsolation} and run serially.</li>
+ *     <li>If a root class has a root {@code @BeforeAll} plus nested {@code @BeforeAll} methods, concurrent execution
+ *     is supported only when nested {@code @BeforeAll} methods do not call {@link #overrideInClass(Map)}. The root
+ *     {@code @BeforeAll} may call {@link #overrideInClass(Map)}.</li>
+ * </ul>
+ */
 public class TestLifecycle {
     private static final String SPEC_NAME = "<MANAGED>";
 
@@ -26,7 +39,7 @@ public class TestLifecycle {
 
     private final Deque<Memories> deque = new ArrayDeque<>();
 
-    private final List<SpecStateObserver.SpecState> sharedStates = new ArrayList<>();
+    private final List<SpecStateObserver.SpecState> sharedStates = new CopyOnWriteArrayList<>();
 
     private final HederaNetwork targetNetwork;
 

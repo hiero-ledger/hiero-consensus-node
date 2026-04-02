@@ -147,4 +147,17 @@ message NodeCreateTransactionBody {
      * This field SHALL enable frontend clients to avoid hard-coded proxy endpoints.
      */
     proto.ServiceEndpoint grpc_proxy_endpoint = 9;
+
+    /**
+     * A list of registered nodes operated by the same entity as this node.<br/>
+     * This value may contain a list of "registered nodes" (as described in
+     * HIP-1137) that are operated by the same entity that operates this
+     * consensus node.
+     * <p>
+     * This field is OPTIONAL and MAY be empty.<br/>
+     * This field MUST NOT contain more than twenty(20) entries.<br/>
+     * Every entry in this list MUST be a valid `registered_node_id` for a
+     * current registered node.
+     */
+    repeated uint64 associated_registered_node = 10;
 }

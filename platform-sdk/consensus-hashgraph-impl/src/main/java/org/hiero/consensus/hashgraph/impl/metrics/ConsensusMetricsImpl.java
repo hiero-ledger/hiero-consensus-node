@@ -99,6 +99,10 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
 
     private final Counter roundIncrementedByStronglySeen;
 
+    private final AverageAndMax numVotingRounds;
+    private final AverageAndMax numEventsAddedUntilConsensus;
+    private final AverageAndMax graphDepthUntilConsensus;
+
     private final NodeId selfId;
 
     /**
@@ -111,6 +115,8 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
      * the max round number for which at least one event is known that was created by someone else
      */
     private static volatile long lastRoundNumber = -1;
+
+    private final Sequencer sequencer = new Sequencer();
 
     /**
      * Constructor of {@code ConsensusMetricsImpl}
@@ -146,6 +152,25 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
                         + "created",
                 FORMAT_4_2);
         roundIncrementedByStronglySeen = metrics.getOrCreate(ROUND_INCREMENT_STRONGLY_SEEN_CONFIG);
+
+        numVotingRounds = new AverageAndMax(
+                metrics,
+                INTERNAL_CATEGORY,
+                "numVotingRounds",
+                "number of voting rounds until consensus is reached",
+                FORMAT_10_3);
+        numEventsAddedUntilConsensus = new AverageAndMax(
+                metrics,
+                INTERNAL_CATEGORY,
+                "numEventsAddedUntilConsensus",
+                "after adding event E, how many events are added before E reaches consensus",
+                FORMAT_10_3);
+        graphDepthUntilConsensus = new AverageAndMax(
+                metrics,
+                INTERNAL_CATEGORY,
+                "graphDepthUntilConsensus",
+                "depth of the graph needed to reach consensus (in generations)",
+                FORMAT_10_3);
     }
 
     /**
@@ -154,6 +179,7 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
     @Override
     public void addedEvent(final EventImpl event) {
         // this method is only ever called by 1 thread, so no need for locks
+        sequencer.assignSequenceNumber(event);
         if (!Objects.equals(selfId, event.getCreatorId())
                 && event.getRoundCreated() > lastRoundNumber) { // if first event in a round
             final Instant now = Instant.now();
@@ -192,8 +218,15 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
      * {@inheritDoc}
      */
     @Override
-    public void consensusReachedOnRound() {
+    public void consensusReachedOnRound(final long round) {
         roundsPerSecond.cycle();
+        final EventImpl lastEventAdded = sequencer.getLastEventAdded();
+        if (lastEventAdded != null) {
+            // we have reached consensus for a round, so the last event that we added decided fame
+            // the difference between the round number of the event that decided fame and the consensus round gives us
+            // the number of voting rounds that were needed to reach consensus for this round
+            numVotingRounds.update(lastEventAdded.getRoundCreated() - round);
+        }
     }
 
     /**
@@ -201,6 +234,13 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
      */
     @Override
     public void consensusReached(final EventImpl event) {
+        final EventImpl lastEventAdded = sequencer.getLastEventAdded();
+        if (lastEventAdded != null) {
+            // this should never be null
+            // but if there is a bug, its better to not have metrics than to throw an NPE
+            numEventsAddedUntilConsensus.update(lastEventAdded.getSequence() - event.getSequence());
+            graphDepthUntilConsensus.update(lastEventAdded.getDeGen() - event.getDeGen());
+        }
         // Keep a running average of how many seconds from when I first know of an event
         // until it achieves consensus. Actually, keep two such averages: one for events I
         // create, and one for events I receive.
@@ -237,23 +277,7 @@ public class ConsensusMetricsImpl implements ConsensusMetrics {
      * {@inheritDoc}
      */
     @Override
-    public double getAvgSelfCreatedTimestamp() {
-        return avgSelfCreatedTimestamp.get();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public double getAvgOtherReceivedTimestamp() {
-        return avgOtherReceivedTimestamp.get();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void judgeWeights(long weight) {
+    public void judgeWeights(final long weight) {
         avgJudgesWeight.update(weight);
     }
 

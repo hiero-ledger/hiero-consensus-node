@@ -57,7 +57,7 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
-
+    runtimeOnly("org.hiero.consensus.pces.noop.impl.test.fixtures")
     opensTo("com.swirlds.base.test.fixtures") // injection via reflection
     opensTo("org.hiero.junit.extensions")
 }
@@ -70,10 +70,4 @@ timingSensitiveModuleInfo {
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.metrics")
     requires("org.junit.jupiter.api")
-}
-
-tasks.named<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar>("shadowJar") {
-    // runtimeClasspath currently re-introduces this module via a transitive cycle
-    // (through consensus-reconnect-impl), which can duplicate classes already in main output.
-    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.EXCLUDE
 }

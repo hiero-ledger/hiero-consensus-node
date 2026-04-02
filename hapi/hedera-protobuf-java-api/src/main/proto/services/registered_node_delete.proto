@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.addressbook;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.addressbook">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A transaction body to delete a registered node from the network
+ * address book.
+ *
+ * This transaction, once complete, SHALL remove the identified registered
+ * node from the network state.
+ * This transaction MUST be signed by the existing entry `admin_key` or
+ * authorized by the Hiero network governance structure.
+ *
+ * ### Block Stream Effects
+ * None.
+ */
+message RegisteredNodeDeleteTransactionBody {
+    /**
+     * A registered node identifier in the network state.
+     * <p>
+     * The node identified MUST exist in the registered address book.<br/>
+     * The node identified MUST NOT be deleted.<br/>
+     * This value is REQUIRED.
+     * <p>
+     * A given value for `registered_node_id` SHALL be unique within a given
+     * shard or realm.<br/>
+     * A given value for `registered_node_id` SHALL NOT be reused, even if the
+     * corresponding entry is deleted.
+     */
+    uint64 registered_node_id = 1;
+}

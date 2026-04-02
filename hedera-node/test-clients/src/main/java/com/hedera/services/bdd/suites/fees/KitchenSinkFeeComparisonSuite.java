@@ -219,11 +219,60 @@ public class KitchenSinkFeeComparisonSuite {
 
     private record KeyVariant(String suffix, String label, String keyName) {}
 
+    private record BaseCaseAlias(String txnType, String sourceTxn, String extras) {}
+
     // Swap the payer key per variant so the signature count is actually required/verified.
     private static final List<SigVariant> SIG_VARIANTS = List.of(
             new SigVariant("S1", PAYER_KEY_1, 1),
             new SigVariant("S2", PAYER_KEY_2, 2),
             new SigVariant("S3", PAYER_KEY_3, 3));
+
+    private static final List<BaseCaseAlias> BASE_CASE_ALIASES = List.of(
+            new BaseCaseAlias("ConsensusDeleteTopic", "TopicDeleteS1", "no extras"),
+            new BaseCaseAlias("ConsensusUpdateTopic", "TopicUpdateK1S1", "KEYS=1 (included)"),
+            new BaseCaseAlias("ContractCreate", "ContractCreateG200k", "GAS=200000"),
+            new BaseCaseAlias("ContractDelete", "ContractDelete", "no extras"),
+            new BaseCaseAlias("ContractUpdate", "ContractUpdate", "no GAS extra"),
+            new BaseCaseAlias("CryptoApproveAllowance", "CryptoApproveA1S1", "ALLOWANCES=1 (included)"),
+            new BaseCaseAlias("CryptoDelete", "CryptoDeleteS1", "no extras"),
+            new BaseCaseAlias("CryptoDeleteAllowance", "CryptoDeleteAllowanceA1S1", "ALLOWANCES=1 (included)"),
+            new BaseCaseAlias("CryptoUpdate", "CryptoUpdateK1S1", "KEYS=1 (included), HOOK_UPDATES=0"),
+            new BaseCaseAlias("FileAppend", "FileAppendB500S1", "BYTES=500 (included)"),
+            new BaseCaseAlias("FileCreate", "FileCreateK1B100S1", "KEYS=1 (included), BYTES=100 (included)"),
+            new BaseCaseAlias("FileDelete", "FileDeleteS1", "no extras"),
+            new BaseCaseAlias("FileUpdate", "FileUpdateK1B500S1", "KEYS=1 (included), BYTES=500 (included)"),
+            new BaseCaseAlias("Freeze", "FreezeAbortS1", "FREEZE_ABORT"),
+            new BaseCaseAlias("HookStore", "HookStoreS1S1", "SLOTS=1"),
+            new BaseCaseAlias("NodeCreate", "NodeCreateS1", "no extras"),
+            new BaseCaseAlias(
+                    "ScheduleCreate",
+                    "ScheduleCreateK1XferS1",
+                    "KEYS=1 (included), SCHEDULE_CREATE_CONTRACT_CALL_BASE=0"),
+            new BaseCaseAlias("ScheduleDelete", "ScheduleDeleteS1", "no extras"),
+            new BaseCaseAlias("ScheduleSign", "ScheduleSignS1", "no extras"),
+            new BaseCaseAlias("TokenAccountWipe", "TokenWipeFungibleS1", "no extras"),
+            new BaseCaseAlias(
+                    "TokenAirdrop",
+                    "TokenAirdropA1S1",
+                    "AIRDROPS=1 (included), ACCOUNTS=2 (included), FUNGIBLE_TOKENS=1 (included), TOKEN_TRANSFER_BASE=1"),
+            new BaseCaseAlias("TokenAssociateToAccount", "TokenAssociateS1", "TOKEN_ASSOCIATE=1 (included)"),
+            new BaseCaseAlias("TokenBurn", "TokenBurnFungibleS1", "no extras"),
+            new BaseCaseAlias("TokenCancelAirdrop", "TokenCancelAirdropS1", "no extras"),
+            new BaseCaseAlias("TokenClaimAirdrop", "TokenClaimAirdropS1", "no extras"),
+            new BaseCaseAlias("TokenCreate", "TokenCreateK1CF0S1", "KEYS=1 (included), TOKEN_CREATE_WITH_CUSTOM_FEE=0"),
+            new BaseCaseAlias("TokenDelete", "TokenDeleteS1", "no extras"),
+            new BaseCaseAlias("TokenDissociateFromAccount", "TokenDissociateS1", "no extras"),
+            new BaseCaseAlias("TokenFeeScheduleUpdate", "TokenFeeScheduleUpdateS1", "no extras"),
+            new BaseCaseAlias("TokenFreezeAccount", "TokenFreezeS1", "no extras"),
+            new BaseCaseAlias("TokenGrantKycToAccount", "TokenGrantKycS1", "no extras"),
+            new BaseCaseAlias("TokenMint", "TokenMintNFT1S1", "TOKEN_MINT_NFT=1"),
+            new BaseCaseAlias("TokenPause", "TokenPauseS1", "no extras"),
+            new BaseCaseAlias("TokenReject", "TokenRejectS1", "no extras"),
+            new BaseCaseAlias("TokenRevokeKycFromAccount", "TokenRevokeKycS1", "no extras"),
+            new BaseCaseAlias("TokenUnfreezeAccount", "TokenUnfreezeS1", "no extras"),
+            new BaseCaseAlias("TokenUnpause", "TokenUnpauseS1", "no extras"),
+            new BaseCaseAlias("TokenUpdate", "TokenUpdateK1S1", "KEYS=1 (included)"),
+            new BaseCaseAlias("TokenUpdateNfts", "TokenUpdateNftsS1", "NFT_UPDATE=1 (included)"));
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("Kitchen sink fee comparison - all transaction types with varying parameters")
@@ -343,6 +392,7 @@ public class KitchenSinkFeeComparisonSuite {
         ops.addAll(ethereumTransactions(prefix, feeMap));
         ops.addAll(networkTransactions(prefix, feeMap));
         ops.addAll(utilTransactions(prefix, feeMap));
+        ops.addAll(baseCaseAliasRows(prefix, feeMap));
 
         return ops.toArray(new SpecOperation[0]);
     }
@@ -2469,12 +2519,14 @@ public class KitchenSinkFeeComparisonSuite {
     // ==================== CONTRACT TRANSACTIONS ====================
 
     private static final String STORAGE_CONTRACT = "Storage";
+    private static final String EMPTY_ONE_CONTRACT = "EmptyOne";
 
     private static List<SpecOperation> contractTransactions(String prefix, Map<String, Long> feeMap) {
         List<SpecOperation> ops = new ArrayList<>();
 
         // Upload contract bytecode (only once, shared between runs)
         ops.add(uploadInitCode(STORAGE_CONTRACT));
+        ops.add(uploadInitCode(EMPTY_ONE_CONTRACT));
 
         // ===== ContractCreate with varying GAS extra =====
         // GAS extra: fee=1 per gas unit
@@ -2566,6 +2618,23 @@ public class KitchenSinkFeeComparisonSuite {
                 (queryName, signers) -> getContractBytecode(prefix + "ContractG200k")
                         .payingWith(PAYER)
                         .signedBy(signers));
+
+        // ===== ContractGetBytecode base case (explicit included bytes) =====
+        // EmptyOne bytecode is 92 bytes, below the 1000 included STATE_BYTES baseline.
+        final String contractBytecodeBase = prefix + "ContractBytecodeBase";
+        final String contractGetBytecodeBase = prefix + "ContractGetBytecodeBase";
+        ops.add(contractCreate(contractBytecodeBase)
+                .bytecode(EMPTY_ONE_CONTRACT)
+                .gas(200_000L)
+                .payingWith(PAYER)
+                .fee(ONE_HUNDRED_HBARS));
+        ops.add(getContractBytecode(contractBytecodeBase)
+                .payingWith(PAYER)
+                .signedBy(PAYER)
+                .fee(ONE_HUNDRED_HBARS)
+                .via(contractGetBytecodeBase));
+        ops.add(captureQueryTotalCost(
+                contractGetBytecodeBase, "BYTES=92 (included), BASE_CASE=1, SIGS=1 (included)", feeMap));
 
         return ops;
     }
@@ -2858,6 +2927,16 @@ public class KitchenSinkFeeComparisonSuite {
             ops.add(resetBatchOperatorKey());
         }
 
+        return ops;
+    }
+
+    private static List<SpecOperation> baseCaseAliasRows(final String prefix, final Map<String, Long> feeMap) {
+        final List<SpecOperation> ops = new ArrayList<>();
+        for (final var alias : BASE_CASE_ALIASES) {
+            final String sourceTxn = prefix + alias.sourceTxn();
+            final String emphasis = joinEmphasis(alias.extras(), "BASE_CASE=1", "TXN_TYPE=" + alias.txnType());
+            ops.add(captureFee(sourceTxn, emphasis, feeMap));
+        }
         return ops;
     }
 

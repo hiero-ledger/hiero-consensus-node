@@ -45,24 +45,25 @@ public final class MetricRegistry implements Closeable {
 
     private final Map<String, Metric> metrics = new ConcurrentHashMap<>();
     private final Collection<Metric> metricsView = Collections.unmodifiableCollection(metrics.values());
-    private final MetricRegistrySnapshot snapshot = new MetricRegistrySnapshot();
+
+    @Nullable
+    private final MetricRegistrySnapshot snapshot;
 
     private MetricRegistry(@NonNull List<Label> globalLabels, @Nullable MetricsExporter exporter) {
         this.globalLabels = List.copyOf(globalLabels);
         this.exporter = exporter;
 
         if (exporter != null) {
+            snapshot = new MetricRegistrySnapshot();
             exporter.setSnapshotSupplier(snapshot::update);
             logger.log(
                     INFO,
-                    "Created metric registry with global labels {} and metrics exporter {}.",
+                    "Created metric registry. globalLabels={0}, exporter={1}",
                     this.globalLabels,
                     exporter.getClass());
         } else {
-            logger.log(
-                    INFO,
-                    "Created metric registry with global labels {} and without metrics exporter.",
-                    this.globalLabels);
+            snapshot = null;
+            logger.log(INFO, "Created metric registry without exporter. globalLabels={0}", this.globalLabels);
         }
     }
     /**
@@ -119,11 +120,17 @@ public final class MetricRegistry implements Closeable {
                         "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.name());
             }
 
-            M metric =
-                    builder.addStaticLabels(globalLabels.toArray(Label[]::new)).build();
-            logger.log(DEBUG, "Registered metric: {}", metric.name());
+            builder.addStaticLabels(globalLabels.toArray(Label[]::new));
+            if (snapshot == null) {
+                builder.doNotSnapshot();
+            }
 
-            snapshot.addMetricSnapshot(metric.snapshot());
+            M metric = builder.build();
+            logger.log(DEBUG, "Registered metric. name={0}", metric.name());
+
+            if (snapshot != null) {
+                snapshot.addMetricSnapshot(metric.snapshot());
+            }
 
             return metric;
         }));
@@ -174,7 +181,7 @@ public final class MetricRegistry implements Closeable {
     @Override
     public void close() throws IOException {
         if (exporter != null) {
-            logger.log(INFO, "Closing metrics exporter: {}", exporter.getClass());
+            logger.log(INFO, "Closing metrics exporter: {0}", exporter.getClass());
             exporter.close();
         }
     }
@@ -281,14 +288,14 @@ public final class MetricRegistry implements Closeable {
                 if (exporterDiscoveryDisabled != null && exporterDiscoveryDisabled) {
                     logger.log(
                             INFO,
-                            "Exporter discovery is disabled by configuration property: {}",
+                            "Exporter discovery is disabled by configuration property: {0}",
                             PROPERTY_EXPORT_DISCOVERY_DISABLED);
                 } else {
                     List<MetricsExporterFactory> factories = MetricUtils.load(MetricsExporterFactory.class);
                     if (factories.size() > 1) {
                         logger.log(
                                 WARNING,
-                                "Multiple metrics exporter factories found {}. "
+                                "Multiple metrics exporter factories found: {0}. "
                                         + "Expected at most one. Ignoring discovered exporter factories.",
                                 factories);
                     } else if (factories.size() == 1) {
@@ -299,7 +306,7 @@ public final class MetricRegistry implements Closeable {
                         if (exporter != null) {
                             this.metricsExporter = exporter;
                         } else {
-                            logger.log(INFO, "Exporter factory did not create an exporter: {}", factory.getClass());
+                            logger.log(INFO, "Exporter factory did not create an exporter: {0}", factory.getClass());
                         }
                     }
                 }
@@ -317,7 +324,7 @@ public final class MetricRegistry implements Closeable {
 
                 for (MetricsRegistrationProvider provider : providers) {
                     Objects.requireNonNull(provider, "metrics registration provider must not be null");
-                    logger.log(INFO, "Registering metrics from provider: {}", provider.getClass());
+                    logger.log(INFO, "Registering metrics from provider: {0}", provider.getClass());
 
                     Collection<Metric.Builder<?, ?>> metricsToRegister = provider.getMetricsToRegister();
                     Objects.requireNonNull(metricsToRegister, "metrics collection must not be null");

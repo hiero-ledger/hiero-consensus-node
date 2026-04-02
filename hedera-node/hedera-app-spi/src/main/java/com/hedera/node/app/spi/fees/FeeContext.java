@@ -137,7 +137,5 @@ public interface FeeContext {
      * @return the utilization percentage in hundredths of one percent (basis points, 0 to 10,000),
      * or 0 if no high-volume throttle exists for the functionality or if not available
      */
-    default int getHighVolumeThrottleUtilization(HederaFunctionality functionality) {
-        return 0;
-    }
+    int getHighVolumeThrottleUtilization(HederaFunctionality functionality);
 }

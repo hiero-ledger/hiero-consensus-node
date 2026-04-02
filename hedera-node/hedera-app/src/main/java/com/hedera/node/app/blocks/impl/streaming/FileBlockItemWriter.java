@@ -65,6 +65,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
     /** The suffix added to RECORD_EXTENSION when they are compressed. */
     private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
 
+    /**
+     * Number of bytes in a single kilobyte.
+     */
+    private static final int ONE_KB_BYTES = 1024;
+
     /** The node-specific path to the directory where block files are written */
     private final Path nodeScopedBlockDir;
 
@@ -90,6 +95,21 @@ public class FileBlockItemWriter implements BlockItemWriter {
      */
     private long blockNumber;
 
+    /**
+     * Buffer size to use for the outer file writer - in bytes.
+     */
+    private final int blockFileBufferOuterSizeBytes;
+
+    /**
+     * Buffer size to use for the inner file writer - in bytes.
+     */
+    private final int blockFileBufferInnerSizeBytes;
+
+    /**
+     * Buffer size to use for the GZIP file writer - in bytes.
+     */
+    private final int blockFileBufferGzipSizeBytes;
+
     private enum State {
         UNINITIALIZED,
         OPEN,
@@ -114,6 +134,10 @@ public class FileBlockItemWriter implements BlockItemWriter {
         this.state = State.UNINITIALIZED;
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+
+        blockFileBufferOuterSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferOuterSizeKb();
+        blockFileBufferInnerSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferInnerSizeKb();
+        blockFileBufferGzipSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferGzipSizeKb();
 
         // Compute directory for block files
         final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
@@ -320,15 +344,25 @@ public class FileBlockItemWriter implements BlockItemWriter {
             if (!Files.exists(nodeScopedBlockDir)) {
                 Files.createDirectories(nodeScopedBlockDir);
             }
+
+            /*
+            A block will contain many smaller items and writing each item individually is very inefficient. Because of
+            this, a series of nested buffers are used to write the contents of a block to disk. The outermost buffer
+            is the largest, and it collects the original items meant to be written. Then, once this buffer is full (or
+            flushed) the contents are sent to a GZIP buffer that compresses the raw items. Once the items are compressed
+            and fill the buffer, they are finally sent to the lowest buffer (the one doing the actual writing to disk).
+            Finally, once this lowest level buffer is full (or flushed) the contents are written to disk. By doing this
+            nested approach, we can minimize the number of synchronous calls writing to disk and improve performance.
+
+            While each buffer can be independently sized, a general rule of thumb for sizing is:
+            OuterBufferSize > InnerBufferSize > GZIPBufferSize in a 16:4:1 ratio
+            e.g. Outer: 4096 KB, Inner: 1024 KB, GZIP: 256 KB
+             */
+
             out = Files.newOutputStream(blockFilePath);
-            out = new BufferedOutputStream(out, 1024 * 1024); // 1 MB
-            out = new GZIPOutputStream(out, 1024 * 256); // 256 KB
-            // By wrapping the GZIPOutputStream in a BufferedOutputStream, the code reduces the number of write
-            // operations to the GZIPOutputStream, and therefore the number of synchronized calls. Instead of
-            // writing each small piece of data immediately to the GZIPOutputStream, it writes the data to the
-            // buffer, and only when the buffer is full, it writes all the data to the GZIPOutputStream in one go.
-            // This can significantly improve the performance when writing many small amounts of data.
-            out = new BufferedOutputStream(out, 1024 * 1024 * 4); // 4 MB
+            out = new BufferedOutputStream(out, blockFileBufferInnerSizeBytes);
+            out = new GZIPOutputStream(out, blockFileBufferGzipSizeBytes);
+            out = new BufferedOutputStream(out, blockFileBufferOuterSizeBytes);
 
             this.writableStreamingData = new WritableStreamingData(out);
         } catch (final IOException e) {
@@ -336,7 +370,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             if (out != null) {
                 try {
                     out.close();
-                } catch (IOException ex) {
+                } catch (final IOException ex) {
                     logger.error("Error closing the FileBlockItemWriter output stream", ex);
                 }
             }
@@ -434,7 +468,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
             final var json = PendingProof.JSON.toJSON(pendingProof);
             try {
-                Files.writeString(pathOf(blockNumber, name -> name + ".pnd.json"), json);
+                Files.writeString(pendingProofPath(nodeScopedBlockDir, blockNumber), json);
             } catch (IOException e) {
                 logger.error("Error flushing pending proof metadata #{}", blockNumber, e);
             }
@@ -442,15 +476,10 @@ public class FileBlockItemWriter implements BlockItemWriter {
                     "Flushed pending block #{} ({}, {})",
                     blockNumber,
                     pathOf(blockNumber, pendingFileName),
-                    pathOf(blockNumber, name -> name + ".pnd.json"));
+                    pendingProofPath(nodeScopedBlockDir, blockNumber));
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }
-    }
-
-    @Override
-    public void jumpToBlockAfterFreeze(long blockNumber) {
-        // no-op
     }
 
     /**

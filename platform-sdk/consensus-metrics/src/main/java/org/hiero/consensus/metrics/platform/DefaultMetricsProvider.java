@@ -2,6 +2,7 @@
 package org.hiero.consensus.metrics.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.sun.net.httpserver.HttpServer;
@@ -17,11 +18,11 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.FileUtils;
@@ -59,7 +60,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
      * Constructor of {@code DefaultMetricsProvider}
      */
     public DefaultMetricsProvider(@NonNull final Configuration configuration) {
-        this.configuration = Objects.requireNonNull(configuration, "configuration must not be null");
+        this.configuration = requireNonNull(configuration, "configuration must not be null");
 
         metricsConfig = configuration.getConfigData(MetricsConfig.class);
         final PrometheusConfig prometheusConfig = configuration.getConfigData(PrometheusConfig.class);
@@ -100,7 +101,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
      */
     @Override
     public @NonNull Metrics createPlatformMetrics(@NonNull final NodeId nodeId) {
-        Objects.requireNonNull(nodeId, "nodeId must not be null");
+        requireNonNull(nodeId, "nodeId must not be null");
 
         final DefaultPlatformMetrics newMetrics =
                 new DefaultPlatformMetrics(nodeId, metricKeyRegistry, executor, factory, metricsConfig);
@@ -143,7 +144,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
      */
     @Override
     public void removePlatformMetrics(@NonNull final NodeId nodeId) throws InterruptedException {
-        Objects.requireNonNull(nodeId, "nodeId must not be null");
+        requireNonNull(nodeId, "nodeId must not be null");
 
         final DefaultPlatformMetrics metrics = platformMetrics.get(nodeId);
         if (metrics == null) {
@@ -154,6 +155,14 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
         unsubscribers.remove(nodeId).forEach(Runnable::run);
         snapshotService.removePlatformMetric(metrics);
         platformMetrics.remove(nodeId);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void subscribeSnapshot(final @NonNull Consumer<? super SnapshotEvent> subscriber) {
+        this.snapshotService.subscribe(requireNonNull(subscriber));
     }
 
     @Override

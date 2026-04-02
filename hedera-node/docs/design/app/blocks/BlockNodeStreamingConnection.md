@@ -130,7 +130,9 @@ The default soft limit size is 2 MB. The default hard limit size is 6 MB + 1 KB.
 When a connection is closed, a best effort attempt to gracefully close the connection will be performed. There are two
 aspects to this "graceful close":
 1. Unless the connection is unstable, or we are notifying the block node it is too far behind, before closing an attempt
-will be made to send an EndStream request to the block with the code `RESET`.
+will be made to send an EndStream request to the block with the code `RESET`. If a different EndStream code has already
+been sent or the block node sent the consensus node its own EndStream message, then this final EndStream(RESET) message
+will NOT be sent upon close.
 2. If the connection is actively streaming a block, a best effort to stream the rest of the block will be performed
 before closing the connection.
 

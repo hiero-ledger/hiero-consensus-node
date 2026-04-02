@@ -220,13 +220,15 @@ public class CrystalTransplantCommand extends AbstractCommand {
             System.exit(RETURN_CODE_ERROR);
         }
 
-        try (final var state = loadLatestState(
+        final var deserializedState = loadLatestState(
                 new SimpleRecycleBin(),
                 appMain.getSemanticVersion(),
                 savedStateFiles,
                 platformContext,
-                appMain.getStateLifecycleManager())) {
-            final Hash newHash = state.get().getState().getHash();
+                appMain.getStateLifecycleManager());
+        try (final var reservedState = deserializedState.reservedSignedState()) {
+            final var signedState = reservedState.get();
+            final Hash newHash = signedState.getState().getHash();
 
             final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
             this.targetStateDir = new SignedStateFilePath(
@@ -235,10 +237,10 @@ public class CrystalTransplantCommand extends AbstractCommand {
                             configuration.getValue("state.mainClassNameOverride"),
                             selfId,
                             SWIRLD_NAME,
-                            state.get().getRound());
+                            signedState.getRound());
 
             return new StateInformation(
-                    state.get().getRound(), state.get().getRoster(), newHash, savedStateFiles.getFirst());
+                    signedState.getRound(), signedState.getRoster(), newHash, savedStateFiles.getFirst());
         }
     }
 

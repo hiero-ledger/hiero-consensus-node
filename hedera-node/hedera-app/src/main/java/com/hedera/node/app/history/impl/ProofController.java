@@ -71,9 +71,16 @@ public interface ProofController {
      *
      * @param nodeId the node ID
      * @param vote the history proof vote
+     * @param now the current consensus time
      * @param historyStore the history store
+     * @param tssConfig the TSS configuration
      */
-    void addProofVote(long nodeId, @NonNull HistoryProofVote vote, @NonNull WritableHistoryStore historyStore);
+    void addProofVote(
+            long nodeId,
+            @NonNull HistoryProofVote vote,
+            @NonNull Instant now,
+            @NonNull WritableHistoryStore historyStore,
+            @NonNull TssConfig tssConfig);
 
     /**
      * Cancels any pending work that this controller has scheduled.

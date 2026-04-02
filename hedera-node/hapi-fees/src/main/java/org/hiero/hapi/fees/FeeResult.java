@@ -3,6 +3,7 @@ package org.hiero.hapi.fees;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,7 @@ public class FeeResult {
     private final List<FeeDetail> nodeExtrasDetails = new ArrayList<>();
     private long nodeTotal = 0;
     private int networkMultiplier = 0;
+    private long highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
     public FeeResult() {}
 
@@ -27,6 +29,7 @@ public class FeeResult {
         this.serviceTotal = serviceTotal;
         this.nodeTotal = nodeTotal;
         this.networkMultiplier = networkMultiplier;
+        this.highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
     }
 
     /**
@@ -77,6 +80,12 @@ public class FeeResult {
     /**
      * Applies a multiplier to the service and node totals using a fixed-point scale.
      *
+     * <p>The canonical totals are scaled directly from the pre-multiplication values so that a
+     * single integer-division rounding error is incurred rather than one per fee component.
+     * The per-component breakdown (base fees and extras) is also scaled for informational
+     * purposes; in rare edge cases the sum of the scaled components may differ by ±1 tinycent
+     * from the canonical total due to rounding, but the total itself is always precise.
+     *
      * @param rawMultiplier the multiplier value in fixed-point form
      * @param scale the fixed-point scale (e.g. 1000 for 3 decimal places)
      */
@@ -88,11 +97,17 @@ public class FeeResult {
         if (rawMultiplier == scale) {
             return;
         }
+        // Capture totals before modifying any components so we can scale them directly.
+        final long originalServiceTotal = serviceTotal;
+        final long originalNodeTotal = nodeTotal;
         serviceBase = scaleAmount(serviceBase, rawMultiplier, scale);
         nodeBase = scaleAmount(nodeBase, rawMultiplier, scale);
         scaleFeeDetails(serviceExtrasDetails, rawMultiplier, scale);
         scaleFeeDetails(nodeExtrasDetails, rawMultiplier, scale);
-        recomputeTotals();
+        // Use directly-scaled totals for precision instead of recomputing from scaled components,
+        // which would accumulate one rounding error per fee component.
+        serviceTotal = scaleAmount(originalServiceTotal, rawMultiplier, scale);
+        nodeTotal = scaleAmount(originalNodeTotal, rawMultiplier, scale);
     }
 
     /**
@@ -187,6 +202,22 @@ public class FeeResult {
         return clampedMultiply(this.getNodeTotalTinycents(), this.networkMultiplier);
     }
 
+    public long getHighVolumeMultiplier() {
+        return highVolumeMultiplier;
+    }
+
+    /**
+     * Set the high-volume multiplier metadata applied to this fee result.
+     *
+     * @param highVolumeMultiplier the raw high-volume multiplier
+     */
+    public void setHighVolumeMultiplier(final long highVolumeMultiplier) {
+        if (highVolumeMultiplier <= 0) {
+            throw new IllegalArgumentException("High-volume multiplier must be positive");
+        }
+        this.highVolumeMultiplier = highVolumeMultiplier;
+    }
+
     public void clearFees() {
         this.serviceExtrasDetails.clear();
         this.serviceBase = 0;
@@ -195,6 +226,7 @@ public class FeeResult {
         this.nodeBase = 0;
         this.nodeTotal = 0;
         this.networkMultiplier = 0;
+        this.highVolumeMultiplier = DEFAULT_HIGH_VOLUME_MULTIPLIER;
     }
 
     /**
@@ -267,6 +299,7 @@ public class FeeResult {
                 + getNodeBaseFeeTinycents() + ", nodeDetails="
                 + getNodeExtraDetails() + ", networkMultiplier="
                 + getNetworkMultiplier() + ", networkFee="
-                + getNetworkTotalTinycents() + '}';
+                + getNetworkTotalTinycents() + ", highVolumeMultiplier="
+                + getHighVolumeMultiplier() + '}';
     }
 }

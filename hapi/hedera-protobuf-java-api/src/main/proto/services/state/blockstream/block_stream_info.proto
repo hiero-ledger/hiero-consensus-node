@@ -95,9 +95,9 @@ message BlockStreamInfo {
     bytes start_of_block_state_hash = 6;
 
     /**
-     * A count of "output" block items in this block.
+     * A count of "state change" block items in this block.
      * <p>
-     * This SHALL count the number of output block items that _precede_
+     * This SHALL count the number of state change block items that _precede_
      * the state change that updates this singleton.
      */
     uint64 num_preceding_state_changes_items = 7;

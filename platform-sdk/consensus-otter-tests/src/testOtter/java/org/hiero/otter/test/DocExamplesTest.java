@@ -69,7 +69,7 @@ class DocExamplesTest {
                 network.newConsensusResults().results().getFirst().lastRoundNum();
 
         // This assertion will always pass with seed=42
-        assertThat(lastRound).isEqualTo(48L);
+        assertThat(lastRound).isEqualTo(46L);
     }
 
     // This test is used in the writing-tests.md file.

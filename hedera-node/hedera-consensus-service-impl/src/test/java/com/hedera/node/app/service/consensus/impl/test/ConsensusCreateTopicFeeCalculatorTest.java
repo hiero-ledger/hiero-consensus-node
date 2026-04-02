@@ -12,7 +12,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
-import com.hedera.node.app.fees.SimpleFeeContextImpl;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusCreateTopicFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
@@ -84,7 +84,8 @@ public class ConsensusCreateTopicFeeCalculatorTest {
                         makeServiceFee(
                                 HederaFunctionality.CONSENSUS_CREATE_TOPIC,
                                 498500000L,
-                                makeExtraIncluded(Extra.SIGNATURES, 1))))
+                                makeExtraIncluded(Extra.KEYS, 0),
+                                makeExtraIncluded(Extra.CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE, 0))))
                 .build();
     }
 }

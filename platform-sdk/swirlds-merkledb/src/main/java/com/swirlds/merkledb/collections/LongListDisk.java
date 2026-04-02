@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  *  A direct on disk implementation of LongList. This implementation creates a temporary file to store the data.
@@ -63,6 +65,28 @@ public class LongListDisk extends AbstractLongList<Long> {
      * Offsets of the chunks that are free to be used. The offsets are relative to the start of the file.
      */
     private final Deque<Long> freeChunks = new ConcurrentLinkedDeque<>();
+
+    /**
+     * Protects readers and writers from observing a chunk file-offset
+     * that has been recycled by a concurrent
+     * {@link #updateValidRange} → {@link #closeChunk} → {@link #createChunk}
+     * cycle.
+     *
+     * <ul>
+     *   <li><b>Read lock</b> – held by {@link #get},
+     *       {@link #putToChunk}, and {@link #putIfEqual} while they
+     *       resolve a chunk offset and access the backing file.
+     *       Multiple operations proceed concurrently.</li>
+     *   <li><b>Write lock</b> – held by {@link #updateValidRange} for
+     *       its entire duration.  Since the parent implementation may
+     *       free chunks via {@link #closeChunk} and recycle their file
+     *       offsets into {@link #freeChunks}, the write lock ensures
+     *       that all in-flight readers and writers have completed before
+     *       any chunk is freed, and that no new reader or writer can
+     *       start while offsets are being zeroed and recycled.</li>
+     * </ul>
+     */
+    final ReadWriteLock chunkRecycleLock = new ReentrantReadWriteLock();
 
     /**
      * A helper flag to make sure close() can be called multiple times.
@@ -243,9 +267,17 @@ public class LongListDisk extends AbstractLongList<Long> {
         return tempDir.resolve(sourceFileName);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Acquires the read lock to prevent the chunk offset from being
+     * recycled by a concurrent {@link #closeChunk} while the file write
+     * is in progress.  Multiple {@code putToChunk} and {@code get} calls
+     * proceed concurrently — only {@code closeChunk} takes the write lock.
+     */
     @Override
     protected synchronized void putToChunk(final Long chunk, final int subIndex, final long value) {
+        chunkRecycleLock.readLock().lock();
         try {
             final ByteBuffer buf = TEMP_LONG_BUFFER_THREAD_LOCAL.get();
             final long offset = chunk + (long) subIndex * Long.BYTES;
@@ -255,21 +287,62 @@ public class LongListDisk extends AbstractLongList<Long> {
             MerkleDbFileUtils.completelyWrite(currentFileChannel, buf, offset);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            chunkRecycleLock.readLock().unlock();
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Acquires the read lock for the duration of the chunk-offset
+     * lookup and the subsequent file read.  This guarantees that no
+     * {@link #closeChunk} can recycle the offset into {@link #freeChunks}
+     * while this read is in progress.  Multiple readers hold the read
+     * lock concurrently without blocking each other.
+     */
+    @Override
+    public long get(final long index, final long defaultValue) {
+        if (index < 0 || index >= capacity) {
+            throw new IndexOutOfBoundsException(index);
+        }
+
+        chunkRecycleLock.readLock().lock();
+        try {
+            if (index >= size.get()) {
+                return defaultValue;
+            }
+            final int chunkIndex = toIntExact(index / longsPerChunk);
+            final long subIndex = index % longsPerChunk;
+            final Long chunk = chunkList.get(chunkIndex);
+            if (chunk == null) {
+                return defaultValue;
+            }
+            final long presentValue = lookupInChunk(chunk, subIndex);
+            return presentValue == IMPERMISSIBLE_VALUE ? defaultValue : presentValue;
+        } finally {
+            chunkRecycleLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Acquires the read lock for the same reason as
+     * {@link #putToChunk}: the chunk offset must not be recycled between
+     * the compare-read and the conditional write.
+     */
     @Override
     protected synchronized boolean putIfEqual(
             final Long chunk, final int subIndex, final long oldValue, long newValue) {
-        final ByteBuffer buf = TEMP_LONG_BUFFER_THREAD_LOCAL.get();
-        buf.position(0);
+        chunkRecycleLock.readLock().lock();
         try {
+            final ByteBuffer buf = TEMP_LONG_BUFFER_THREAD_LOCAL.get();
+            buf.position(0);
             final long offset = chunk + (long) subIndex * Long.BYTES;
             MerkleDbFileUtils.completelyRead(currentFileChannel, buf, offset);
             final long filesOldValue = buf.getLong(0);
             if (filesOldValue == oldValue) {
-                // write new value to file
                 buf.putLong(0, newValue);
                 buf.position(0);
                 MerkleDbFileUtils.completelyWrite(currentFileChannel, buf, offset);
@@ -277,8 +350,38 @@ public class LongListDisk extends AbstractLongList<Long> {
             }
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            chunkRecycleLock.readLock().unlock();
         }
         return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Acquires the write lock for the entire operation.  The parent
+     * implementation may free chunks (via {@link #closeChunk}) and
+     * recycle their file offsets into {@link #freeChunks}.  Holding the
+     * write lock for the full duration guarantees that:
+     * <ol>
+     *   <li>All in-flight readers and writers that may hold a reference
+     *       to a chunk offset have completed before any chunk is freed.</li>
+     *   <li>No new reader or writer can start while offsets are being
+     *       zeroed and recycled.</li>
+     * </ol>
+     *
+     * <p>This is a rare operation, so holding the write lock for its
+     * entire duration — including file I/O in {@code closeChunk} — is
+     * acceptable.
+     */
+    @Override
+    public void updateValidRange(final long newMinValidIndex, final long newMaxValidIndex) {
+        chunkRecycleLock.writeLock().lock();
+        try {
+            super.updateValidRange(newMinValidIndex, newMaxValidIndex);
+        } finally {
+            chunkRecycleLock.writeLock().unlock();
+        }
     }
 
     /**
@@ -377,6 +480,7 @@ public class LongListDisk extends AbstractLongList<Long> {
             // Already closed
             return;
         }
+        chunkRecycleLock.writeLock().lock();
         try {
             // flush
             if (currentFileChannel.isOpen()) {
@@ -392,12 +496,29 @@ public class LongListDisk extends AbstractLongList<Long> {
             Files.delete(tempDir);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
+        } finally {
+            chunkRecycleLock.writeLock().unlock();
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Zeros the chunk region in the backing file and recycles the
+     * file offset into {@link #freeChunks} so that {@link #createChunk()}
+     * can reuse it for a new index range.
+     *
+     * <p>When called as part of {@link #updateValidRange}, the
+     * {@link #chunkRecycleLock} write lock is already held by the
+     * caller, ensuring that no concurrent reader or writer can access
+     * the backing file with this chunk's offset while it is being
+     * zeroed and recycled.
+     */
     @Override
     protected void closeChunk(@NonNull final Long chunk) {
+        // Zero out the chunk region in the backing file.
+        // This can happen outside the lock – the chunk-list entry is
+        // already null, so no NEW reader can reach this offset.
         final ByteBuffer transferBuffer = initOrGetTransferBuffer();
         fillBufferWithZeroes(transferBuffer);
         try {

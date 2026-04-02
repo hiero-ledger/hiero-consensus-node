@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,10 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 class HintsLibraryImplTest {
+    private static final byte[] CRS_CONTRIBUTION = {
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+        30, 31
+    };
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private final HintsLibraryImpl subject = new HintsLibraryImpl();
 
@@ -55,7 +60,10 @@ class HintsLibraryImplTest {
 
     @Test
     void computesAndValidateHints() {
-        final var crs = subject.newCrs((short) 256);
+        HintsLibraryBridge.getInstance().resetCache();
+
+        var crs = subject.newCrs((short) 256);
+        crs = subject.updateCrs(crs, Bytes.wrap(CRS_CONTRIBUTION));
         final var blsPrivateKey = subject.newBlsPrivateKey();
         final var hints = subject.computeHints(crs, blsPrivateKey, 1, 16);
         assertNotNull(hints);
@@ -67,6 +75,8 @@ class HintsLibraryImplTest {
 
     @Test
     void preprocessesHintsIntoUsableKeys() {
+        HintsLibraryBridge.getInstance().resetCache();
+
         final var initialCrs = subject.newCrs((short) 64);
         byte[] entropyBytes = new byte[32];
         RANDOM.nextBytes(entropyBytes);
@@ -95,7 +105,7 @@ class HintsLibraryImplTest {
         final var ak = Bytes.wrap(keys.aggregationKey());
         final var vk = Bytes.wrap(keys.verificationKey());
         assertEquals(1712L, ak.length());
-        assertEquals(1480L, vk.length());
+        assertEquals(HintsLibraryImpl.VK_LENGTH, vk.length());
 
         final var message = Bytes.wrap("Hello World");
         final List<Integer> signingParties = ids;
@@ -108,6 +118,8 @@ class HintsLibraryImplTest {
 
     @Test
     void signsAndVerifiesBlsSignature() {
+        HintsLibraryBridge.getInstance().resetCache();
+
         final var message = "Hello World".getBytes();
         final var blsPrivateKey = subject.newBlsPrivateKey();
         final var crs = subject.newCrs((short) 8);
@@ -131,8 +143,11 @@ class HintsLibraryImplTest {
 
     @Test
     void aggregatesAndVerifiesSignatures() {
+        HintsLibraryBridge.getInstance().resetCache();
+
         // When CRS is for n, then signers should be  n - 1
-        final var crs = subject.newCrs((short) 4);
+        var crs = subject.newCrs((short) 4);
+        crs = subject.updateCrs(crs, Bytes.wrap(CRS_CONTRIBUTION));
 
         final var secretKey1 = subject.newBlsPrivateKey();
         final var hints1 = subject.computeHints(crs, secretKey1, 0, 4);

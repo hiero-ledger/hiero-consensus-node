@@ -134,6 +134,6 @@ class MigrationTest {
      * Create a new virtual map data source builder.
      */
     private static MerkleDbDataSourceBuilder constructBuilder() {
-        return new MerkleDbDataSourceBuilder(CONFIGURATION, 1234, Long.MAX_VALUE);
+        return new MerkleDbDataSourceBuilder(CONFIGURATION, 1234);
     }
 }
