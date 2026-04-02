@@ -19,6 +19,7 @@ import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.RegisteredNodeCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint;
+import com.hederahashgraph.api.proto.java.RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -143,7 +144,7 @@ public class HapiRegisteredNodeCreate extends HapiTxnOp<HapiRegisteredNodeCreate
                 .setPort(8080)
                 .setRequiresTls(false)
                 .setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
-                        .setEndpointApi(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS)
+                        .setEndpointApi(BlockNodeApi.PUBLISH)
                         .build())
                 .build();
     }
