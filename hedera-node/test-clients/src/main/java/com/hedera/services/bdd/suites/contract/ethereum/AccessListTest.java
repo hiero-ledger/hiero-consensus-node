@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
@@ -18,8 +17,9 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 
@@ -31,6 +31,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.hedera.services.bdd.suites.HapiSuite;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.api.Assertions;
@@ -49,16 +50,20 @@ public class AccessListTest {
     @Contract(contract = "AccessListCallerContract", creationGas = 1_000_000)
     static SpecContract callerContract;
 
-    @Contract(contract = "AccessListTargetContract")
+    @Contract(contract = "AccessListTargetContract", creationGas = 1_000_000)
     static SpecContract targetContract;
 
     private static final AtomicReference<Address> TARGET_CONTRACT_ADDRESS = new AtomicReference<>();
     private static final AtomicReference<Bytes> TARGET_CONTRACT_ADDRESS_BYTES = new AtomicReference<>();
 
+    @Account(tinybarBalance = HapiSuite.ONE_HUNDRED_HBARS)
+    static SpecAccount payer;
+
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
         lifecycle.doAdhoc(
                 callerContract.getInfo(),
+                payer.getInfo(),
                 targetContract
                         .getInfo()
                         .andAssert(e -> e.exposingEvmAddress(address -> {
@@ -84,8 +89,6 @@ public class AccessListTest {
         }
         // execute ethereumCall
         return ethereumCallWithAccessList(
-                "call",
-                new Object[]{TARGET_CONTRACT_ADDRESS.get()},
                 type,
                 accessList,
                 () -> expectedLegacyGas.get()
@@ -94,16 +97,13 @@ public class AccessListTest {
     }
 
     private static HapiEthereumCall ethereumCallWithAccessList(
-            final String functionName,
-            final Object[] params,
             final EthTxData.EthTransactionType type,
             final List<AccessListItem> accessList,
             final LongSupplier expectedGas) {
-        return ethereumCall(callerContract.name(), functionName, params)
+        return ethereumCall(callerContract.name(), "call", TARGET_CONTRACT_ADDRESS.get())
                 .signingWith(SECP_256K1_SOURCE_KEY)
                 .type(type)
                 .withAccessList(accessList)
-                .via("qweqwe") //TODO
                 .exposingGasTo((status, gas) -> Assertions.assertEquals(
                         expectedGas.getAsLong(),
                         gas,
@@ -133,11 +133,15 @@ public class AccessListTest {
                         .toList()));
     }
 
-    private SpecOperation[] checkAccessListDiscount(final String functionName,
-                                                    final Object[] params) {
+    @HapiTest
+    final Stream<DynamicTest> accessListDiscountTest() {
         final var legacyGas = new AtomicLong();
-        // LEGACY_ETHEREUM call
-        return flattened(ethereumCall(callerContract.name(), functionName, params)
+        return hapiTest(flattened(
+                // prepare sender
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                // LEGACY_ETHEREUM call
+                ethereumCall(callerContract.name(), "call", TARGET_CONTRACT_ADDRESS.get())
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.LEGACY_ETHEREUM)
                         .exposingGasTo((status, gas) -> legacyGas.set(gas)),
@@ -145,19 +149,16 @@ public class AccessListTest {
                 Stream.of(EthTxData.EthTransactionType.EIP2930, EthTxData.EthTransactionType.EIP1559)
                         .flatMap(type -> Stream.of(
                                 ethereumCallWithAccessList(
-                                        functionName, params,
                                         type,
                                         List.of(new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of())),
                                         () -> legacyGas.get() - 100), // -100 for CALL
                                 ethereumCallWithAccessList(
-                                        functionName, params,
                                         type,
                                         List.of(new AccessListItem(
                                                 TARGET_CONTRACT_ADDRESS_BYTES.get(),
                                                 List.of(Bytes32.fromHexString(SLOT_KEY_0)))),
                                         () -> legacyGas.get() - 200), // -100 for CALL, -100 for SLOAD
                                 ethereumCallWithAccessList(
-                                        functionName, params,
                                         type,
                                         List.of(new AccessListItem(
                                                 TARGET_CONTRACT_ADDRESS_BYTES.get(),
@@ -166,7 +167,6 @@ public class AccessListTest {
                                                         Bytes32.fromHexString(SLOT_KEY_1)))),
                                         () -> legacyGas.get() - 300), // -100 for CALL, -100 x 2 for SLOAD x 2
                                 ethereumCallWithAccessList(
-                                        functionName, params,
                                         type,
                                         List.of(new AccessListItem(
                                                 TARGET_CONTRACT_ADDRESS_BYTES.get(),
@@ -178,24 +178,12 @@ public class AccessListTest {
                                                 - 500) // -100 for CALL, -100 x 3 for SLOAD x 3, -100 for SSTORE
                         ))
                         .toList()
-                , getTxnRecord("qweqwe").logged()//TODO
-        );
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> accessListDiscountTest() {
-        return hapiTest(flattened(
-                // prepare sender
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                // execute calls with access list
-                checkAccessListDiscount("call",
-                        new Object[]{TARGET_CONTRACT_ADDRESS.get()})
         ));
     }
 
-//    @HapiTest
+    @HapiTest
     final Stream<DynamicTest> accessListDiscountForDelegationCallTest() {
+        final var originalGas = new AtomicLong();
         return hapiTest(flattened(
                 // prepare sender
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -207,92 +195,17 @@ public class AccessListTest {
                         .type(EthTxData.EthTransactionType.EIP7702)
                         .addSenderCodeDelegationWithSpecNonce(TARGET_CONTRACT_ADDRESS.get()),
                 // execute calls with access list
-                checkAccessListDiscount("callDelegation",
-                        new Object[0])
+                ethereumCall(callerContract.name(), "callDelegation")
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .type(EthTxData.EthTransactionType.EIP2930)
+                        .exposingGasTo((status, gas) -> originalGas.set(gas)),
+                ethereumCall(callerContract.name(), "callDelegation")
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .type(EthTxData.EthTransactionType.EIP2930)
+                        .withAccessList(List.of(new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of())))
+                        .exposingGasTo((status, gas) -> Assertions.assertEquals(originalGas.get() - 100, gas))
+                // We cant test access list storage keys for code delegation because the address is 23 bytes
+                // (Prefixed with delegation indicator 0xef0100...)
         ));
-    }
-
-    //TODO callDelegation execution is not working, returning success = true, result = 0
-//    @HapiTest
-    final Stream<DynamicTest> accessListAndAuthorizationListTest() {
-        return hapiTest(
-                // prepare sender
-                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(
-                        GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                // set code delegation
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP7702)
-                        .addSenderCodeDelegationWithSpecNonce(TARGET_CONTRACT_ADDRESS.get())
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!callDelegation1:" + gas)),
-                // set code delegation with access list
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP7702)
-                        .addSenderCodeDelegationWithSpecNonce(TARGET_CONTRACT_ADDRESS.get())
-                        .withAccessList(List.of(new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of())))
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!callDelegation2:" + gas)),
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP7702)
-                        .addSenderCodeDelegationWithSpecNonce(TARGET_CONTRACT_ADDRESS.get())
-                        .withAccessList(List.of(new AccessListItem(
-                                TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of(Bytes32.fromHexString(SLOT_KEY_0)))))
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!callDelegation3:" + gas)),
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP7702)
-                        .addSenderCodeDelegationWithSpecNonce(TARGET_CONTRACT_ADDRESS.get())
-                        .withAccessList(List.of(new AccessListItem(
-                                TARGET_CONTRACT_ADDRESS_BYTES.get(),
-                                List.of(Bytes32.fromHexString(SLOT_KEY_0), Bytes32.fromHexString(SLOT_KEY_1)))))
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!callDelegation4:" + gas)),
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP7702)
-                        .addSenderCodeDelegationWithSpecNonce(TARGET_CONTRACT_ADDRESS.get())
-                        .withAccessList(List.of(new AccessListItem(
-                                TARGET_CONTRACT_ADDRESS_BYTES.get(),
-                                List.of(
-                                        Bytes32.fromHexString(SLOT_KEY_0),
-                                        Bytes32.fromHexString(SLOT_KEY_1),
-                                        Bytes32.fromHexString(SLOT_KEY_2)))))
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!callDelegation5:" + gas)),
-                // use access list
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP2930)
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!AccessList1:" + gas)),
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP2930)
-                        .withAccessList(List.of(new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of())))
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!AccessList2:" + gas)),
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP2930)
-                        .withAccessList(List.of(new AccessListItem(
-                                TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of(Bytes32.fromHexString(SLOT_KEY_0)))))
-                        .via("AccessList3")
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!AccessList3:" + gas)),
-                getTxnRecord("AccessList3").logged(), //TODO
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP2930)
-                        .withAccessList(List.of(new AccessListItem(
-                                TARGET_CONTRACT_ADDRESS_BYTES.get(),
-                                List.of(Bytes32.fromHexString(SLOT_KEY_0), Bytes32.fromHexString(SLOT_KEY_1)))))
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!AccessList4:" + gas)),
-                ethereumCall(callerContract.name(), "callDelegation")
-                        .signingWith(SECP_256K1_SOURCE_KEY)
-                        .type(EthTxData.EthTransactionType.EIP2930)
-                        .withAccessList(List.of(new AccessListItem(
-                                TARGET_CONTRACT_ADDRESS_BYTES.get(),
-                                List.of(
-                                        Bytes32.fromHexString(SLOT_KEY_0),
-                                        Bytes32.fromHexString(SLOT_KEY_1),
-                                        Bytes32.fromHexString(SLOT_KEY_2)))))
-                        .exposingGasTo((status, gas) -> System.out.println("!!!!!!!!!!!AccessList5:" + gas)));
     }
 }
