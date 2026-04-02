@@ -136,6 +136,85 @@ choose Connectors with adequate funding and a track record of reliability.
 messages can be accepted — but *availability* depends on at least one honest endpoint per side relaying bundles. If all
 endpoints on one side are compromised, messages will be delayed or stalled but never forged.
 
+## 2.4 Participant Roles
+
+Every action in CLPR is ultimately initiated by a human or organization or agent acting in one of six roles.
+Understanding these roles — and the trust chain that connects them — is essential for evaluating the security,
+economics, and operational viability of a CLPR deployment. This section introduces the roles at a high level; detailed
+operational procedures, actions, and risks for each role are described in [§4](#4-roles-and-operations).
+
+### Trust Chain
+
+CLPR's security model is a chain of vetting decisions. Each role evaluates the role below it before committing
+economic value or user trust. The chain runs from the End User at the top (who bears the ultimate risk of a failed
+cross-ledger interaction) to the Verifier Developer at the bottom (whose code is the cryptographic foundation of
+every Connection).
+
+```
+End User
+  └─ vets → Application Developer (application correctness, choice of Connection and Connector)
+       └─ vets → Connector Operator (funding adequacy, reliability, choice of Connection)
+            └─ vets → Connection (verifier contract correctness, peer ledger legitimacy)
+                 └─ built by → Verifier Developer (proof system implementation)
+                      └─ vets → Distributed Ledger (proof system and cryptography)
+```
+
+Orthogonally, two infrastructure roles support the entire system:
+
+- **CLPR Service Admin** — emergency authority over all Connections on a CLPR Service instance. Can halt or
+  close any Connection but has no role in selecting verifiers, Connectors, or applications.
+- **Endpoint Operator** — runs the infrastructure that moves bundles between ledgers. Serves all Connections
+  on the ledger without choosing which ones.
+
+**Economic participation is the primary motivator for trust verification.** Connector Operators evaluate verifiers
+because their locked stake is at risk if the verifier is compromised. Application Developers evaluate Connectors
+because their users' assets depend on reliable message delivery. End Users evaluate applications because their
+funds are on the line. At every layer, the party with economic exposure performs the vetting — and the party
+without economic exposure (notably the CLPR Service Admin) has the weakest incentive to actively monitor.
+
+### Role Summary
+
+| Role                      | Description                                                                                 | Trust Responsibility                                                                        | Economic Participation                                                                                        |
+|---------------------------|---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
+| **End User**              | Uses applications built on CLPR                                                             | Vets the application and its choices before use                                             | Bears application-level risk (locked assets, failed transactions)                                             |
+| **Application Developer** | Builds and deploys cross-ledger applications on both ledgers                                | Vets Connections and Connectors before integrating                                          | Pays per-message fees to Connectors                                                                           |
+| **Connector Operator**    | Funds and operates a Connector on one or more Connections; may also create Connections      | Vets verifier implementations before bonding to a Connection                                | Primary economic facilitator — posts balance and locked stake, pays for remote execution, subject to slashing |
+| **Verifier Developer**    | Builds, audits, and publishes verifier contract implementations for a specific proof system | Responsible for the correctness and security of the verification logic                      | None in-protocol — compensated externally                                                                     |
+| **Endpoint Operator**     | Runs a node that syncs with peer endpoints and submits bundles                              | Trusts the local CLPR Service implementation and the Connections it serves                  | Earns margin from Connector reimbursement; fronts transaction costs; subject to slashing                      |
+| **CLPR Service Admin**    | Governs a CLPR Service instance                                                             | Emergency authority — acts when Connections are compromised or the protocol is under attack | None — no fees, no revenue, no bond                                                                           |
+
+### Role Descriptions
+
+**End User.** The person or entity that interacts with applications built on CLPR. They do not interact with the
+CLPR protocol directly — they use a cross-ledger application (an asset transfer service, a cross-chain DEX) that
+uses CLPR as its transport layer. End Users are permissionless and need only an account on at least one of the
+ledgers involved.
+
+**Application Developer.** Builds and deploys smart contracts on both ledgers that use CLPR as a transport layer.
+They are the primary consumer of the CLPR protocol — choosing which Connections and Connectors to integrate with,
+designing the message format, handling responses, and building the user-facing interface. Application Developers
+are permissionless.
+
+**Connector Operator.** The primary economic facilitator — the role with the most direct protocol-level financial
+exposure. They register a Connector on a Connection, post a balance and a locked stake, and authorize messages from
+applications. Connector Operators are the natural party to create Connections because their locked stake is directly
+at risk if the verifier is compromised.
+
+**Verifier Developer.** Builds, audits, and publishes verifier contract implementations for a specific proof system.
+They are an entirely off-chain role with no protocol-level identity and no direct economic participation. Yet they
+are arguably the most trust-critical role: every Connection depends on a verifier, and every verifier was built by
+someone.
+
+**Endpoint Operator.** Runs a node that participates in the CLPR sync protocol — exchanging bundles with peer
+endpoints, constructing state proofs, and submitting received bundles to the local ledger. On Hiero, every consensus
+node is automatically an endpoint. On Ethereum and other permissionless ledgers, endpoints register explicitly and
+post a bond.
+
+**CLPR Service Admin.** Governs a CLPR Service instance with broad but exclusively protective power — they can
+configure, halt, resume, close, and redact, but cannot create Connections, register Connectors, or participate in
+economic activity. On Hedera, this is the governing council. On Ethereum, it is whoever controls the CLPR Service
+contract's admin role.
+
 ---
 
 # 3. Architecture
@@ -217,8 +296,8 @@ privileged system operation. On Ethereum this is a call from the contract's desi
 
 **ChainID**
 
-Every ledger is identified by its `ChainID`, which is
-a [CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) chain identifier string of the form
+Every ledger is identified by its `ChainID`, which is a
+[CAIP-2](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-2.md) chain identifier string of the form
 `namespace:reference`. This identifies the chain but does **not** uniquely identify a CLPR Service instance — multiple
 CLPR Service deployments may exist on the same chain (e.g., two competing CLPR Service contracts on Ethereum, both
 claiming `eip155:1`).
@@ -1180,31 +1259,168 @@ rather than smart contract proxies.
 
 ---
 
-# 4. Recovery Scenarios
+# 4. Roles and Operations
+
+This section describes the operational lifecycle and risks for each participant role introduced in §2.4.
+
+## 4.1 End User
+
+End Users interact with CLPR only through applications. Their operational burden is light — evaluate the
+application before using it and monitor for degraded service.
+
+**Risks:** Application bugs or poor Connection/Connector choices. Connection closure while messages are
+in-flight, leaving outcomes ambiguous. Finality risk if the verifier accepts proofs below finality (e.g.,
+Ethereum `latest`). If assets are escrowed, complete or unwind positions before ceasing use.
+
+## 4.2 Application Developer
+
+Application Developers call `sendMessage` and handle responses via callbacks. Each call specifies a
+`connection_id` and `connector_id`.
+
+**Ongoing obligations:** These are not one-time choices. Over the application's lifetime, the developer must
+monitor Connector health (balance declining, slashing events), watch for Connection status changes (HALTED,
+CLOSED), and be prepared to migrate when proof format upgrades render a Connection's verifier incompatible.
+Well-designed applications treat `connection_id` and `connector_id` as configurable parameters, not hardcoded
+constants.
+
+**Security:** All cross-ledger payloads must be treated as untrusted input. Encrypt at the application layer
+if confidentiality is needed — CLPR stores payloads on-chain in plaintext. Verifier compromise can lead to
+direct asset loss.
+
+**Exit:** Stop sending, wait for in-flight responses, settle escrowed assets, notify End Users.
+
+## 4.3 Connector Operator
+
+Connector Operators are often also Connection creators — they deploy verifier contracts and call
+`registerConnection` before registering as a Connector on both ledgers.
+
+**Fund management:** Balance funds message execution on the destination; locked stake covers slashing. If
+balance drops below pending execution costs, messages fail with `CONNECTOR_UNDERFUNDED` and the stake is
+slashed with escalating penalties. If the destination-side registration lapses, messages fail with
+`CONNECTOR_NOT_FOUND`.
+
+**Application vetting:** The connector contract may maintain allow-lists and rate limits. A malicious
+application could craft messages to maximize execution cost. Or it must have effective economic means of
+protecting itself.
+
+**Deregistration:** Blocked while in-flight messages exist. On a halted Connection, messages may never
+settle, potentially blocking deregistration indefinitely.
+
+**Exit:** Update the authorization contract to reject all new messages, wait for in-flight messages to
+settle, then call `deregisterConnector` on both ledgers.
+
+## 4.4 Verifier Developer
+
+Verifier Developers are an off-chain role — no protocol identity, no on-chain registration. They build
+contracts conforming to `IClprVerifier` that verify proofs from a specific source ledger.
+
+**Who builds verifiers:** Ledger implementors (they understand their own proof system best), Connector
+Operators (their stake depends on correctness), Application Developers with high-value operations, security
+auditing firms, and competing Connectors seeking independence from a competitor's code.
+
+**Vulnerability response:** Issue a security advisory, coordinate with Connector Operators and the CLPR
+Service Admin. The Verifier Developer does not perform on-chain actions — the advisory prompts other roles
+to halt affected Connections and migrate.
+
+**Risks:** Proof format changes require new implementations. Upgrade keys on proxy verifiers create a
+single point of compromise. No in-protocol compensation creates a sustainability concern — though parties
+with financial motive to maintain verifiers typically have their own external reasons to do so.
+
+## 4.5 Endpoint Operator
+
+On Hiero, every consensus node is automatically an endpoint — no manual management needed. On permissionless
+ledgers, endpoints register by calling `registerEndpoint` and posting a bond.
+
+All endpoint operators must pre-fund signing accounts to cover `submitBundle` transaction fees. Reimbursement
+via Connector margin occurs post-consensus and cannot cover the initial cost.
+
+**Risks:** Invalid bundles, failed verifications, and duplicate submissions result in unreimbursed transaction
+costs. Misbehaving endpoints are subject to slashing. On permissionless ledgers, Sybil attacks through many
+cheap endpoint registrations can eclipse honest endpoints.
+
+## 4.6 CLPR Service Admin
+
+The Admin's power is broad but exclusively protective: configure, halt, resume, close, and redact. They
+cannot create Connections, register Connectors, or participate in economic activity.
+
+**Operations:**
+- **Set configuration** — throttle adjustments, seed endpoint updates. Changes propagate lazily via
+  ConfigUpdate Control Messages.
+- **Halt** — suspend a Connection (investigation, vulnerability report). Inbound bundles still processed.
+  Also triggered automatically by response ordering violations.
+- **Resume** — return a halted Connection to ACTIVE after the issue is resolved.
+- **Close** — permanently close a Connection. Terminal, cannot be reopened.
+- **Redact** — remove a queued message's payload before delivery.
+
+**Risks:** Abuse of power (mitigated by governance mechanisms). Inaction — a compromised Connection not
+halted promptly allows continued exploitation. The Admin has no in-protocol economic incentive, creating a
+known gap between responsibility and motivation.
+
+## 4.7 Cross-Role Scenarios
+
+### Setting Up a New Cross-Ledger Route
+
+1. **Verifier Developer** publishes and audits a verifier implementation for the target proof system.
+2. **Connector Operator** evaluates the verifier, deploys it, registers the Connection on both ledgers,
+   and registers as a Connector on both sides.
+3. **Application Developer** evaluates the Connection and Connector, integrates them into their application.
+4. **End User** uses the application. The trust chain is active from top to bottom.
+
+### Proof Format Upgrade
+
+1. Source ledger announces a proof format upgrade.
+2. **Verifier Developer** publishes a new verifier for the new format.
+3. **Connector Operator** creates a new Connection with the new verifier, registers as a Connector.
+4. **Application Developer** migrates to the new Connection.
+5. Source ledger switches formats. The old Connection's verifier stops working.
+6. **CLPR Service Admin** closes the old Connection.
+
+The source ledger must maintain backward compatibility long enough for migration to complete.
+
+### Responding to a Compromised Verifier
+
+1. Vulnerability discovered. Security advisory issued.
+2. **CLPR Service Admin** halts affected Connections.
+3. **Verifier Developer** publishes a patched implementation.
+4. **Connector Operators** create new Connections with the patched verifier.
+5. **Application Developers** migrate. Admin closes old Connections.
+
+The window of vulnerability is between discovery and halt.
+
+### Connector Withdrawal Under Load
+
+1. **Connector Operator** updates the authorization contract to reject all new messages.
+2. **Application Developers** switch to an alternative Connector or notify End Users.
+3. Already-enqueued messages complete normally.
+4. Once all in-flight messages settle, Connector deregisters and recovers funds.
+
+---
+
+# 5. Recovery Scenarios
 
 This section enumerates the failure modes that can disrupt a Connection and the recovery path for each. These scenarios
 should be used as the basis for integration and fault-tolerance testing.
 
-| #   | Scenario                                                                                                                                    | Sync channel         | Recovery path                                                                                                                                                                                                                                                                | Status                                           |
-|-----|---------------------------------------------------------------------------------------------------------------------------------------------|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------|
-| R1  | **Endpoints rotated during partition.** Peer has completely replaced its endpoint set; local ledger knows none of the new endpoints.        | Broken               | Endpoints discover new peers via the gossip-based `discoverEndpoints` RPC once any connectivity is restored. Seed endpoints in the peer's configuration (propagated via ConfigUpdate) provide fallback bootstrap.                                                             | **Works.**                                       |
-| R2  | **Source ledger upgrades proof format.** Syncs are active but the existing verifier cannot read the new format.                             | Breaks when source switches | Register a new Connection with a new verifier that understands the new proof format. Applications migrate to the new Connection. The old Connection can be closed by the CLPR Service admin. | **Works** (requires new Connection).             |
-| R3  | **Endpoints rotated, proof format unchanged.** Sync channel broken, but existing verifier can still read proofs.                            | Broken               | Endpoint discovery (R1), then ConfigUpdate flows normally once syncs resume.                                                                                                                                                                                                  | **Works.**                                       |
-| R4  | **Endpoints rotated AND proof format changed.** Sync channel broken, existing verifier cannot read new proofs.                              | Broken               | Register a new Connection with a new verifier. Endpoint discovery (R1) on the new Connection. Old Connection closed by admin. Applications migrate to the new Connection.                                                                                                     | **Works** (requires new Connection).             |
-| R5  | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                                    | Suspect              | CLPR Service admin halts the Connection. Since the verifier is immutable, the Connection must be closed. A new Connection with a correct verifier can be registered.                                                                                                          | **Works.**                                       |
-| R6  | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                             | Working              | Connection is automatically HALTED ([§3.2.7](#327-response-ordering-and-correlation)). CLPR Service admin coordinates with peer to fix the bug, then closes and re-registers.                                                                                                | **Works** (requires admin intervention).         |
-| R7  | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints.                                                 | Temporarily broken   | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed.                                                                                                                                               | **Works.**                                       |
-| R8  | **Peer ledger down entirely.** The remote ledger is offline.                                                                                | Broken               | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off.                                                                                                                                   | **Works.**                                       |
-| R9  | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints.                                                  | Broken on both sides | Endpoints on both sides discover new peers via gossip once any connectivity is restored.                                                                                                                                                                                      | **Works.**                                       |
+| #  | Scenario                                                                                                                             | Sync channel                | Recovery path                                                                                                                                                                                                     | Status                                   |
+|----|--------------------------------------------------------------------------------------------------------------------------------------|-----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------|
+| R1 | **Endpoints rotated during partition.** Peer has completely replaced its endpoint set; local ledger knows none of the new endpoints. | Broken                      | Endpoints discover new peers via the gossip-based `discoverEndpoints` RPC once any connectivity is restored. Seed endpoints in the peer's configuration (propagated via ConfigUpdate) provide fallback bootstrap. | **Works.**                               |
+| R2 | **Source ledger upgrades proof format.** Syncs are active but the existing verifier cannot read the new format.                      | Breaks when source switches | Register a new Connection with a new verifier that understands the new proof format. Applications migrate to the new Connection. The old Connection can be closed by the CLPR Service admin.                      | **Works** (requires new Connection).     |
+| R3 | **Endpoints rotated, proof format unchanged.** Sync channel broken, but existing verifier can still read proofs.                     | Broken                      | Endpoint discovery (R1), then ConfigUpdate flows normally once syncs resume.                                                                                                                                      | **Works.**                               |
+| R4 | **Endpoints rotated AND proof format changed.** Sync channel broken, existing verifier cannot read new proofs.                       | Broken                      | Register a new Connection with a new verifier. Endpoint discovery (R1) on the new Connection. Old Connection closed by admin. Applications migrate to the new Connection.                                         | **Works** (requires new Connection).     |
+| R5 | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                             | Suspect                     | CLPR Service admin halts the Connection. Since the verifier is immutable, the Connection must be closed. A new Connection with a correct verifier can be registered.                                              | **Works.**                               |
+| R6 | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                      | Working                     | Connection is automatically HALTED ([§3.2.7](#327-response-ordering-and-correlation)). CLPR Service admin coordinates with peer to fix the bug, then closes and re-registers.                                     | **Works** (requires admin intervention). |
+| R7 | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints.                                          | Temporarily broken          | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed.                                                                                    | **Works.**                               |
+| R8 | **Peer ledger down entirely.** The remote ledger is offline.                                                                         | Broken                      | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off.                                                                        | **Works.**                               |
+| R9 | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints.                                           | Broken on both sides        | Endpoints on both sides discover new peers via gossip once any connectivity is restored.                                                                                                                          | **Works.**                               |
 
 > 💡 All recovery scenarios have defined recovery paths. R5 and R6 may result in `UNRESOLVED`
 > in-flight messages that require application-level out-of-band reconciliation.
 
 ---
 
-# 5. Known Risks and Open Questions
+# 6. Known Risks and Open Questions
 
-## 5.1 Risks
+## 6.1 Risks
 
 - **Time to market.** Some HashSphere customers are already turning to existing solutions (LayerZero, Wormhole, etc.).
 - **Testing complexity.** Requires multiple concurrent networks in the same test environment; new test drivers and
@@ -1215,7 +1431,7 @@ should be used as the basis for integration and fault-tolerance testing.
 - **Multi-team coordination.** Development requires contributions from Execution, Smart Contracts, Block Node, Mirror
   Node, SDK, Release Engineering, Performance, Security, Docs, DevRel, and Product.
 
-## 5.2 Open Questions
+## 6.2 Open Questions
 
 1. **Reconciliation tooling for `UNRESOLVED` messages.** When a Connection is closed with in-flight
    messages, applications receive `UNRESOLVED` and must reconcile out-of-band. What tooling or
@@ -1224,4 +1440,18 @@ should be used as the basis for integration and fault-tolerance testing.
 2. >All entries verify the **same proof format** (the
    source ledger generates one kind of proof); the label distinguishes implementations for different target platforms
 
-   Do we need to support multiple proof formats? 
+   Do we need to support multiple proof formats?
+3. **CLPR Service Admin economic incentive gap.** The Admin has significant responsibility (monitoring
+   Connections, responding to incidents, coordinating with peers) but no in-protocol economic
+   participation. Whether the protocol should include an admin fee or incentive mechanism is an open
+   design question.
+4. **Verifier Developer sustainability.** Verifier Developers perform critical work but have no in-protocol
+   compensation. If external funding dries up, verifiers may go unmaintained, creating a systemic risk
+   for all Connections that depend on them.
+5. **Connection creation anti-griefing.** Connection creation is permissionless and free (beyond
+   transaction fees). Requiring a bonded Connector at registration time would provide economic friction,
+   but this is not yet part of the specification.
+6. **Connector deregistration timing.** The protocol prevents Connector deregistration while messages
+   are in-flight, but the maximum wait time before a Connector can force-exit is not fully specified. A
+   Connector whose messages are stuck (e.g., due to a halted Connection) may be unable to deregister
+   indefinitely.
