@@ -61,6 +61,7 @@ on:
 permissions:
   id-token: write
   actions: read
+  issues: write
   pull-requests: write
   statuses: write
   checks: write
@@ -102,3 +103,14 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
+
+  report-flaky-tests:
+    name: Report Flaky Tests
+    needs:
+      - mats-tests
+    if: ${{ !cancelled() && always() }}
+    uses: ./.github/workflows/800-call-report-flaky-test.yaml
+    with:
+      workflow-context: dry-run
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
