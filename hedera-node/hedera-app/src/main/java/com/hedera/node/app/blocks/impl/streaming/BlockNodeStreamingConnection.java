@@ -253,7 +253,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     void onActiveStateTransition() {
         scheduleStreamReset();
         // start worker thread to handle sending requests
-        final Thread workerThread = new Thread(new ConnectionWorkerLoopTask(), "bn-conn-worker");
+        final Thread workerThread = new Thread(new ConnectionWorkerLoopTask(), "bn-conn-worker-" + connectionId());
         if (workerThreadRef.compareAndSet(null, workerThread)) {
             workerThread.start();
         }
