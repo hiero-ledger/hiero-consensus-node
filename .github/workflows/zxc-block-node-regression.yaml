@@ -122,10 +122,7 @@ jobs:
           git fetch --tags
           LATEST_TAG=$(git describe --tags --abbrev=0)
           echo "Latest TCK tag: ${LATEST_TAG}"
-          
-          # Pinned to v2.81.0: v2.82.0+ bumped @hiero-ledger/proto to 2.27.0 which was never published to npm
-          # Update this pin once the upstream issue is resolved.
-          git checkout v2.81.0
+          git checkout ${LATEST_TAG}
 
       # Checkout the JS-SDK server
       - name: Checkout JS-SDK Server
@@ -142,7 +139,9 @@ jobs:
           git fetch --tags
           LATEST_TAG=$(git describe --tags --abbrev=0)
           echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+          # Pinned to v2.81.0: v2.82.0+ bumped @hiero-ledger/proto to 2.27.0 which was never published to npm
+          # Update this pin once the upstream issue is resolved.
+          git checkout v2.81.0
 
       # Set up Java Environment
       - name: Setup Java
