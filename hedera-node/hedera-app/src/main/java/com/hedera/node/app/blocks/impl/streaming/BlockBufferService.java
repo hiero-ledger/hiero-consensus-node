@@ -98,18 +98,9 @@ public class BlockBufferService {
      */
     private final ConfigProvider configProvider;
     /**
-     * Reference to the connection manager.
-     */
-    private BlockNodeConnectionManager blockNodeConnectionManager;
-    /**
      * Metrics API for block stream-specific metrics.
      */
     private final BlockStreamMetrics blockStreamMetrics;
-
-    /**
-     * The timestamp of the most recent attempt at proactive buffer recovery.
-     */
-    private Instant lastRecoveryActionTimestamp = Instant.MIN;
     /**
      * The most recent buffer pruning result.
      */
@@ -158,6 +149,17 @@ public class BlockBufferService {
                 && isGrpcStreamingEnabled());
     }
 
+    public @Nullable BlockBufferStatus latestBufferStatus() {
+        final PruneResult latestResult = lastPruningResult;
+
+        if (latestResult == null) {
+            return null;
+        }
+
+        final boolean isActionStage = latestResult.saturationPercent >= actionStageThreshold();
+        return new BlockBufferStatus(latestResult.timestamp, latestResult.saturationPercent, isActionStage);
+    }
+
     /**
      * If block streaming is enabled, then this method will attempt to load the latest buffer from disk and start the
      * background worker thread. Calling this method multiple times on the same instance will do nothing.
@@ -200,7 +202,6 @@ public class BlockBufferService {
         lastProducedBlockNumber.set(-1);
         earliestBlockNumber.set(Long.MIN_VALUE);
         lastPruningResult = PruneResult.NIL;
-        lastRecoveryActionTimestamp = Instant.MIN;
         awaitingRecovery = false;
 
         logger.info("Block buffer service shutdown complete");
@@ -296,16 +297,6 @@ public class BlockBufferService {
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .maxReadDepth();
-    }
-
-    /**
-     * Sets the block node connection manager for notifications.
-     *
-     * @param blockNodeConnectionManager the block node connection manager
-     */
-    public void setBlockNodeConnectionManager(@NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
-        this.blockNodeConnectionManager =
-                requireNonNull(blockNodeConnectionManager, "blockNodeConnectionManager must not be null");
     }
 
     /**
@@ -590,6 +581,7 @@ public class BlockBufferService {
         int numPruned = 0;
         int numChecked = 0;
         int numPendingAck = 0;
+        int numInProgress = 0;
         long newEarliestBlock = Long.MAX_VALUE;
         long newLatestBlock = Long.MIN_VALUE;
 
@@ -603,6 +595,9 @@ public class BlockBufferService {
             ++numChecked;
 
             if (block.closedTimestamp() == null) {
+                ++numInProgress;
+                newEarliestBlock = Math.min(newEarliestBlock, blockNumber);
+                newLatestBlock = Math.max(newLatestBlock, blockNumber);
                 continue; // the block is not finished yet, so skip checking it
             }
 
@@ -639,16 +634,26 @@ public class BlockBufferService {
         blockStreamMetrics.recordBufferOldestBlock(newEarliestBlock == Long.MIN_VALUE ? -1 : newEarliestBlock);
         blockStreamMetrics.recordBufferNewestBlock(newLatestBlock);
 
-        return new PruneResult(maxBufferSize, numChecked, numPendingAck, numPruned, newEarliestBlock, newLatestBlock);
+        return new PruneResult(
+                Instant.now(),
+                maxBufferSize,
+                numChecked,
+                numInProgress,
+                numPendingAck,
+                numPruned,
+                newEarliestBlock,
+                newLatestBlock);
     }
 
     /**
      * Simple class that contains information related to the outcome of the buffer pruning.
      */
     static class PruneResult {
-        static final PruneResult NIL = new PruneResult(0, 0, 0, 0, 0, 0);
+        static final PruneResult NIL = new PruneResult(Instant.MIN, 0, 0, 0, 0, 0, 0, 0);
 
+        final Instant timestamp;
         final long idealMaxBufferSize;
+        final int numBlocksInProgress;
         final int numBlocksChecked;
         final int numBlocksPendingAck;
         final int numBlocksPruned;
@@ -658,14 +663,18 @@ public class BlockBufferService {
         final boolean isSaturated;
 
         PruneResult(
+                final Instant timestamp,
                 final long idealMaxBufferSize,
                 final int numBlocksChecked,
+                final int numBlocksInProgress,
                 final int numBlocksPendingAck,
                 final int numBlocksPruned,
                 final long oldestBlockNumber,
                 final long newestBlockNumber) {
+            this.timestamp = timestamp;
             this.idealMaxBufferSize = idealMaxBufferSize;
             this.numBlocksChecked = numBlocksChecked;
+            this.numBlocksInProgress = numBlocksInProgress;
             this.numBlocksPendingAck = numBlocksPendingAck;
             this.numBlocksPruned = numBlocksPruned;
             this.oldestBlockNumber = oldestBlockNumber;
@@ -686,10 +695,11 @@ public class BlockBufferService {
 
         @Override
         public String toString() {
-            return "PruneResult{" + "idealMaxBufferSize="
+            return "PruneResult{" + "timestamp=" + timestamp + ", idealMaxBufferSize="
                     + idealMaxBufferSize + ", numBlocksChecked="
                     + numBlocksChecked + ", numBlocksPendingAck="
-                    + numBlocksPendingAck + ", numBlocksPruned="
+                    + numBlocksPendingAck + ", numBlocksInProgress="
+                    + numBlocksInProgress + ", numBlocksPruned="
                     + numBlocksPruned + ", saturationPercent="
                     + saturationPercent + ", isSaturated="
                     + isSaturated + '}';
@@ -714,9 +724,10 @@ public class BlockBufferService {
         // create a list of ranges of contiguous blocks in the buffer
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksPruned={}, blocksPendingAck={}, blockRange={}, saturation={}%",
+                    "Block buffer status: idealMaxBufferSize={}, blocksChecked={}, blocksInProgress={}, blocksPruned={}, blocksPendingAck={}, blockRange={}, saturation={}%",
                     pruningResult.idealMaxBufferSize,
                     pruningResult.numBlocksChecked,
+                    pruningResult.numBlocksInProgress,
                     pruningResult.numBlocksPruned,
                     pruningResult.numBlocksPendingAck,
                     getContiguousRangesAsString(new ArrayList<>(blockBuffer.keySet())),
@@ -735,7 +746,6 @@ public class BlockBufferService {
                 pressure is engaged and potentially change which Block Node we are connected to.
                  */
                 enableBackPressure(pruningResult);
-                switchBlockNodeIfPermitted(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
                 /*
                 Zero -> Action Stage
@@ -744,7 +754,6 @@ public class BlockBufferService {
                 Block Node.
                  */
                 blockStreamMetrics.recordBackPressureActionStage();
-                switchBlockNodeIfPermitted(pruningResult);
             } else {
                 /*
                 Zero -> Zero
@@ -761,7 +770,6 @@ public class BlockBufferService {
                 Back pressure needs to be applied and possibly switch to a different Block Node.
                  */
                 enableBackPressure(pruningResult);
-                switchBlockNodeIfPermitted(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
                 /*
                 Action Stage -> Action Stage
@@ -770,7 +778,6 @@ public class BlockBufferService {
                 swap Block Node connections.
                  */
                 blockStreamMetrics.recordBackPressureActionStage();
-                switchBlockNodeIfPermitted(pruningResult);
             } else {
                 /*
                 Action Stage -> Zero
@@ -786,7 +793,6 @@ public class BlockBufferService {
                 Before and after pruning, the buffer remained fully saturated. Back pressure should be enabled - if not
                 already - and we should maybe swap to a different Block Node.
                  */
-                switchBlockNodeIfPermitted(pruningResult);
                 enableBackPressure(pruningResult);
             } else if (pruningResult.saturationPercent >= actionStageThreshold) {
                 /*
@@ -821,29 +827,6 @@ public class BlockBufferService {
         if (awaitingRecovery && !pruningResult.isSaturated) {
             disableBackPressureIfRecovered(pruningResult);
         }
-    }
-
-    /**
-     * Attempts to force a switch to a different block node. Switching to a different block node is only permitted if
-     * the time since the last switch is greater than the grace period (configured by
-     * {@link BlockBufferConfig#actionGracePeriod()}). If this method is invoked but not enough time has elapsed, then
-     * another attempt to switch block node connections will not be performed.
-     */
-    private void switchBlockNodeIfPermitted(final PruneResult pruneResult) {
-        final Duration actionGracePeriod = actionGracePeriod();
-        final Instant now = Instant.now();
-        final Duration periodSinceLastAction = Duration.between(lastRecoveryActionTimestamp, now);
-
-        if (periodSinceLastAction.compareTo(actionGracePeriod) <= 0) {
-            // not enough time has elapsed since the last action
-            return;
-        }
-
-        logger.debug(
-                "Attempting to forcefully switch block node connections due to increasing block buffer saturation (saturation={}%)",
-                pruneResult.saturationPercent);
-        lastRecoveryActionTimestamp = now;
-        blockNodeConnectionManager.selectNewBlockNodeForStreaming(true);
     }
 
     /**
