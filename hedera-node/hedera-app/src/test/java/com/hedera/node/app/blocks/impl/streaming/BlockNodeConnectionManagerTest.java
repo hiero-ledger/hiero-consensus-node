@@ -1786,13 +1786,16 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
         doReturn(200L).when(bufferService).getLastBlockNumberProduced();
+        // Use sleeping futures so all status retrievals time out and selectNewBlockNodeForStreaming
+        // returns false, entering the retry path where the inactive-manager guard is exercised.
         doAnswer(invocation -> {
+                    // Re-inject mock executor so we can verify no retry was scheduled
+                    sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
                     final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
                     final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
                     for (int i = 0; i < tasks.size(); ++i) {
-                        futures.add(completedFuture(reachable(10, 99)));
+                        futures.add(spy(createSleepingFuture()));
                     }
-
                     return futures;
                 })
                 .when(blockingIoExecutor)
@@ -1805,6 +1808,85 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Available nodes should be reloaded from bootstrap JSON (non-empty)
         assertThat(availableNodes()).isNotEmpty();
+
+        // No retry scheduled because the manager is inactive
+        verify(scheduledExecutor, never()).schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
+    }
+
+    @Test
+    void testRefreshAvailableBlockNodes_schedulesRetry_whenAllNodesTimeout() throws Exception {
+        // Point manager at real bootstrap config directory so reload finds valid JSON
+        final var configPath = Objects.requireNonNull(
+                        BlockNodeCommunicationTestBase.class.getClassLoader().getResource("bootstrap/"))
+                .getPath();
+        blockNodeConfigDirectoryHandle.set(connectionManager, Path.of(configPath));
+
+        // Manager must be active for the retry to be scheduled
+        isActiveFlag().set(true);
+
+        doReturn(100L).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(200L).when(bufferService).getLastBlockNumberProduced();
+
+        // Simulate all block node status retrievals timing out by returning sleeping futures.
+        // Also re-inject the mock executor since refreshAvailableBlockNodes calls
+        // createScheduledExecutorService() which replaces it with a real one.
+        doAnswer(invocation -> {
+                    // Re-inject mock executor so scheduleBlockNodeSelectionRetry uses it
+                    sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
+                    final List<RetrieveBlockNodeStatusTask> tasks = invocation.getArgument(0);
+                    final List<CompletableFuture<BlockNodeStatus>> futures = new ArrayList<>();
+                    for (int i = 0; i < tasks.size(); ++i) {
+                        futures.add(spy(createSleepingFuture()));
+                    }
+                    return futures;
+                })
+                .when(blockingIoExecutor)
+                .invokeAll(anyList(), anyLong(), any(TimeUnit.class));
+
+        invoke_refreshAvailableBlockNodes();
+
+        // Available nodes should be reloaded from bootstrap JSON
+        assertThat(availableNodes()).isNotEmpty();
+
+        // Since all nodes timed out, a retry should be scheduled on the shared executor.
+        // The retry is a Runnable (lambda), not a BlockNodeConnectionTask.
+        final ArgumentCaptor<Runnable> runnableCaptor = ArgumentCaptor.forClass(Runnable.class);
+        final ArgumentCaptor<Long> delayCaptor = ArgumentCaptor.forClass(Long.class);
+        verify(scheduledExecutor).schedule(runnableCaptor.capture(), delayCaptor.capture(), eq(TimeUnit.MILLISECONDS));
+
+        // Verify no BlockNodeConnectionTask was scheduled (no node was selected)
+        assertThat(runnableCaptor.getValue()).isNotInstanceOf(BlockNodeConnectionTask.class);
+
+        // Verify the delay has jitter applied: range is [initialMs/2, initialMs]
+        final long initialMs = BlockNodeConnectionManager.INITIAL_RETRY_DELAY.toMillis();
+        assertThat(delayCaptor.getValue()).isBetween(initialMs / 2, initialMs);
+
+        final Runnable retryRunnable = runnableCaptor.getValue();
+
+        // Execute lambda when manager is inactive
+        isActiveFlag().set(false);
+        retryRunnable.run();
+
+        // Execute lambda when active connection already exists
+        isActiveFlag().set(true);
+        activeConnection().set(mock(BlockNodeStreamingConnection.class));
+        retryRunnable.run();
+
+        // Execute lambda with no active connection and nodes still timing out
+        activeConnection().set(null);
+        reset(scheduledExecutor);
+        retryRunnable.run();
+
+        // A second retry should have been scheduled (exponential backoff)
+        verify(scheduledExecutor).schedule(any(Runnable.class), anyLong(), eq(TimeUnit.MILLISECONDS));
+
+        // Make the executor throw on the next schedule call, then run the lambda again
+        // to exercise the catch block
+        reset(scheduledExecutor);
+        doThrow(new RuntimeException("executor rejected"))
+                .when(scheduledExecutor)
+                .schedule(any(Runnable.class), anyLong(), any(TimeUnit.class));
+        retryRunnable.run(); // should not throw — exception is caught and logged
     }
 
     @Test

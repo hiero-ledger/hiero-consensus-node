@@ -992,9 +992,52 @@ public class BlockNodeConnectionManager {
 
             logger.info("{}", sb);
             createScheduledExecutorService();
-            selectNewBlockNodeForStreaming(false);
+            if (!selectNewBlockNodeForStreaming(false)) {
+                scheduleBlockNodeSelectionRetry(INITIAL_RETRY_DELAY);
+            }
         } else {
             logger.info("No valid block node configurations available after file change. Connections remain stopped.");
+        }
+    }
+
+    /**
+     * Schedules a retry of block node selection with exponential backoff and jitter.
+     * This handles the case where no block nodes are available at startup (e.g., due to status
+     * retrieval timeouts) by periodically retrying until a connection is established.
+     *
+     * @param baseDelay the base delay before jitter is applied
+     */
+    private void scheduleBlockNodeSelectionRetry(@NonNull final Duration baseDelay) {
+        if (!isConnectionManagerActive.get() || !isStreamingEnabled()) {
+            return;
+        }
+        final long baseMs = Math.max(0, baseDelay.toMillis());
+        final long jitteredMs = baseMs / 2 + ThreadLocalRandom.current().nextLong(baseMs / 2 + 1);
+        logger.info("Scheduling block node selection retry in {} ms.", jitteredMs);
+        try {
+            sharedExecutorService.schedule(
+                    () -> {
+                        if (!isConnectionManagerActive.get()) {
+                            return;
+                        }
+                        if (activeConnectionRef.get() != null) {
+                            // A connection was established by another path (e.g., config change); no retry needed
+                            return;
+                        }
+                        if (!selectNewBlockNodeForStreaming(false)) {
+                            // Still no available nodes; retry with exponential backoff
+                            final Duration nextDelay = Duration.ofMillis(Math.min(
+                                    baseDelay
+                                            .multipliedBy(RETRY_BACKOFF_MULTIPLIER)
+                                            .toMillis(),
+                                    maxBackoffDelay().toMillis()));
+                            scheduleBlockNodeSelectionRetry(nextDelay);
+                        }
+                    },
+                    jitteredMs,
+                    TimeUnit.MILLISECONDS);
+        } catch (final Exception e) {
+            logger.warn("Failed to schedule block node selection retry.", e);
         }
     }
 
