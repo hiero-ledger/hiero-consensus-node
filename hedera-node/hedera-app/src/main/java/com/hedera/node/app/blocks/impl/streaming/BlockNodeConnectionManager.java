@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toList;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -151,6 +152,10 @@ public class BlockNodeConnectionManager {
      * Executor service used to execute blocking I/O operations - e.g. retrieving block node status.
      */
     private ExecutorService blockingIoExecutor;
+    /**
+     * Numeric ID of this consensus node used in connection correlation IDs.
+     */
+    private final long selfNodeId;
 
     /**
      * A record that holds a candidate node configuration along with the block number it wants to stream.
@@ -214,10 +219,14 @@ public class BlockNodeConnectionManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
+            @NonNull final NetworkInfo networkInfo,
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
+        this.selfNodeId = requireNonNull(networkInfo, "networkInfo must not be null")
+                .selfNodeInfo()
+                .nodeId();
         this.blockingIoExecutorSupplier =
                 requireNonNull(blockingIoExecutorSupplier, "Blocking I/O executor supplier is required");
         this.nodeStats = new ConcurrentHashMap<>();
@@ -626,8 +635,8 @@ public class BlockNodeConnectionManager {
 
         RetrieveBlockNodeStatusTask(@NonNull final BlockNodeConfiguration nodeConfig) {
             requireNonNull(nodeConfig, "Node configuration is required");
-            svcConnection =
-                    new BlockNodeServiceConnection(configProvider, nodeConfig, blockingIoExecutor, clientFactory);
+            svcConnection = new BlockNodeServiceConnection(
+                    configProvider, nodeConfig, blockingIoExecutor, clientFactory, selfNodeId);
         }
 
         @Override
@@ -852,7 +861,8 @@ public class BlockNodeConnectionManager {
                 sharedExecutorService,
                 blockingIoExecutorSupplier.get(),
                 initialBlockToStream,
-                clientFactory);
+                clientFactory,
+                selfNodeId);
 
         connections.put(nodeConfig, connection);
         return connection;
