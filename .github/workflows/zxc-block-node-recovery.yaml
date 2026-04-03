@@ -431,7 +431,7 @@ jobs:
             -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
-            http://localhost:40841 \
+            localhost:40841 \
             org.hiero.block.api.BlockNodeService/serverStatus)
 
           # Extract values
@@ -465,7 +465,7 @@ jobs:
             -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
-            http://localhost:40842 \
+            localhost:40842 \
             org.hiero.block.api.BlockNodeService/serverStatus)
 
           # Extract values
@@ -499,7 +499,7 @@ jobs:
             -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
-            http://localhost:40843 \
+            localhost:40843 \
             org.hiero.block.api.BlockNodeService/serverStatus)
 
           # Extract values
