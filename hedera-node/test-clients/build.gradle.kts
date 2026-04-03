@@ -322,7 +322,7 @@ tasks.register<Test>("testSubprocess") {
         System.getProperty("hapi.spec.quiet.mode")
             ?: if (ciTagExpression.isNotBlank()) "true" else "false",
     )
-    systemProperty("junit.jupiter.execution.parallel.enabled", true)
+    systemProperty("junit.jupiter.execution.parallel.enabled", false)
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
     // correctly if test classes run in parallel (concurrent execution WITHIN a test class
