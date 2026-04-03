@@ -48,7 +48,7 @@ public record NetworkAdminConfig(
 
         @ConfigProperty(
                 defaultValue =
-                        "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote,CrsPublication")
+                        "HintsKeyPublication,HintsPreprocessingVote,HintsPartialSignature,HistoryAssemblySignature,HistoryProofKeyPublication,HistoryProofVote,CrsPublication,MigrationRootHashVote")
         @NetworkProperty
         HederaFunctionalitySet nodeTransactionsAllowList,
 

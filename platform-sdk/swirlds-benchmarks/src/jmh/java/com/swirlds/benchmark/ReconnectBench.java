@@ -1,23 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import org.hiero.consensus.model.node.NodeId;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
-import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Param;
-import org.openjdk.jmh.annotations.Setup;
-import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 @BenchmarkMode(Mode.AverageTime)
@@ -84,31 +81,19 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     private long[] teacherData;
 
+    @Override
     String benchmarkName() {
         return "ReconnectBench";
     }
 
     /**
-     * Builds a VirtualMap populator that is able to add/update, as well as remove nodes (when the value is null.)
-     * Note that it doesn't support explicitly adding null values under a key.
-     *
-     * @param mapRef a reference to a VirtualMap instance
-     * @return a populator for the map
+     * {@inheritDoc}
      */
-    private static BiConsumer<Bytes, BenchmarkValue> buildVMPopulator(final AtomicReference<VirtualMap> mapRef) {
-        return (k, v) -> {
-            if (v == null) {
-                mapRef.get().remove(k, BenchmarkValueCodec.INSTANCE);
-            } else {
-                mapRef.get().put(k, v, BenchmarkValueCodec.INSTANCE);
-            }
-        };
-    }
+    @Override
+    protected void onTrialSetup() {
+        super.onTrialSetup();
 
-    /** Generate a state and save it to disk once for the entire benchmark. */
-    @Setup
-    public void setupBenchmark() {
-        beforeTest("reconnect");
+        setTestDir("reconnect");
 
         final Random random = new Random(randomSeed);
 
@@ -125,88 +110,111 @@ public class ReconnectBench extends VirtualMapBaseBench {
                         teacherAddProbability,
                         teacherRemoveProbability,
                         teacherModifyProbability,
-                        buildVMPopulator(teacherRef),
-                        buildVMPopulator(learnerRef),
+                        StateBuilder.buildVMPopulator(teacherRef),
+                        StateBuilder.buildVMPopulator(learnerRef),
                         i -> {
                             if (i % numRecords == 0) {
-                                System.err.printf("Copying files for i=%,d\n", i);
+                                logger.info("Copying files for i={}", i);
                                 teacherRef.set(teacherMap = copyMap(teacherMap));
                                 learnerRef.set(learnerMap = copyMap(learnerMap));
                             }
                         });
 
-        teacherMap = flushMap(teacherMap);
+        // Save learner to disk (it will be restored fresh each invocation)
         learnerMap = flushMap(learnerMap);
-
-        teacherMap = saveMap(teacherMap, TEACHER_MAP_NAME);
         learnerMap = saveMap(learnerMap, LEARNER_MAP_NAME);
-
-        releaseAndCloseMap(teacherMap);
         releaseAndCloseMap(learnerMap);
+
+        // Save teacher to disk (as a backup), but keep it alive in memory
+        teacherMap = flushMap(teacherMap);
+        teacherMap = saveMap(teacherMap, TEACHER_MAP_NAME);
+        BenchmarkMetrics.register(teacherMap::registerMetrics);
+        // Make teacher immutable by creating a copy; keep the copy as the mutable head
+        teacherMapCopy = teacherMap.copy();
+        // Pre-hash the teacher map once — it's never modified
+        teacherMap.getHash();
+        // Build the verification array once from the teacher map
+        if (verify) {
+            teacherData = new long[numRecords * numFiles * 2];
+            copyMapToArray(teacherMap, teacherData);
+        }
     }
 
-    /** Restore the saved state from disk as a new test on-disk copy for each iteration. */
-    @Setup(Level.Invocation)
-    public void setupInvocation() {
-        teacherMap = restoreMap(TEACHER_MAP_NAME);
-        if (teacherMap == null) {
-            throw new RuntimeException("Failed to restore the 'teacher' map");
-        }
-        BenchmarkMetrics.register(teacherMap::registerMetrics);
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onInvocationSetup() {
+        super.onInvocationSetup();
 
         learnerMap = restoreMap(LEARNER_MAP_NAME);
         if (learnerMap == null) {
             throw new RuntimeException("Failed to restore the 'learner' map");
         }
         BenchmarkMetrics.register(learnerMap::registerMetrics);
-
-        teacherMapCopy = teacherMap.copy();
-
-        // Build the verification array from the teacher map before the benchmark runs
-        if (verify) {
-            // StateBuilder uses key indices from 1 to (2 * size - 1), where size = numRecords * numFiles.
-            teacherData = new long[numRecords * numFiles * 2];
-            copyMapToArray(teacherMap, teacherData);
-        }
     }
 
-    @TearDown(Level.Invocation)
-    public void tearDownInvocation() throws Exception {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onInvocationTearDown() throws Exception {
         try {
             if (!learnerMap.isHashed()) {
                 throw new IllegalStateException("Learner root node must be hashed");
             }
         } finally {
             reconnectedMap.release();
-            teacherMap.release();
             learnerMap.release();
-            teacherMapCopy.release();
         }
 
-        afterTest(() -> {
-            // Close all data sources
-            teacherMap.getDataSource().close();
-            learnerMap.getDataSource().close();
+        // Close all data sources
+        learnerMap.getDataSource().close();
 
-            // release()/close() would delete the DB files eventually but not right away.
-            // The files/directories can even be re-created in background (see a comment at
-            // beforeTest(String name) above.)
-            // Add a short sleep to help prevent irrelevant warning messages from being printed
-            // when the BaseBench.afterTest() deletes test files recursively right after
-            // this current runnable finishes executing.
-            try {
-                Thread.sleep(1000);
-            } catch (InterruptedException ignore) {
-            }
-        });
+        // release()/close() would delete the DB files eventually but not right away.
+        // Add a short sleep to help prevent irrelevant warning messages from being printed
+        // when the Tear Down deletes test files recursively right after
+        // this current runnable finishes executing.
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException ignore) {
+        }
+
+        learnerMap = null;
+
+        super.onInvocationTearDown();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onTrialTearDown() throws Exception {
+        teacherMap.release();
+        teacherMapCopy.release();
+
+        // Close all data sources
+        teacherMap.getDataSource().close();
+
+        // release()/close() would delete the DB files eventually but not right away.
+        // Add a short sleep to help prevent irrelevant warning messages from being printed
+        // when the Tear Down deletes test files recursively right after
+        // this current runnable finishes executing.
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException ignore) {
+        }
 
         teacherMap = null;
-        learnerMap = null;
         teacherData = null;
+
+        super.onTrialTearDown();
     }
 
     @Benchmark
     public void reconnect() throws Exception {
+        logger.info(RUN_DELIMITER);
+
         reconnectedMap = MerkleBenchmarkUtils.hashAndTestSynchronization(
                 learnerMap,
                 teacherMap,
@@ -223,15 +231,10 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     public static void main(String[] args) throws Exception {
         final ReconnectBench bench = new ReconnectBench();
-        bench.setup();
-        bench.createLocal();
-        bench.setupBenchmark();
-        bench.beforeTest();
+        bench.setupTrial();
         bench.setupInvocation();
         bench.reconnect();
         bench.tearDownInvocation();
-        bench.afterTest();
-        bench.destroyLocal();
-        bench.destroy();
+        bench.tearDownTrial();
     }
 }

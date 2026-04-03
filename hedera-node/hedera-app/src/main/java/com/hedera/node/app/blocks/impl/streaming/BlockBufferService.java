@@ -72,6 +72,11 @@ public class BlockBufferService {
      */
     private final AtomicLong highestAckedBlockNumber = new AtomicLong(Long.MIN_VALUE);
     /**
+     * Guard to skip redundant concurrent persist operations. When a periodic persist and a freeze
+     * persist overlap, the second one is skipped since the first is already writing the same data.
+     */
+    private final AtomicBoolean isPersistInProgress = new AtomicBoolean(false);
+    /**
      * Executor that is used to schedule buffer pruning and triggering backpressure if needed.
      */
     private ScheduledExecutorService execSvc;
@@ -548,22 +553,29 @@ public class BlockBufferService {
             return;
         }
 
-        // collect all closed blocks which are not acked yet
-        final List<BlockState> blocksToPersist = blockBuffer.values().stream()
-                .filter(BlockState::isClosed)
-                .filter(blockState -> blockState.blockNumber() > highestAckedBlockNumber.get())
-                .toList();
-
-        if (blocksToPersist.isEmpty()) {
-            logger.info("No unacked blocks in the buffer to persist");
+        if (!isPersistInProgress.compareAndSet(false, true)) {
+            logger.debug("Persistence request skipped; another persist is already in progress");
             return;
         }
 
         try {
+            // collect all closed blocks which are not acked yet
+            final List<BlockState> blocksToPersist = blockBuffer.values().stream()
+                    .filter(BlockState::isClosed)
+                    .filter(blockState -> blockState.blockNumber() > highestAckedBlockNumber.get())
+                    .toList();
+
+            if (blocksToPersist.isEmpty()) {
+                logger.info("No unacked blocks in the buffer to persist");
+                return;
+            }
+
             bufferIO.write(blocksToPersist, highestAckedBlockNumber.get());
             logger.info("Block buffer persisted to disk (blocksWritten: {})", blocksToPersist.size());
         } catch (final RuntimeException | IOException e) {
             logger.error("Failed to write block buffer to disk!", e);
+        } finally {
+            isPersistInProgress.set(false);
         }
     }
 

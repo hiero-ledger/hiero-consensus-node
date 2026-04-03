@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
@@ -57,7 +56,6 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
 
     @Override
     public void startTeacherTasks(
-            final TeachingSynchronizer teachingSynchronizer,
             final Time time,
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,

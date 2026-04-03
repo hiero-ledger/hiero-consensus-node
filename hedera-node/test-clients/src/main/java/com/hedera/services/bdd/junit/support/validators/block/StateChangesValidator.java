@@ -198,7 +198,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 node0Dir.resolve("output/swirlds.log"),
                 node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
-                16,
                 HintsEnabled.YES,
                 HistoryEnabled.YES,
                 false,
@@ -250,7 +249,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
         final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
         final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
-        final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
         final boolean stateProofsEnabled = spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
         final boolean adaptiveChecksEnabled = ADAPTIVE_SIGNATURE_CHECKS_ENABLED.get();
         return new StateChangesValidator(
@@ -258,7 +256,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 node0.getExternalPath(SWIRLDS_LOG),
                 node0.getExternalPath(APPLICATION_PROPERTIES),
                 node0.getExternalPath(DATA_CONFIG_DIR),
-                crsSize,
                 (adaptiveChecksEnabled || isHintsEnabled) ? HintsEnabled.YES : HintsEnabled.NO,
                 (adaptiveChecksEnabled || isHistoryEnabled) ? HistoryEnabled.YES : HistoryEnabled.NO,
                 adaptiveChecksEnabled || spec.startupProperties().getBoolean("tss.wrapsEnabled"),
@@ -278,7 +275,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Path pathToNode0SwirldsLog,
             @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
-            final int crsSize,
             @NonNull final HintsEnabled hintsEnabled,
             @NonNull final HistoryEnabled historyEnabled,
             final boolean wrapsEnabled,
@@ -300,7 +296,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 pathToUpgradeSysFilesLoc.toAbsolutePath().toString());
         System.setProperty("tss.hintsEnabled", "" + (hintsEnabled == HintsEnabled.YES));
         System.setProperty("tss.historyEnabled", "" + (historyEnabled == HistoryEnabled.YES));
-        System.setProperty("tss.initialCrsParties", "" + crsSize);
         System.setProperty(
                 "block.stateproof.verification.enabled", "" + (stateProofsEnabled == StateProofsEnabled.YES));
         System.setProperty("hedera.shard", String.valueOf(shard));
@@ -348,9 +343,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                         .orElseThrow();
         final IncrementalStreamingHasher incrementalBlockHashes =
                 new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+        boolean hashChainBroken = false;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
-            final var shouldVerifyProof = i == 0
+            var shouldVerifyProof = i == 0
                     || i == lastVerifiableIndex
                     || indirectProofSeq != null
                     || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
@@ -440,16 +436,37 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
             assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + i);
 
-            if (i <= lastVerifiableIndex) {
+            // An incomplete block (missing footer/proof) can appear in the middle of the list
+            // when nodes are restarted and all nodes wrote the block before the async proof arrived
+            final long blockNumber =
+                    block.items().getFirst().blockHeaderOrThrow().number();
+            final boolean blockHasProof = block.items().getLast().hasBlockProof();
+            if (i <= lastVerifiableIndex && blockHasProof) {
                 final var footer = block.items().get(block.items().size() - 2);
-                assertTrue(footer.hasBlockFooter());
+                assertTrue(
+                        footer.hasBlockFooter(),
+                        "Field blockFooter is null for block #" + blockNumber + " at index " + i);
                 final var lastBlockItem = block.items().getLast();
                 assertTrue(lastBlockItem.hasBlockProof());
                 final var blockProof = lastBlockItem.blockProofOrThrow();
-                assertEquals(
-                        previousBlockHash,
-                        footer.blockFooterOrThrow().previousBlockRootHash(),
-                        "Previous block hash mismatch for block " + blockProof.block());
+
+                if (hashChainBroken) {
+                    // An incomplete block broke the hash chain; we cannot verify
+                    // previousBlockHash or do full proof verification for this block.
+                    // Force shouldVerifyProof off so we resume the chain from the
+                    // next block's footer instead.
+                    // But we must still add the skipped block's hash to the incremental
+                    // hasher so the chain stays in sync for future proof verifications.
+                    final var skippedBlockHash = footer.blockFooterOrThrow().previousBlockRootHash();
+                    incrementalBlockHashes.addNodeByHash(skippedBlockHash.toByteArray());
+                    shouldVerifyProof = false;
+                    hashChainBroken = false;
+                } else {
+                    assertEquals(
+                            previousBlockHash,
+                            footer.blockFooterOrThrow().previousBlockRootHash(),
+                            "Previous block hash mismatch for block " + blockProof.block());
+                }
 
                 if (shouldVerifyProof) {
                     final var lastStateChange = lastStateChanges.stateChanges().getLast();
@@ -491,15 +508,21 @@ public class StateChangesValidator implements BlockStreamValidator {
                     previousBlockHash = expectedBlockHash;
                 } else {
                     final var nextBlock = blocks.get(i + 1);
-                    final var nextBlockFooterIndex = nextBlock.items().size() - 2;
-                    previousBlockHash = nextBlock
-                            .items()
-                            .get(nextBlockFooterIndex)
-                            .blockFooterOrThrow()
-                            .previousBlockRootHash();
+                    final var nextBlockItems = nextBlock.items();
+                    final var nextBlockFooterIndex = nextBlockItems.size() - 2;
+                    if (nextBlockFooterIndex >= 0
+                            && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter()) {
+                        previousBlockHash = nextBlockItems
+                                .get(nextBlockFooterIndex)
+                                .blockFooterOrThrow()
+                                .previousBlockRootHash();
+                    }
                 }
 
                 incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
+            } else if (i <= lastVerifiableIndex) {
+                logger.warn("Skipping proof verification for incomplete block #{} at index {}", blockNumber, i);
+                hashChainBroken = true;
             }
         }
         logger.info("Summary of changes by service:\n{}", stateChangesSummary);

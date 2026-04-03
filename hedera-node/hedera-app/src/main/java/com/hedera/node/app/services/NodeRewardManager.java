@@ -455,6 +455,8 @@ public class NodeRewardManager {
         // Step 4: Apply budget constraints
         final var constrained = applyBudgetConstraints(rewardAmounts, budget.accountBalance(), payerId);
         log.info("Calculated rewards: {}", constrained);
+
+        metrics.updateRewardMetrics(constrained, blockNodeEligibleNodeIds.size());
         return constrained;
     }
 
@@ -582,10 +584,14 @@ public class NodeRewardManager {
     }
 
     /**
-     * Returns {@code true} if the given registered node has at least one Block Node service endpoint.
+     * Returns {@code true} if the given registered node has at least one Block Node service endpoint
+     * with a {@link RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi#PUBLISH PUBLISH} API.
      */
     private static boolean isBlockNodeType(@NonNull final RegisteredNode registeredNode) {
-        return registeredNode.serviceEndpoint().stream().anyMatch(RegisteredServiceEndpoint::hasBlockNode);
+        return registeredNode.serviceEndpoint().stream()
+                .anyMatch(endpoint -> endpoint.hasBlockNode()
+                        && endpoint.blockNodeOrThrow().endpointApi()
+                                == RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH);
     }
 
     /**
