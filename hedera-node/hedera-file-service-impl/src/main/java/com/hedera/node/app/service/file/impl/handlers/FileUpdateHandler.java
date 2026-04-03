@@ -286,7 +286,10 @@ public class FileUpdateHandler implements TransactionHandler {
      * @return {@code true} if the operation wants to mutate non-expiry fields, {@code false} otherwise
      */
     public static boolean wantsToMutateNonExpiryField(@NonNull final FileUpdateTransactionBody op) {
-        return op.hasMemo() || op.hasKeys() || op.contents().length() > 0;
+        return !op.equals(FileUpdateTransactionBody.newBuilder()
+                .fileID(op.fileID())
+                .expirationTime(op.expirationTime())
+                .build());
     }
 
     private void validateMaybeNewMemo(
