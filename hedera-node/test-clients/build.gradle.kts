@@ -140,22 +140,25 @@ val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        "hapiTestToken" to
+            "hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
+        "hapiTestTokenSerial" to "blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
         "hapiTestCrypto" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCryptoSerial" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to
-            "tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
+            "tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
+        "hapiTestSmartContractSerial" to
+            "tss.historyEnabled=false,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
         "hapiTestRestart" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         "hapiTestWrapsDownload" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=da83f3ae5eaa8575f5bedf583de2826ccfa5bff80bd6f58a54b0bf7e934e98919b5bcdaa074b3ae248f161317b87a22a",
         "hapiTestMisc" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
         "hapiTestMiscSerial" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
@@ -172,17 +175,19 @@ val prCheckPropOverrides =
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
         "hapiTestMiscRecordsSerial" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
         "hapiTestSimpleFees" to
-            "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
+            "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
+        "hapiTestSimpleFeesSerial" to
+            "fees.simpleFeesEnabled=true,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
         "hapiTestNDReconnect" to
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         "hapiTestAtomicBatch" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
+        "hapiTestAtomicBatchSerial" to
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.writerMode=GRPC,blockNode.blockNodeStatusTimeout=10s",
     )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
@@ -463,7 +468,15 @@ tasks.register<Test>("testSubprocessConcurrent") {
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Fix testcontainers module system access to commons libraries
+    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+    jvmArgs(
+        "-XX:ActiveProcessorCount=6",
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
     maxParallelForks = 1
 }
 
