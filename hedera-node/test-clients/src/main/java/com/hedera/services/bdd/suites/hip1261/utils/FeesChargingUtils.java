@@ -69,6 +69,13 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_INCLUDED_KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_GET_INFO_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_GET_INFO_NODE_PAYMENT_TINYCENTS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_SIGN_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_AIRDROPS_INCLUDED_COUNT;
@@ -2576,6 +2583,79 @@ public class FeesChargingUtils {
         return nodeFee + networkFee + TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD;
     }
 
+    // -------- ScheduleCreate simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ScheduleCreate:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = SCHEDULE_CREATE_BASE + KEYS_FEE * max(0, keys - includedKeysService)
+     *         + SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE * contractCallCount
+     * total   = node + network + service
+     */
+    public static double expectedScheduleCreateFullFeeUsd(long sigs, long keys, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtrasNode * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        final long keyExtras = Math.max(0L, keys - SCHEDULE_CREATE_INCLUDED_KEYS);
+        final double serviceFee = SCHEDULE_CREATE_BASE_FEE_USD + keyExtras * KEYS_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleCreateFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleCreateFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    /**
+     * Network-only fee for ScheduleCreate failures in pre-handle.
+     */
+    public static double expectedScheduleCreateNetworkFeeOnlyUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleCreateNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleCreateNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    /**
+     * ScheduleCreate for a scheduled ContractCall — adds SCHEDULE_CREATE_CONTRACT_CALL_BASE extra.
+     */
+    public static double expectedScheduleCreateContractCallFullFeeUsd(long sigs, long keys, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtrasNode * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+        final long keyExtras = Math.max(0L, keys - SCHEDULE_CREATE_INCLUDED_KEYS);
+        final double serviceFee =
+                SCHEDULE_CREATE_BASE_FEE_USD + keyExtras * KEYS_FEE_USD + SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE_USD;
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleCreateContractCallFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleCreateContractCallFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
     /**
      * Overload when extras are provided in a map.
      */
@@ -2583,6 +2663,107 @@ public class FeesChargingUtils {
         return expectedTokenFeeScheduleUpdateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- ScheduleSign simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ScheduleSign:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = SCHEDULE_SIGN_BASE
+     * total   = node + network + service
+     */
+    public static double expectedScheduleSignFullFeeUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        return nodeFee + networkFee + SCHEDULE_SIGN_BASE_FEE_USD;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleSignFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleSignFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    public static double expectedScheduleSignNetworkFeeOnlyUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleSignNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleSignNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- ScheduleDelete simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ScheduleDelete:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = SCHEDULE_DELETE_BASE
+     * total   = node + network + service
+     */
+    public static double expectedScheduleDeleteFullFeeUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+        return nodeFee + networkFee + SCHEDULE_DELETE_BASE_FEE_USD;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleDeleteFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleDeleteFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    public static double expectedScheduleDeleteNetworkFeeOnlyUsd(long sigs, int txnSize) {
+        final long sigExtras = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeFee = NODE_BASE_FEE_USD + sigExtras * SIGNATURE_FEE_USD + nodeFeeFromBytesUsd(txnSize);
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedScheduleDeleteNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedScheduleDeleteNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- ScheduleGetInfo simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ScheduleGetInfo query:
+     * node    = NODE_BASE  (no sig or byte extras for queries)
+     * network = node * NETWORK_MULTIPLIER
+     * service = SCHEDULE_GET_INFO_BASE_FEE_USD  (baseFee: 84 tinycents, extras: [])
+     * total   = node + network + service
+     */
+    public static double expectedScheduleGetInfoQueryFeeUsd() {
+        final double nodeFee = NODE_BASE_FEE_USD;
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+        return nodeFee + networkFee + SCHEDULE_GET_INFO_BASE_FEE_USD;
+    }
+
+    public static long expectedScheduleGetInfoNodePaymentTinycents() {
+        return SCHEDULE_GET_INFO_NODE_PAYMENT_TINYCENTS;
     }
 
     // -------- ContractCreate simple fees utils ---------//

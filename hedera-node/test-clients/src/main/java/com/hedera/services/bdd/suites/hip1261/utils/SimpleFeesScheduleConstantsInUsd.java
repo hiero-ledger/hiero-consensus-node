@@ -169,6 +169,15 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     /* ---------- Schedule service ---------- */
     public static final double SCHEDULE_SIGN_FEE = 0.001;
+    public static final double SCHEDULE_CREATE_BASE_FEE_USD = 0.0099;
+    public static final long SCHEDULE_CREATE_INCLUDED_KEYS = 1L;
+    public static final double SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE_USD = 0.09;
+    public static final double SCHEDULE_SIGN_BASE_FEE_USD = 0.0009;
+    public static final double SCHEDULE_DELETE_BASE_FEE_USD = 0.0009;
+
+    /* ---------- Schedule service (queries) ---------- */
+    public static final double SCHEDULE_GET_INFO_BASE_FEE_USD = 0.0000000084; // baseFee: 84 tinycents
+    public static final long SCHEDULE_GET_INFO_NODE_PAYMENT_TINYCENTS = 84L;
 
     /* ---------- Util service ---------- */
     public static final double ATOMIC_BATCH_BASE_FEE_USD = 0.0009;
