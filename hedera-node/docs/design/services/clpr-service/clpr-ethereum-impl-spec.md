@@ -54,11 +54,12 @@ ClprServiceProxy (EIP-1967 TransparentUpgradeableProxy)
   giving the community time to audit upgrades.
 - The `ProxyAdmin` is the only address that can call `upgradeTo()` on the proxy.
 
-**HALT recovery.** One concrete motivation for upgradeability is recovering from the HALTED state. When a
-Connection enters HALTED due to a response ordering violation (see section 8.2), the root cause may be a
-bug in the ClprService logic itself. The EIP-1967 proxy enables deploying a fixed implementation that can
-diagnose and resolve the HALT, restoring the Connection to ACTIVE without requiring a new Connection
-registration. Without upgradeability, a HALTED Connection would be permanently unusable.
+**PAUSED recovery.** One concrete motivation for upgradeability is recovering from a persistent PAUSED
+state. When a Connection enters PAUSED due to a response ordering violation (see section 8.2), the root
+cause may be a bug in the ClprService logic itself. The EIP-1967 proxy enables deploying a fixed
+implementation that can diagnose and resolve the issue, restoring the Connection to ACTIVE without
+requiring a new Connection registration. Without upgradeability, a persistently PAUSED Connection would
+be permanently unusable if the peer never corrects its response ordering.
 
 **Why not Diamond (EIP-2535)?** The Diamond pattern provides finer-grained upgradeability (per-function facets), but
 introduces additional complexity in storage management, delegate-call routing, and auditing surface. The ClprService
@@ -80,7 +81,7 @@ Access control uses OpenZeppelin's `AccessControl` with the following roles:
 | Role                  | Grantable By         | Purpose                                                      |
 |-----------------------|----------------------|--------------------------------------------------------------|
 | `DEFAULT_ADMIN_ROLE`  | Governance multisig  | Grant/revoke other roles. Should be behind a timelock.       |
-| `ADMIN_ROLE`          | `DEFAULT_ADMIN_ROLE` | `setLedgerConfiguration`, `closeConnection`, `haltConnection`, `resumeConnection`, `redactMessage` |
+| `ADMIN_ROLE`          | `DEFAULT_ADMIN_ROLE` | `setLedgerConfiguration`, `closeConnection`, `redactMessage` |
 | `UPGRADER_ROLE`       | `DEFAULT_ADMIN_ROLE` | Reserved for future use if upgrade logic moves on-chain.     |
 
 All permissionless functions (connection registration, endpoint registration, message sending, bundle submission)
@@ -161,17 +162,15 @@ interface IClprService {
         bytes calldata configProofBytes
     ) external;
 
-    /// @notice Close (permanently close) a Connection. ADMIN_ROLE only.
+    /// @notice Initiate graceful close of a Connection. ADMIN_ROLE only.
+    /// @dev Transitions ACTIVE or PAUSED → CLOSING. In-flight messages receive
+    ///      CONNECTION_CLOSED responses without dispatch. The Connection transitions
+    ///      through DRAINED to CLOSED automatically when all queues are fully drained.
+    ///      If closed from PAUSED, the Connection cannot drain until the peer fixes
+    ///      the response ordering; once fixed, bundles process with CONNECTION_CLOSED
+    ///      responses and queues drain normally.
     /// @param connectionId The Connection ID.
     function closeConnection(bytes32 connectionId) external;
-
-    /// @notice Pause a Connection (temporarily halt outbound processing). ADMIN_ROLE only.
-    /// @param connectionId The Connection ID.
-    function haltConnection(bytes32 connectionId) external;
-
-    /// @notice Resume a halted Connection. ADMIN_ROLE only.
-    /// @param connectionId The Connection ID.
-    function resumeConnection(bytes32 connectionId) external;
 
     // NOTE: getConnection is not exposed on-chain. Connection state is available
     // via off-chain indexers (e.g., The Graph subgraph or equivalent) that read
@@ -577,7 +576,7 @@ struct Connection {
     bytes32 verifierFingerprint;       // EXTCODEHASH at registration time (informational, slot 6)
 
     // --- Status (slot 7, packed with queue metadata) ---
-    uint8 status;                      // 0=UNSET, 1=ACTIVE, 2=HALTED, 3=CLOSED
+    uint8 status;                      // 0=UNSET, 1=ACTIVE, 2=PAUSED, 3=CLOSING, 4=DRAINED, 5=CLOSED
 
     // --- Outbound Queue Metadata (slots 7-9) ---
     uint64 nextMessageId;              // next sequence number for outgoing messages
@@ -780,8 +779,9 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
 
   // --- Step 1: Verifier Call ---
   1. Load connection = _connections[connectionId].
-  2. Require connection.status == ACTIVE || connection.status == HALTED.
-     (HALTED accepts inbound bundles per Spec section 2.1.1.)
+  2. Require connection.status == ACTIVE || connection.status == PAUSED
+     || connection.status == CLOSING || connection.status == DRAINED.
+     (PAUSED, CLOSING, and DRAINED all accept inbound bundles per Spec section 2.1.1.)
   3. Call connection.verifierContract.verifyBundle(proofBytes).
      If reverts: revert entire transaction. Submitter pays gas.
      Returns: (metadata, messages) -- ABI-encoded.
@@ -808,10 +808,15 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
   15. Delete acknowledged Response Messages and Control Messages from outbound queue.
   16. Retain acknowledged Data Messages (needed for response ordering).
 
-  // --- Step 5a: Lazy Config Propagation ---
+  // --- Step 5a: Closing State Propagation ---
+  16a. If metadata.state is CLOSING or DRAINED, and connection.status == ACTIVE or PAUSED:
+       - Set connection.status = CLOSING.
+       - Emit ConnectionStatusChanged(connectionId, previousStatus, 3 /* CLOSING */).
+
+  // --- Step 5b: Lazy Config Propagation ---
   // Placed after ack update to ensure the ConfigUpdate appears at the correct
   // position in the outbound message stream.
-  16a. If connection.lastConfigTimestamp < configTimestamp:
+  16b. If connection.lastConfigTimestamp < configTimestamp:
        - Enqueue a ConfigUpdate Control Message containing the current _ledgerConfiguration
          in the Connection's outbound queue.
        - Set connection.lastConfigTimestamp = configTimestamp.
@@ -819,9 +824,21 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
   // --- Step 6: Message Dispatch (see section 8 for details) ---
   17. For each message in order:
       - If Control: apply directly (update peer roster or config).
-      - If Data: resolve connector, charge, dispatch to application, enqueue response.
+      - If Data AND (connection.status == CLOSING || connection.status == DRAINED):
+          Generate CONNECTION_CLOSED response without dispatching to application.
+          Connector is not charged, not slashed.
+      - If Data (not CLOSING/DRAINED): resolve connector, charge, dispatch to application, enqueue response.
       - If Response: deliver to application, verify ordering.
   18. Update connection.receivedMessageId and connection.receivedRunningHash.
+
+  // --- Step 6a: Drain Check (two-phase) ---
+  18a. If connection.status == CLOSING || connection.status == DRAINED:
+       - If connection.status == CLOSING AND peer has acknowledged all our outbound messages:
+           Set connection.status = DRAINED.
+           Emit ConnectionStatusChanged(connectionId, 3 /* CLOSING */, 4 /* DRAINED */).
+       - If connection.status == DRAINED AND peer's state == DRAINED:
+           Set connection.status = CLOSED.
+           Emit ConnectionStatusChanged(connectionId, 4 /* DRAINED */, 5 /* CLOSED */).
 
   // --- Step 7: Reimburse Submitter ---
   19. Transfer endpoint reimbursement from Connector charges to msg.sender.
@@ -829,25 +846,25 @@ submitBundle(connectionId, proofBytes, remoteEndpointSignature, remoteEndpointPu
   20. Emit BundleProcessed(connectionId, firstId, lastId, msg.sender).
 ```
 
-**Verification failures do not HALT the Connection.** If any of steps 1-4 (verifier call, bundle size
+**Verification failures do not PAUSE the Connection.** If any of steps 1-4 (verifier call, bundle size
 check, replay defense, running hash verification) fail, the transaction simply reverts. No Connection
-state is modified, and the Connection remains in its current status (ACTIVE or HALTED). Only response
-ordering violations (see section 8.2) trigger the HALTED state.
+state is modified, and the Connection remains in its current status (ACTIVE, PAUSED, CLOSING, or DRAINED). Only
+response ordering violations (see section 8.2) trigger the PAUSED state.
 
 ## 5.2 Gas Budget Analysis
 
 A bundle submission's gas cost scales with the number of messages and the cost of each message dispatch.
 
-| Operation                          | Gas Cost (estimate)       | Notes                                    |
-|------------------------------------|---------------------------|------------------------------------------|
-| Verifier call (BLS sig verify)     | 150,000 - 300,000         | Depends on verifier implementation       |
-| Replay defense (per message)       | ~500                      | Comparisons and memory ops               |
-| SHA-256 per message                | 60 + 12 * ceil(len/32)   | ~200 gas for a 256-byte payload          |
-| SLOAD connection metadata          | 2,100 (cold) + 100 (warm)| ~3,000 for initial load                  |
-| SSTORE connection metadata update  | ~10,000                   | Warm stores for IDs and hashes           |
-| Message dispatch (per Data msg)    | maxGasPerMessage + 30,000 | Application callback + overhead          |
-| Response enqueue (per Data msg)    | ~25,000                   | SSTORE for new queue entry               |
-| Ack cleanup (per acked msg)        | ~5,000 (net, after refund)| SSTORE zero + refund                     |
+| Operation                         | Gas Cost (estimate)        | Notes                              |
+|-----------------------------------|----------------------------|------------------------------------|
+| Verifier call (BLS sig verify)    | 150,000 - 300,000          | Depends on verifier implementation |
+| Replay defense (per message)      | ~500                       | Comparisons and memory ops         |
+| SHA-256 per message               | 60 + 12 * ceil(len/32)     | ~200 gas for a 256-byte payload    |
+| SLOAD connection metadata         | 2,100 (cold) + 100 (warm)  | ~3,000 for initial load            |
+| SSTORE connection metadata update | ~10,000                    | Warm stores for IDs and hashes     |
+| Message dispatch (per Data msg)   | maxGasPerMessage + 30,000  | Application callback + overhead    |
+| Response enqueue (per Data msg)   | ~25,000                    | SSTORE for new queue entry         |
+| Ack cleanup (per acked msg)       | ~5,000 (net, after refund) | SSTORE zero + refund               |
 
 **Maximum practical bundle size.** With a 30M block gas limit:
 
@@ -995,7 +1012,7 @@ are computed during `submitBundle` message dispatch:
 
 Per cross-platform spec §4.2 for the generic message dispatch algorithm. This section covers the
 Solidity-specific implementation: checks-effects-interactions ordering, gas stipends, low-level call
-mechanics, `nextResponseExpectedId` optimization, and HALTED recovery via EIP-1967 proxy.
+mechanics, `nextResponseExpectedId` optimization, and PAUSED/CLOSING recovery via EIP-1967 proxy.
 
 ## 8.1 Data Message Dispatch
 
@@ -1039,9 +1056,23 @@ current position, advancing via `_nextDataMessageId()` after each response deliv
 ```solidity
 // --- Response ordering verification FIRST ---
 if (response.messageId != connection.nextResponseExpectedId) {
-    connection.status = 4; // HALTED
-    emit ConnectionStatusChanged(connectionId, 1 /* ACTIVE */, 4 /* HALTED */);
-    return; // DO NOT deliver the response or delete the outbound message
+    // Reject bundles with out-of-order responses.
+    // Nothing is processed, dispatched, or acked. nextResponseExpectedId does NOT advance.
+    // Only transition to PAUSED from ACTIVE (not from CLOSING — admin may have already closed).
+    if (connection.status == 1 /* ACTIVE */) {
+        connection.status = 2; // PAUSED
+        emit ConnectionStatusChanged(connectionId, 1 /* ACTIVE */, 2 /* PAUSED */);
+    }
+    // Revert regardless of status — CLOSING connections also reject out-of-order bundles.
+    revert("out-of-order response"); // Reject the entire bundle; nothing processed or acked
+}
+
+// --- Auto-resume if PAUSED and ordering is now correct ---
+// If admin closed the Connection while PAUSED (status is CLOSING), this block is skipped —
+// the Connection stays CLOSING and processes bundles with CONNECTION_CLOSED responses.
+if (connection.status == 2 /* PAUSED */) {
+    connection.status = 1; // ACTIVE
+    emit ConnectionStatusChanged(connectionId, 2 /* PAUSED */, 1 /* ACTIVE */);
 }
 
 // --- Deliver response (failure does NOT affect protocol state) ---
@@ -1090,7 +1121,7 @@ modifier nonReentrant() {
 ```
 
 Applied to: `setLedgerConfiguration`, `registerConnection`,
-`closeConnection`, `haltConnection`, `resumeConnection`, `registerConnector`,
+`closeConnection`, `registerConnector`,
 `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`, `sendMessage`, `submitBundle`,
 `redactMessage`, `registerEndpoint`, `deregisterEndpoint`.
 
@@ -1098,14 +1129,19 @@ This means application callbacks (from `submitBundle` dispatching messages) CANN
 ClprService function. If an application attempts this, the transaction reverts for that message, and an
 `APPLICATION_ERROR` response is generated.
 
-## 8.5 HALTED State Recovery
+## 8.5 PAUSED and CLOSING Recovery
 
-When a Connection enters HALTED (due to a response ordering violation in section 8.2), the Connection
-cannot process further bundles or send messages until the issue is resolved. On Ethereum, the EIP-1967
-proxy provides a recovery path:
+**PAUSED recovery.** PAUSED is auto-recoverable: the Connection resumes automatically when the next
+bundle contains correctly ordered responses (see section 8.2), provided the admin hasn't closed it.
+Admin may close a PAUSED Connection (`closeConnection` transitions it to CLOSING). While CLOSING,
+bundles with out-of-order responses are still rejected; once the peer fixes the ordering, bundles
+process with CONNECTION_CLOSED responses and queues drain normally through DRAINED to CLOSED.
+
+If PAUSED persists (the peer never fixes its response ordering), the EIP-1967 proxy provides a recovery
+path as a last resort:
 
 1. **Diagnosis:** Off-chain analysis determines the root cause of the ordering violation (bug in
-   ClprService logic, corrupted state, or legitimate protocol inconsistency with the peer).
+   ClprService logic, corrupted state, or persistent peer bug).
 2. **Fix deployment:** A new ClprService implementation is deployed that includes:
    - The bug fix (if the cause was a logic error), and/or
    - A migration function that corrects the corrupted Connection state (e.g., adjusting
@@ -1115,14 +1151,12 @@ proxy provides a recovery path:
 4. **Recovery:** The migration function is called to restore the Connection to ACTIVE, and normal
    operations resume.
 
-This is a concrete motivation for the upgradeability strategy described in section 1.2. Without
-upgradeability, a HALTED Connection would be permanently unusable, requiring a completely new Connection
-registration and loss of all in-flight messages.
+This is a concrete motivation for the upgradeability strategy described in section 1.2.
 
-> **Cross-platform deviation note:** This HALTED -> ACTIVE recovery path is a platform-specific extension
-> of the cross-platform state machine, which only defines HALTED -> CLOSED. Ethereum's upgradeability via
-> EIP-1967 proxy enables this additional recovery option. Implementations on other platforms that lack
-> upgradeability MUST follow the cross-platform spec's HALTED -> CLOSED path.
+**CLOSING recovery.** CLOSING is irreversible. Once an admin calls `closeConnection`, the Connection
+transitions to CLOSING. In-flight Data Messages receive CONNECTION_CLOSED responses without dispatch.
+Acks continue flowing, queues drain, and the Connection transitions through DRAINED to CLOSED automatically
+when both sides are fully drained. There is no admin resume from CLOSING or DRAINED.
 
 ---
 
@@ -1371,9 +1405,9 @@ The following contradictions existed in earlier revisions and have been correcte
 
 2. **Response ordering check after delivery (was section 8.2).** The original spec delivered the response
    to the application via `onClprResponse` BEFORE checking the response ordering invariant. This meant a
-   misordered response could trigger application side effects before the Connection was HALTED.
-   **Fixed:** The ordering check now occurs BEFORE delivery. On mismatch, the Connection is HALTED and no
-   callback is made.
+   misordered response could trigger application side effects before the Connection was PAUSED.
+   **Fixed:** The ordering check now occurs BEFORE delivery. On mismatch, the Connection is PAUSED and no
+   callback is made. The Connection auto-resumes when the peer corrects the ordering.
 
 3. **Missing `clprEnabled` check in submitBundle.** The original `submitBundle` flow did not verify the
    global enable flag. **Fixed:** `require(clprEnabled)` is now step 0a.
@@ -1384,7 +1418,7 @@ The following contradictions existed in earlier revisions and have been correcte
    `topUpConnector`, `withdrawConnectorBalance`, `deregisterConnector`,
    `registerEndpoint`, `deregisterEndpoint`, `redactMessage`, and `sendMessage`.
    Read-only query functions (`getLedgerConfiguration`, `getConnector`) are exempt. Admin operations
-   (`closeConnection`, `haltConnection`, `resumeConnection`, `setLedgerConfiguration`) are exempt from the
+   (`closeConnection`, `setLedgerConfiguration`) are exempt from the
    `clprEnabled` check because the admin must be able to manage the system even when disabled.
 
 All remaining platform-specific decisions fill explicit gaps designated for platform resolution.

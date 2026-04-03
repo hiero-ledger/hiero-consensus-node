@@ -326,9 +326,9 @@ The sync engine initiates outbound sync calls **only when there are pending outb
 are received passively — the remote peer dials this node when it has messages to deliver. The engine uses a
 single-threaded scheduler per Connection.
 
-Per cross-platform spec §2.1.1, Connection status determines behavior: CLOSED/HALTED Connections are skipped
-entirely, HALTED Connections skip outbound initiation but remain available as responders, and ACTIVE Connections
-proceed normally. On Besu, the sync loop implementation is:
+Per cross-platform spec §2.1.1, Connection status determines behavior: PAUSED, CLOSING, and DRAINED Connections
+continue syncing (PAUSED rejects inbound bundles with out-of-order responses; CLOSING and DRAINED drain in-flight
+messages). Only CLOSED Connections are skipped entirely. ACTIVE Connections proceed normally. On Besu, the sync loop implementation is:
 
 ```
 For each Connection C where this node is a registered endpoint:
@@ -875,12 +875,12 @@ After submission:
    reasons:
    - Replay: another endpoint already submitted a bundle covering the same messages. Expected and benign.
    - Verification failure: possible if the block was reorged between pre-validation and inclusion.
-   - Connection status changed: halted or closed (spec §2.1.1, §4.5) between estimation and inclusion.
+   - Connection status changed: paused, closing, or closed (spec §2.1.1, §4.5) between estimation and inclusion.
 
    Per spec §4.2, bundle verification failures (bad hash chain, replay, oversized payload) cause a simple revert
-   with no state change. Response ordering violations (spec §4.5) transition the Connection to HALTED permanently.
-   On Besu, the endpoint SHOULD perform a pre-submission `eth_call` read of Connection status to avoid paying gas
-   for a guaranteed revert against a HALTED or CLOSED Connection.
+   with no state change. Response ordering violations (spec §4.5) transition the Connection to PAUSED (auto-recoverable
+   when the peer fixes ordering). On Besu, the endpoint SHOULD perform a pre-submission `eth_call` read of Connection
+   status to avoid paying gas for a guaranteed revert against a CLOSED Connection.
 3. **Handle timeout.** If the transaction is not included within a configurable number of blocks (default: 20), the
    plugin may:
    - **Speed up:** Resubmit with higher gas price (same nonce — this replaces the pending transaction).

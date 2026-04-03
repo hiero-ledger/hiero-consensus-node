@@ -264,6 +264,9 @@ enum ClprMessageReplyStatus {
 
   // Message was redacted before delivery.
   REDACTED = 5;
+
+  // Connection is closing — message was not processed. No slashing.
+  CONNECTION_CLOSED = 6;
 }
 
 // Response Message: the outcome of a previously received Data Message.
@@ -353,6 +356,14 @@ message ClprQueueMetadata {
   // Sender's cumulative hash of all messages received from us.
   // Available for optional cross-validation.
   bytes received_running_hash = 4;
+
+  // The sender's current Connection status, propagated to the peer during sync.
+  // Uses the same ClprConnectionStatus enum as the Connection itself — no
+  // separate queue state type. During normal operation this is ACTIVE. When the
+  // admin closes the Connection it becomes CLOSING, then DRAINED once the peer
+  // has acknowledged all outbound messages. When both sides are DRAINED, the
+  // Connection transitions to CLOSED (see §4.2).
+  ClprConnectionStatus state = 5;
 }
 ```
 
@@ -430,7 +441,7 @@ Connection {
   verifier_fingerprint    : bytes       // code hash of verifier_contract at registration time (informational)
 
   // --- Status ---
-  status                 : enum { ACTIVE, HALTED, CLOSED }
+  status                 : enum { ACTIVE, PAUSED, CLOSING, DRAINED, CLOSED }
   // See §2.1.1 for status transition rules.
 
   // --- Config Propagation ---
@@ -462,17 +473,29 @@ and propagated via ConfigUpdate control messages.
 
 ### 2.1.1 Connection Status Transitions
 
-| From      | To        | Trigger                                          | Notes                                                       |
-|-----------|-----------|--------------------------------------------------|-------------------------------------------------------------|
-| (new)     | `ACTIVE`  | `registerConnection` succeeds                    | Initial state after registration.                           |
-| `ACTIVE`  | `HALTED`  | Admin calls `haltConnection`, or response ordering violation detected (§4.5) | Outbound enqueue rejected. Inbound bundles still processed. |
-| `ACTIVE`  | `CLOSED`  | Admin calls `closeConnection`                    | Terminal state. All processing stops.                       |
-| `HALTED`  | `ACTIVE`  | Admin calls `resumeConnection`                   | Issue resolved.                                             |
-| `HALTED`  | `CLOSED`  | Admin calls `closeConnection`                    | Terminal state.                                             |
+| From      | To         | Trigger                                          | Notes                                                       |
+|-----------|------------|--------------------------------------------------|-------------------------------------------------------------|
+| (new)     | `ACTIVE`   | `registerConnection` succeeds                    | Initial state after registration.                           |
+| `ACTIVE`  | `PAUSED`   | Response ordering violation detected (§4.5)      | Auto-triggered. No new outbound messages. Syncs continue.   |
+| `ACTIVE`  | `CLOSING`  | Admin calls `closeConnection`, or peer's `ClprQueueMetadata.state` is `CLOSING`/`DRAINED` (§4.2) | Graceful drain. No new messages from applications.          |
+| `PAUSED`  | `ACTIVE`   | Next bundle has correctly ordered responses       | Auto-resumes if admin hasn't closed.                        |
+| `PAUSED`  | `CLOSING`  | Admin calls `closeConnection`                    | Connection drains once peer fixes ordering.                 |
+| `CLOSING` | `DRAINED`  | Peer has acknowledged all outbound messages       | Queues fully drained on this side. Awaiting peer drain.     |
+| `DRAINED` | `CLOSED`   | Both sides are `DRAINED`                         | Terminal state. All processing stops.                       |
 
 **Status behavior for incoming bundles:**
 - **`ACTIVE`**: Bundles accepted and processed normally.
-- **`HALTED`**: Inbound bundles are still accepted and processed (the halt only prevents new outbound messages). This ensures acknowledgements continue flowing and the peer's queue does not stall.
+- **`PAUSED`**: Inbound bundles containing out-of-order responses are rejected — nothing is dispatched,
+  no acknowledgements updated, no hash chain advanced. New `sendMessage` calls are rejected. Existing queued
+  messages remain and continue syncing. Auto-resumes to ACTIVE when a bundle arrives with correctly ordered
+  responses (if admin hasn't closed). Admin may close a PAUSED Connection; the Connection transitions to
+  CLOSING but cannot drain until the peer fixes the ordering.
+- **`CLOSING`**: Inbound bundles are still accepted and processed. New Data Messages arriving (sent before the
+  peer knew about the close) receive `CONNECTION_CLOSED` responses without dispatch. No slashing. Acks flow and
+  queues drain. When the remote peer has acknowledged all outbound messages, the Connection transitions to `DRAINED`.
+- **`DRAINED`**: This side's outbound queue is fully acknowledged. Inbound bundles are still accepted (the peer
+  may still be draining). The `ClprQueueMetadata.state` carries `DRAINED` so the peer observes it during sync.
+  Transitions to `CLOSED` automatically when both sides are `DRAINED`.
 - **`CLOSED`**: All bundle submissions are rejected. No further processing occurs.
 
 ## 2.2 Connector
@@ -646,7 +669,16 @@ through all messages the sender has ever enqueued.) If they do not match, reject
 queue (neither generates a further response). Retain acknowledged Data Messages until their corresponding response
 arrives (see §4.5).
 
-**Step 5a — Lazy config propagation.** If the Connection's `last_config_timestamp` is less than the current
+**Step 5a — Queue state check.** If `ClprQueueMetadata.state` is `CLOSING` or `DRAINED` and the Connection is
+`ACTIVE` or `PAUSED`, transition to `CLOSING`. Set the local `ClprQueueMetadata.state` to `CLOSING` so the
+peer observes it on the next sync.
+
+**Step 5b — Drain check.** If the Connection is `CLOSING` and the peer has acknowledged all outbound messages
+(`acked_message_id >= next_message_id - 1`), transition the Connection to `DRAINED` (the `ClprQueueMetadata.state`
+reflects the Connection's status). If both sides are `DRAINED` (the peer's state from the just-verified
+metadata, and the local state just updated), transition the Connection to `CLOSED`.
+
+**Step 5c — Lazy config propagation.** If the Connection's `last_config_timestamp` is less than the current
 configuration's `consensus_timestamp`, enqueue a `ConfigUpdate` Control Message (see §1.3) on this Connection's
 outbound queue and update `last_config_timestamp` to match. This ensures the ConfigUpdate appears at a deterministic,
 consensus-determined point in the message stream — specifically, after the acknowledgement update and before
@@ -657,7 +689,7 @@ any new messages generated by this bundle's dispatch.
 | Message Type     | Processing                                                                                                                                                                                                                                                            |
 |------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Control Message  | Apply directly (update peer endpoint roster or store new config values). Advance `received_message_id` and `received_running_hash`. No response generated.                                                                                                            |
-| Data Message     | Resolve `connector_id` to local Connector via cross-chain mapping. Charge Connector (execution cost plus margin; margin reimburses the submitting endpoint). Dispatch to target application. Generate Response Message. Advance queue metadata. |
+| Data Message     | If Connection is `CLOSING` or `DRAINED`: generate `CONNECTION_CLOSED` response without dispatch (no Connector charge, no slashing). Otherwise: resolve `connector_id` to local Connector via cross-chain mapping. Charge Connector (execution cost plus margin; margin reimburses the submitting endpoint). Dispatch to target application. Generate Response Message. Advance queue metadata. |
 | Response Message | Deliver to originating application. Verify ordering per §4.5. Advance `received_message_id` and `received_running_hash`.                                                                                                                                             |
 
 A failure on one message does NOT stop processing of remaining messages in the bundle. Each message is processed
@@ -711,8 +743,8 @@ When a Response Message arrives in a bundle on the source ledger:
 1. Walk the outbound queue of retained Data Messages (skipping Response Messages and Control Messages).
 2. The incoming response's `message_id` MUST match the oldest unresponded Data Message's ID.
 3. **Match:** deliver the response to the originating application, delete the matched Data Message.
-4. **Mismatch:** the peer has violated the ordering guarantee. Set Connection status to `HALTED`. Halt acceptance
-   of new outbound messages on this Connection.
+4. **Mismatch:** the peer has violated the ordering guarantee. Set Connection status to `PAUSED`. Reject new
+   `sendMessage` calls on this Connection.
 
 **Initial state.** When a Connection is first created, no outbound Data Messages exist, so no responses
 are expected and the walk in step 2 finds nothing. The first Response Message received MUST match the
@@ -720,14 +752,18 @@ first Data Message ever sent on this Connection (ID 1, since `next_message_id` i
 Response ordering is tracked implicitly by walking the retained outbound Data Messages — there is no
 separate counter.
 
-**HALTED recovery.** A HALTED Connection does not automatically recover. The ordering violation indicates a
-peer-side bug in response generation. The admin MUST intervene — typically by coordinating with the peer to fix
-the bug (which may require a contract upgrade on platforms like Ethereum), then resuming the Connection via
-`resumeConnection` (see §5.5). If queue state is unrecoverable, the admin may close the Connection instead.
+**PAUSED recovery.** A PAUSED Connection auto-resumes when the next inbound bundle contains correctly ordered
+responses (if the admin hasn't closed it). The ordering violation indicates a peer-side bug in response
+generation — the peer must fix it (which may require a contract upgrade on platforms like Ethereum). While
+PAUSED, existing queued messages remain and continue syncing, but inbound bundles with out-of-order responses
+are rejected outright — nothing is dispatched, acknowledged, or advanced. New `sendMessage` calls are also
+blocked. The admin may close a PAUSED Connection (`closeConnection` transitions it to CLOSING). While
+CLOSING, bundles with out-of-order responses are still rejected; once the peer fixes the ordering, bundles
+are processed with `CONNECTION_CLOSED` responses and queues drain normally through DRAINED → CLOSED.
 
 **Distinction from bad inbound bundles.** If a peer sends bundles that fail verification (bad hash chain, replay,
-oversized payloads), the CLPR Service simply rejects them — no HALT, no state change. The Connection remains
-ACTIVE and will accept valid bundles as soon as the peer fixes the issue. HALT is reserved exclusively for
+oversized payloads), the CLPR Service simply rejects them — no pause, no state change. The Connection remains
+ACTIVE and will accept valid bundles as soon as the peer fixes the issue. PAUSED is reserved exclusively for
 response ordering violations, which indicate corruption in the peer's outbound queue state.
 
 ## 4.6 Slashing Decision
@@ -752,6 +788,7 @@ When the failure Response Message arrives back on the **source** ledger:
 | `CONNECTOR_NOT_FOUND`      | Slash source Connector's `locked_stake`. Reimburse source-side submitting endpoint.  |
 | `CONNECTOR_UNDERFUNDED`    | Slash source Connector's `locked_stake`. Reimburse source-side submitting endpoint.  |
 | `REDACTED`                 | No penalty. Deliver redaction notice to application.            |
+| `CONNECTION_CLOSED`        | No penalty. Connection was closing; message was not processed.  |
 
 Penalties escalate. A single failure results in a fine. Repeated failures MAY result in the Connector being banned
 from the Connection and its remaining stake forfeited. Platform-specific specifications MUST define the slashing
@@ -819,9 +856,12 @@ peers. This naturally converges on efficient pairings where both sides do useful
 
 The CLPR Service admin can:
 
-- **Close** a Connection — permanently close it, immediately stopping all message processing.
-- **Halt** a Connection — suspend processing without closing it.
-- **Resume** a halted Connection — return it to `ACTIVE` status.
+- **Close** a Connection — initiate graceful shutdown. Valid from `ACTIVE` or `PAUSED` status. The Connection
+  transitions to `CLOSING` (the `ClprQueueMetadata.state` reflects this and is propagated to the peer on next
+  sync). In-flight messages drain; new Data Messages arriving during drain receive `CONNECTION_CLOSED` responses
+  without dispatch. When the peer has acknowledged all outbound messages, the Connection transitions to
+  `DRAINED`. The Connection transitions to `CLOSED` automatically when both sides are `DRAINED`. If closed
+  from PAUSED, the Connection cannot drain until the peer fixes the response ordering.
 - **Update the local configuration** — change throttles. Changes are propagated to peers via ConfigUpdate
   Control Messages, lazily enqueued on each Connection at its next interaction (see §1.3).
 - **Redact** a message — mark a queued outbound message as redacted (see §6.4).
@@ -879,24 +919,18 @@ registerConnection(
                                   // throttles, timestamp) at registration time
 ) → success | error
 
-// Close (permanently close) a Connection.
+// Close a Connection (graceful drain, then terminal).
 // Authority: CLPR Service admin only.
+// Transitions ACTIVE or PAUSED → CLOSING. The `ClprQueueMetadata.state` reflects
+// the Connection status and is propagated to the peer on next sync. In-flight
+// Data Messages receive CONNECTION_CLOSED responses without dispatch. When the
+// peer has acked all outbound messages, the Connection transitions to DRAINED.
+// Transitions to CLOSED automatically when both sides are DRAINED.
+// If closed from PAUSED, the Connection cannot drain until the peer fixes the
+// response ordering; once fixed, bundles process with CONNECTION_CLOSED responses
+// and queues drain normally.
+// MUST reject if Connection is CLOSING, DRAINED, or CLOSED.
 closeConnection(
-  [auth] admin,
-  connection_id: bytes(32)
-) → success | error
-
-// Halt a Connection (suspend processing).
-// Authority: CLPR Service admin only.
-// Also triggered automatically by the protocol on response ordering violations (§4.5).
-haltConnection(
-  [auth] admin,
-  connection_id: bytes(32)
-) → success | error
-
-// Resume a halted Connection.
-// Authority: CLPR Service admin only.
-resumeConnection(
   [auth] admin,
   connection_id: bytes(32)
 ) → success | error
@@ -1163,8 +1197,8 @@ queue fills.
 | R2  | Source ledger upgrades proof format                 | Breaks when source switches | Register new Connection with new verifier. Applications migrate. Admin closes old Connection.                    | Works (requires new Connection) |
 | R3  | Endpoints rotated (proof format unchanged)          | Broken               | Endpoint discovery (R1), then ConfigUpdate flows normally.                                                              | Works                         |
 | R4  | Endpoints rotated AND proof format changed           | Broken               | Register new Connection with new verifier. Endpoint discovery (R1) on new Connection. Admin closes old Connection.     | Works (requires new Connection) |
-| R5  | Verifier compromised or broken                      | Suspect              | Admin halts/closes. Since verifier is immutable, register new Connection with correct verifier.                        | Works (data loss on close)    |
-| R6  | Queue state permanently corrupted on peer           | Working              | Connection halts (§4.5). Admin closes. Applications need out-of-band reconciliation.                                   | **Open question** (see below) |
+| R5  | Verifier compromised or broken                      | Suspect              | Admin closes Connection (transitions through CLOSING → DRAINED → CLOSED). Since verifier is immutable, register new Connection with correct verifier. | Works (data loss on close)    |
+| R6  | Queue state permanently corrupted on peer           | Working              | Connection pauses (§4.5). Auto-resumes if peer fixes ordering. Admin may close a PAUSED Connection (`closeConnection` transitions to CLOSING); the Connection drains once the peer fixes the ordering. If the peer never fixes it, the Connection stays PAUSED (or CLOSING, if the admin closed it) indefinitely. | Works (PAUSED until peer recovers; admin can close to prepare for drain) |
 | R7  | Network partition (endpoints unchanged)             | Temporarily broken   | Syncs resume automatically. Monotonic IDs and running hash verify integrity.                                           | Works                         |
 | R8  | Peer ledger down entirely                           | Broken               | Messages queue up to `max_queue_depth`, then backpressure. Syncs resume when peer returns.                             | Works                         |
 | R9  | Both sides' endpoints change simultaneously         | Broken on both sides | Endpoints on both sides discover new peers via gossip once any connectivity is restored.                               | Works                         |
@@ -1173,9 +1207,10 @@ queue fills.
 
 # 10. Open Questions
 
-1. **Recovery from permanent response ordering violation (R6).** If a peer ledger's queue state is permanently
-   corrupted and it can never produce correctly ordered responses, the Connection is stuck (§4.5). Closing the
-   Connection leaves in-flight messages in an ambiguous state — the source cannot determine which were processed
-   before the corruption. CLPR cannot skip or reorder messages without breaking ABFT properties. What recovery
-   mechanism, if any, can resolve this without violating ordering guarantees? Applications may need their own
-   out-of-band reconciliation, but the protocol-level recovery path is undefined.
+1. **Indefinitely PAUSED Connection (R6).** If a peer ledger's queue state is permanently corrupted and it can
+   never produce correctly ordered responses, the Connection stays PAUSED indefinitely (§4.5). The admin may
+   close it (`closeConnection` transitions to CLOSING), but the Connection cannot drain until the peer fixes
+   the ordering. If the peer never fixes it, the Connection stays in CLOSING indefinitely — no
+   `CONNECTION_CLOSED` responses are generated while bundles are being rejected for out-of-order responses.
+   Once the peer fixes the ordering, bundles process with `CONNECTION_CLOSED` responses and queues drain
+   normally. Applications on a permanently broken peer may still need out-of-band reconciliation.

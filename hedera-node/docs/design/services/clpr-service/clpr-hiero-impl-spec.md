@@ -37,19 +37,17 @@ that goes through consensus) or a HAPI query (read-only operation). All transact
 
 The following new `oneof` variants are added to `TransactionBody`:
 
-| Pseudo-API (spec section 6) | HAPI Transaction Type | TransactionBody oneof field | Authority |
-|---|---|---|---|
-| `setLedgerConfiguration` | `ClprSetLedgerConfiguration` | `clprSetLedgerConfiguration` | CLPR admin (council key) |
-| `registerConnection` | `ClprRegisterConnection` | `clprRegisterConnection` | Any (permissionless) |
-| `closeConnection` | `ClprCloseConnection` | `clprCloseConnection` | CLPR admin |
-| `haltConnection` | `ClprHaltConnection` | `clprHaltConnection` | CLPR admin |
-| `resumeConnection` | `ClprResumeConnection` | `clprResumeConnection` | CLPR admin |
-| `registerConnector` | `ClprRegisterConnector` | `clprRegisterConnector` | Any (requires initial funds) |
-| `topUpConnector` | `ClprTopUpConnector` | `clprTopUpConnector` | Connector admin |
-| `withdrawConnectorBalance` | `ClprWithdrawConnectorBalance` | `clprWithdrawConnectorBalance` | Connector admin |
-| `deregisterConnector` | `ClprDeregisterConnector` | `clprDeregisterConnector` | Connector admin |
-| `submitBundle` | `ClprSubmitBundle` | `clprSubmitBundle` | Any (typically endpoint) |
-| `redactMessage` | `ClprRedactMessage` | `clprRedactMessage` | CLPR admin |
+| Pseudo-API (spec section 6) | HAPI Transaction Type          | TransactionBody oneof field    | Authority                                         |
+|-----------------------------|--------------------------------|--------------------------------|---------------------------------------------------|
+| `setLedgerConfiguration`    | `ClprSetLedgerConfiguration`   | `clprSetLedgerConfiguration`   | CLPR admin (council key)                          |
+| `registerConnection`        | `ClprRegisterConnection`       | `clprRegisterConnection`       | Any (permissionless)                              |
+| `closeConnection`           | `ClprCloseConnection`          | `clprCloseConnection`          | CLPR admin (transitions through CLOSING → DRAINED → CLOSED) |
+| `registerConnector`         | `ClprRegisterConnector`        | `clprRegisterConnector`        | Any (requires initial funds)                      |
+| `topUpConnector`            | `ClprTopUpConnector`           | `clprTopUpConnector`           | Connector admin                                   |
+| `withdrawConnectorBalance`  | `ClprWithdrawConnectorBalance` | `clprWithdrawConnectorBalance` | Connector admin                                   |
+| `deregisterConnector`       | `ClprDeregisterConnector`      | `clprDeregisterConnector`      | Connector admin                                   |
+| `submitBundle`              | `ClprSubmitBundle`             | `clprSubmitBundle`             | Any (typically endpoint)                          |
+| `redactMessage`             | `ClprRedactMessage`            | `clprRedactMessage`            | CLPR admin                                        |
 
 **Note:** There is no `reportMisbehavior` transaction. Misbehavior detection and enforcement are strictly
 local (see cross-platform spec §1.6).
@@ -117,19 +115,12 @@ message ClprRegisterConnectionTransactionBody {
   bytes config_proof_bytes = 5;
 }
 
-// Closes (permanently closes) a Connection. Terminal state.
+// Initiates graceful close of a Connection. Transitions to CLOSING (the
+// ClprQueueMetadata.state reflects the Connection status and is propagated to
+// the peer). When the peer acks all outbound messages, the Connection
+// transitions to DRAINED. Transitions to CLOSED when both sides are DRAINED.
+// Valid from ACTIVE or PAUSED status (see cross-platform spec §2.1.1).
 message ClprCloseConnectionTransactionBody {
-  bytes connection_id = 1;
-}
-
-// Halts a Connection (prevents new outbound messages; inbound still processed).
-// Also triggered automatically by the protocol on response ordering violations.
-message ClprHaltConnectionTransactionBody {
-  bytes connection_id = 1;
-}
-
-// Resumes a halted Connection.
-message ClprResumeConnectionTransactionBody {
   bytes connection_id = 1;
 }
 ```
@@ -270,19 +261,17 @@ These remain as they are in the prototype, served by the `ClprEndpointService` g
 
 ## 1.4 Signing Requirements
 
-| Transaction | Required Signers |
-|---|---|
-| `ClprSetLedgerConfiguration` | CLPR admin key (Hedera council key, file `0.0.150` or equivalent system key) |
-| `ClprRegisterConnection` | Transaction payer only (permissionless) |
-| `ClprCloseConnection` | CLPR admin key |
-| `ClprHaltConnection` | CLPR admin key |
-| `ClprResumeConnection` | CLPR admin key |
-| `ClprRegisterConnector` | Transaction payer + Connector admin key |
-| `ClprTopUpConnector` | Connector admin key |
-| `ClprWithdrawConnectorBalance` | Connector admin key |
-| `ClprDeregisterConnector` | Connector admin key |
-| `ClprSubmitBundle` | Transaction payer only (typically consensus node account) |
-| `ClprRedactMessage` | CLPR admin key |
+| Transaction                    | Required Signers                                                             |
+|--------------------------------|------------------------------------------------------------------------------|
+| `ClprSetLedgerConfiguration`   | CLPR admin key (Hedera council key, file `0.0.150` or equivalent system key) |
+| `ClprRegisterConnection`       | Transaction payer only (permissionless)                                      |
+| `ClprCloseConnection`          | CLPR admin key                                                               |
+| `ClprRegisterConnector`        | Transaction payer + Connector admin key                                      |
+| `ClprTopUpConnector`           | Connector admin key                                                          |
+| `ClprWithdrawConnectorBalance` | Connector admin key                                                          |
+| `ClprDeregisterConnector`      | Connector admin key                                                          |
+| `ClprSubmitBundle`             | Transaction payer only (typically consensus node account)                    |
+| `ClprRedactMessage`            | CLPR admin key                                                               |
 The **CLPR admin key** is a new system entity key, analogous to the address book admin key. It is stored in state
 as part of the CLPR service's system entity configuration and is controlled by the Hedera governing council.
 
@@ -305,22 +294,22 @@ Initial schema: `V0650ClprSchema` (version `0.65.0`, matching the anticipated re
 
 ### 2.3.1 Singletons
 
-| State Key | Type | Description |
-|---|---|---|
-| `LEDGER_CONFIGURATION` | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). The `chain_id` and `protocol_version` are immutable after CLPR activation — `chain_id` is determined by the ledger at activation time, `protocol_version` by the CLPR service code version. |
-| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype. |
+| State Key               | Type                      | Description                                                                                                                                                                                                                                                                            |
+|-------------------------|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LEDGER_CONFIGURATION`  | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). The `chain_id` and `protocol_version` are immutable after CLPR activation — `chain_id` is determined by the ledger at activation time, `protocol_version` by the CLPR service code version. |
+| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype.                                                                                                                                                                   |
 
 
 ### 2.3.2 Key-Value Stores
 
-| State Key | Key Type | Value Type | Description |
-|---|---|---|---|
-| `CONNECTIONS` | `bytes(32)` (connection_id) | `ClprConnection` | All registered Connections. |
-| `CONNECTORS` | `ClprConnectorKey` | `ClprConnector` | Registered Connectors, keyed by `(connection_id, source_connector_address)`. |
-| `CONNECTOR_INDEX` | `ClprConnectorIndexKey` | `ClprConnectorKey` | Cross-chain mapping: `(connection_id, source_connector_address)` to local Connector. Used to resolve incoming messages. |
-| `MESSAGE_QUEUE` | `ClprMessageKey` | `ClprMessageValue` | Outbound message queue entries, keyed by `(connection_id, message_id)`. Exists in prototype. |
-| `MESSAGE_QUEUE_METADATA` | `ClprLedgerId` | `ClprMessageQueueMetadata` | Per-Connection queue metadata. Exists in prototype, but will be rekeyed to `connection_id`. |
-| `LEDGER_CONFIGURATIONS` | `ClprLedgerId` | `ClprLedgerConfiguration` | Peer ledger configurations (remote configs adopted via state proofs). Exists in prototype. |
+| State Key                | Key Type                    | Value Type                 | Description                                                                                                             |
+|--------------------------|-----------------------------|----------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| `CONNECTIONS`            | `bytes(32)` (connection_id) | `ClprConnection`           | All registered Connections.                                                                                             |
+| `CONNECTORS`             | `ClprConnectorKey`          | `ClprConnector`            | Registered Connectors, keyed by `(connection_id, source_connector_address)`.                                            |
+| `CONNECTOR_INDEX`        | `ClprConnectorIndexKey`     | `ClprConnectorKey`         | Cross-chain mapping: `(connection_id, source_connector_address)` to local Connector. Used to resolve incoming messages. |
+| `MESSAGE_QUEUE`          | `ClprMessageKey`            | `ClprMessageValue`         | Outbound message queue entries, keyed by `(connection_id, message_id)`. Exists in prototype.                            |
+| `MESSAGE_QUEUE_METADATA` | `ClprLedgerId`              | `ClprMessageQueueMetadata` | Per-Connection queue metadata. Exists in prototype, but will be rekeyed to `connection_id`.                             |
+| `LEDGER_CONFIGURATIONS`  | `ClprLedgerId`              | `ClprLedgerConfiguration`  | Peer ledger configurations (remote configs adopted via state proofs). Exists in prototype.                              |
 
 ### 2.3.3 New Protobuf State Messages
 
@@ -358,19 +347,23 @@ message ClprConnection {
 
 enum ClprConnectionStatus {
   ACTIVE = 0;
-  HALTED = 1;
-  CLOSED = 2;
+  PAUSED = 1;
+  CLOSING = 2;
+  DRAINED = 3;
+  CLOSED = 4;
 }
 ```
 
 **Connection Status Transitions** (see also cross-platform spec section 2.1.1):
 
-| From | To | Trigger |
-|---|---|---|
-| `ACTIVE` | `HALTED`  | `ClprHaltConnection` (admin), or response ordering violation during `ClprSubmitBundle` |
-| `ACTIVE` | `CLOSED`  | `ClprCloseConnection` (admin) |
-| `HALTED` | `ACTIVE`  | `ClprResumeConnection` (admin) |
-| `HALTED` | `CLOSED`  | `ClprCloseConnection` (admin) |
+| From      | To        | Trigger                                                                 |
+|-----------|-----------|-------------------------------------------------------------------------|
+| `ACTIVE`  | `PAUSED`  | Auto: response ordering violation during `ClprSubmitBundle`             |
+| `ACTIVE`  | `CLOSING` | Admin: `ClprCloseConnection`, or peer's `ClprQueueMetadata.state` is `CLOSING`/`DRAINED` |
+| `PAUSED`  | `ACTIVE`  | Auto: peer fixes ordering (if admin hasn't closed)                     |
+| `PAUSED`  | `CLOSING` | Admin: `ClprCloseConnection` — Connection drains once peer fixes ordering |
+| `CLOSING` | `DRAINED` | Auto: peer has acknowledged all outbound messages                       |
+| `DRAINED` | `CLOSED`  | Auto: both sides are `DRAINED`                                         |
 
 `CLOSED` is a terminal state with no outgoing transitions.
 
@@ -460,27 +453,28 @@ public final class ClprServiceImpl implements ClprService {
 Each HAPI transaction type maps to a `TransactionHandler` implementation. Handlers follow the standard
 `preHandle(PreHandleContext)` / `handle(HandleContext)` pattern.
 
-| Handler Class | Transaction Type | Complexity |
-|---|---|---|
-| `ClprSetLedgerConfigurationHandler` | `ClprSetLedgerConfiguration` | Medium (admin key check, store config). The handler sets `protocol_version` automatically from the CLPR service code version (callers do not supply it). The `chain_id` is immutable — it is determined by the ledger at CLPR activation time and cannot be modified via this transaction. |
-| `ClprRegisterConnectionHandler` | `ClprRegisterConnection` | Medium (ECDSA verify, verifyConfig call, store verifier contract and code fingerprint, Connection creation). The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
-| `ClprCloseConnectionHandler` | `ClprCloseConnection` | Low (status transition) |
-| `ClprHaltConnectionHandler` | `ClprHaltConnection` | Low (status transition) |
-| `ClprResumeConnectionHandler` | `ClprResumeConnection` | Low (status transition) |
-| `ClprRegisterConnectorHandler` | `ClprRegisterConnector` | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices. |
-| `ClprTopUpConnectorHandler` | `ClprTopUpConnector` | Low (balance update) |
-| `ClprWithdrawConnectorBalanceHandler` | `ClprWithdrawConnectorBalance` | Low (balance check + transfer) |
-| `ClprDeregisterConnectorHandler` | `ClprDeregisterConnector` | Medium (in-flight check, fund return) |
-| `ClprSubmitBundleHandler` | `ClprSubmitBundle` | **High** (per-endpoint throttle check, verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing) |
-| `ClprRedactMessageHandler` | `ClprRedactMessage` | Low (payload removal, slot retention) |
+| Handler Class                         | Transaction Type               | Complexity                                                                                                                                                                                                                                                                                 |
+|---------------------------------------|--------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ClprSetLedgerConfigurationHandler`   | `ClprSetLedgerConfiguration`   | Medium (admin key check, store config). The handler sets `protocol_version` automatically from the CLPR service code version (callers do not supply it). The `chain_id` is immutable — it is determined by the ledger at CLPR activation time and cannot be modified via this transaction. |
+| `ClprRegisterConnectionHandler`       | `ClprRegisterConnection`       | Medium (ECDSA verify, verifyConfig call, store verifier contract and code fingerprint, Connection creation). The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration.                                    |
+| `ClprCloseConnectionHandler`          | `ClprCloseConnection`          | Low (transition to CLOSING; `ClprQueueMetadata.state` reflects Connection status; automatic transition to DRAINED when peer acks all outbound, then to CLOSED when both sides DRAINED)                                                                                                       |
+| `ClprRegisterConnectorHandler`        | `ClprRegisterConnector`        | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices.               |
+| `ClprTopUpConnectorHandler`           | `ClprTopUpConnector`           | Low (balance update)                                                                                                                                                                                                                                                                       |
+| `ClprWithdrawConnectorBalanceHandler` | `ClprWithdrawConnectorBalance` | Low (balance check + transfer)                                                                                                                                                                                                                                                             |
+| `ClprDeregisterConnectorHandler`      | `ClprDeregisterConnector`      | Medium (in-flight check, fund return)                                                                                                                                                                                                                                                      |
+| `ClprSubmitBundleHandler`             | `ClprSubmitBundle`             | **High** (per-endpoint throttle check, verifier call, replay defense, hash chain verify, per-message dispatch, response generation, slashing)                                                                                                                                              |
+| `ClprRedactMessageHandler`            | `ClprRedactMessage`            | Low (payload removal, slot retention)                                                                                                                                                                                                                                                      |
 
 ### 3.2.1 Handler Details: ClprSubmitBundleHandler
 
 This is the most complex handler. Its `handle()` method implements the bundle verification algorithm from
 cross-platform spec section 4.2:
 
-1. **Verify Connection status.** Reject if `CLOSED`. **Note:** HALTED connections accept inbound
-   bundles (the halt only prevents new outbound messages). This ensures acknowledgements continue flowing.
+1. **Verify Connection status.** Reject if `CLOSED`. **Note:** PAUSED, CLOSING, and DRAINED connections
+   accept inbound bundles — syncs continue in both directions. PAUSED rejects bundles containing out-of-order
+   responses (nothing is processed, dispatched, or acked); when a bundle arrives with correctly ordered
+   responses, the Connection auto-resumes to ACTIVE and processes normally. CLOSING and DRAINED generate
+   `CONNECTION_CLOSED` responses without dispatch for any new Data Messages.
 2. **Call verifier contract** via `verifyBundle(proof_bytes)`. On Hiero, verifiers are system contracts invoked
    through the `HandleContext.dispatchChildTransaction()` or a dedicated verifier dispatch mechanism (see
    [section 5](#5-verifier-integration)). If verification fails, charge the submitter and reject.
@@ -491,12 +485,20 @@ cross-platform spec section 4.2:
 5. **Running hash verification.** Recompute SHA-256 chain from `received_running_hash` and compare against
    `sent_running_hash` from verifier metadata.
 
-> **Clarification (HALTED vs. Bad Bundle):** Steps 1-5 reject invalid bundles with no Connection state change
-> (no HALT). The Connection remains ACTIVE and will accept valid bundles. Only step 8 (response ordering
-> violation) triggers HALTED status, which requires admin intervention.
+> **Clarification (PAUSED vs. Bad Bundle):** Steps 1-5 reject invalid bundles with no Connection state change.
+> The Connection remains ACTIVE and will accept valid bundles. Only step 8 (response ordering violation)
+> triggers PAUSED status. While PAUSED, bundles containing out-of-order responses are rejected entirely
+> (no messages processed, no acks updated). The Connection auto-resumes to ACTIVE when a bundle arrives
+> with correctly ordered responses.
 
 6. **Acknowledgement update.** Update `acked_message_id` from `ClprQueueMetadata.received_message_id`. Delete
    acknowledged Response Messages and Control Messages from outbound queue.
+   **Queue state check:** After ack update, check `ClprQueueMetadata.state`. If `CLOSING` or `DRAINED` and
+   Connection is `ACTIVE` or `PAUSED`, transition to `CLOSING` (the local `ClprQueueMetadata.state` reflects
+   the Connection status). The peer has initiated a close; this side mirrors it.
+   **Drain check:** If Connection is `CLOSING` and peer has acked all outbound messages
+   (`acked_message_id >= next_message_id - 1`), transition Connection to `DRAINED`. If both sides are
+   `DRAINED`, transition Connection to `CLOSED`.
 7. **Lazy config propagation check.** If `connection.last_config_timestamp < current_config.consensus_timestamp`, enqueue a
    ConfigUpdate Control Message containing the current `ClprLedgerConfiguration` on this Connection's outbound
    queue and set `connection.last_config_timestamp = current_config.consensus_timestamp`.
@@ -505,8 +507,11 @@ cross-platform spec section 4.2:
    - **Data Message:** Resolve Connector via cross-chain mapping. Charge Connector (execution cost + margin).
      Dispatch to target application (see [section 7](#7-application-dispatch)). Generate Response Message and
      enqueue it.
-   - **Response Message:** Deliver to originating application. Verify ordering per spec section 4.5. If response
-     ordering violation detected, set Connection to `HALTED`.
+   - **Response Message:** Verify ordering per spec section 4.5. If response ordering violation detected, set
+     Connection to `PAUSED` and reject the entire bundle (no messages processed, no acks updated). When a
+     subsequent bundle arrives with correctly ordered responses, auto-resume to ACTIVE and process normally.
+   - **Data Message (CLOSING/DRAINED):** If Connection is CLOSING or DRAINED, generate a `CONNECTION_CLOSED` response without
+     dispatching to the target application. Connector is not charged, not slashed.
 
 **Failure isolation:** A failure on one message does not stop processing of remaining messages. Each message is
 handled independently.
@@ -538,7 +543,7 @@ section 4.3:
 Most CLPR handlers have minimal `preHandle` work, consistent with Hiero's design principle that `preHandle` only
 verifies the payer can pay:
 
-- **Admin transactions** (`SetLedgerConfiguration`, `Close`, `Halt`, `Resume`, `Redact`): `preHandle` adds the
+- **Admin transactions** (`SetLedgerConfiguration`, `Close`, `Redact`): `preHandle` adds the
   CLPR admin key to the required keys set.
 - **Connector admin transactions** (`TopUp`, `Withdraw`, `Deregister`): `preHandle` looks up the Connector and
   adds its admin key to the required keys set.
@@ -751,7 +756,7 @@ added. This is a future enhancement, not a launch requirement.
 The CLPR admin key is the trust anchor for all administrative operations on Hiero. It controls:
 
 - Setting the ledger configuration (throttles)
-- Closing, pausing, and resuming Connections
+- Closing Connections (from ACTIVE or PAUSED status)
 - Redacting messages from the outbound queue
 
 On Hedera mainnet, this key is controlled by the governing council. On HashSpheres, it is controlled by the
@@ -845,21 +850,19 @@ CLPR transactions follow Hiero's standard fee model: each transaction is charged
 
 Each handler registers a `ServiceFeeCalculator`:
 
-| Transaction | Fee Basis | Notes |
-|---|---|---|
-| `ClprSetLedgerConfiguration` | Fixed base | Admin operation; relatively rare. Config propagation is lazy, so no per-Connection enqueue at set time. |
-| `ClprRegisterConnection` | Fixed base + ECDSA verification cost | ECDSA verify + store verifier contract and code fingerprint |
-| `ClprUpdateEndpointRoster` | Fixed base + verification cost | |
-| `ClprCloseConnection` | Fixed base | Low; state transition only |
-| `ClprHaltConnection` | Fixed base | Low |
-| `ClprResumeConnection` | Fixed base | Low |
-| `ClprRegisterConnector` | Fixed base | |
-| `ClprTopUpConnector` | Fixed base | |
-| `ClprWithdrawConnectorBalance` | Fixed base | |
-| `ClprDeregisterConnector` | Fixed base | |
-| `ClprSendMessage` | Fixed base + per-byte payload cost + queue depth escalation | Primary user-facing fee |
-| `ClprSubmitBundle` | Fixed base + per-message processing cost | Typically paid by endpoint node; reimbursed by Connector margin |
-| `ClprRedactMessage` | Fixed base | Admin operation |
+| Transaction                    | Fee Basis                                                   | Notes                                                                                                   |
+|--------------------------------|-------------------------------------------------------------|---------------------------------------------------------------------------------------------------------|
+| `ClprSetLedgerConfiguration`   | Fixed base                                                  | Admin operation; relatively rare. Config propagation is lazy, so no per-Connection enqueue at set time. |
+| `ClprRegisterConnection`       | Fixed base + ECDSA verification cost                        | ECDSA verify + store verifier contract and code fingerprint                                             |
+| `ClprUpdateEndpointRoster`     | Fixed base + verification cost                              |                                                                                                         |
+| `ClprCloseConnection`          | Fixed base                                                  | Low; transition to CLOSING                                                                              |
+| `ClprRegisterConnector`        | Fixed base                                                  |                                                                                                         |
+| `ClprTopUpConnector`           | Fixed base                                                  |                                                                                                         |
+| `ClprWithdrawConnectorBalance` | Fixed base                                                  |                                                                                                         |
+| `ClprDeregisterConnector`      | Fixed base                                                  |                                                                                                         |
+| `ClprSendMessage`              | Fixed base + per-byte payload cost + queue depth escalation | Primary user-facing fee                                                                                 |
+| `ClprSubmitBundle`             | Fixed base + per-message processing cost                    | Typically paid by endpoint node; reimbursed by Connector margin                                         |
+| `ClprRedactMessage`            | Fixed base                                                  | Admin operation                                                                                         |
 
 ## 10.3 Connector Margin and Endpoint Reimbursement
 
@@ -1051,10 +1054,10 @@ same peer ledger, so ledger ID is insufficient as a key.
 
 ### F-8: Response Ordering Recovery
 
-**Resolved.** HALTED does not auto-recover, but it IS resumable by admin action. The admin coordinates with the
-peer to fix the bug, then calls `resumeConnection` to return the Connection to ACTIVE. If queue state is
-unrecoverable, the admin may close the Connection instead. Both the design doc and the cross-platform spec now
-agree on this model.
+**Resolved.** A response ordering violation transitions the Connection to PAUSED. PAUSED auto-recovers when the
+next bundle contains correctly ordered responses (if admin hasn't closed). Admin may close a PAUSED Connection
+(`closeConnection` transitions to CLOSING); the Connection drains once the peer fixes the ordering. If the
+peer never fixes the ordering, the Connection stays PAUSED (or CLOSING) indefinitely.
 
 ### F-9: Queue Metadata Naming
 

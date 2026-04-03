@@ -224,31 +224,51 @@ require multi-network infrastructure.
 
 ### 3.2.2 Connection Status Transitions
 
-- ACTIVE → HALTED via `haltConnection` (admin key required). Non-ACTIVE connections are rejected.
-- ACTIVE → CLOSED via `closeConnection` (admin key required).
-- HALTED → ACTIVE via `resumeConnection` (admin key required). Non-HALTED connections are rejected.
-- HALTED → CLOSED via `closeConnection` (admin key required).
+- ACTIVE → PAUSED automatically when a response ordering violation is detected during `submitBundle`
+  processing. No admin action triggers this transition.
+- ACTIVE → CLOSING via `closeConnection` (admin key required).
+- PAUSED → ACTIVE automatically when the next bundle contains correctly ordered responses (if admin
+  hasn't closed). No admin action triggers this transition.
+- PAUSED → CLOSING via `closeConnection` (admin key required). The Connection drains once the peer
+  fixes the response ordering.
+- CLOSING → DRAINED automatically when the peer acknowledges all outbound messages.
+- DRAINED → CLOSED automatically when both sides are DRAINED.
 - CLOSED is terminal; no further transitions are accepted.
-- HALTED is also triggered automatically by response ordering violation during `submitBundle` processing.
-  The admin-initiated and protocol-triggered halts produce the same state.
 
-### 3.2.3 HALTED Behavior
+### 3.2.3 PAUSED Behavior
 
-- No new outbound messages are accepted (sendMessage is rejected).
-- Inbound bundles are still accepted and processed (acknowledgements continue flowing).
-- The Connection can be resumed (HALTED → ACTIVE) or closed (HALTED → CLOSED).
+- No new outbound messages are accepted (`sendMessage` is rejected).
+- Inbound bundles containing out-of-order responses are rejected — nothing is processed, nothing
+  dispatched, no acks updated.
+- Outbound syncs continue (queued messages still flow to the peer).
+- `nextResponseExpectedId` does not advance.
+- Auto-resumes when the next bundle has correctly ordered responses — no admin intervention required.
+- Admin MAY close a PAUSED Connection (`closeConnection` transitions to CLOSING). The Connection cannot
+  drain until the peer fixes the ordering; once fixed, bundles process with `CONNECTION_CLOSED` responses
+  and queues drain normally.
 
-### 3.2.4 CLOSED Behavior
+### 3.2.4 CLOSING Behavior
+
+- No new outbound messages are accepted (`sendMessage` is rejected).
+- In-flight Data Messages receive `CONNECTION_CLOSED` responses without dispatch. No slashing occurs.
+- Acknowledgements continue flowing. Queues drain.
+- The `ClprQueueMetadata.state` reflects the Connection status and is propagated to the peer via the next sync.
+  The peer transitions its side to CLOSING as well.
+- When the peer has acknowledged all outbound messages, the Connection transitions to `DRAINED`.
+- Transitions to CLOSED automatically when both sides are `DRAINED`.
+- Closing is irreversible — there is no resume from CLOSING or DRAINED.
+
+### 3.2.5 CLOSED Behavior
 
 - All bundle submissions are rejected. No further processing occurs.
 - `sendMessage` calls are rejected.
 - The Connection cannot be reopened.
 
-### 3.2.5 Invalid Transition Rejection
+### 3.2.6 Invalid Transition Rejection
 
-- `haltConnection` on a HALTED or CLOSED connection is rejected.
-- `resumeConnection` on an ACTIVE or CLOSED connection is rejected.
-- `closeConnection` on an already-CLOSED connection is rejected.
+- `closeConnection` on a CLOSING, DRAINED, or CLOSED connection is rejected.
+- `closeConnection` on an ACTIVE or PAUSED connection succeeds (transitions to CLOSING).
+- No admin halt or resume transactions exist.
 
 ## 3.3 Connector Lifecycle
 
@@ -365,7 +385,7 @@ require multi-network infrastructure.
 - The source ledger walks its queue of unresponded Data Messages in order and matches each incoming
   response to the next expected Data Message.
 - If a response does not match the next expected Data Message, the Connection automatically transitions to
-  HALTED.
+  PAUSED. The Connection auto-resumes when the next bundle contains correctly ordered responses.
 
 ### 3.6.3 Data Message Retention
 
@@ -548,11 +568,15 @@ on both sides advances correctly.
 ### 4.1.3 Connection Lifecycle Under Traffic
 
 While messages are actively flowing:
-- Halt the Connection. Verify new sendMessage calls are rejected on the halted side, inbound bundles are
-  still processed, and acknowledgements continue flowing.
-- Resume the Connection. Verify normal operation resumes and queued messages are delivered.
-- Close the Connection while messages are in-flight. Verify all processing stops and the Connection reaches
-  terminal state.
+- Trigger a PAUSED state (inject a response ordering violation). Verify new `sendMessage` calls are
+  rejected, inbound bundles with out-of-order responses are rejected, outbound syncs continue, and existing
+  queued messages continue syncing.
+- Auto-resume: submit a bundle with correctly ordered responses. Verify the Connection transitions back
+  to ACTIVE and normal operation resumes.
+- Close the Connection via `closeConnection`. Verify the Connection transitions to CLOSING, the
+  `ClprQueueMetadata.state` carries the Connection status and propagates to the peer, in-flight messages
+  receive `CONNECTION_CLOSED` responses without dispatch, the Connection transitions to DRAINED when the
+  peer acks all outbound messages, and the Connection reaches CLOSED when both sides are DRAINED.
 
 ### 4.1.4 Config Propagation Across Ledgers
 
@@ -654,7 +678,7 @@ Connection operates independently. This topology is the foundation for multi-led
 
 ### 4.4.3 Connection Isolation
 
-In any multi-connection topology, verify that halting, closing, or overloading one Connection has no effect
+In any multi-connection topology, verify that pausing, closing, or overloading one Connection has no effect
 on other Connections — even when they share endpoints or Connectors.
 
 ---
@@ -766,18 +790,46 @@ on one side changes after the source-side authorization.
 
 Construct a scenario where the peer ledger sends responses out of order (e.g., response to message 3
 arrives before response to message 2). Verify the source ledger's CLPR Service detects the violation and
-automatically transitions the Connection to HALTED.
+automatically transitions the Connection to PAUSED.
 
-### 5.4.2 HALTED Connection Behavior
+### 5.4.2 PAUSED Connection Behavior
 
-After a response ordering violation triggers HALTED, verify: new sendMessage calls are rejected, inbound
-bundles from the peer are still processed (acknowledgements continue), and the Connection can be resumed
-by the admin.
+After a response ordering violation triggers PAUSED, verify: new `sendMessage` calls are rejected, inbound
+bundles containing out-of-order responses are rejected (nothing processed, nothing dispatched, no acks
+updated), outbound syncs continue (queued messages still flow), and `nextResponseExpectedId` does not
+advance.
 
-### 5.4.3 Resume After Fix
+### 5.4.3 Auto-Resume After Fix
 
-After the admin resumes a HALTED Connection, verify that normal operation continues — messages can be
-enqueued, bundles can be submitted, and responses are correctly ordered.
+After the peer fixes the ordering bug, submit a bundle with correctly ordered responses. Verify the
+Connection automatically transitions back to ACTIVE and normal operation continues — messages can be
+enqueued, bundles can be submitted, and responses are correctly ordered. No admin intervention is required.
+
+### 5.4.4 Admin Closes a PAUSED Connection
+
+While a Connection is PAUSED, call `closeConnection`. Verify the Connection transitions to CLOSING. Submit
+a bundle with out-of-order responses and verify it is still rejected (the ordering violation persists even in
+CLOSING). Then submit a bundle with correctly ordered responses: verify the bundle is processed with
+`CONNECTION_CLOSED` responses (since the Connection is CLOSING), and the Connection drains through
+DRAINED → CLOSED normally.
+
+### 5.4.5 CLOSING Propagation via Metadata
+
+Call `closeConnection` on an ACTIVE Connection. Verify: the Connection transitions to CLOSING, the
+`ClprQueueMetadata.state` carries the Connection status, the peer sees the state during the next sync and
+transitions its side to CLOSING as well. When the peer acknowledges all outbound messages, the Connection
+transitions to DRAINED. When both sides are DRAINED, the Connection transitions to CLOSED.
+
+### 5.4.6 In-Flight Message Resolution During CLOSING
+
+While a Connection is CLOSING, Data Messages that arrive from the peer (sent before the peer knew about the
+close) receive `CONNECTION_CLOSED` responses without dispatch. Verify: no Connector is charged, no slashing
+occurs, and the response is returned to the source.
+
+### 5.4.7 Connector Deregistration After Close
+
+After a Connection transitions through CLOSING and DRAINED to CLOSED, verify that Connectors with no remaining in-flight
+messages can successfully deregister and recover their balance and stake.
 
 ## 5.5 Network-Level Attacks
 
@@ -1080,34 +1132,40 @@ verifier and new endpoints is operational.
 
 ## 8.3 Verifier Compromise (R5)
 
-### 8.3.1 Halt Affected Connection
+### 8.3.1 Close Affected Connection
 
-Admin halts a Connection whose verifier is suspected of being compromised. Verify halt takes effect,
-inbound bundles are still processed (acknowledgements flow), and outbound messages are rejected.
+Admin closes a Connection whose verifier is suspected of being compromised via `closeConnection`. Verify
+the Connection transitions to CLOSING, in-flight messages receive `CONNECTION_CLOSED` responses, queues
+drain through DRAINED, and the Connection reaches CLOSED.
 
 ### 8.3.2 Migrate to Patched Verifier
 
 Register a new Connection with a patched verifier. Verify applications can migrate and the new Connection
 is operational.
 
-### 8.3.3 Close Compromised Connection
+### 8.3.3 Verify Compromised Connection Reaches Terminal State
 
-Close the original (compromised) Connection. Verify terminal state is reached.
+After the compromised Connection drains through CLOSING and DRAINED, verify it reaches CLOSED and no further
+interactions are possible.
 
 ## 8.4 Queue Corruption / Response Ordering Violation (R6)
 
-### 8.4.1 Automatic HALT on Ordering Violation
+### 8.4.1 Automatic PAUSE on Ordering Violation
 
-Inject an out-of-order response from the peer. Verify the Connection automatically transitions to HALTED.
+Inject an out-of-order response from the peer. Verify the Connection automatically transitions to PAUSED.
 
-### 8.4.2 Admin Resume After Fix
+### 8.4.2 Auto-Resume After Fix
 
-After the peer fixes the ordering bug, the admin resumes the Connection. Verify normal operation continues
-and subsequent responses are correctly ordered.
+After the peer fixes the ordering bug, submit a bundle with correctly ordered responses. Verify the
+Connection automatically transitions back to ACTIVE and subsequent responses are correctly ordered. No
+admin intervention is required.
 
-### 8.4.3 Close Irrecoverable Connection
+### 8.4.3 Persistent PAUSE When Peer Never Fixes
 
-If the queue state is irrecoverably corrupted, the admin closes the Connection. Verify terminal state.
+If the peer never fixes the response ordering, the Connection remains PAUSED indefinitely. Verify: syncs
+continue both directions, and no new messages are accepted. The admin may close the PAUSED Connection
+(transitions to CLOSING), but the Connection cannot drain until the peer fixes the ordering. While CLOSING
+with unresolved ordering, bundles with out-of-order responses are still rejected.
 
 ## 8.5 Network Partition (R7, R8)
 
@@ -1154,7 +1212,7 @@ in coverage that should be evaluated.
 |---|---|---|---|---|---|---|---|
 | §3.1.1 Configuration | ChainID, throttles, timestamps, seed endpoints | 3.1.1, 3.1.2, 3.10.1, 3.10.2, 3.10.3, 3.14.1 | 4.1.4 | — | — | — | — |
 | §3.1.2 Endpoint Roster | Per-endpoint throttle, peer selection, registration | 3.8.5, 3.9.1, 3.15.1, 3.15.2 | 4.1.5 | 5.2.2, 5.5.2 | — | 7.5.1, 7.5.2, 7.5.3 | 8.1.1, 8.1.2, 8.1.3 |
-| §3.1.3 Connections | Registration, lifecycle, status machine | 3.2.1, 3.2.2, 3.2.3, 3.2.4, 3.2.5, 3.16.1 | 4.1.3, 4.1.6 | — | 6.3.3 | — | 8.2.1, 8.3.1, 8.3.3 |
+| §3.1.3 Connections | Registration, lifecycle, status machine | 3.2.1, 3.2.2, 3.2.3, 3.2.4, 3.2.5, 3.2.6, 3.16.1 | 4.1.3, 4.1.6 | 5.4.4, 5.4.5, 5.4.6, 5.4.7 | 6.3.3 | — | 8.2.1, 8.3.1, 8.3.3 |
 | §3.1.4 Endpoint Protocol | Sync cycle, metadata exchange | 3.11.1 | 4.1.1, 4.2.1, 4.3.1 | 5.2.1, 5.2.2 | — | 7.2.2 | 8.5.1 |
 | §3.1.5 Verifier Contracts | verifyConfig, verifyBundle, verifyMetadata, trust | 3.5.1, 3.11.1 | 4.2.2 | 5.1.1, 5.1.2, 5.1.3, 5.1.4 | — | — | 8.3.1, 8.3.2 |
 | §3.1.6 Misbehavior Detection | Frequency, duplicate submission | 3.9.1, 3.9.2 | — | 5.2.1, 5.2.2 | — | — | — |
@@ -1164,7 +1222,7 @@ in coverage that should be evaluated.
 | §3.2.4 Bundle Verification | Replay defense, hash verification | 3.5.2, 3.5.3, 3.5.4, 3.5.5 | — | 5.1.1, 5.1.3, 5.2.5, 5.2.6 | — | — | — |
 | §3.2.5 Throughput Limits | Payload size, bundle size, sync size, gas | 3.5.4, 3.4.1, 3.10.1, 3.10.2, 3.10.3 | — | 5.2.4 | — | 7.1.3, 7.1.4 | — |
 | §3.2.6 Redaction | Payload removal, hash preservation, ordering | 3.7.1, 3.13.1, 3.13.2 | — | — | — | — | — |
-| §3.2.7 Response Ordering | Sequential responses, HALTED trigger, walk logic | 3.6.1, 3.6.2, 3.6.3, 3.12.1 | 4.1.3 | 5.4.1, 5.4.2, 5.4.3 | — | — | 8.4.1, 8.4.2, 8.4.3 |
+| §3.2.7 Response Ordering | Sequential responses, PAUSED trigger, auto-resume, walk logic | 3.6.1, 3.6.2, 3.6.3, 3.12.1 | 4.1.3 | 5.4.1, 5.4.2, 5.4.3, 5.4.4 | — | — | 8.4.1, 8.4.2, 8.4.3 |
 | §3.3.1 Connectors | Registration, cross-chain mapping | 3.3.1, 3.3.2, 3.3.3 | 4.1.7 | 5.3.3, 5.3.4, 5.3.5 | — | — | — |
 | §3.3.2 Sending | Authorization, enqueue, sender stamp | 3.4.1 | 4.1.2 | 5.3.4 | 6.1.1, 6.2.1 | 7.1.1 | — |
 | §3.3.3 Receiving | Dispatch, charging, margin, partial failure | 3.8.1, 3.12.3 | 4.1.1, 4.2.1 | 5.3.1, 5.3.2 | 6.1.3 | — | — |

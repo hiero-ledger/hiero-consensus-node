@@ -329,16 +329,16 @@ migration burden on every application and does not address response migration.
 
 Under the current specification, a Connector cannot deregister while it has unresolved in-flight messages.
 The `deregisterConnector` operation is rejected until every Data Message the Connector authorized has
-received a response. On an active, healthy Connection this is a manageable wait. On a HALTED Connection —
-particularly one halted due to a response ordering violation — messages may never resolve. The Connector's
+received a response. On an active, healthy Connection this is a manageable wait. On a PAUSED Connection —
+particularly one paused due to a response ordering violation — messages may never resolve. The Connector's
 entire `locked_stake` and `balance` are frozen indefinitely, with no mechanism to reduce exposure.
 
 This creates a disproportionate penalty for Connectors caught in circumstances outside their control. A
 response ordering violation is a peer-side bug, not the Connector's fault. Yet the Connector bears the full
 economic consequences: their funds are locked, they cannot redeploy capital to other Connections, and they
-have no timeline for resolution. The longer the Connection stays HALTED, the worse the Connector's position
-becomes — and the Connector has no power to fix the situation (only the CLPR Service Admin can resume or
-close the Connection).
+have no timeline for resolution. The longer the Connection stays PAUSED, the worse the Connector's position
+becomes — and the Connector has no power to fix the situation. The admin may close a PAUSED Connection
+(transitions to CLOSING), but the Connection cannot drain until the peer fixes the ordering.
 
 ## 3.2 Proposed Solution
 
@@ -385,22 +385,24 @@ admin. The CLPR Service:
 
 ## 3.3 Scenarios
 
-**HALTED connection, admin will eventually resume.** The Connector winds down, withdraws excess funds, and
-waits with minimal locked exposure. When the admin resumes the Connection and responses flow, each response
-either frees reserve (no slash) or consumes it (slash). Eventually all messages resolve and the Connector
-deregisters cleanly.
+**PAUSED Connection, peer eventually fixes ordering.** The Connector winds down, withdraws excess funds, and
+waits with minimal locked exposure. When the peer fixes the response ordering violation and the Connection
+auto-resumes to ACTIVE, responses flow normally. Each response either frees reserve (no slash) or consumes
+it (slash). Eventually all messages resolve and the Connector deregisters cleanly.
 
-**HALTED connection due to response ordering violation, responses stuck.** This is the most important
-scenario. Without wind-down, the Connector's entire stake is locked indefinitely — possibly forever if the
-bug is never fixed. With wind-down: the Connector immediately recovers everything above the reserve. The
-reserve sits locked until the admin either resumes (responses flow, slashing occurs or doesn't) or closes
-(no further responses, full reserve returned). The Connector's locked exposure drops from their entire
-`locked_stake` to just the reserve covering in-flight messages.
+**PAUSED Connection, peer never fixes ordering.** This is the most important scenario. Without wind-down, the
+Connector's entire stake is locked indefinitely — possibly forever if the bug is never fixed. With wind-down:
+the Connector immediately recovers everything above the reserve. The reserve sits locked until the peer fixes
+the ordering (Connection auto-resumes, responses flow, slashing occurs or doesn't). The Connector's locked
+exposure drops from their entire `locked_stake` to just the reserve covering in-flight messages. Note: the
+admin may close a PAUSED Connection (transitions to CLOSING), but it cannot drain until the peer fixes
+the ordering.
 
-**HALTED connection, admin closes.** When the Connection closes, all processing stops. No further response
-messages will arrive, so no further slashing can occur. The Connector's remaining reserve is returned in
-full at deregistration. The Connector's total loss is zero from the wind-down perspective — the only
-potential loss is from slashing that already occurred before the Connection closed.
+**CLOSING Connection.** When the admin calls `closeConnection`, the Connection transitions to CLOSING: queued
+messages receive `CONNECTION_CLOSED` responses (no slashing), and the Connection drains to CLOSED. Each
+`CONNECTION_CLOSED` response frees reserve (no slash). The Connector's remaining reserve is returned in full
+at deregistration. CLOSING resolves the indefinite lock-up problem for admin-initiated exits — the Connector
+is no longer blocked waiting for responses that may never come.
 
 **Active connection, normal exit.** The Connector winds down on a healthy Connection. Authorization stops
 immediately. Responses flow normally and the reserve decrements with each one. This is strictly better than
@@ -439,14 +441,19 @@ from its previously authorized messages.
 ## 3.5 Value
 
 - **Directly solves the Connector deregistration timing problem.** This is an identified open issue in the
-  specification. The current model can lock Connector funds indefinitely on a HALTED Connection with no
-  resolution timeline. Wind-down provides an immediate, quantifiable reduction in exposure.
-- **Fair to Connectors.** A response ordering violation or an admin-initiated halt is not the Connector's
-  fault. Wind-down lets them limit their exposure to the actual risk (in-flight messages) rather than
-  bearing the full cost of a system-level problem.
+  specification. The current model can lock Connector funds indefinitely on a PAUSED Connection with no
+  resolution timeline (the peer may never fix the ordering violation, and even if the admin closes the
+  Connection it cannot drain until the peer fixes the ordering). Wind-down provides an immediate,
+  quantifiable reduction in exposure. For CLOSING Connections,
+  `CONNECTION_CLOSED` responses resolve messages without slashing, so the Connector drains naturally —
+  wind-down is still useful to release excess funds faster during the drain period.
+- **Fair to Connectors.** A response ordering violation is not the Connector's fault. Wind-down lets them
+  limit their exposure to the actual risk (in-flight messages) rather than bearing the full cost of a
+  system-level problem.
 - **Encourages Connector participation.** Connector Operators evaluating the risk of serving a Connection
   will be more willing to participate if they know they can limit their downside in adverse scenarios.
-  Without wind-down, serving a Connection is an open-ended commitment with unbounded lock-up risk.
+  Without wind-down, serving a Connection is an open-ended commitment with unbounded lock-up risk on
+  PAUSED Connections.
 - **Modest specification change.** One new operation (`windDownConnector`), one new Connector state
   (winding down), and a reserve computation that uses data the CLPR Service already tracks (unresolved
   message count per Connector, slashing schedule). No new Control Message types, no cross-ledger
