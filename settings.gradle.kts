@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 plugins {
     id("org.hiero.gradle.build") version "0.7.6"
-    id("com.hedera.pbj.pbj-compiler") version "0.14.5" apply false
+    id("com.hedera.pbj.pbj-compiler") version "0.15.0" apply false
 }
 
 // Configure test retry for CI flaky test handling using the retry plugin bundled with Develocity.
