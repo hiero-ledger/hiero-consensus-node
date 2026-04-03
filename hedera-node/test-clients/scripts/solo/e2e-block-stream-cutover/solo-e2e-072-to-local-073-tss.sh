@@ -18,12 +18,13 @@ CLEAN_SOLO_STATE="${CLEAN_SOLO_STATE:-true}"
 WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v0.2.0}"
 
 UPGRADE_072_RELEASE_TAG="${UPGRADE_072_RELEASE_TAG:-v0.72.0-rc.2}"
-UPGRADE_073_RELEASE_TAG="${UPGRADE_073_RELEASE_TAG:-v0.73.0-rc.1}"
+UPGRADE_073_VERSION="${UPGRADE_073_VERSION:-v0.73.0-rc.1}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 APP_PROPS_072_FILE="${SCRIPT_DIR}/resources/0.72/application.properties"
 APP_PROPS_073_FILE="${SCRIPT_DIR}/resources/0.73/application.properties"
 APP_ENV_073_FILE="${SCRIPT_DIR}/resources/0.73/application.env"
 LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
+REMEDY_SCRIPT_PATH="${SCRIPT_DIR}/solo-remedy-local-artifact-copy.sh"
 
 SOLO_HOME_DIR="${HOME}/.solo"
 CLUSTER_CREATED_THIS_RUN="false"
@@ -33,14 +34,25 @@ log() {
 }
 
 cleanup_solo_state() {
+  local wraps_backup_dir=""
+
   if [[ "${CLEAN_SOLO_STATE}" != "true" ]]; then
     return 0
   fi
 
   log "Cleaning Solo state under ${SOLO_HOME_DIR}"
+  if [[ -d "${WRAPS_KEY_PATH}" && "${WRAPS_KEY_PATH}" == "${SOLO_HOME_DIR}/cache/"* ]]; then
+    wraps_backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/solo-wraps.XXXXXX")"
+    mv "${WRAPS_KEY_PATH}" "${wraps_backup_dir}/$(basename "${WRAPS_KEY_PATH}")"
+  fi
   rm -rf "${SOLO_HOME_DIR}/cache" >/dev/null 2>&1 || true
   rm -rf "${SOLO_HOME_DIR}/logs" >/dev/null 2>&1 || true
   rm -f "${SOLO_HOME_DIR}/local-config.yaml" >/dev/null 2>&1 || true
+  if [[ -n "${wraps_backup_dir}" && -d "${wraps_backup_dir}/$(basename "${WRAPS_KEY_PATH}")" ]]; then
+    mkdir -p "$(dirname "${WRAPS_KEY_PATH}")"
+    mv "${wraps_backup_dir}/$(basename "${WRAPS_KEY_PATH}")" "${WRAPS_KEY_PATH}"
+    rmdir "${wraps_backup_dir}" >/dev/null 2>&1 || true
+  fi
 }
 
 cleanup() {
@@ -246,16 +258,26 @@ verify_local_build_on_consensus_nodes() {
   done
 }
 
-append_upgrade_wraps_key_path_arg() {
-  local -n args_ref="$1"
+upgrade_failed_due_to_copy_error() {
+  local log_file="${SOLO_HOME_DIR}/logs/solo.log"
+  [[ -f "${log_file}" ]] || return 1
+  tail -n 200 "${log_file}" | grep -Eq \
+    'Error in copying local build to node|test -d "/opt/hgcapp/services-hedera/HapiApp2.0/wraps-v0.2.0"'
+}
 
-  [[ -d "${WRAPS_KEY_PATH}" ]] || {
-    echo "Missing WRAPS_KEY_PATH directory: ${WRAPS_KEY_PATH}" >&2
+run_local_copy_remedy() {
+  [[ -f "${REMEDY_SCRIPT_PATH}" ]] || {
+    echo "Missing remedy script: ${REMEDY_SCRIPT_PATH}" >&2
     return 1
   }
 
-  log "Using WRAPS key path for upgrade: ${WRAPS_KEY_PATH}"
-  args_ref+=(--wraps-key-path "${WRAPS_KEY_PATH}")
+  log "Solo upgrade failed with a copy-related error; invoking remedy script"
+  SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT}" \
+  SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
+  NODE_ALIASES="${NODE_ALIASES}" \
+  LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH}" \
+  WRAPS_KEY_PATH="${WRAPS_KEY_PATH}" \
+  bash "${REMEDY_SCRIPT_PATH}"
 }
 
 deploy_baseline_072() {
@@ -279,7 +301,6 @@ deploy_baseline_072() {
     --log4j2-xml "${LOG4J2_XML_PATH}"
     --pvcs true
     --release-tag "${UPGRADE_072_RELEASE_TAG}"
-    --wraps
   )
   "${deploy_cmd[@]}"
   solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${UPGRADE_072_RELEASE_TAG}"
@@ -296,15 +317,26 @@ attempt_073_upgrade() {
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_073_RELEASE_TAG}"
+    --upgrade-version "${UPGRADE_073_VERSION}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_073_FILE}"
     --application-env "${APP_ENV_073_FILE}"
     --force
   )
-  append_upgrade_wraps_key_path_arg upgrade_cmd || return 1
+  [[ -d "${WRAPS_KEY_PATH}" ]] || {
+    echo "Missing WRAPS_KEY_PATH directory: ${WRAPS_KEY_PATH}" >&2
+    return 1
+  }
+  log "Using WRAPS key path for upgrade: ${WRAPS_KEY_PATH}"
+  upgrade_cmd+=(--wraps-key-path "${WRAPS_KEY_PATH}")
 
-  "${upgrade_cmd[@]}" || return 1
+  if ! "${upgrade_cmd[@]}"; then
+    if ! upgrade_failed_due_to_copy_error; then
+      return 1
+    fi
+
+    run_local_copy_remedy || return 1
+  fi
 
   wait_for_consensus_pods_ready 600 || return 1
   wait_for_haproxy_ready 600 || return 1
@@ -321,6 +353,7 @@ require_cmd unzip
 [[ -f "${APP_PROPS_073_FILE}" ]] || { echo "Missing file: ${APP_PROPS_073_FILE}" >&2; exit 1; }
 [[ -f "${APP_ENV_073_FILE}" ]] || { echo "Missing file: ${APP_ENV_073_FILE}" >&2; exit 1; }
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "Missing file: ${LOG4J2_XML_PATH}" >&2; exit 1; }
+[[ -f "${REMEDY_SCRIPT_PATH}" ]] || { echo "Missing file: ${REMEDY_SCRIPT_PATH}" >&2; exit 1; }
 
 validate_local_build_path "${LOCAL_BUILD_PATH}" || {
   echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}" >&2
