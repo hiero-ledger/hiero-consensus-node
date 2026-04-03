@@ -130,23 +130,29 @@ public class BlockBufferService {
             @NonNull final ConfigProvider configProvider, @NonNull final BlockStreamMetrics blockStreamMetrics) {
         this.configProvider = configProvider;
         this.blockStreamMetrics = blockStreamMetrics;
-        this.bufferIO = new BlockBufferIO(bufferDirectory(), maxReadDepth());
+        this.bufferIO = new BlockBufferIO(bufferConfig().bufferDirectory(), maxReadDepth());
+    }
+
+    /**
+     * @return the current {@link BlockStreamConfig} instance
+     */
+    private @NonNull BlockStreamConfig bsConfig() {
+        return configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+    }
+
+    /**
+     * @return the current {@link BlockBufferConfig} instance
+     */
+    private @NonNull BlockBufferConfig bufferConfig() {
+        return configProvider.getConfiguration().getConfigData(BlockBufferConfig.class);
     }
 
     private boolean isGrpcStreamingEnabled() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .streamToBlockNodes();
+        return bsConfig().streamToBlockNodes();
     }
 
     private boolean isBackpressureEnabled() {
-        return (configProvider
-                                .getConfiguration()
-                                .getConfigData(BlockStreamConfig.class)
-                                .streamMode()
-                        == StreamMode.BLOCKS
-                && isGrpcStreamingEnabled());
+        return bsConfig().streamMode() == StreamMode.BLOCKS & isGrpcStreamingEnabled();
     }
 
     public @Nullable BlockBufferStatus latestBufferStatus() {
@@ -211,10 +217,7 @@ public class BlockBufferService {
      * @return the interval in which the block buffer periodic operations will be invoked
      */
     private Duration workerTaskInterval() {
-        final Duration interval = configProvider
-                .getConfiguration()
-                .getConfigData(BlockBufferConfig.class)
-                .workerInterval();
+        final Duration interval = bufferConfig().workerInterval();
         if (interval.isNegative() || interval.isZero()) {
             return DEFAULT_WORKER_INTERVAL;
         } else {
@@ -226,10 +229,7 @@ public class BlockBufferService {
      * @return the configured maximum number of buffered blocks
      */
     private int maxBufferedBlocks() {
-        final int maxBufferedBlocks = configProvider
-                .getConfiguration()
-                .getConfigData(BlockBufferConfig.class)
-                .maxBlocks();
+        final int maxBufferedBlocks = bufferConfig().maxBlocks();
         return maxBufferedBlocks <= 0 ? DEFAULT_BUFFER_SIZE : maxBufferedBlocks;
     }
 
@@ -238,23 +238,8 @@ public class BlockBufferService {
      * taken to attempt buffery recovery
      */
     private double actionStageThreshold() {
-        final double threshold = configProvider
-                .getConfiguration()
-                .getConfigData(BlockBufferConfig.class)
-                .actionStageThreshold();
+        final double threshold = bufferConfig().actionStageThreshold();
         return Math.max(0.0D, threshold);
-    }
-
-    /**
-     * @return the minimum interval between when proactive actions are permitted. For example, if the period is 10
-     * seconds then attempts to switch block nodes due to elevated buffer saturation are only permitted every 10 seconds
-     */
-    private Duration actionGracePeriod() {
-        final Duration gracePeriod = configProvider
-                .getConfiguration()
-                .getConfigData(BlockBufferConfig.class)
-                .actionGracePeriod();
-        return gracePeriod == null || gracePeriod.isNegative() ? Duration.ZERO : gracePeriod;
     }
 
     /**
@@ -262,31 +247,8 @@ public class BlockBufferService {
      * disabled. For example, if the threshold is 60.0, then once back pressure is engaged
      */
     private double recoveryThreshold() {
-        final double threshold = configProvider
-                .getConfiguration()
-                .getConfigData(BlockBufferConfig.class)
-                .recoveryThreshold();
+        final double threshold = bufferConfig().recoveryThreshold();
         return Math.max(0.0D, threshold);
-    }
-
-    /**
-     * @return true if buffer persistence is enabled, else false
-     */
-    private boolean isBufferPersistenceEnabled() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockBufferConfig.class)
-                .isBufferPersistenceEnabled();
-    }
-
-    /**
-     * @return the directory where the block buffer will be persisted
-     */
-    private String bufferDirectory() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockBufferConfig.class)
-                .bufferDirectory();
     }
 
     /**
@@ -475,7 +437,7 @@ public class BlockBufferService {
      * Loads the latest block buffer from disk, if one exists.
      */
     private void loadBufferFromDisk() {
-        if (!isBufferPersistenceEnabled()) {
+        if (!bufferConfig().isBufferPersistenceEnabled()) {
             return;
         }
 
@@ -540,7 +502,7 @@ public class BlockBufferService {
      * when the buffer service is in a terminal state (i.e. {@link #isStarted} is set to false.)
      */
     private void persistBufferImpl() {
-        if (!isBufferPersistenceEnabled()) {
+        if (!bufferConfig().isBufferPersistenceEnabled()) {
             return;
         }
 

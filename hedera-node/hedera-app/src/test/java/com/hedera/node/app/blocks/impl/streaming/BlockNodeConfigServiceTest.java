@@ -594,19 +594,22 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(Files.deleteIfExists(filePath)).isTrue();
 
         final long waitingMillisStart = System.currentTimeMillis();
-        VersionedBlockNodeConfigurationSet updatedConfig = configService.latestConfiguration();
+        VersionedBlockNodeConfigurationSet postDeleteConfig = configService.latestConfiguration();
+        assertThat(postDeleteConfig).isNotNull();
 
         // wait for the configuration deletion to be detected
-        while (updatedConfig != null) {
+        while (initialConfig.versionNumber() >= postDeleteConfig.versionNumber()) {
             if ((System.currentTimeMillis() - waitingMillisStart) >= 10_000) {
                 fail("Waited 10 seconds for configuration update, but it never happened");
             }
 
             Thread.sleep(100);
-            updatedConfig = configService.latestConfiguration();
+            postDeleteConfig = configService.latestConfiguration();
+            assertThat(postDeleteConfig).isNotNull();
         }
 
-        assertThat(updatedConfig).isNull();
+        assertThat(postDeleteConfig).isNotNull();
+        assertThat(postDeleteConfig.configs()).isEmpty();
 
         // add the configuration back and make sure it is loaded successfully
         writeConfig("""
@@ -621,22 +624,23 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                 }
                 """);
 
-        updatedConfig = configService.latestConfiguration();
+        VersionedBlockNodeConfigurationSet postCreateConfig = configService.latestConfiguration();
+        assertThat(postCreateConfig).isNotNull();
 
         // wait for the configuration update to be detected
-        while (updatedConfig == null) {
+        while (postCreateConfig.versionNumber() <= postDeleteConfig.versionNumber()) {
             if ((System.currentTimeMillis() - waitingMillisStart) >= 10_000) {
                 fail("Waited 10 seconds for configuration update, but it never happened");
             }
 
             Thread.sleep(100);
-            updatedConfig = configService.latestConfiguration();
+            postCreateConfig = configService.latestConfiguration();
+            assertThat(postCreateConfig).isNotNull();
         }
 
-        assertThat(updatedConfig).isNotNull();
         // the previous delete operation increments the version counter, so once the new config is updated its version
         // will be set to 3 instead of 2
-        assertThat(updatedConfig.versionNumber()).isEqualTo(3L);
+        assertThat(postCreateConfig.versionNumber()).isEqualTo(3L);
     }
 
     @Test

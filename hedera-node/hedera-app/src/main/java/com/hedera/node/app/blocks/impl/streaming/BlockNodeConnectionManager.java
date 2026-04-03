@@ -165,6 +165,13 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * @return the current {@link BlockNodeConnectionConfig} instance
+     */
+    private @NonNull BlockNodeConnectionConfig bncConfig() {
+        return configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+    }
+
+    /**
      * @return true if block node streaming is enabled, else false
      */
     private boolean isStreamingEnabled() {
@@ -338,10 +345,7 @@ public class BlockNodeConnectionManager {
             return null;
         }
 
-        final Duration timeout = configProvider
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .blockNodeStatusTimeout();
+        final Duration timeout = bncConfig().blockNodeStatusTimeout();
 
         final List<RetrieveBlockNodeStatusTask> tasks = new ArrayList<>();
         for (final BlockNode node : nodes) {
@@ -552,7 +556,7 @@ public class BlockNodeConnectionManager {
                 try {
                     updateConnectionIfNeeded();
 
-                    Thread.sleep(connectionMonitorSleepMillis());
+                    Thread.sleep(bncConfig().connectionMonitorCheckIntervalMillis());
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
                     logger.warn("Connection monitor loop was interrupted; continuing", e);
@@ -560,13 +564,6 @@ public class BlockNodeConnectionManager {
                     logger.warn("Error caught in connection monitor loop; continuing", e);
                 }
             }
-        }
-
-        private int connectionMonitorSleepMillis() {
-            return configProvider
-                    .getConfiguration()
-                    .getConfigData(BlockNodeConnectionConfig.class)
-                    .connectionMonitorCheckIntervalMillis();
         }
     }
 
@@ -800,10 +797,7 @@ public class BlockNodeConnectionManager {
             return false;
         }
 
-        final long stalledConnectionThresholdMillis = configProvider
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .connectionStallThresholdMillis();
+        final long stalledConnectionThresholdMillis = bncConfig().connectionStallThresholdMillis();
         final long lastHeartbeatTimestamp = activeConnection.heartbeatTimestamp();
 
         if (lastHeartbeatTimestamp != -1) {
@@ -919,10 +913,7 @@ public class BlockNodeConnectionManager {
         }
 
         // set the global cool down so we don't try to switch connections too frequently
-        final int coolDownSeconds = configProvider
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .connectCoolDownSeconds();
+        final int coolDownSeconds = bncConfig().connectCoolDownSeconds();
         globalCoolDownTimestampRef.set(Instant.now().plusSeconds(coolDownSeconds));
     }
 

@@ -12,7 +12,6 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeStats.HighLatencyResul
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -121,7 +120,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * once it is finished it will close the connection.
      */
     private final AtomicBoolean closeAtNextBlockBoundary = new AtomicBoolean(false);
-
+    /**
+     * Reference to the reason why this connection is being closed. This is mainly used to track the close reason when
+     * the connection is intending to close at some time in the future - e.g. at the next close boundary.
+     */
     private final AtomicReference<CloseReason> pendingCloseReason = new AtomicReference<>();
     /**
      * Flag to indicate whether a final EndStream(RESET) message should be sent to the block node when this connection
@@ -138,10 +140,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      */
     private volatile long heartbeatTimestamp = -1;
     /**
-     * The
+     * The timestamp of when this connection should be auto reset - the "periodic" reset interval.
      */
     private final Instant autoResetTimestamp;
-
+    /**
+     * The block node associated with this connection.
+     */
     private final BlockNode blockNode;
 
     /**
@@ -170,12 +174,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.blockingIoExecutor = requireNonNull(blockingIoExecutor, "Blocking I/O executor must not be null");
-        final var blockNodeConnectionConfig =
-                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
-        this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
-        this.streamResetPeriodJitter = blockNodeConnectionConfig.streamResetPeriodJitter();
+        this.streamResetPeriod = bncConfig().streamResetPeriod();
+        this.streamResetPeriodJitter = bncConfig().streamResetPeriodJitter();
         this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
-        this.pipelineOperationTimeout = blockNodeConnectionConfig.pipelineOperationTimeout();
+        this.pipelineOperationTimeout = bncConfig().pipelineOperationTimeout();
 
         if (initialBlockToStream != null) {
             streamingBlockNumber.set(initialBlockToStream);
@@ -188,11 +190,18 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         autoResetTimestamp = calculateAutoResetTimestamp();
     }
 
+    /**
+     * @return the timestamp representing when this connection should be auto reset
+     */
     @NonNull
     Instant autoResetTimestamp() {
         return autoResetTimestamp;
     }
 
+    /**
+     * @return the most recent time when the worker associated with this connection performed any work, else -1 if it
+     * has never performed any work
+     */
     long heartbeatTimestamp() {
         return heartbeatTimestamp;
     }
@@ -207,10 +216,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             return;
         }
 
-        final Duration timeoutDuration = configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .grpcOverallTimeout();
+        final Duration timeoutDuration = bncConfig().grpcOverallTimeout();
 
         // Execute entire pipeline creation (including gRPC client creation) with timeout
         // to prevent blocking on network operations
@@ -284,20 +290,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         return Instant.now().plusMillis(baseDelayMs);
     }
 
-    private Duration getHighLatencyThreshold() {
-        return configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .highLatencyThreshold();
-    }
-
-    private int getHighLatencyEventsBeforeSwitching() {
-        return configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .highLatencyEventsBeforeSwitching();
-    }
-
     /**
      * Handles the {@link BlockAcknowledgement} response received from the block node.
      *
@@ -309,8 +301,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         acknowledgeBlocks(acknowledgedBlockNumber, true);
 
         // Evaluate latency and high-latency QoS via the connection manager
-        final Duration highLatencyThreshold = getHighLatencyThreshold();
-        final int maxHighLatencyEventsAllowed = getHighLatencyEventsBeforeSwitching();
+        final Duration highLatencyThreshold = bncConfig().highLatencyThreshold();
+        final int maxHighLatencyEventsAllowed = bncConfig().highLatencyEventsBeforeSwitching();
 
         final HighLatencyResult result = blockNode
                 .stats()
@@ -416,30 +408,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     }
 
     /**
-     * Gets the maximum number of EndOfStream responses allowed before taking corrective action.
-     *
-     * @return the maximum number of EndOfStream responses permitted
-     */
-    private int maxEndOfStreamsAllowed() {
-        return configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .maxEndOfStreamsAllowed();
-    }
-
-    /**
-     * Gets the configured timeframe for counting EndOfStream responses.
-     *
-     * @return the timeframe for rate limiting EndOfStream responses
-     */
-    private Duration endOfStreamTimeframe() {
-        return configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .endOfStreamTimeFrame();
-    }
-
-    /**
      * Handles the {@link EndOfStream} response received from the block node.
      * In most cases it indicates that the block node is unable to continue processing.
      * @param endOfStream the EndOfStream response received from the block node
@@ -459,8 +427,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         // Check if we've exceeded the EndOfStream rate limit
         // Record the EndOfStream event and check if the rate limit has been exceeded.
         // The connection manager maintains persistent stats for each node across connections.
-        final int maxEndStreamsAllowed = maxEndOfStreamsAllowed();
-        final Duration eosTimeframe = endOfStreamTimeframe();
+        final int maxEndStreamsAllowed = bncConfig().maxEndOfStreamsAllowed();
+        final Duration eosTimeframe = bncConfig().endOfStreamTimeFrame();
 
         if (blockNode.stats().addEndOfStreamAndCheckLimit(Instant.now(), maxEndStreamsAllowed, eosTimeframe)) {
             logger.info(
@@ -577,42 +545,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     }
 
     /**
-     * Gets the maximum number of BehindPublisher responses allowed before taking corrective action.
-     *
-     * @return the maximum number of BehindPublisher responses permitted
-     */
-    private int maxBehindPublishersAllowed() {
-        return configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .maxBehindPublishersAllowed();
-    }
-
-    /**
-     * Gets the configured timeframe for counting BehindPublisher responses.
-     *
-     * @return the timeframe for rate limiting BehindPublisher responses
-     */
-    private Duration behindPublisherTimeframe() {
-        return configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .behindPublisherTimeFrame();
-    }
-
-    /**
-     * Gets the ignore period for BehindPublisher responses.
-     *
-     * @return the ignore period for BehindPublisher responses
-     */
-    private Duration behindPublisherIgnorePeriod() {
-        return configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .behindPublisherIgnorePeriod();
-    }
-
-    /**
      * Handles the {@link BehindPublisher} response received from the block node.
      * If the consensus node has the requested block state available, it will start streaming it.
      * Otherwise, it will close the connection and retry with a different block node.
@@ -623,9 +555,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         requireNonNull(nodeBehind, "nodeBehind must not be null");
         final long blockNumber = nodeBehind.blockNumber();
         final Instant now = Instant.now();
-        final int maxBehindsAllowed = maxBehindPublishersAllowed();
-        final Duration behindTimeframe = behindPublisherTimeframe();
-        final Duration ignorePeriod = behindPublisherIgnorePeriod();
+        final int maxBehindsAllowed = bncConfig().maxBehindPublishersAllowed();
+        final Duration behindTimeframe = bncConfig().behindPublisherTimeFrame();
+        final Duration ignorePeriod = bncConfig().behindPublisherIgnorePeriod();
 
         // Check if we're within the ignore period (resets in new time window)
         if (blockNode.stats().shouldIgnoreBehindPublisher(now, ignorePeriod, behindTimeframe)) {
@@ -1078,8 +1010,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         private ConnectionWorkerLoopTask() {
             softLimitBytes = configuration().messageSizeSoftLimitBytes();
             hardLimitBytes = configuration().messageSizeHardLimitBytes();
-            requestBasePaddingBytes = requestPaddingBytes();
-            requestItemPaddingBytes = requestItemPaddingBytes();
+            requestBasePaddingBytes = bncConfig().streamingRequestPaddingBytes();
+            requestItemPaddingBytes = bncConfig().streamingRequestItemPaddingBytes();
 
             pendingRequestBytes = requestBasePaddingBytes;
         }
@@ -1108,7 +1040,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     }
 
                     if (shouldSleep) {
-                        Thread.sleep(connectionWorkerSleepMillis());
+                        final long sleepMillis =
+                                bncConfig().connectionWorkerSleepDuration().toMillis();
+                        Thread.sleep(sleepMillis);
                     }
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
@@ -1257,7 +1191,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 // If the duration since the last time of sending a request exceeds the max delay configuration,
                 // send the pending items
                 final long diffMillis = System.currentTimeMillis() - lastSendTimeMillis;
-                final long maxDelayMillis = maxRequestDelayMillis();
+                final long maxDelayMillis = bncConfig().maxRequestDelay().toMillis();
                 if (diffMillis >= maxDelayMillis) {
                     logger.trace(
                             "{} Max delay exceeded (target: {}ms, actual: {}ms) - sending {} item(s)",
@@ -1519,48 +1453,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         (oldBlock == null ? -1 : oldBlock.blockNumber()),
                         latestActiveBlockNumber);
             }
-        }
-
-        /**
-         * @return the maximum amount of time (in milliseconds) between sending requests to a block node
-         */
-        private long maxRequestDelayMillis() {
-            return configProvider()
-                    .getConfiguration()
-                    .getConfigData(BlockNodeConnectionConfig.class)
-                    .maxRequestDelay()
-                    .toMillis();
-        }
-
-        /**
-         * @return the amount of time (in milliseconds) to sleep between connection worker loop iterations
-         */
-        private long connectionWorkerSleepMillis() {
-            return configProvider()
-                    .getConfiguration()
-                    .getConfigData(BlockNodeConnectionConfig.class)
-                    .connectionWorkerSleepDuration()
-                    .toMillis();
-        }
-
-        /**
-         * @return the base number of bytes per request when estimating the total size of a given request
-         */
-        private int requestPaddingBytes() {
-            return configProvider()
-                    .getConfiguration()
-                    .getConfigData(BlockNodeConnectionConfig.class)
-                    .streamingRequestPaddingBytes();
-        }
-
-        /**
-         * @return the number of bytes to add per block item when estimating the total size of a given request
-         */
-        private int requestItemPaddingBytes() {
-            return configProvider()
-                    .getConfiguration()
-                    .getConfigData(BlockNodeConnectionConfig.class)
-                    .streamingRequestItemPaddingBytes();
         }
     }
 

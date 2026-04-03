@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -91,6 +92,13 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
         connectionId = ConnectionId.newConnectionId(type);
         stateRef = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         createTimestamp = Instant.now();
+    }
+
+    /**
+     * @return the current {@link BlockNodeConnectionConfig} instance
+     */
+    final @NonNull BlockNodeConnectionConfig bncConfig() {
+        return configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
     }
 
     /**

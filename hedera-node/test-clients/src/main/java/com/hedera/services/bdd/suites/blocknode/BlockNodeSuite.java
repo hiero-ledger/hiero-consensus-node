@@ -208,13 +208,8 @@ public class BlockNodeSuite {
                 blockNode(0).shutDownImmediately(),
                 waitUntilNextBlocks(halfBufferSize).withBackgroundTraffic(true),
                 // wait until the monitor detects saturation
-                sourcingContextual(
-                        spec -> assertBlockNodeCommsLogContainsTimeframe(
-                                byNodeId(0),
-                                timeRef::get,
-                                duration,
-                                duration,
-                                "Streaming connection update requested")),
+                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), timeRef::get, duration, duration, "Streaming connection update requested")),
                 // start the block node and let it catch up
                 blockNode(0).startImmediately(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
