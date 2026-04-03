@@ -24,6 +24,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext.InvalidAddressType;
 import com.hedera.node.app.service.contract.impl.utils.OpcodeUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -216,8 +217,7 @@ public class ActionStack {
                     if (CALL.equals(action.callType()) && haltReason == INVALID_SOLIDITY_ADDRESS) {
                         final var invalidAddressContext = FrameUtils.invalidAddressContext(frame);
                         // Only create the synth action if the invalid address was actually a call target
-                        if (InvalidAddressContext.InvalidAddressType.InvalidCallTarget.equals(
-                                invalidAddressContext.type())) {
+                        if (InvalidAddressType.INVALID_CALL_TARGET.equals(invalidAddressContext.type())) {
                             allActions.add(new ActionWrapper(helper.createSynthActionForMissingAddressIn(
                                     frame, invalidAddressContext.culpritAddress())));
                         }

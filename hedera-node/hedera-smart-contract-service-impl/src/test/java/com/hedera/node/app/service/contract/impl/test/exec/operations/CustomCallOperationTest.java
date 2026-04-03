@@ -77,7 +77,7 @@ class CustomCallOperationTest {
     @Test
     void withImplicitCreationEnabledDoesNoFurtherChecks() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
-            givenWellKnownFrameWith(1L, TestHelpers.EIP_1014_ADDRESS, 2L);
+            givenWellKnownFrameWithNoGasCalc(1L, TestHelpers.EIP_1014_ADDRESS, 2L);
             given(frame.isStatic()).willReturn(true);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.entityIdFactory(frame)).thenReturn(entityIdFactory);
@@ -101,7 +101,7 @@ class CustomCallOperationTest {
     @Test
     void withPresentEip1014ContinuesAsExpected() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
-            givenWellKnownFrameWith(1L, TestHelpers.EIP_1014_ADDRESS, 2L);
+            givenWellKnownFrameWithNoGasCalc(1L, TestHelpers.EIP_1014_ADDRESS, 2L);
             given(addressChecks.isPresent(EIP_1014_ADDRESS, frame)).willReturn(true);
             given(frame.isStatic()).willReturn(true);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
@@ -116,7 +116,6 @@ class CustomCallOperationTest {
 
     @Test
     void withSystemAccountContinuesAsExpected() {
-        givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
         given(frame.getStackItem(1)).willReturn(SYSTEM_ADDRESS.getBytes());
         given(addressChecks.isSystemAccount(SYSTEM_ADDRESS)).willReturn(true);
 
@@ -147,7 +146,6 @@ class CustomCallOperationTest {
     @Test
     void delegateToParentMissingAddressIfAllowCallFeatureFlagOn() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
-            givenWellKnownFrameWithNoGasCalc(1L, EIP_1014_ADDRESS, 2L);
             given(frame.getStackItem(1)).willReturn(TestHelpers.EIP_1014_ADDRESS.getBytes());
             given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(2l)));
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
@@ -196,14 +194,13 @@ class CustomCallOperationTest {
     }
 
     private void givenWellKnownFrameWithNoGasCalc(final long value, final Address to, final long gas) {
-        lenient().when(frame.getWorldUpdater()).thenReturn(worldUpdater);
-        given(frame.getStackItem(0)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
+        lenient().when(frame.getStackItem(0)).thenReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
         given(frame.getStackItem(1)).willReturn(to.getBytes());
         given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(value)));
-        given(frame.getStackItem(3)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(3)));
-        given(frame.getStackItem(4)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(4)));
-        given(frame.getStackItem(5)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(5)));
-        given(frame.getStackItem(6)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(6)));
+        lenient().when(frame.getStackItem(3)).thenReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(3)));
+        lenient().when(frame.getStackItem(4)).thenReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(4)));
+        lenient().when(frame.getStackItem(5)).thenReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(5)));
+        lenient().when(frame.getStackItem(6)).thenReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(6)));
     }
 
     /**

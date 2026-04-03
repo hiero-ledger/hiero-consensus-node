@@ -12,7 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
-import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext.InvalidAddressType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hyperledger.besu.datatypes.Address;
@@ -60,54 +60,52 @@ public class CustomCallOperation extends CallOperation {
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
         try {
-            final Address to = to(frame);
-            final boolean accountIsWarm =
-                    frame.warmUpAddress(to) || gasCalculator().isPrecompile(to);
-            final long stipend = gas(frame);
-            final long inputDataOffset = inputDataOffset(frame);
-            final long inputDataLength = inputDataLength(frame);
-            final long outputDataOffset = outputDataOffset(frame);
-            final long outputDataLength = outputDataLength(frame);
-            final Wei transferValue = value(frame);
-            final Address recipientAddress = address(frame);
-            final long staticCost = gasCalculator()
-                    .callOperationStaticGasCost(
-                            frame,
-                            stipend,
-                            inputDataOffset,
-                            inputDataLength,
-                            outputDataOffset,
-                            outputDataLength,
-                            transferValue,
-                            recipientAddress,
-                            accountIsWarm);
-
-            if (frame.getRemainingGas() < staticCost) {
-                return new OperationResult(staticCost, ExceptionalHaltReason.INSUFFICIENT_GAS);
-            }
-
-            long cost = gasCalculator()
-                    .callOperationGasCost(
-                            frame,
-                            staticCost,
-                            stipend,
-                            inputDataOffset,
-                            inputDataLength,
-                            outputDataOffset,
-                            outputDataLength,
-                            transferValue,
-                            recipientAddress,
-                            accountIsWarm);
-
-            if (frame.getRemainingGas() < cost) {
-                return new OperationResult(cost, ExceptionalHaltReason.INSUFFICIENT_GAS);
-            }
-
-            final var toAddress = to(frame);
-            final var isMissing = mustBePresent(frame, toAddress) && !addressChecks.isPresent(toAddress, frame);
+            final var to = to(frame);
+            final var isMissing = mustBePresent(frame, to) && !addressChecks.isPresent(to, frame);
             if (isMissing) {
-                FrameUtils.invalidAddressContext(frame)
-                        .set(toAddress, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
+                final var accountIsWarm =
+                        frame.warmUpAddress(to) || gasCalculator().isPrecompile(to);
+                final var stipend = gas(frame);
+                final var inputDataOffset = inputDataOffset(frame);
+                final var inputDataLength = inputDataLength(frame);
+                final var outputDataOffset = outputDataOffset(frame);
+                final var outputDataLength = outputDataLength(frame);
+                final var transferValue = value(frame);
+                final var recipientAddress = address(frame);
+                final var staticCost = gasCalculator()
+                        .callOperationStaticGasCost(
+                                frame,
+                                stipend,
+                                inputDataOffset,
+                                inputDataLength,
+                                outputDataOffset,
+                                outputDataLength,
+                                transferValue,
+                                recipientAddress,
+                                accountIsWarm);
+
+                if (frame.getRemainingGas() < staticCost) {
+                    return new OperationResult(staticCost, ExceptionalHaltReason.INSUFFICIENT_GAS);
+                }
+
+                var cost = gasCalculator()
+                        .callOperationGasCost(
+                                frame,
+                                staticCost,
+                                stipend,
+                                inputDataOffset,
+                                inputDataLength,
+                                outputDataOffset,
+                                outputDataLength,
+                                transferValue,
+                                recipientAddress,
+                                accountIsWarm);
+
+                if (frame.getRemainingGas() < cost) {
+                    return new OperationResult(cost, ExceptionalHaltReason.INSUFFICIENT_GAS);
+                }
+
+                FrameUtils.invalidAddressContext(frame).set(to, InvalidAddressType.INVALID_CALL_TARGET);
                 return new OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
             }
             return super.execute(frame, evm);

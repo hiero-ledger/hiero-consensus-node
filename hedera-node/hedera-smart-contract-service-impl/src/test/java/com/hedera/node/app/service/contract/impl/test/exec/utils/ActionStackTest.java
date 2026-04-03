@@ -55,6 +55,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.ActionStack;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionsHelper;
 import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext.InvalidAddressType;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
@@ -316,7 +317,7 @@ class ActionStackTest {
         given(parentFrame.getType()).willReturn(MessageFrame.Type.MESSAGE_CALL);
         given(parentFrame.getExceptionalHaltReason()).willReturn(Optional.of(INVALID_SOLIDITY_ADDRESS));
         final var invalidAddressContext = new InvalidAddressContext();
-        invalidAddressContext.set(Address.ZERO, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
+        invalidAddressContext.set(Address.ZERO, InvalidAddressType.INVALID_CALL_TARGET);
         given(parentFrame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
         given(parentFrame.getContextVariable(INVALID_ADDRESS_CONTEXT_VARIABLE)).willReturn(invalidAddressContext);
         given(helper.createSynthActionForMissingAddressIn(parentFrame, Address.ZERO))

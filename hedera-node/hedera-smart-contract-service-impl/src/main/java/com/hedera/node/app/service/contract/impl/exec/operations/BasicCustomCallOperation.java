@@ -10,7 +10,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
-import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
+import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext.InvalidAddressType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
@@ -194,8 +194,7 @@ public interface BasicCustomCallOperation {
             final var toAddress = to(frame);
             if (contractRequired(frame, toAddress, featureFlags())
                     && addressChecks().isNeitherSystemNorPresent(toAddress, frame)) {
-                FrameUtils.invalidAddressContext(frame)
-                        .set(toAddress, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
+                FrameUtils.invalidAddressContext(frame).set(toAddress, InvalidAddressType.INVALID_CALL_TARGET);
                 return new Operation.OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
             }
             return executeUnchecked(frame, evm);
