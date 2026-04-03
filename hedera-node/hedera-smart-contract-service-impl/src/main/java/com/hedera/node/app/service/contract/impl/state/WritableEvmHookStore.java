@@ -274,7 +274,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             if (!Bytes.EMPTY.equals(prevKey)) {
                 updateNextFor(new EvmHookSlotKey(hookId, prevKey), nextKey);
             }
-            firstKey = key.equals(firstKey) ? nextKey : firstKey;
+            firstKey = minimalKey.equals(firstKey) ? nextKey : firstKey;
         } catch (Exception irreparable) {
             // Since maintaining linked lists is not mission-critical, just log the error and continue
             log.warn(
