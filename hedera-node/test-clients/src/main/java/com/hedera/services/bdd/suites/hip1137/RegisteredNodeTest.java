@@ -69,7 +69,7 @@ public class RegisteredNodeTest {
     }
 
     private static final List<RegisteredServiceEndpoint> DEFAULT_ENDPOINTS = List.of(blockNodeEndpoint(
-            "blocknode.example.com", 8080, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.STATUS));
+            "blocknode.example.com", 8080, RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH));
 
     @HapiTest
     @DisplayName("create, update (admin key rotation), and delete")
