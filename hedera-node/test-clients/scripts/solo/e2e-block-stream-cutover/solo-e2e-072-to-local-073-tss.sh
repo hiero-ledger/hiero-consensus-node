@@ -16,15 +16,11 @@ CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
 CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
 OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
-RECREATE_CLUSTER="${RECREATE_CLUSTER:-false}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
 CLEAN_SOLO_STATE="${CLEAN_SOLO_STATE:-true}"
-REUSE_BASELINE_SNAPSHOT="${REUSE_BASELINE_SNAPSHOT:-true}"
-ROLLBACK_ON_UPGRADE_FAILURE="${ROLLBACK_ON_UPGRADE_FAILURE:-true}"
-CLEAN_RERUN="${CLEAN_RERUN:-false}"
 
 UPGRADE_072_RELEASE_TAG="${UPGRADE_072_RELEASE_TAG:-v0.72.0-rc.2}"
-UPGRADE_073_RELEASE_TAG="${UPGRADE_073_RELEASE_TAG:-0.73.0}"
+UPGRADE_073_RELEASE_TAG="${UPGRADE_073_RELEASE_TAG:-v0.73.0-rc.1}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 APP_PROPS_072_FILE="${SCRIPT_DIR}/resources/0.72/application.properties"
 APP_PROPS_073_FILE="${SCRIPT_DIR}/resources/0.73/application.properties"
@@ -33,47 +29,13 @@ LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
 
 WORK_DIR="$(mktemp -d)"
 SOLO_HOME_DIR="${HOME}/.solo"
-BASELINE_SNAPSHOT_DIR="${BASELINE_SNAPSHOT_DIR:-${SOLO_HOME_DIR}/baselines/${SOLO_DEPLOYMENT}-${UPGRADE_072_RELEASE_TAG#v}-${CONSENSUS_NODE_COUNT}n}"
 NODE_SCRIPT="${WORK_DIR}/sdk-crypto-create-check.js"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
 CN_PORT_FORWARD_PID=""
-UPGRADE_PID=""
 CLUSTER_CREATED_THIS_RUN="false"
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
-}
-
-parse_args() {
-  while (($# > 0)); do
-    case "$1" in
-      --clean-rerun)
-        CLEAN_RERUN="true"
-        ;;
-      *)
-        echo "Unknown argument: $1" >&2
-        echo "Usage: $0 [--clean-rerun]" >&2
-        exit 1
-        ;;
-    esac
-    shift
-  done
-}
-
-apply_run_mode_overrides() {
-  if [[ "${CLEAN_RERUN}" == "true" ]]; then
-    log "CLEAN_RERUN enabled: forcing fresh cluster/bootstrap and disabling baseline reuse for this run"
-    RECREATE_CLUSTER="true"
-    REUSE_BASELINE_SNAPSHOT="false"
-  fi
-}
-
-build_local_project() {
-  log "Building local project with ./gradlew clean assemble"
-  (
-    cd "${REPO_ROOT}"
-    ./gradlew clean assemble
-  )
 }
 
 cleanup_solo_state() {
@@ -91,9 +53,6 @@ cleanup() {
   local ec=$?
   if [[ -n "${CN_PORT_FORWARD_PID}" ]]; then
     kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${UPGRADE_PID}" ]]; then
-    kill "${UPGRADE_PID}" >/dev/null 2>&1 || true
   fi
   if [[ "${KEEP_NETWORK}" != "true" && "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
@@ -163,63 +122,40 @@ wait_for_haproxy_ready() {
   done
 }
 
-detect_image_pull_failures() {
-  kubectl -n "${SOLO_NAMESPACE}" get pods -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{range .status.initContainerStatuses[*]}{.state.waiting.reason}{" "}{end}{range .status.containerStatuses[*]}{.state.waiting.reason}{" "}{end}{"\n"}{end}' 2>/dev/null \
-    | awk '$0 ~ /(ErrImagePull|ImagePullBackOff)/ {print $1 "\t" $0}'
+namespace_exists() {
+  local namespace="$1"
+  kubectl get namespace "${namespace}" >/dev/null 2>&1
 }
 
-describe_failed_image_pull_pods() {
-  local failures="$1"
-  local pod=""
-  local seen=""
+wait_for_namespace_deleted() {
+  local namespace="$1"
+  local timeout_secs="${2:-300}"
+  local deadline=$((SECONDS + timeout_secs))
 
-  while IFS=$'\t' read -r pod _; do
-    [[ -n "${pod}" ]] || continue
-    if [[ " ${seen} " == *" ${pod} "* ]]; then
-      continue
+  while (( SECONDS < deadline )); do
+    if ! namespace_exists "${namespace}"; then
+      return 0
     fi
-    seen+=" ${pod}"
-    log "kubectl describe pod/${pod} (image pull failure)"
-    kubectl -n "${SOLO_NAMESPACE}" describe "pod/${pod}" >&2 || true
-  done <<< "${failures}"
-}
-
-run_with_image_pull_monitor() {
-  local context="$1"
-  shift
-
-  local cmd_pid=""
-  local failures=""
-
-  "$@" &
-  cmd_pid="$!"
-
-  while kill -0 "${cmd_pid}" >/dev/null 2>&1; do
-    failures="$(detect_image_pull_failures || true)"
-    if [[ -n "${failures}" ]]; then
-      echo "Detected Kubernetes image pull failures during ${context}:" >&2
-      printf '%s\n' "${failures}" >&2
-      describe_failed_image_pull_pods "${failures}"
-      kill "${cmd_pid}" >/dev/null 2>&1 || true
-      wait "${cmd_pid}" >/dev/null 2>&1 || true
-      return 1
-    fi
-    sleep 5
+    sleep 2
   done
 
-  wait "${cmd_pid}"
+  return 1
 }
 
-kind_cluster_exists() {
-  kind get clusters 2>/dev/null | grep -qx "${SOLO_CLUSTER_NAME}"
+delete_namespace_if_exists() {
+  local namespace="$1"
+
+  if ! namespace_exists "${namespace}"; then
+    return 0
+  fi
+
+  log "Deleting namespace ${namespace} for a clean baseline rerun"
+  kubectl delete namespace "${namespace}" --wait=false >/dev/null 2>&1 || true
+  wait_for_namespace_deleted "${namespace}" 300
 }
 
-solo_namespace_exists() {
-  kubectl get namespace "${SOLO_NAMESPACE}" >/dev/null 2>&1
-}
-
-baseline_snapshot_exists() {
-  [[ -f "${BASELINE_SNAPSHOT_DIR}/metadata.env" ]]
+solo_remote_config_exists() {
+  kubectl -n "${SOLO_NAMESPACE}" get configmap solo-remote-config >/dev/null 2>&1
 }
 
 local_config_file() {
@@ -230,14 +166,14 @@ local_config_has_cluster_ref() {
   local config_file=""
   config_file="$(local_config_file)"
   [[ -f "${config_file}" ]] || return 1
-  rg -q "^[[:space:]]*kind-${SOLO_CLUSTER_NAME}:[[:space:]]+kind-${SOLO_CLUSTER_NAME}$" "${config_file}"
+  grep -Eq "^[[:space:]]*kind-${SOLO_CLUSTER_NAME}:[[:space:]]+kind-${SOLO_CLUSTER_NAME}$" "${config_file}"
 }
 
 local_config_has_deployment() {
   local config_file=""
   config_file="$(local_config_file)"
   [[ -f "${config_file}" ]] || return 1
-  rg -q "^[[:space:]]*name:[[:space:]]+${SOLO_DEPLOYMENT}$" "${config_file}"
+  grep -Eq "^[[:space:]]*name:[[:space:]]+${SOLO_DEPLOYMENT}$" "${config_file}"
 }
 
 local_config_deployment_has_cluster_ref() {
@@ -268,7 +204,18 @@ local_config_deployment_has_cluster_ref() {
   ' "${config_file}"
 }
 
+reset_local_solo_config_if_remote_config_missing() {
+  local config_file=""
+  config_file="$(local_config_file)"
+
+  if [[ -f "${config_file}" ]] && ! solo_remote_config_exists; then
+    log "solo-remote-config is missing; resetting local Solo config so deployment bootstrap can be recreated cleanly"
+    rm -f "${config_file}"
+  fi
+}
+
 configure_solo_deployment() {
+  reset_local_solo_config_if_remote_config_missing
   log "Configuring Solo deployment ${SOLO_DEPLOYMENT}"
   if ! local_config_has_cluster_ref; then
     solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
@@ -291,143 +238,6 @@ setup_cluster_support_services() {
   solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
 }
 
-baseline_expected_implementation_version() {
-  printf '%s\n' "${UPGRADE_072_RELEASE_TAG#v}"
-}
-
-consensus_nodes_match_version() {
-  local expected_version="$1"
-  local pod_version=""
-  local node=""
-  local pod=""
-  local nodes=()
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    pod_version="$(consensus_pod_implementation_version "${pod}" 2>/dev/null || true)"
-    [[ "${pod_version}" == "${expected_version}" ]] || return 1
-  done
-}
-
-baseline_network_is_reusable() {
-  local expected_version=""
-  local node=""
-  local pod_ready=""
-  local nodes=()
-
-  solo_namespace_exists || return 1
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    kubectl -n "${SOLO_NAMESPACE}" get "pod/network-${node}-0" >/dev/null 2>&1 || return 1
-    kubectl -n "${SOLO_NAMESPACE}" get "deployment/haproxy-${node}" >/dev/null 2>&1 || return 1
-    pod_ready="$(kubectl -n "${SOLO_NAMESPACE}" get "pod/network-${node}-0" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
-    [[ "${pod_ready}" == "True" ]] || return 1
-  done
-
-  expected_version="$(baseline_expected_implementation_version)"
-  consensus_nodes_match_version "${expected_version}"
-}
-
-current_consensus_pod_uids_csv() {
-  local node=""
-  local pod=""
-  local uid=""
-  local nodes=()
-  local uids=()
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    uid="$(kubectl -n "${SOLO_NAMESPACE}" get pod "${pod}" -o jsonpath='{.metadata.uid}')"
-    [[ -n "${uid}" ]] || return 1
-    uids+=("${uid}")
-  done
-
-  local joined=""
-  local index=0
-  for uid in "${uids[@]}"; do
-    if (( index > 0 )); then
-      joined+=","
-    fi
-    joined+="${uid}"
-    ((index += 1))
-  done
-  printf '%s\n' "${joined}"
-}
-
-wait_for_consensus_pod_recreation() {
-  local original_uids_csv="$1"
-  local timeout_secs="${2:-600}"
-  local deadline=$((SECONDS + timeout_secs))
-  local node=""
-  local pod=""
-  local current_uid=""
-  local nodes=()
-  local original_uids=()
-  local index=0
-  local all_changed=0
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  IFS=',' read -r -a original_uids <<< "${original_uids_csv}"
-
-  while (( SECONDS < deadline )); do
-    all_changed=1
-    index=0
-    for node in "${nodes[@]}"; do
-      pod="network-${node}-0"
-      current_uid="$(kubectl -n "${SOLO_NAMESPACE}" get pod "${pod}" -o jsonpath='{.metadata.uid}' 2>/dev/null || true)"
-      if [[ -z "${current_uid}" || "${current_uid}" == "${original_uids[${index}]:-}" ]]; then
-        all_changed=0
-        break
-      fi
-      ((index += 1))
-    done
-
-    if (( all_changed == 1 )); then
-      log "Consensus pods were recreated during the 0.73 upgrade"
-      return 0
-    fi
-    sleep 5
-  done
-
-  echo "Timed out waiting for consensus pod recreation during the 0.73 upgrade" >&2
-  return 1
-}
-
-stage_local_build_on_consensus_nodes() {
-  local node=""
-  local pod=""
-  local nodes=()
-  local remote_data_dir="/opt/hgcapp/services-hedera/HapiApp2.0/data"
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    log "Restaging local build apps/lib on ${pod}"
-    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "find '${remote_data_dir}/apps' -mindepth 1 -maxdepth 1 -exec rm -rf {} + && \
-       find '${remote_data_dir}/lib' -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
-    tar --disable-copyfile --no-mac-metadata --format ustar -cf - -C "${LOCAL_BUILD_PATH}" apps lib \
-      | kubectl -n "${SOLO_NAMESPACE}" exec -i "${pod}" -c root-container -- sh -lc \
-        "tar -xf - -C '${remote_data_dir}'"
-  done
-}
-
-restart_consensus_pods_to_pick_up_staged_build() {
-  local node=""
-  local pod=""
-  local nodes=()
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    log "Deleting ${pod} so it restarts with refreshed filesystem contents"
-    kubectl -n "${SOLO_NAMESPACE}" delete pod "${pod}" --wait=false
-  done
-}
-
 restart_port_forwards() {
   log "Starting/restarting consensus gRPC port-forward"
   if [[ -n "${CN_PORT_FORWARD_PID}" ]]; then
@@ -444,7 +254,6 @@ restart_port_forwards() {
   sleep 2
 
   wait_for_tcp_open "127.0.0.1" "${CN_GRPC_LOCAL_PORT}" 20 1 || {
-    tail -n 80 "${CN_PORT_FORWARD_LOG}" >&2 || true
     echo "Consensus gRPC port-forward did not become reachable" >&2
     return 1
   }
@@ -514,14 +323,14 @@ validate_local_build_path() {
 
 local_build_implementation_version() {
   unzip -p "${LOCAL_BUILD_PATH}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
-    | sed -n 's/^Implementation-Version: //p' | head -n 1
+    | sed -n 's/^Implementation-Version: //p' | tr -d '\r' | head -n 1
 }
 
 consensus_pod_implementation_version() {
   local pod="$1"
   kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
     "unzip -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps/HederaNode.jar META-INF/MANIFEST.MF 2>/dev/null \
-      | sed -n 's/^Implementation-Version: //p' | head -n 1"
+      | sed -n 's/^Implementation-Version: //p' | tr -d '\r' | head -n 1" 2>/dev/null
 }
 
 verify_local_build_on_consensus_nodes() {
@@ -548,8 +357,107 @@ verify_local_build_on_consensus_nodes() {
   done
 }
 
+consensus_node_metrics_show_active() {
+  local pod="$1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- bash -lc \
+    "curl -s http://localhost:9999/metrics \
+      | grep 'platform_PlatformStatus' \
+      | grep -v '#' \
+      | grep -Eq 'status=\"ACTIVE\".* 1\.0$| 2\.0$'" >/dev/null 2>/dev/null
+}
+
+wait_for_consensus_nodes_active_via_metrics() {
+  local timeout_secs="${1:-600}"
+  local deadline=$((SECONDS + timeout_secs))
+  local nodes=()
+  local node=""
+  local pod=""
+  local all_active=""
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+
+  while (( SECONDS < deadline )); do
+    all_active="true"
+    for node in "${nodes[@]}"; do
+      pod="network-${node}-0"
+      if ! consensus_node_metrics_show_active "${pod}"; then
+        all_active="false"
+        break
+      fi
+    done
+
+    if [[ "${all_active}" == "true" ]]; then
+      return 0
+    fi
+    sleep 5
+  done
+
+  return 1
+}
+
+solo_log_indicates_local_build_copy_failure() {
+  local solo_log="${SOLO_HOME_DIR}/logs/solo.log"
+  [[ -f "${solo_log}" ]] || return 1
+  grep -q "Error in copying local build to node" "${solo_log}"
+}
+
+restage_local_build_on_consensus_nodes() {
+  local node=""
+  local pod=""
+  local nodes=()
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    log "Restaging local build apps/lib on ${pod}"
+    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+      'mkdir -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps /opt/hgcapp/services-hedera/HapiApp2.0/data/lib && \
+       find /opt/hgcapp/services-hedera/HapiApp2.0/data/apps -mindepth 1 -delete && \
+       find /opt/hgcapp/services-hedera/HapiApp2.0/data/lib -mindepth 1 -delete'
+    tar --disable-copyfile --no-mac-metadata --format ustar -C "${LOCAL_BUILD_PATH}" -cf - apps lib \
+      | kubectl -n "${SOLO_NAMESPACE}" exec -i "${pod}" -c root-container -- sh -lc \
+          'tar -xf - -C /opt/hgcapp/services-hedera/HapiApp2.0/data'
+  done
+}
+
+restart_consensus_pods_after_manual_restaging() {
+  local node=""
+  local pod=""
+  local nodes=()
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    log "Deleting ${pod} so it restarts from the manually restaged local build"
+    kubectl -n "${SOLO_NAMESPACE}" delete pod "${pod}" --wait=false >/dev/null 2>&1 || true
+  done
+
+  wait_for_consensus_pods_ready 600
+  wait_for_haproxy_ready 600
+  wait_for_consensus_nodes_active_via_metrics 600
+}
+
+repair_local_build_staging_if_needed() {
+  if verify_local_build_on_consensus_nodes; then
+    return 0
+  fi
+
+  log "Detected incomplete local-build staging after Solo upgrade; applying post-upgrade restage workaround"
+  restage_local_build_on_consensus_nodes || return 1
+  restart_consensus_pods_after_manual_restaging || return 1
+  verify_local_build_on_consensus_nodes
+}
+
 deploy_baseline_072() {
   local deploy_cmd=()
+
+  if namespace_exists "${SOLO_NAMESPACE}"; then
+    log "Removing existing Solo namespace before baseline deploy"
+    solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
+    solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
+    delete_namespace_if_exists "${SOLO_NAMESPACE}"
+    configure_solo_deployment
+  fi
 
   log "Deploying baseline ${UPGRADE_072_RELEASE_TAG} consensus network"
   solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
@@ -564,109 +472,16 @@ deploy_baseline_072() {
     --pvcs true
     --release-tag "${UPGRADE_072_RELEASE_TAG}"
   )
-  run_with_image_pull_monitor "baseline ${UPGRADE_072_RELEASE_TAG} deploy" "${deploy_cmd[@]}"
+  "${deploy_cmd[@]}"
   solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${UPGRADE_072_RELEASE_TAG}"
-  solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+  solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --force-port-forward false
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-}
-
-capture_baseline_snapshot() {
-  local node=""
-  local pod=""
-  local nodes=()
-  local snapshot_tar=""
-
-  mkdir -p "${BASELINE_SNAPSHOT_DIR}"
-  rm -f "${BASELINE_SNAPSHOT_DIR}"/*.tar
-
-  log "Capturing reusable ${UPGRADE_072_RELEASE_TAG} baseline snapshot into ${BASELINE_SNAPSHOT_DIR}"
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    snapshot_tar="${BASELINE_SNAPSHOT_DIR}/${pod}.tar"
-    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "tar -cf - -C / \
-        opt/hgcapp/services-hedera/HapiApp2.0/data \
-        opt/hgcapp/services-hedera/HapiApp2.0/state \
-        opt/hgcapp/services-hedera/HapiApp2.0/output \
-        opt/hgcapp/recordStreams \
-        opt/hgcapp/blockStreams \
-        opt/hgcapp/eventsStreams" > "${snapshot_tar}"
-  done
-
-  cat > "${BASELINE_SNAPSHOT_DIR}/metadata.env" <<EOF
-SOLO_CLUSTER_NAME=${SOLO_CLUSTER_NAME}
-SOLO_DEPLOYMENT=${SOLO_DEPLOYMENT}
-SOLO_NAMESPACE=${SOLO_NAMESPACE}
-NODE_ALIASES=${NODE_ALIASES}
-UPGRADE_072_RELEASE_TAG=${UPGRADE_072_RELEASE_TAG}
-EOF
-}
-
-restore_snapshot_on_consensus_nodes() {
-  local node=""
-  local pod=""
-  local nodes=()
-  local snapshot_tar=""
-
-  baseline_snapshot_exists || {
-    echo "Baseline snapshot is missing from ${BASELINE_SNAPSHOT_DIR}" >&2
-    return 1
-  }
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    snapshot_tar="${BASELINE_SNAPSHOT_DIR}/${pod}.tar"
-    [[ -f "${snapshot_tar}" ]] || {
-      echo "Missing baseline snapshot tarball: ${snapshot_tar}" >&2
-      return 1
-    }
-    log "Restoring baseline snapshot into ${pod}"
-    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "mkdir -p \
-         /opt/hgcapp/services-hedera/HapiApp2.0/data \
-         /opt/hgcapp/services-hedera/HapiApp2.0/state \
-         /opt/hgcapp/services-hedera/HapiApp2.0/output \
-         /opt/hgcapp/recordStreams \
-         /opt/hgcapp/blockStreams \
-         /opt/hgcapp/eventsStreams && \
-       find /opt/hgcapp/services-hedera/HapiApp2.0/data -mindepth 1 -exec rm -rf {} + && \
-       find /opt/hgcapp/services-hedera/HapiApp2.0/state -mindepth 1 -exec rm -rf {} + && \
-       find /opt/hgcapp/services-hedera/HapiApp2.0/output -mindepth 1 -exec rm -rf {} + && \
-       find /opt/hgcapp/recordStreams -mindepth 1 -exec rm -rf {} + && \
-       find /opt/hgcapp/blockStreams -mindepth 1 -exec rm -rf {} + && \
-       find /opt/hgcapp/eventsStreams -mindepth 1 -exec rm -rf {} +"
-    kubectl -n "${SOLO_NAMESPACE}" exec -i "${pod}" -c root-container -- sh -lc "tar -xf - -C /" < "${snapshot_tar}"
-  done
-}
-
-restore_baseline_from_snapshot() {
-  baseline_snapshot_exists || {
-    echo "No reusable ${UPGRADE_072_RELEASE_TAG} baseline snapshot found at ${BASELINE_SNAPSHOT_DIR}" >&2
-    return 1
-  }
-
-  log "Restoring reusable ${UPGRADE_072_RELEASE_TAG} baseline snapshot"
-  if solo_namespace_exists; then
-    kubectl delete namespace "${SOLO_NAMESPACE}" --wait=true >/dev/null 2>&1 || true
-    while kubectl get namespace "${SOLO_NAMESPACE}" >/dev/null 2>&1; do
-      sleep 2
-    done
-  fi
-
-  deploy_baseline_072
-  restore_snapshot_on_consensus_nodes
-  restart_consensus_pods_to_pick_up_staged_build
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
-  consensus_nodes_match_version "$(baseline_expected_implementation_version)"
+  wait_for_consensus_nodes_active_via_metrics 600
 }
 
 attempt_073_upgrade() {
   local upgrade_cmd=()
-  local original_uids_csv=""
 
   restart_port_forwards
   prepare_js_sdk_runtime
@@ -676,42 +491,31 @@ attempt_073_upgrade() {
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
+    --upgrade-version "${UPGRADE_073_RELEASE_TAG}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_073_FILE}"
     --application-env "${APP_ENV_073_FILE}"
     --force
   )
 
-  original_uids_csv="$(current_consensus_pod_uids_csv)"
-
-  "${upgrade_cmd[@]}" &
-  UPGRADE_PID="$!"
-
-  if ! wait_for_consensus_pod_recreation "${original_uids_csv}" 600; then
-    wait "${UPGRADE_PID}" || true
-    UPGRADE_PID=""
-    return 1
+  if ! "${upgrade_cmd[@]}"; then
+    if ! solo_log_indicates_local_build_copy_failure; then
+      return 1
+    fi
+    log "Solo reported a local-build copy failure; attempting post-upgrade restage workaround after Solo exit"
   fi
 
-  wait_for_consensus_pods_ready 600
-  stage_local_build_on_consensus_nodes
-  restart_consensus_pods_to_pick_up_staged_build
-
-  wait "${UPGRADE_PID}"
-  UPGRADE_PID=""
-
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
-  restart_port_forwards
-  verify_local_build_on_consensus_nodes
+  wait_for_consensus_pods_ready 600 || return 1
+  wait_for_haproxy_ready 600 || return 1
+  repair_local_build_staging_if_needed || return 1
+  wait_for_consensus_nodes_active_via_metrics 600 || return 1
+  restart_port_forwards || return 1
 
   log "Post-upgrade check: crypto create on local 0.73 build with TSS enabled"
-  node "${NODE_SCRIPT}"
+  node "${NODE_SCRIPT}" || return 1
 }
 
 log "Validating prerequisites"
-parse_args "$@"
-apply_run_mode_overrides
 require_cmd kind
 require_cmd kubectl
 require_cmd solo
@@ -725,9 +529,6 @@ require_cmd lsof
 [[ -f "${APP_PROPS_073_FILE}" ]] || { echo "Missing file: ${APP_PROPS_073_FILE}" >&2; exit 1; }
 [[ -f "${APP_ENV_073_FILE}" ]] || { echo "Missing file: ${APP_ENV_073_FILE}" >&2; exit 1; }
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "Missing file: ${LOG4J2_XML_PATH}" >&2; exit 1; }
-[[ -x "${REPO_ROOT}/gradlew" ]] || { echo "Missing executable gradlew: ${REPO_ROOT}/gradlew" >&2; exit 1; }
-
-build_local_project
 
 validate_local_build_path "${LOCAL_BUILD_PATH}" || {
   echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}" >&2
@@ -737,41 +538,20 @@ validate_local_build_path "${LOCAL_BUILD_PATH}" || {
 
 cleanup_stale_port_forwards
 
-if [[ "${RECREATE_CLUSTER}" == "true" ]] || ! kind_cluster_exists; then
-  log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
-  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
-  cleanup_solo_state
+log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
+kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+cleanup_solo_state
 
-  log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
-  kind create cluster -n "${SOLO_CLUSTER_NAME}"
-  CLUSTER_CREATED_THIS_RUN="true"
+log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
+kind create cluster -n "${SOLO_CLUSTER_NAME}"
+CLUSTER_CREATED_THIS_RUN="true"
 
-  configure_solo_deployment
-  setup_cluster_support_services
-else
-  log "Reusing existing Kind cluster ${SOLO_CLUSTER_NAME}"
-  configure_solo_deployment
-fi
+configure_solo_deployment
+setup_cluster_support_services
 
-if [[ "${REUSE_BASELINE_SNAPSHOT}" == "true" ]] && baseline_network_is_reusable; then
-  log "Reusing healthy ${UPGRADE_072_RELEASE_TAG} baseline already running in ${SOLO_NAMESPACE}"
-  if [[ "${REUSE_BASELINE_SNAPSHOT}" == "true" ]] && ! baseline_snapshot_exists; then
-    capture_baseline_snapshot
-  fi
-elif [[ "${REUSE_BASELINE_SNAPSHOT}" == "true" ]] && baseline_snapshot_exists; then
-  restore_baseline_from_snapshot
-else
-  deploy_baseline_072
-  if [[ "${REUSE_BASELINE_SNAPSHOT}" == "true" ]]; then
-    capture_baseline_snapshot
-  fi
-fi
+deploy_baseline_072
 
 if ! attempt_073_upgrade; then
-  if [[ "${ROLLBACK_ON_UPGRADE_FAILURE}" == "true" ]] && baseline_snapshot_exists; then
-    log "0.73 upgrade failed; restoring ${UPGRADE_072_RELEASE_TAG} baseline snapshot"
-    restore_baseline_from_snapshot
-  fi
   exit 1
 fi
 
