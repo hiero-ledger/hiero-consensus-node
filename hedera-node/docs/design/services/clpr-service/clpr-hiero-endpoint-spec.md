@@ -205,10 +205,11 @@ heartbeat syncing is needed to receive messages — the peer initiates the sync 
 this ledger. The endpoint module tracks inbound sync frequency per `(connection_id, remote_endpoint_account_id)`
 pair to detect abuse (see Section 12.1).
 
-**Connection status filtering.** Per cross-platform spec §2.1.1, Connections have four statuses. On Hiero, the
-sync orchestrator filters as follows: only ACTIVE Connections trigger outbound syncs. HALTED Connections remain
-available as a responder for inbound syncs (the peer may still have messages to deliver). CLOSED and HALTED
-Connections are skipped entirely (see Section 13.4 for HALTED behavior).
+**Connection status filtering.** Per cross-platform spec §2.1.1, Connections have five statuses. On Hiero, the
+sync orchestrator filters as follows: ACTIVE, PAUSED, CLOSING, and DRAINED Connections all participate in syncs
+(both inbound and outbound). PAUSED Connections continue outbound syncs and accept inbound syncs, but reject
+inbound bundles containing out-of-order responses. CLOSING and DRAINED Connections continue syncing to drain
+queues. Only CLOSED Connections are skipped entirely (see Section 13.4 for PAUSED, CLOSING, and DRAINED behavior).
 
 ## 3.2 Peer Endpoint Selection
 
@@ -749,26 +750,26 @@ No manual intervention is required for partition recovery.
 
 ## 11.1 Counters
 
-| Metric Name                          | Type    | Description                                                                   |
-|--------------------------------------|---------|-------------------------------------------------------------------------------|
-| `clpr.syncs.initiated`               | Counter | Total outbound sync calls initiated.                                          |
-| `clpr.syncs.completed`               | Counter | Total outbound sync calls that completed successfully.                        |
-| `clpr.syncs.failed`                  | Counter | Total outbound sync calls that failed (timeout, error, verification failure). |
-| `clpr.syncs.received`                | Counter | Total inbound sync calls received from peers.                                 |
-| `clpr.bundles.submitted`             | Counter | Total `submitBundle` transactions submitted to the ingest pipeline.           |
-| `clpr.bundles.accepted`              | Counter | Total bundles accepted post-consensus.                                        |
-| `clpr.bundles.rejected`              | Counter | Total bundles rejected post-consensus (replay, verification failure, etc.).   |
-| `clpr.bundles.rejected.replay`       | Counter | Bundles rejected specifically due to replay (already-received messages).      |
-| `clpr.bundles.rejected.verification` | Counter | Bundles rejected due to proof verification failure.                           |
-| `clpr.bundles.rejected.hashMismatch` | Counter | Bundles rejected due to running hash chain mismatch.                          |
-| `clpr.bundles.rejected.oversized`    | Counter | Bundles rejected due to exceeding size limits.                                |
-| `clpr.bundles.rejected.halted`       | Counter | Bundles rejected because the Connection is HALTED.                            |
-| `clpr.messages.sent`                 | Counter | Total messages enqueued in outbound queues (all Connections).                 |
-| `clpr.messages.received`             | Counter | Total messages received via bundles (all Connections).                        |
-| `clpr.messages.acked`                | Counter | Total messages acknowledged by peers.                                         |
-| `clpr.controlMessages.sent`          | Counter | Total Control Messages enqueued (ConfigUpdate).  |
-| `clpr.discovery.requests`            | Counter | Total `discoverEndpoints` requests received.  |
-| `clpr.discovery.responses`           | Counter | Total `discoverEndpoints` responses sent.  |
+| Metric Name                          | Type    | Description                                                                         |
+|--------------------------------------|---------|-------------------------------------------------------------------------------------|
+| `clpr.syncs.initiated`               | Counter | Total outbound sync calls initiated.                                                |
+| `clpr.syncs.completed`               | Counter | Total outbound sync calls that completed successfully.                              |
+| `clpr.syncs.failed`                  | Counter | Total outbound sync calls that failed (timeout, error, verification failure).       |
+| `clpr.syncs.received`                | Counter | Total inbound sync calls received from peers.                                       |
+| `clpr.bundles.submitted`             | Counter | Total `submitBundle` transactions submitted to the ingest pipeline.                 |
+| `clpr.bundles.accepted`              | Counter | Total bundles accepted post-consensus.                                              |
+| `clpr.bundles.rejected`              | Counter | Total bundles rejected post-consensus (replay, verification failure, etc.).         |
+| `clpr.bundles.rejected.replay`       | Counter | Bundles rejected specifically due to replay (already-received messages).            |
+| `clpr.bundles.rejected.verification` | Counter | Bundles rejected due to proof verification failure.                                 |
+| `clpr.bundles.rejected.hashMismatch` | Counter | Bundles rejected due to running hash chain mismatch.                                |
+| `clpr.bundles.rejected.oversized`    | Counter | Bundles rejected due to exceeding size limits.                                      |
+| `clpr.bundles.rejected.closed`       | Counter | Bundles rejected because the Connection is CLOSED.                                  |
+| `clpr.messages.sent`                 | Counter | Total messages enqueued in outbound queues (all Connections).                       |
+| `clpr.messages.received`             | Counter | Total messages received via bundles (all Connections).                              |
+| `clpr.messages.acked`                | Counter | Total messages acknowledged by peers.                                               |
+| `clpr.controlMessages.sent`          | Counter | Total Control Messages enqueued (ConfigUpdate).                                     |
+| `clpr.discovery.requests`            | Counter | Total `discoverEndpoints` requests received.                                        |
+| `clpr.discovery.responses`           | Counter | Total `discoverEndpoints` responses sent.                                           |
 | `clpr.misbehavior.detected`          | Counter | Total locally detected misbehavior events (excess frequency, duplicate submission). |
 
 ## 11.2 Gauges
@@ -776,8 +777,9 @@ No manual intervention is required for partition recovery.
 | Metric Name                            | Type  | Description                                        |
 |----------------------------------------|-------|----------------------------------------------------|
 | `clpr.connections.active`              | Gauge | Number of Connections in ACTIVE status.            |
-| `clpr.connections.halted`              | Gauge | Number of Connections in HALTED status.            |
-| `clpr.connections.halted`              | Gauge | Number of Connections in HALTED status.            |
+| `clpr.connections.paused`              | Gauge | Number of Connections in PAUSED status.            |
+| `clpr.connections.closing`             | Gauge | Number of Connections in CLOSING status.           |
+| `clpr.connections.drained`             | Gauge | Number of Connections in DRAINED status.           |
 | `clpr.queue.depth.{connection_id}`     | Gauge | Current outbound queue depth per Connection.       |
 | `clpr.peers.reachable.{connection_id}` | Gauge | Number of reachable peer endpoints per Connection. |
 | `clpr.syncs.inflight`                  | Gauge | Current number of in-progress outbound syncs.      |
@@ -918,22 +920,40 @@ When all peer endpoints for a Connection have open circuit breakers:
 
 ## 13.4 Graceful Degradation
 
-| Condition                    | Behavior                                                                                                 |
-|------------------------------|----------------------------------------------------------------------------------------------------------|
-| CLPR disabled at runtime     | Endpoint module goes dormant. No syncs, no gRPC service. Existing state preserved.                       |
-| No active Connections        | Endpoint module runs but does nothing. No resource consumption beyond the tick timer.                    |
-| All Connections HALTED       | Syncs still run (to receive inbound). Outbound enqueue rejected per spec §2.1.1.                         |
-| Connection HALTED            | See HALTED handling below.                                                                               |
-| Node catching up (reconnect) | Endpoint dormant until state is recovered.                                                               |
-| Signed state unavailable     | Syncs deferred until signed state is available (startup or reconnect edge case).                         |
+| Condition                    | Behavior                                                                                                    |
+|------------------------------|-------------------------------------------------------------------------------------------------------------|
+| CLPR disabled at runtime     | Endpoint module goes dormant. No syncs, no gRPC service. Existing state preserved.                          |
+| No active Connections        | Endpoint module runs but does nothing. No resource consumption beyond the tick timer.                       |
+| All Connections PAUSED       | Outbound syncs continue. Inbound bundles with out-of-order responses rejected. `sendMessage` rejected.      |
+| Connection PAUSED            | See PAUSED handling below.                                                                                  |
+| Connection CLOSING           | See CLOSING handling below.                                                                                 |
+| Node catching up (reconnect) | Endpoint dormant until state is recovered.                                                                  |
+| Signed state unavailable     | Syncs deferred until signed state is available (startup or reconnect edge case).                            |
 
-**HALTED Connection handling.** Per cross-platform spec §2.1.1, HALTED indicates a trust violation requiring
-admin intervention. On Hiero, the sync orchestrator reads Connection status from immutable state and:
+**PAUSED Connection handling.** Per cross-platform spec §2.1.1, PAUSED indicates a response ordering violation
+detected during `submitBundle`. Inbound bundles containing out-of-order responses are rejected — nothing is
+processed, nothing dispatched, no acks updated. On Hiero, the sync orchestrator reads Connection status from
+immutable state and:
 
-- Stops initiating outbound syncs for the HALTED Connection.
-- Rejects inbound sync calls referencing a HALTED Connection with a gRPC error before any proof construction
-  or transaction submission occurs.
-- The CLPR Service separately rejects any `submitBundle` transaction for a HALTED Connection during `handle()`.
+- Continues initiating outbound syncs for the PAUSED Connection (queued messages and acks still flow).
+- Continues accepting inbound sync calls for the PAUSED Connection.
+- Rejects inbound bundles with out-of-order responses. When a bundle arrives with correctly ordered responses,
+  the Connection auto-resumes to ACTIVE and the bundle is processed normally.
+
+**CLOSING Connection handling.** CLOSING indicates an admin-initiated close that is draining queues. On Hiero:
+
+- Continues initiating outbound syncs for the CLOSING Connection (acks and `CONNECTION_CLOSED` responses drain).
+- Continues accepting inbound sync calls for the CLOSING Connection.
+- When the peer has acknowledged all outbound messages, the Connection transitions to DRAINED. The
+  `ClprQueueMetadata.state` reflects the Connection status and is propagated to the peer via the next sync.
+- The CLPR Service generates `CONNECTION_CLOSED` responses for in-flight messages during `handle()`.
+
+**DRAINED Connection handling.** DRAINED indicates this side's outbound queue is fully acknowledged. On Hiero:
+
+- Continues accepting inbound sync calls (the peer may still be draining its side).
+- Continues initiating outbound syncs (to propagate the DRAINED status to the peer).
+- Transitions automatically to CLOSED when both sides are DRAINED.
+- No new messages are generated.
 
 ## 13.5 Submission Deduplication
 

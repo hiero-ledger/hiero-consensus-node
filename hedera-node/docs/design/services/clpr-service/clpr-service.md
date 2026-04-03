@@ -161,8 +161,8 @@ End User
 
 Orthogonally, two infrastructure roles support the entire system:
 
-- **CLPR Service Admin** — emergency authority over all Connections on a CLPR Service instance. Can halt or
-  close any Connection but has no role in selecting verifiers, Connectors, or applications.
+- **CLPR Service Admin** — emergency authority over all Connections on a CLPR Service instance. Can close
+  any Connection but has no role in selecting verifiers, Connectors, or applications.
 - **Endpoint Operator** — runs the infrastructure that moves bundles between ledgers. Serves all Connections
   on the ledger without choosing which ones.
 
@@ -211,7 +211,7 @@ node is automatically an endpoint. On Ethereum and other permissionless ledgers,
 post a bond.
 
 **CLPR Service Admin.** Governs a CLPR Service instance with broad but exclusively protective power — they can
-configure, halt, resume, close, and redact, but cannot create Connections, register Connectors, or participate in
+configure, close, and redact, but cannot create Connections, register Connectors, or participate in
 economic activity. On Hedera, this is the governing council. On Ethereum, it is whoever controls the CLPR Service
 contract's admin role.
 
@@ -459,8 +459,8 @@ bundle with messages requires having actual messages to send.
 
 Connection creation is **permissionless**. Anyone can register a new connection by deploying a verifier contract,
 obtaining a configuration proof from the peer ledger, and calling `registerConnection`. The verifier is fixed for
-the lifetime of the connection and cannot be changed. The CLPR Service admin retains the power to **halt or
-close** any connection at any time (see below).
+the lifetime of the connection and cannot be changed. The CLPR Service admin retains the power to **close**
+any connection at any time (see below).
 
 ```mermaid
 sequenceDiagram
@@ -511,30 +511,45 @@ confirmations. Each Connection uses a different verifier tuned to a specific com
 choice between lower latency and stronger finality guarantees. Each Connection has its own independent queue. See 
 [§3.4](#34-application-layer) for application-layer patterns that leverage this.
 
-**Connection lifecycle.** A Connection has three states:
+**Connection lifecycle.** A Connection has five states:
 
 - **ACTIVE** — Normal operation. Messages are enqueued, syncs occur, bundles are processed. This is the
   initial state after successful registration.
-- **HALTED** — The Connection is suspended. No new outbound messages are accepted. Inbound bundles are
-  still processed (acknowledgements continue flowing so the peer's queue does not stall). A Connection
-  can be halted by the CLPR Service admin (`haltConnection`) for investigation or maintenance, or
-  automatically by the protocol when a response ordering violation is detected during inbound bundle
-  processing ([§3.2.7](#327-response-ordering-and-correlation)). The admin can resume the Connection
-  (return to ACTIVE) once the issue is resolved, or close it.
+- **PAUSED** — The Connection is temporarily suspended due to a response ordering violation detected
+  during inbound bundle processing ([§3.2.7](#327-response-ordering-and-correlation)). No new outbound
+  messages are accepted (`sendMessage` rejected). Inbound bundles containing out-of-order responses are
+  rejected — nothing is dispatched, no acknowledgements updated, no hash chain advanced. The bundle is
+  simply unprocessable. Syncs continue in both directions. Auto-resumes to ACTIVE when the peer produces
+  a bundle with correctly ordered responses, which is then processed normally. The admin MAY close a PAUSED
+  Connection (`closeConnection` transitions it to CLOSING). While PAUSED+CLOSING, bundles with out-of-order
+  responses are still rejected; once the peer fixes the ordering, bundles are processed with
+  `CONNECTION_CLOSED` responses (since the Connection is CLOSING), and queues drain normally through
+  DRAINED → CLOSED.
+- **CLOSING** — The admin has called `closeConnection`. No new messages from applications. In-flight
+  messages received on a closed connection are returned with `CONNECTION_CLOSED` without charging the connector or
+  being handled by an application. Acknowledgments flow and queues drain. The Connection's state is propagated
+  to the peer via `ClprQueueMetadata` during the next sync, transitioning the peer's side to CLOSING as well.
+- **DRAINED** — The peer has acknowledged all outbound messages. The Connection remains in DRAINED until
+  both sides reach DRAINED, at which point both transition to CLOSED.
 - **CLOSED** — Terminal state. All processing stops. Endpoints stop syncing for this Connection.
 
 **State transitions:**
 
 - (new) → ACTIVE (`registerConnection` succeeds)
-- ACTIVE → HALTED (admin calls `haltConnection`, or response ordering violation detected)
-- ACTIVE → CLOSED (admin calls `closeConnection`)
-- HALTED → ACTIVE (admin calls `resumeConnection` — issue resolved)
-- HALTED → CLOSED (admin calls `closeConnection`)
+- ACTIVE → PAUSED (auto: response ordering violation detected)
+- ACTIVE → CLOSING (admin calls `closeConnection`)
+- PAUSED → ACTIVE (auto: peer fixes ordering — if admin hasn't closed)
+- PAUSED → CLOSING (admin calls `closeConnection` — Connection drains once peer fixes ordering)
+- CLOSING → DRAINED (auto: peer has acknowledged all outbound messages)
+- DRAINED → CLOSED (auto: both sides are DRAINED)
 
-**Who can halt and close.** Only the **CLPR Service admin** (governing council on Hiero, contract
-governance on Ethereum) can halt, resume, or close any Connection. Connections have no per-connection
-admin authority — the registrant has no special privileges after creation. The ECDSA keypair used for
-registration exists solely to coordinate cross-ledger registration and has no further protocol role.
+**Who can close.** Only the **CLPR Service admin** (governing council on Hiero, contract governance on
+Ethereum) can close any Connection. `closeConnection` is valid from ACTIVE or PAUSED status. PAUSED is
+auto-triggered and auto-resolved (back to ACTIVE) if the admin has not closed; if the admin closes a
+PAUSED Connection, it transitions to CLOSING and drains once the peer fixes the ordering. Connections
+have no per-connection admin authority — the registrant has no special privileges after creation. The
+ECDSA keypair used for registration exists solely to coordinate cross-ledger registration and has no
+further protocol role.
 
 **Verifier immutability.** The verifier contract is fixed at registration time and cannot be changed. If the source
 ledger upgrades its proof format, a new Connection must be registered with a new verifier. This simplifies the trust
@@ -997,17 +1012,18 @@ to `Ma2` (correct order), deletes `Ma2`. In a subsequent sync, `B` acks through 
 
 **Protocol violation.** The ordering guarantee is verified by the source ledger. If a peer ledger sends
 a valid state proof but the responses within it are out of order (e.g., R3 arrives before R2), the
-source ledger's CLPR Service automatically transitions the Connection to **HALTED**
+source ledger's CLPR Service automatically transitions the Connection to **PAUSED**
 ([§3.1.3](#313-establishing-and-updating-connections)). It does not slash — you cannot slash a peer
 ledger, only individual endpoints. The out-of-order responses are already committed in the peer's
-outbound queue and cannot be unsent. The admin must coordinate with the peer to fix the underlying
-bug (which may require a CLPR Service contract upgrade on platforms like Ethereum), then resume the
-Connection via `resumeConnection`.
+outbound queue and cannot be unsent. While PAUSED, no new messages are accepted, and inbound bundles with out-of-order
+responses are rejected outright — nothing is processed, dispatched, or acknowledged. Syncs continue. The
+Connection auto-resumes to ACTIVE when the next bundle from the peer contains correctly ordered
+responses, which is then processed normally — no admin intervention is needed or available.
 
 Note the distinction from bad inbound bundles: if a peer sends bundles that fail verification (bad
 hash chain, replay, oversized payloads), the CLPR Service simply rejects them — no state change.
 The Connection remains ACTIVE and will accept valid bundles as soon as the peer fixes the issue.
-HALTED is reserved exclusively for response ordering violations, which indicate corruption in the
+PAUSED is reserved exclusively for response ordering violations, which indicate corruption in the
 peer's response generation logic.
 
 ---
@@ -1162,10 +1178,11 @@ entire batch of otherwise valid messages behind it.
 When a response arrives on the source ledger, the CLPR Service inspects its status. Only
 **Connector-attributable failures** trigger slashing: `CONNECTOR_NOT_FOUND` and `CONNECTOR_UNDERFUNDED`. Application
 errors (`APPLICATION_ERROR`) do not result in slashing — the Connector fulfilled its obligation to pay; the application
-simply reverted. `SUCCESS` and `REDACTED` are non-penalized outcomes. The source Connector is penalized because it
-approved the message and implicitly promised that the destination side would pay. If the destination side could not or
-did not pay, that is the source Connector's fault — either it was not monitoring its counterpart's balance, or it was
-being reckless.
+simply reverted. `SUCCESS`, `REDACTED`, and `CONNECTION_CLOSED` are non-penalized outcomes. `CONNECTION_CLOSED`
+indicates the message was not dispatched because the Connection is CLOSING — the Connector is not at fault. The source
+Connector is penalized because it approved the message and implicitly promised that the destination side would pay. If
+the destination side could not or did not pay, that is the source Connector's fault — either it was not monitoring its
+counterpart's balance, or it was being reckless.
 
 Penalties are enforced on **both sides** of the Connection, and in both cases the endpoint that did the work receives
 the slash proceeds:
@@ -1278,8 +1295,8 @@ Application Developers call `sendMessage` and handle responses via callbacks. Ea
 `connection_id` and `connector_id`.
 
 **Ongoing obligations:** These are not one-time choices. Over the application's lifetime, the developer must
-monitor Connector health (balance declining, slashing events), watch for Connection status changes (HALTED,
-CLOSED), and be prepared to migrate when proof format upgrades render a Connection's verifier incompatible.
+monitor Connector health (balance declining, slashing events), watch for Connection status changes (PAUSED,
+CLOSING, CLOSED), and be prepared to migrate when proof format upgrades render a Connection's verifier incompatible.
 Well-designed applications treat `connection_id` and `connector_id` as configurable parameters, not hardcoded
 constants.
 
@@ -1303,8 +1320,9 @@ slashed with escalating penalties. If the destination-side registration lapses, 
 application could craft messages to maximize execution cost. Or it must have effective economic means of
 protecting itself.
 
-**Deregistration:** Blocked while in-flight messages exist. On a halted Connection, messages may never
-settle, potentially blocking deregistration indefinitely.
+**Deregistration:** Blocked while in-flight messages exist. On a PAUSED Connection, messages may be
+delayed until the peer fixes the ordering issue. On a CLOSING Connection, in-flight messages drain
+with `CONNECTION_CLOSED` responses, unblocking deregistration once the queues are empty.
 
 **Exit:** Update the authorization contract to reject all new messages, wait for in-flight messages to
 settle, then call `deregisterConnector` on both ledgers.
@@ -1320,7 +1338,7 @@ auditing firms, and competing Connectors seeking independence from a competitor'
 
 **Vulnerability response:** Issue a security advisory, coordinate with Connector Operators and the CLPR
 Service Admin. The Verifier Developer does not perform on-chain actions — the advisory prompts other roles
-to halt affected Connections and migrate.
+to close affected Connections and migrate.
 
 **Risks:** Proof format changes require new implementations. Upgrade keys on proxy verifiers create a
 single point of compromise. No in-protocol compensation creates a sustainability concern — though parties
@@ -1340,20 +1358,20 @@ cheap endpoint registrations can eclipse honest endpoints.
 
 ## 4.6 CLPR Service Admin
 
-The Admin's power is broad but exclusively protective: configure, halt, resume, close, and redact. They
-cannot create Connections, register Connectors, or participate in economic activity.
+The Admin's power is broad but exclusively protective: configure, close, and redact. They cannot create
+Connections, register Connectors, or participate in economic activity.
 
 **Operations:**
 - **Set configuration** — throttle adjustments, seed endpoint updates. Changes propagate lazily via
   ConfigUpdate Control Messages.
-- **Halt** — suspend a Connection (investigation, vulnerability report). Inbound bundles still processed.
-  Also triggered automatically by response ordering violations.
-- **Resume** — return a halted Connection to ACTIVE after the issue is resolved.
-- **Close** — permanently close a Connection. Terminal, cannot be reopened.
+- **Close** — initiate graceful shutdown of a Connection (transitions to CLOSING, then CLOSED once
+  queues drain). Valid from ACTIVE or PAUSED status. In-flight messages receive `CONNECTION_CLOSED`
+  responses without dispatch. If closed from PAUSED, the Connection drains once the peer fixes the
+  ordering. Irreversible.
 - **Redact** — remove a queued message's payload before delivery.
 
 **Risks:** Abuse of power (mitigated by governance mechanisms). Inaction — a compromised Connection not
-halted promptly allows continued exploitation. The Admin has no in-protocol economic incentive, creating a
+closed promptly allows continued exploitation. The Admin has no in-protocol economic incentive, creating a
 known gap between responsibility and motivation.
 
 ## 4.7 Cross-Role Scenarios
@@ -1380,12 +1398,12 @@ The source ledger must maintain backward compatibility long enough for migration
 ### Responding to a Compromised Verifier
 
 1. Vulnerability discovered. Security advisory issued.
-2. **CLPR Service Admin** halts affected Connections.
+2. **CLPR Service Admin** closes affected Connections (transitions to CLOSING; queues drain).
 3. **Verifier Developer** publishes a patched implementation.
 4. **Connector Operators** create new Connections with the patched verifier.
-5. **Application Developers** migrate. Admin closes old Connections.
+5. **Application Developers** migrate.
 
-The window of vulnerability is between discovery and halt.
+The window of vulnerability is between discovery and close.
 
 ### Connector Withdrawal Under Load
 
@@ -1407,8 +1425,8 @@ should be used as the basis for integration and fault-tolerance testing.
 | R2 | **Source ledger upgrades proof format.** Syncs are active but the existing verifier cannot read the new format.                      | Breaks when source switches | Register a new Connection with a new verifier that understands the new proof format. Applications migrate to the new Connection. The old Connection can be closed by the CLPR Service admin.                      | **Works** (requires new Connection).     |
 | R3 | **Endpoints rotated, proof format unchanged.** Sync channel broken, but existing verifier can still read proofs.                     | Broken                      | Endpoint discovery (R1), then ConfigUpdate flows normally once syncs resume.                                                                                                                                      | **Works.**                               |
 | R4 | **Endpoints rotated AND proof format changed.** Sync channel broken, existing verifier cannot read new proofs.                       | Broken                      | Register a new Connection with a new verifier. Endpoint discovery (R1) on the new Connection. Old Connection closed by admin. Applications migrate to the new Connection.                                         | **Works** (requires new Connection).     |
-| R5 | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                             | Suspect                     | CLPR Service admin halts the Connection. Since the verifier is immutable, the Connection must be closed. A new Connection with a correct verifier can be registered.                                              | **Works.**                               |
-| R6 | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                      | Working                     | Connection is automatically HALTED ([§3.2.7](#327-response-ordering-and-correlation)). CLPR Service admin coordinates with peer to fix the bug, then closes and re-registers.                                     | **Works** (requires admin intervention). |
+| R5 | **Verifier compromised or broken.** The Connection's verifier is returning fabricated or incorrect data.                             | Suspect                     | CLPR Service admin closes the Connection (transitions through CLOSING to drain queues). Since the verifier is immutable, a new Connection with a correct verifier must be registered.                             | **Works.**                               |
+| R6 | **Queue state permanently corrupted on peer.** Peer cannot produce correctly ordered responses.                                      | Working                     | Connection is automatically PAUSED ([§3.2.7](#327-response-ordering-and-correlation)). Auto-resumes if the peer fixes the ordering. Admin may close a PAUSED Connection (transitions to CLOSING); the Connection drains once the peer fixes the ordering. If the peer cannot fix it, the Connection stays PAUSED (or CLOSING) indefinitely. Peer must fix the bug (which may require a CLPR Service upgrade), then responses resume and the Connection recovers. | **Works** (requires peer fix). |
 | R7 | **Network partition (endpoints unchanged).** Temporary connectivity loss between endpoints.                                          | Temporarily broken          | Syncs resume automatically when connectivity returns. Monotonic IDs and running hash verify integrity. No intervention needed.                                                                                    | **Works.**                               |
 | R8 | **Peer ledger down entirely.** The remote ledger is offline.                                                                         | Broken                      | Messages queue up to `MaxQueueDepth`, then backpressure rejects new messages. When peer comes back, syncs resume from where they left off.                                                                        | **Works.**                               |
 | R9 | **Both sides' endpoints change simultaneously.** Neither side knows the other's endpoints.                                           | Broken on both sides        | Endpoints on both sides discover new peers via gossip once any connectivity is restored.                                                                                                                          | **Works.**                               |
@@ -1452,6 +1470,7 @@ should be used as the basis for integration and fault-tolerance testing.
    transaction fees). Requiring a bonded Connector at registration time would provide economic friction,
    but this is not yet part of the specification.
 6. **Connector deregistration timing.** The protocol prevents Connector deregistration while messages
-   are in-flight, but the maximum wait time before a Connector can force-exit is not fully specified. A
-   Connector whose messages are stuck (e.g., due to a halted Connection) may be unable to deregister
-   indefinitely.
+   are in-flight. CLOSING resolves the indefinite blocking problem for admin-initiated shutdowns — queues
+   drain with `CONNECTION_CLOSED` responses, unblocking deregistration. However, a PAUSED Connection
+   (response ordering violation) has no admin escape — the Connector must wait for the peer to fix the
+   ordering. This is the one scenario where deregistration can be blocked indefinitely.
