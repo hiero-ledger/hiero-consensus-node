@@ -1,0 +1,10 @@
+{
+  "nodes": [
+    {
+      "address": "localhost",
+      "streamingPort": 40840,
+      "servicePort": 40840,
+      "priority": 1
+    }
+  ]
+}
