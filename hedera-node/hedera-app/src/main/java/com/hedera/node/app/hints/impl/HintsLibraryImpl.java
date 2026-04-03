@@ -20,9 +20,13 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static HintsLibraryBridge bridge;
 
-    private static synchronized HintsLibraryBridge getBridge() {
+    private static HintsLibraryBridge getBridge() {
         if (bridge == null) {
-            bridge = HintsLibraryBridge.getInstance();
+            synchronized (HintsLibraryImpl.class) {
+                if (bridge == null) {
+                    bridge = HintsLibraryBridge.getInstance();
+                }
+            }
         }
         return bridge;
     }

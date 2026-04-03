@@ -23,9 +23,13 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public static final SplittableRandom RANDOM = new SplittableRandom();
     private static WRAPSLibraryBridge wraps;
 
-    private static synchronized WRAPSLibraryBridge getWraps() {
+    private static WRAPSLibraryBridge getWraps() {
         if (wraps == null) {
-            wraps = WRAPSLibraryBridge.getInstance();
+            synchronized (HistoryLibraryImpl.class) {
+                if (wraps == null) {
+                    wraps = WRAPSLibraryBridge.getInstance();
+                }
+            }
         }
         return wraps;
     }
