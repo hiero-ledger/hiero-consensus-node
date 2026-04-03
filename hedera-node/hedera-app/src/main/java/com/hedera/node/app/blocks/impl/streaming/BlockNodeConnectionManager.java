@@ -724,7 +724,14 @@ public class BlockNodeConnectionManager {
             return false;
         }
 
-        final long stalledConnectionThresholdMillis = connectionWorkerSleepMillis() * 3; // TODO: make configurable
+        // The stall threshold must be longer than the pipeline operation timeout (default 3s)
+        // since the worker thread can legitimately block on sendRequest for that duration.
+        final long stalledConnectionThresholdMillis = configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .pipelineOperationTimeout()
+                .toMillis()
+                * 3;
         final long lastHeartbeatTimestamp = activeConnection.heartbeatTimestamp();
         if (lastHeartbeatTimestamp != -1) {
             final long deltaMillis = now.toEpochMilli() - lastHeartbeatTimestamp;
@@ -834,7 +841,7 @@ public class BlockNodeConnectionManager {
                 this,
                 blockBufferService,
                 blockStreamMetrics,
-                blockingIoExecutor,
+                blockingIoExecutorSupplier.get(),
                 null,
                 clientFactory);
         connection.initialize();
