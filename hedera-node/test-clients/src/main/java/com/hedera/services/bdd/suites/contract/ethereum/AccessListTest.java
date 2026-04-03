@@ -8,7 +8,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.suites.HapiSuite.*;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
+import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -22,7 +26,6 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
-import com.hedera.services.bdd.suites.HapiSuite;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -41,9 +44,9 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class AccessListTest {
 
-    private static final String SLOT_KEY_0 = "0x0000000000000000000000000000000000000000000000000000000000000000";
-    private static final String SLOT_KEY_1 = "0x0000000000000000000000000000000000000000000000000000000000000001";
-    private static final String SLOT_KEY_2 = "0x0000000000000000000000000000000000000000000000000000000000000002";
+    private static final String SLOT_0 = "0x0000000000000000000000000000000000000000000000000000000000000000";
+    private static final String SLOT_1 = "0x0000000000000000000000000000000000000000000000000000000000000001";
+    private static final String SLOT_2 = "0x0000000000000000000000000000000000000000000000000000000000000002";
 
     @Contract(contract = "AccessListCallerContract", creationGas = 1_000_000)
     static SpecContract callerContract;
@@ -54,7 +57,7 @@ public class AccessListTest {
     private static final AtomicReference<Address> TARGET_CONTRACT_ADDRESS = new AtomicReference<>();
     private static final AtomicReference<Bytes> TARGET_CONTRACT_ADDRESS_BYTES = new AtomicReference<>();
 
-    @Account(tinybarBalance = HapiSuite.ONE_HUNDRED_HBARS)
+    @Account(tinybarBalance = ONE_HUNDRED_HBARS)
     static SpecAccount payer;
 
     @BeforeAll
@@ -154,24 +157,22 @@ public class AccessListTest {
                                         type,
                                         List.of(new AccessListItem(
                                                 TARGET_CONTRACT_ADDRESS_BYTES.get(),
-                                                List.of(Bytes32.fromHexString(SLOT_KEY_0)))),
+                                                List.of(Bytes32.fromHexString(SLOT_0)))),
                                         () -> legacyGas.get() - 200), // -100 for CALL, -100 for SLOAD
                                 ethereumCallWithAccessList(
                                         type,
                                         List.of(new AccessListItem(
                                                 TARGET_CONTRACT_ADDRESS_BYTES.get(),
-                                                List.of(
-                                                        Bytes32.fromHexString(SLOT_KEY_0),
-                                                        Bytes32.fromHexString(SLOT_KEY_1)))),
+                                                List.of(Bytes32.fromHexString(SLOT_0), Bytes32.fromHexString(SLOT_1)))),
                                         () -> legacyGas.get() - 300), // -100 for CALL, -100 x 2 for SLOAD x 2
                                 ethereumCallWithAccessList(
                                         type,
                                         List.of(new AccessListItem(
                                                 TARGET_CONTRACT_ADDRESS_BYTES.get(),
                                                 List.of(
-                                                        Bytes32.fromHexString(SLOT_KEY_0),
-                                                        Bytes32.fromHexString(SLOT_KEY_1),
-                                                        Bytes32.fromHexString(SLOT_KEY_2)))),
+                                                        Bytes32.fromHexString(SLOT_0),
+                                                        Bytes32.fromHexString(SLOT_1),
+                                                        Bytes32.fromHexString(SLOT_2)))),
                                         () -> legacyGas.get()
                                                 - 500) // -100 for CALL, -100 x 3 for SLOAD x 3, -100 for SSTORE
                                 ))
