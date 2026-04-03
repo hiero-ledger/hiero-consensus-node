@@ -46,6 +46,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.VersionConfig;
@@ -60,6 +61,7 @@ import java.time.Duration;
 import java.time.InstantSource;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 import org.hiero.base.crypto.DigestType;
@@ -281,6 +283,95 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             assertArrayEquals(
                     expectedOutputRoot.toByteArray(),
                     entry.outputItemsTreeRootHash().toByteArray());
+        }
+    }
+
+    @Test
+    void configVersionChangeMidBlockUsesVersionFromBlockStart() {
+        // Build initial app with earlier config version
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .withConfigValue("hedera.config.version", 5)
+                .build();
+
+        // Use second app to build a config with an incremented version
+        final var updatedApp = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .withConfigValue("hedera.config.version", 6)
+                .build();
+
+        // Mutable config provider: starts at earlier config, will switch to later config mid-block
+        final var configRef = new AtomicReference<>(app.configProvider().getConfiguration());
+        final ConfigProvider mutableProvider = configRef::get;
+
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        try (final var mgr = new BlockRecordManagerImpl(
+                mutableProvider,
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                InitTrigger.RECONNECT)) {
+
+            // Start block 0 with earlier config version
+            final var t0 = InstantUtils.instant(10, 1);
+            mgr.startUserTransaction(t0, state);
+            mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+
+            // Simulate a config version change mid-block (as if a FileUpdate transaction
+            // changed hedera.config.version from the earlier to the later during block processing)
+            configRef.set(updatedApp.configProvider().getConfiguration());
+
+            // Cross block boundary -> triggers hash computation for just-finished block 0
+            final var t1 = InstantUtils.instant(13, 1);
+            mgr.startUserTransaction(t1, state);
+
+            // The captured input should use the earlier config version (from block start),
+            // NOT the later config version (the current config at computation time)
+            final var captor = ArgumentCaptor.forClass(WrappedRecordFileBlockHashesComputationInput.class);
+            verify(diskWriter).appendAsync(captor.capture());
+            final var input = captor.getValue();
+            assertEquals(
+                    "5",
+                    input.hapiProtoVersion().build(),
+                    "Hash computation should use the configVersion that was active when the block started,"
+                            + " not the version at computation time");
         }
     }
 
@@ -907,14 +998,29 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     }
 
     @Test
-    void freezeBlockPersistsWrappedHashStateToBlockInfo() {
+    void freezeBlockPersistsWrappedHashStateToBlockInfoUsingVersionFromBlockStart() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .withConfigValue("hedera.config.version", 5)
                 .build();
 
-        // Genesis init: lastBlockNumber=-1, EPOCH times
+        // Use second app to construct a config with later version
+        final var updatedApp = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .withConfigValue("hedera.config.version", 6)
+                .build();
+
+        // Mutable config provider: starts at earlier config, will switch to later config mid-block
+        final var configRef = new AtomicReference<>(app.configProvider().getConfiguration());
+        final ConfigProvider mutableProvider = configRef::get;
+
+        // Genesis init: lastBlockNumber=-1, EPOCH timestamp
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
@@ -947,7 +1053,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         try (final var mgr = new BlockRecordManagerImpl(
-                app.configProvider(),
+                mutableProvider,
                 state,
                 producer,
                 controller,
@@ -955,12 +1061,26 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 app.platform(),
                 diskWriter,
                 InitTrigger.RECONNECT)) {
-            // Open block 0 via EPOCH path
+            // Open block 0 via EPOCH path with earlier config version
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
-            // Persist freeze block wrapped hashes
+            // Simulate config version change mid-block (e.g. upgrade transaction before freeze)
+            configRef.set(updatedApp.configProvider().getConfiguration());
+
+            // Persist freeze block wrapped hashes to disk — should use earlier config from block start
+            mgr.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+
+            // Verify the disk writer received earlier config, not later
+            final var captor = ArgumentCaptor.forClass(WrappedRecordFileBlockHashesComputationInput.class);
+            verify(diskWriter).appendAsync(captor.capture());
+            assertEquals(
+                    "5",
+                    captor.getValue().hapiProtoVersion().build(),
+                    "Freeze block hash should use the configVersion from block start, not the current config");
+
+            // Also persist to state and verify the state was updated
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         }
 

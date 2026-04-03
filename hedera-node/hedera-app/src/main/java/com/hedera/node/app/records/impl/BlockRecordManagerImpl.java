@@ -19,6 +19,7 @@ import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFOR
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
@@ -105,6 +106,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private final int maxSideCarSizeInBytes;
     private final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter;
     private Bytes currentBlockStartRunningHash;
+    private SemanticVersion currentWrappedBlockHapiProtoVersion;
     private final List<RecordStreamItem> currentBlockRecordStreamItems = new ArrayList<>();
     private final List<TransactionSidecarRecord> currentBlockSidecarRecords = new ArrayList<>();
 
@@ -322,6 +324,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     .build();
             putLastBlockInfo(state);
             streamFileProducer.switchBlocks(-1, 0, consensusTime);
+            this.currentWrappedBlockHapiProtoVersion = copyHapiProtoVersion();
             if (writeWrappedRecordFileBlockHashesToDisk() || liveWritePrevWrappedRecordHashes()) {
                 beginTrackingNewBlock(streamFileProducer.getRunningHash());
             }
@@ -422,6 +425,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             }
 
             switchBlocksAt(consensusTime);
+            this.currentWrappedBlockHapiProtoVersion = copyHapiProtoVersion();
             if (writeWrappedRecordFileBlockHashesToDisk() || liveWritePrevWrappedRecordHashes()) {
                 beginTrackingNewBlock(lastBlockHashBytes);
             }
@@ -575,6 +579,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         this.currentBlockSidecarRecords.clear();
     }
 
+    private SemanticVersion copyHapiProtoVersion() {
+        final var cfg = configProvider.getConfiguration();
+        final var servicesVersion = cfg.getConfigData(VersionConfig.class).servicesVersion();
+        final var configVersion = cfg.getConfigData(HederaConfig.class).configVersion();
+        return servicesVersion.copyBuilder().build("" + configVersion).build();
+    }
+
     private void appendWrappedRecordFileBlockHashesToDisk(
             final long justFinishedBlockNumber,
             @NonNull final Timestamp justFinishedBlockCreationTime,
@@ -594,15 +605,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     private WrappedRecordFileBlockHashesComputationInput buildWrappedBlockHashesInput(
             final long blockNumber, @NonNull final Timestamp blockCreationTime, @NonNull final Bytes endRunningHash) {
-        final var cfg = configProvider.getConfiguration();
-        final var cfgServicesVersion = cfg.getConfigData(VersionConfig.class).servicesVersion();
-        final var cfgConfigVersion = cfg.getConfigData(HederaConfig.class).configVersion();
-        final var hapiProtoVersion =
-                cfgServicesVersion.copyBuilder().build("" + cfgConfigVersion).build();
         return new WrappedRecordFileBlockHashesComputationInput(
                 blockNumber,
                 blockCreationTime,
-                hapiProtoVersion,
+                requireNonNull(currentWrappedBlockHapiProtoVersion),
                 currentBlockStartRunningHash,
                 endRunningHash,
                 List.copyOf(currentBlockRecordStreamItems),
