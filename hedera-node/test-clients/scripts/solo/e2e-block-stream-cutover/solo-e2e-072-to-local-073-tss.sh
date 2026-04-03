@@ -471,6 +471,7 @@ deploy_baseline_072() {
     --pod-log true
     --pvcs true
     --release-tag "${UPGRADE_072_RELEASE_TAG}"
+    --wraps
   )
   "${deploy_cmd[@]}"
   solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${UPGRADE_072_RELEASE_TAG}"
