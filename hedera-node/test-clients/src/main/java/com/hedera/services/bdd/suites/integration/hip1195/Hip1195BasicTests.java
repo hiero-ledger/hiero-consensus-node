@@ -59,6 +59,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
@@ -93,8 +94,12 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import com.hederahashgraph.api.proto.java.EvmHookCall;
+import com.hederahashgraph.api.proto.java.HookCall;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -154,6 +159,25 @@ public class Hip1195BasicTests {
 
         testLifecycle.doAdhoc(withOpContext(
                 (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> malformedHookCallWithoutHookIdFailsPureChecks() {
+        return hapiTest(
+                cryptoCreate("party"),
+                cryptoCreate("counterparty"),
+                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("party"))
+                                        .setAmount(-123L)
+                                        .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                        .setGasLimit(5_000_000L)
+                                                        .setData(ByteString.EMPTY))))
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("counterparty"))
+                                        .setAmount(+123L))))
+                        .hasKnownStatus(INVALID_HOOK_CALL));
     }
 
     @HapiTest
