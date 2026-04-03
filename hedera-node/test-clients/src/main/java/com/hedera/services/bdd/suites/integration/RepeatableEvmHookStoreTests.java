@@ -87,6 +87,8 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
@@ -118,6 +120,7 @@ public class RepeatableEvmHookStoreTests {
             EvmHookMappingEntry.newBuilder().preimage(ZERO).value(A).build();
     private static final EvmHookMappingEntry F_E_ENTRY =
             EvmHookMappingEntry.newBuilder().key(F).value(E).build();
+    private static final Logger log = LogManager.getLogger(RepeatableEvmHookStoreTests.class);
 
     @Account
     static SpecAccount HOOK_OWNER;
@@ -428,6 +431,77 @@ public class RepeatableEvmHookStoreTests {
                         // The StorageLinkedListHook.allow() method puts a zero into an empty slot on
                         // calldata 0x01, then returns true
                         .withPreHookFor("owner", 42L, 250_000L, ByteString.copyFrom(new byte[] {0x01})),
+                sourcing(assertZeroStorageCounts),
+                // Confirm the underlying hook storage slots didn't change either
+                doingContextual(spec -> {
+                    final ReadableKVState<EvmHookSlotKey, SlotValue> hookStorage =
+                            spec.repeatableEmbeddedHederaOrThrow()
+                                    .state()
+                                    .getReadableStates(ContractService.NAME)
+                                    .get(V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID);
+                    assertEquals(totalHookStorageSlots.get(), hookStorage.size());
+                }));
+    }
+
+    @Order(14)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> mappingEntriesHashingToLeadingZerosDecrementCountOnHookStoreRemoval(
+            @Contract(contract = "StorageLinkedListHook", creationGas = 5_000_000) SpecContract contract) {
+        final AtomicLong entityCountedStorageSlots = new AtomicLong();
+        final AtomicLong totalHookStorageSlots = new AtomicLong();
+        final Supplier<HapiSpecOperation> assertZeroStorageCounts = () -> blockingOrder(
+                viewAccount(
+                        "owner",
+                        account -> assertEquals(0, account.numberEvmHookStorageSlots(), "Expected zero storage slots")),
+                doingContextual(spec -> viewHook(
+                        HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder()
+                                        .accountId(toPbj(spec.registry().getAccountID("owner"))))
+                                .hookId(42L)
+                                .build(),
+                        hookState -> assertEquals(0, hookState.numStorageSlots()))));
+        return hapiTest(
+                contract.getInfo(),
+                // Create an account with a hook that puts a zero into an empty slot when invoked with calldata 0x01
+                cryptoCreate("owner").withHooks(accountAllowanceHook(42L, contract.name())),
+                // Take a snapshot of total hook storage slots before---Map.size() works since this is a FakeState
+                doingContextual(spec -> totalHookStorageSlots.set(spec.repeatableEmbeddedHederaOrThrow()
+                        .state()
+                        .getReadableStates(ContractService.NAME)
+                        .get(V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID)
+                        .size())),
+                // Also take a snapshot of the hook storage slot count in EntityCounts
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts entityCounts) ->
+                                entityCountedStorageSlots.set(entityCounts.numEvmHookStorageSlots())),
+                sourcing(assertZeroStorageCounts),
+                // This mapping entry hashes to a key with leading zeros, put it twice
+                accountEvmHookStore("owner", 42L)
+                        .payingWith("owner")
+                        .putMappingEntry(
+                                Bytes.EMPTY,
+                                EvmHookMappingEntry.newBuilder()
+                                        .key(Bytes.fromHex("0217"))
+                                        .value(A)
+                                        .build()),
+                accountEvmHookStore("owner", 42L)
+                        .payingWith("owner")
+                        .putMappingEntry(
+                                Bytes.EMPTY,
+                                EvmHookMappingEntry.newBuilder()
+                                        .key(Bytes.fromHex("0217"))
+                                        .value(B)
+                                        .build()),
+                // Remove it via mapping entry hook store
+                accountEvmHookStore("owner", 42L).removeMappingEntry(Bytes.EMPTY, Bytes.fromHex("0217")),
+                // Assert entity counts is back to its starting point
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts entityCounts) ->
+                                assertEquals(entityCountedStorageSlots.get(), entityCounts.numEvmHookStorageSlots())),
                 sourcing(assertZeroStorageCounts),
                 // Confirm the underlying hook storage slots didn't change either
                 doingContextual(spec -> {
