@@ -37,7 +37,6 @@ tasks.jacocoTestReport {
 tasks.test {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
 
     // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
     // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
@@ -66,9 +65,8 @@ tasks.test {
 val miscTags =
     "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
 val miscTagsSerial = "$miscTags&SERIAL"
-val matsSuffix = "MATS"
 
-val basePrCheckTags =
+val prCheckTags =
     mapOf(
         "hapiTestAdhoc" to "ADHOC",
         "hapiTestCrypto" to "CRYPTO",
@@ -77,6 +75,7 @@ val basePrCheckTags =
         "hapiTestTokenSerial" to "(TOKEN&SERIAL)",
         "hapiTestRestart" to "RESTART|UPGRADE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
+        "hapiTestSmartContractSerial" to "(SMART_CONTRACT&SERIAL)",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestWraps" to "WRAPS",
         "hapiTestWrapsDownload" to "WRAPS_DOWNLOAD",
@@ -96,51 +95,13 @@ val basePrCheckTags =
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
     )
 
-val concurrentTasks =
-    setOf(
-        "hapiTestCrypto",
-        "hapiTestCryptoSerial",
-        "hapiTestToken",
-        "hapiTestTokenSerial",
-        "hapiTestMisc",
-        "hapiTestMiscSerial",
-        "hapiTestMiscRecords",
-        "hapiTestMiscRecordsSerial",
-        "hapiTestWraps",
-        "hapiTestWrapsDownload",
-        "hapiTestCutover",
-        "hapiTestTimeConsuming",
-        "hapiTestTimeConsumingSerial",
-        "hapiTestStateThrottling",
-        "hapiTestSimpleFees",
-        "hapiTestSimpleFeesSerial",
-        "hapiTestAtomicBatch",
-        "hapiTestAtomicBatchSerial",
-    )
-
-val prCheckTags =
-    buildMap<String, String> {
-        basePrCheckTags.forEach { (task, tags) ->
-
-            // XTS task → explicitly EXCLUDE MATS
-            put(task, "($tags)&(!MATS)")
-
-            // MATS task → explicitly REQUIRE MATS
-            if (task !in concurrentTasks) {
-                put("$task$matsSuffix", "($tags)&MATS")
-            }
-        }
-    }
-
 val remoteCheckTags =
     prCheckTags
         .filterNot {
             it.key in
                 listOf(
                     "hapiTestIss",
-                    "hapiTestIssMATS",
                     "hapiTestRestart",
-                    "hapiTestRestartMATS",
                     "hapiTestWrapsDownload",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
@@ -148,146 +109,106 @@ val remoteCheckTags =
         }
         .mapKeys { (key, _) -> key.replace("hapiTest", "remoteTest") }
 val prCheckStartPorts =
-    buildMap<String, String> {
-        put("hapiTestAdhoc", "25000")
-        put("hapiTestCrypto", "25200")
-        put("hapiTestToken", "25400")
-        put("hapiTestRestart", "25600")
-        put("hapiTestSmartContract", "25800")
-        put("hapiTestNDReconnect", "26000")
-        put("hapiTestTimeConsuming", "26200")
-        put("hapiTestWraps", "26300")
-        put("hapiTestIss", "26400")
-        put("hapiTestWrapsDownload", "26500")
-        put("hapiTestCutover", "26600")
-        put("hapiTestMisc", "26800")
-        put("hapiTestBlockNodeCommunication", "27000")
-        put("hapiTestMiscRecords", "27200")
-        put("hapiTestAtomicBatch", "27400")
-        put("hapiTestCryptoSerial", "27600")
-        put("hapiTestTokenSerial", "27800")
-        put("hapiTestMiscSerial", "28000")
-        put("hapiTestMiscRecordsSerial", "28200")
-        put("hapiTestTimeConsumingSerial", "28400")
-        put("hapiTestStateThrottling", "28600")
-        put("hapiTestSimpleFees", "28800")
-        put("hapiTestSimpleFeesSerial", "29000")
-        put("hapiTestAtomicBatchSerial", "29200")
-
-        // Create the MATS variants
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, port: String) ->
-            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", port)
-        }
-    }
+    mapOf(
+        "hapiTestAdhoc" to "25000",
+        "hapiTestCrypto" to "25200",
+        "hapiTestToken" to "25400",
+        "hapiTestRestart" to "25600",
+        "hapiTestSmartContract" to "25800",
+        "hapiTestNDReconnect" to "26000",
+        "hapiTestTimeConsuming" to "26200",
+        "hapiTestWraps" to "26300",
+        "hapiTestIss" to "26400",
+        "hapiTestWrapsDownload" to "26500",
+        "hapiTestCutover" to "26600",
+        "hapiTestMisc" to "26800",
+        "hapiTestBlockNodeCommunication" to "27000",
+        "hapiTestMiscRecords" to "27200",
+        "hapiTestAtomicBatch" to "27400",
+        "hapiTestCryptoSerial" to "27600",
+        "hapiTestTokenSerial" to "27800",
+        "hapiTestMiscSerial" to "28000",
+        "hapiTestMiscRecordsSerial" to "28200",
+        "hapiTestTimeConsumingSerial" to "28400",
+        "hapiTestStateThrottling" to "28600",
+        "hapiTestSimpleFees" to "28800",
+        "hapiTestSimpleFeesSerial" to "29000",
+        "hapiTestAtomicBatchSerial" to "29200",
+        "hapiTestSmartContractSerial" to "29400",
+    )
 val prCheckPropOverrides =
-    buildMap<String, String> {
-        put(
-            "hapiTestAdhoc",
+    mapOf(
+        "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
-        )
-        put(
-            "hapiTestCrypto",
+        "hapiTestCrypto" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        )
-        // TODO Add 'hedera.transaction.maximumPermissibleUnhealthySeconds=5' for all tasks using
-        // 'subprocessConcurrent'
-        put(
-            "hapiTestCryptoSerial",
+        "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestCryptoSerial" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
-        )
-        put("hapiTestSmartContract", "tss.historyEnabled=false")
-        put(
-            "hapiTestRestart",
+        "hapiTestSmartContract" to
+            "tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
+        "hapiTestRestart" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
-        )
-        put(
-            "hapiTestWrapsDownload",
+        "hapiTestWrapsDownload" to
             "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=da83f3ae5eaa8575f5bedf583de2826ccfa5bff80bd6f58a54b0bf7e934e98919b5bcdaa074b3ae248f161317b87a22a",
-        )
-        put(
-            "hapiTestMisc",
+        "hapiTestMisc" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        )
-        put(
-            "hapiTestMiscSerial",
+        "hapiTestMiscSerial" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
-        )
-        put("hapiTestTimeConsuming", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
-        put(
-            "hapiTestWraps",
+        "hapiTestTimeConsuming" to
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestWraps" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=16",
-        )
-        put(
-            "hapiTestCutover",
-            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,staking.periodMins=16",
-        )
-        put(
-            "hapiTestCutover",
+        // Superseded by the entry below which adds tss.initialCrsParties=8; the original
+        // buildMap had two put() calls for hapiTestCutover and the second silently overwrote the
+        // first. Kept here for reference in case tss.forceMockSignatures=false needs to be
+        // restored.
+        // "hapiTestCutover" to
+        //
+        // "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,staking.periodMins=16",
+        "hapiTestCutover" to
             "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
-        )
-        put("hapiTestTimeConsumingSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
-        put("hapiTestStateThrottling", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
-        put(
-            "hapiTestMiscRecords",
+        "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestMiscRecords" to
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        )
-        put(
-            "hapiTestMiscRecordsSerial",
+        "hapiTestMiscRecordsSerial" to
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
-        )
-        put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
-        put("hapiTestSimpleFeesSerial", "fees.simpleFeesEnabled=true")
-        put(
-            "hapiTestNDReconnect",
+        "hapiTestSimpleFees" to
+            "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
+        "hapiTestNDReconnect" to
             "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
-        )
-        put("hapiTestAtomicBatch", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
-        put("hapiTestAtomicBatchSerial", "nodes.nodeRewardsEnabled=false,quiescence.enabled=true")
-
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, overrides: String) ->
-            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", overrides)
-        }
-    }
-val prCheckPrepareUpgradeOffsets =
-    buildMap<String, String> {
-        put("hapiTestAdhoc", "PT300S")
-
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, offset: String) ->
-            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", offset)
-        }
-    }
+        "hapiTestAtomicBatch" to
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+    )
+val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
 // (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be for each task in CI; set it here
 val prCheckTssLibWrapsArtifactsPaths =
     mapOf("hapiTestWraps" to "", "hapiTestCutover" to "", "hapiTestWrapsDownload" to "data/keys")
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
-    buildMap<String, String> {
-        put("hapiTestAdhoc", "3")
-        put("hapiTestCrypto", "3")
-        put("hapiTestCryptoSerial", "3")
-        put("hapiTestToken", "3")
-        put("hapiTestSimpleFees", "3")
-        put("hapiTestSimpleFeesSerial", "3")
-        put("hapiTestTokenSerial", "3")
-        put("hapiTestSmartContract", "4")
-        put("hapiTestAtomicBatch", "3")
-        put("hapiTestAtomicBatchSerial", "3")
-
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, size: String) ->
-            if (taskName !in concurrentTasks) put("$taskName$matsSuffix", size)
-        }
-    }
+    mapOf(
+        "hapiTestAdhoc" to "3",
+        "hapiTestCrypto" to "3",
+        "hapiTestCryptoSerial" to "3",
+        "hapiTestToken" to "3",
+        "hapiTestSimpleFees" to "3",
+        "hapiTestSimpleFeesSerial" to "3",
+        "hapiTestTokenSerial" to "3",
+        "hapiTestSmartContract" to "4",
+        "hapiTestSmartContractSerial" to "3",
+        "hapiTestAtomicBatch" to "3",
+        "hapiTestAtomicBatchSerial" to "3",
+    )
 
 tasks {
     prCheckTags.forEach { (taskName, _) ->
         register(taskName) {
-            getByName(taskName).group =
-                "hapi-test${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
+            getByName(taskName).group = "hapi-test"
             dependsOn(
                 if (
                     (taskName.contains("Crypto") ||
@@ -295,7 +216,8 @@ tasks {
                         taskName.contains("Misc") ||
                         taskName.contains("TimeConsuming") ||
                         taskName.contains("SimpleFees") ||
-                        taskName.contains("AtomicBatch")) && !taskName.contains("Serial")
+                        taskName.contains("AtomicBatch") ||
+                        taskName.contains("SmartContract")) && !taskName.contains("Serial")
                 )
                     "testSubprocessConcurrent"
                 else "testSubprocess"
@@ -308,7 +230,7 @@ tasks {
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -430,7 +352,7 @@ tasks.register<Test>("testSubprocess") {
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -548,7 +470,7 @@ tasks.register<Test>("testSubprocessConcurrent") {
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -617,30 +539,19 @@ val embeddedTasks =
     setOf(
         "hapiTestCryptoEmbedded",
         "hapiTestMiscEmbedded",
-        "hapiEmbeddedSimpleFees",
+        "hapiTestSimpleFeesEmbedded",
         "hapiTestAtomicBatchEmbedded",
     )
 
 val embeddedBaseTags =
     mapOf(
         "hapiTestMiscEmbedded" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO|ATOMIC_BATCH)",
-        "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
+        "hapiTestSimpleFeesEmbedded" to "EMBEDDED&SIMPLE_FEES",
         "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
         "hapiTestAtomicBatchEmbedded" to "EMBEDDED&ATOMIC_BATCH",
     )
 
-val prEmbeddedCheckTags =
-    buildMap<String, String> {
-        embeddedBaseTags.forEach { (taskName, tags) ->
-            // XTS embedded → all tests
-            put(taskName, "($tags)")
-
-            // Embedded MATS variant → REQUIRE MATS
-            if (taskName !in embeddedTasks) {
-                put("$taskName$matsSuffix", "($tags)&MATS")
-            }
-        }
-    }
+val prEmbeddedCheckTags = embeddedBaseTags.mapValues { (_, tags) -> "($tags)" }
 
 tasks {
     prEmbeddedCheckTags.forEach { (taskName, _) ->
@@ -655,7 +566,7 @@ tasks {
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -691,10 +602,7 @@ tasks.register<Test>("testEmbedded") {
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
 
-    if (
-        gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFees") ||
-            gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFeesMATS")
-    ) {
+    if (gradle.startParameter.taskNames.contains("hapiTestSimpleFeesEmbedded")) {
         systemProperty("fees.createSimpleFeeSchedule", "true")
         systemProperty("fees.simpleFeesEnabled", "true")
     }
@@ -706,17 +614,7 @@ tasks.register<Test>("testEmbedded") {
 
 val repeatableBaseTags = mapOf("hapiTestMiscRepeatable" to "REPEATABLE&!CRYPTO")
 
-val prRepeatableCheckTags =
-    buildMap<String, String> {
-        repeatableBaseTags.forEach { (taskName, tags) ->
-
-            // XTS repeatable → EXCLUDE MATS
-            put(taskName, "($tags)&(!MATS)")
-
-            // Repeatable MATS variant → REQUIRE MATS
-            put("$taskName$matsSuffix", "($tags)&MATS")
-        }
-    }
+val prRepeatableCheckTags = repeatableBaseTags.mapValues { (_, tags) -> "($tags)" }
 
 tasks {
     prRepeatableCheckTags.forEach { (taskName, _) ->
@@ -729,7 +627,7 @@ tasks {
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    systemProperty("log4j.configurationFile", "log4j2-test-client.xml")
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
