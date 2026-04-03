@@ -44,7 +44,10 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                             final var contractId = evmResult.contractId();
                             final var isHook = contractId != null && contractId.contractNumOrElse(0L) == 365;
                             if (parts.status() == SUCCESS
-                                    && (isHook || parts.isTopLevel() || parts.isInnerBatchTxn())) {
+                                    && (isHook
+                                            || parts.isTopLevel()
+                                            || parts.isInnerBatchTxn()
+                                            || parts.transactionIdOrThrow().scheduled())) {
                                 mapTracesToVerboseLogs(derivedBuilder, parts.traces());
                                 if (executingHookId == null) {
                                     baseTranslator.addCreatedIdsTo(derivedBuilder, remainingStateChanges);
