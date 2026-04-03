@@ -53,7 +53,7 @@ public final class Signing {
                 ethTx.value(),
                 ethTx.callData(),
                 ethTx.accessList(),
-                null,
+                ethTx.accessListAsRlp(),
                 ethTx.authorizationList(),
                 ethTx.authorizationListAsRlp(),
                 sigBytes.recId,

@@ -883,7 +883,7 @@ class AtomicContractCreateSuite {
                 new byte[] {1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4},
                 BigInteger.ONE,
                 new byte[] {},
-                new byte[] {},
+                null,
                 null,
                 null,
                 null,
