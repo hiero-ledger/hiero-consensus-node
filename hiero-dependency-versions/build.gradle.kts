@@ -8,7 +8,7 @@ dependencies {
     }
 }
 
-val besu = "25.4.1"
+val besu = "26.2.0"
 val bouncycastle = "1.81"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
@@ -95,15 +95,18 @@ dependencies.constraints {
         because("org.eclipse.collections.impl")
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
-    api("org.hyperledger.besu:evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:secp256k1:1.3.0") {
+    api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
+    api("org.hyperledger.besu:secp256k1:1.4.1") {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
-    api("org.hyperledger.besu:gnark:1.3.0")
-    api("org.hyperledger.besu:secp256r1:1.3.0")
-    api("org.hyperledger.besu:arithmetic:1.3.0")
-    api("org.hyperledger.besu:blake2bf:1.3.0") {
+    api("org.hyperledger.besu:gnark:1.4.1")
+    api("org.hyperledger.besu:secp256r1:1.4.1")
+    api("org.hyperledger.besu:arithmetic:1.4.1")
+    api("org.hyperledger.besu:blake2bf:1.4.1") {
         because("org.hyperledger.besu.nativelib.blake2bf")
+    }
+    api("org.hyperledger.besu:boringssl:1.4.1") {
+        because("org.hyperledger.besu.nativelib.boringssl")
     }
     api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }

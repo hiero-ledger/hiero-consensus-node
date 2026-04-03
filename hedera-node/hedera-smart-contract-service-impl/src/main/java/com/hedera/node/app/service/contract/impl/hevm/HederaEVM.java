@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
+import static org.hyperledger.besu.evm.operation.PushOperation.PUSH_BASE;
+import static org.hyperledger.besu.evm.operation.SwapOperation.SWAP_BASE;
+
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,9 +18,12 @@ import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.internal.OverflowException;
 import org.hyperledger.besu.evm.internal.UnderflowException;
 import org.hyperledger.besu.evm.operation.AddModOperation;
+import org.hyperledger.besu.evm.operation.AddModOperationOptimized;
 import org.hyperledger.besu.evm.operation.AddOperation;
 import org.hyperledger.besu.evm.operation.AndOperation;
+import org.hyperledger.besu.evm.operation.AndOperationOptimized;
 import org.hyperledger.besu.evm.operation.ByteOperation;
+import org.hyperledger.besu.evm.operation.CountLeadingZerosOperation;
 import org.hyperledger.besu.evm.operation.DivOperation;
 import org.hyperledger.besu.evm.operation.DupOperation;
 import org.hyperledger.besu.evm.operation.ExpOperation;
@@ -29,12 +35,16 @@ import org.hyperledger.besu.evm.operation.JumpOperation;
 import org.hyperledger.besu.evm.operation.JumpiOperation;
 import org.hyperledger.besu.evm.operation.LtOperation;
 import org.hyperledger.besu.evm.operation.ModOperation;
+import org.hyperledger.besu.evm.operation.ModOperationOptimized;
 import org.hyperledger.besu.evm.operation.MulModOperation;
+import org.hyperledger.besu.evm.operation.MulModOperationOptimized;
 import org.hyperledger.besu.evm.operation.MulOperation;
 import org.hyperledger.besu.evm.operation.NotOperation;
+import org.hyperledger.besu.evm.operation.NotOperationOptimized;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.operation.OperationRegistry;
 import org.hyperledger.besu.evm.operation.OrOperation;
+import org.hyperledger.besu.evm.operation.OrOperationOptimized;
 import org.hyperledger.besu.evm.operation.PopOperation;
 import org.hyperledger.besu.evm.operation.Push0Operation;
 import org.hyperledger.besu.evm.operation.PushOperation;
@@ -42,12 +52,14 @@ import org.hyperledger.besu.evm.operation.SDivOperation;
 import org.hyperledger.besu.evm.operation.SGtOperation;
 import org.hyperledger.besu.evm.operation.SLtOperation;
 import org.hyperledger.besu.evm.operation.SModOperation;
+import org.hyperledger.besu.evm.operation.SModOperationOptimized;
 import org.hyperledger.besu.evm.operation.SignExtendOperation;
 import org.hyperledger.besu.evm.operation.StopOperation;
 import org.hyperledger.besu.evm.operation.SubOperation;
 import org.hyperledger.besu.evm.operation.SwapOperation;
 import org.hyperledger.besu.evm.operation.VirtualOperation;
 import org.hyperledger.besu.evm.operation.XorOperation;
+import org.hyperledger.besu.evm.operation.XorOperationOptimized;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,10 +73,12 @@ public class HederaEVM extends EVM {
     private final OperationRegistry operations;
     private final GasCalculator gasCalculator;
     private final Operation endOfScriptStop;
+    private final EvmConfiguration evmConfiguration;
     private final EvmSpecVersion evmSpecVersion;
 
     // Optimized operation flags
     private final boolean enableShanghai;
+    private final boolean enableOsaka;
 
     /**
      * Instantiates a new Evm.
@@ -83,9 +97,11 @@ public class HederaEVM extends EVM {
         this.operations = operations;
         this.gasCalculator = gasCalculator;
         this.endOfScriptStop = new VirtualOperation(new StopOperation(gasCalculator));
+        this.evmConfiguration = evmConfiguration;
         this.evmSpecVersion = evmSpecVersion;
 
         enableShanghai = EvmSpecVersion.SHANGHAI.ordinal() <= evmSpecVersion.ordinal();
+        enableOsaka = EvmSpecVersion.OSAKA.ordinal() <= evmSpecVersion.ordinal();
     }
 
     @Override
@@ -122,72 +138,130 @@ public class HederaEVM extends EVM {
             Operation.OperationResult result;
             try {
                 result = switch (opcode) {
-                    case 0 -> StopOperation.staticOperation(frame);
-                    case 1 -> AddOperation.staticOperation(frame);
-                    case 2 -> MulOperation.staticOperation(frame);
-                    case 3 -> SubOperation.staticOperation(frame);
-                    case 4 -> DivOperation.staticOperation(frame);
-                    case 5 -> SDivOperation.staticOperation(frame);
-                    case 6 -> ModOperation.staticOperation(frame);
-                    case 7 -> SModOperation.staticOperation(frame);
-                    case 8 -> AddModOperation.staticOperation(frame);
-                    case 9 -> MulModOperation.staticOperation(frame);
-                    case 10 -> ExpOperation.staticOperation(frame, this.gasCalculator);
-                    case 11 -> SignExtendOperation.staticOperation(frame);
-                    case 12, 13, 14, 15 -> InvalidOperation.INVALID_RESULT;
-                    case 16 -> LtOperation.staticOperation(frame);
-                    case 17 -> GtOperation.staticOperation(frame);
-                    case 18 -> SLtOperation.staticOperation(frame);
-                    case 19 -> SGtOperation.staticOperation(frame);
-                    case 21 -> IsZeroOperation.staticOperation(frame);
-                    case 22 -> AndOperation.staticOperation(frame);
-                    case 23 -> OrOperation.staticOperation(frame);
-                    case 24 -> XorOperation.staticOperation(frame);
-                    case 25 -> NotOperation.staticOperation(frame);
-                    case 26 -> ByteOperation.staticOperation(frame);
-                    case 80 -> PopOperation.staticOperation(frame);
-                    case 86 -> JumpOperation.staticOperation(frame);
-                    case 87 -> JumpiOperation.staticOperation(frame);
-                    case 91 -> JumpDestOperation.JUMPDEST_SUCCESS;
-                    case 95 ->
-                        this.enableShanghai ? Push0Operation.staticOperation(frame) : InvalidOperation.INVALID_RESULT;
-                    case 96,
-                            97,
-                            98,
-                            99,
-                            100,
-                            101,
-                            102,
-                            103,
-                            104,
-                            105,
-                            106,
-                            107,
-                            108,
-                            109,
-                            110,
-                            111,
-                            112,
-                            113,
-                            114,
-                            115,
-                            116,
-                            117,
-                            118,
-                            119,
-                            120,
-                            121,
-                            122,
-                            123,
-                            124,
-                            125,
-                            126,
-                            127 -> PushOperation.staticOperation(frame, code, pc, opcode - 95);
-                    case 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143 ->
-                        DupOperation.staticOperation(frame, opcode - 127);
-                    case 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159 ->
-                        SwapOperation.staticOperation(frame, opcode - 143);
-                    default -> {
+                    case 0x00 -> StopOperation.staticOperation(frame);
+                    case 0x01 -> AddOperation.staticOperation(frame);
+                    case 0x02 -> MulOperation.staticOperation(frame);
+                    case 0x03 -> SubOperation.staticOperation(frame);
+                    case 0x04 -> DivOperation.staticOperation(frame);
+                    case 0x05 -> SDivOperation.staticOperation(frame);
+                    case 0x06 ->
+                        evmConfiguration.enableOptimizedOpcodes()
+                                ? ModOperationOptimized.staticOperation(frame)
+                                : ModOperation.staticOperation(frame);
+                    case 0x07 ->
+                        evmConfiguration.enableOptimizedOpcodes()
+                                ? SModOperationOptimized.staticOperation(frame)
+                                : SModOperation.staticOperation(frame);
+                    case 0x08 ->
+                        evmConfiguration.enableOptimizedOpcodes()
+                                ? AddModOperationOptimized.staticOperation(frame)
+                                : AddModOperation.staticOperation(frame);
+                    case 0x09 ->
+                        evmConfiguration.enableOptimizedOpcodes()
+                                ? MulModOperationOptimized.staticOperation(frame)
+                                : MulModOperation.staticOperation(frame);
+                    case 0x0a -> ExpOperation.staticOperation(frame, gasCalculator);
+                    case 0x0b -> SignExtendOperation.staticOperation(frame);
+                    case 0x0c, 0x0d, 0x0e, 0x0f -> InvalidOperation.invalidOperationResult(opcode);
+                    case 0x10 -> LtOperation.staticOperation(frame);
+                    case 0x11 -> GtOperation.staticOperation(frame);
+                    case 0x12 -> SLtOperation.staticOperation(frame);
+                    case 0x13 -> SGtOperation.staticOperation(frame);
+                    case 0x15 -> IsZeroOperation.staticOperation(frame);
+                    case 0x16 ->
+                        evmConfiguration.enableOptimizedOpcodes()
+                                ? AndOperationOptimized.staticOperation(frame)
+                                : AndOperation.staticOperation(frame);
+                    case 0x17 ->
+                        evmConfiguration.enableOptimizedOpcodes()
+                                ? OrOperationOptimized.staticOperation(frame)
+                                : OrOperation.staticOperation(frame);
+                    case 0x18 ->
+                        evmConfiguration.enableOptimizedOpcodes()
+                                ? XorOperationOptimized.staticOperation(frame)
+                                : XorOperation.staticOperation(frame);
+                    case 0x19 ->
+                        evmConfiguration.enableOptimizedOpcodes()
+                                ? NotOperationOptimized.staticOperation(frame)
+                                : NotOperation.staticOperation(frame);
+                    case 0x1a -> ByteOperation.staticOperation(frame);
+                    case 0x1e ->
+                        enableOsaka
+                                ? CountLeadingZerosOperation.staticOperation(frame)
+                                : InvalidOperation.invalidOperationResult(opcode);
+                    case 0x50 -> PopOperation.staticOperation(frame);
+                    case 0x56 -> JumpOperation.staticOperation(frame);
+                    case 0x57 -> JumpiOperation.staticOperation(frame);
+                    case 0x5b -> JumpDestOperation.JUMPDEST_SUCCESS;
+                    case 0x5f ->
+                        enableShanghai
+                                ? Push0Operation.staticOperation(frame)
+                                : InvalidOperation.invalidOperationResult(opcode);
+                    case 0x60, // PUSH1-32
+                            0x61,
+                            0x62,
+                            0x63,
+                            0x64,
+                            0x65,
+                            0x66,
+                            0x67,
+                            0x68,
+                            0x69,
+                            0x6a,
+                            0x6b,
+                            0x6c,
+                            0x6d,
+                            0x6e,
+                            0x6f,
+                            0x70,
+                            0x71,
+                            0x72,
+                            0x73,
+                            0x74,
+                            0x75,
+                            0x76,
+                            0x77,
+                            0x78,
+                            0x79,
+                            0x7a,
+                            0x7b,
+                            0x7c,
+                            0x7d,
+                            0x7e,
+                            0x7f -> PushOperation.staticOperation(frame, code, pc, opcode - PUSH_BASE);
+                    case 0x80, // DUP1-16
+                            0x81,
+                            0x82,
+                            0x83,
+                            0x84,
+                            0x85,
+                            0x86,
+                            0x87,
+                            0x88,
+                            0x89,
+                            0x8a,
+                            0x8b,
+                            0x8c,
+                            0x8d,
+                            0x8e,
+                            0x8f -> DupOperation.staticOperation(frame, opcode - DupOperation.DUP_BASE);
+                    case 0x90, // SWAP1-16
+                            0x91,
+                            0x92,
+                            0x93,
+                            0x94,
+                            0x95,
+                            0x96,
+                            0x97,
+                            0x98,
+                            0x99,
+                            0x9a,
+                            0x9b,
+                            0x9c,
+                            0x9d,
+                            0x9e,
+                            0x9f -> SwapOperation.staticOperation(frame, opcode - SWAP_BASE);
+                    default -> { // unoptimized operations
                         frame.setCurrentOperation(currentOperation);
                         yield currentOperation.execute(frame, this);
                     }

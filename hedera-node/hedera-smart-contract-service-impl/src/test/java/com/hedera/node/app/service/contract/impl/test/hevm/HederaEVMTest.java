@@ -2,12 +2,12 @@
 package com.hedera.node.app.service.contract.impl.test.hevm;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
-import static org.hyperledger.besu.evm.MainnetEVMs.registerShanghaiOperations;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import java.math.BigInteger;
@@ -19,6 +19,7 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.bouncycastle.util.encoders.Hex;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -50,7 +51,8 @@ class HederaEVMTest {
         final var opsDurationSchedule = OpsDurationSchedule.fromConfig(TestHelpers.DEFAULT_OPS_DURATION_CONFIG);
 
         final var operationRegistry = new OperationRegistry();
-        registerShanghaiOperations(operationRegistry, new LondonGasCalculator(), BigInteger.ZERO);
+        HederaOperationsRegistry.forVersion(EvmSpecVersion.SHANGHAI)
+                .register(operationRegistry, new LondonGasCalculator(), BigInteger.ZERO, EvmConfiguration.DEFAULT);
 
         final var hederaEvm = new HederaEVM(
                 operationRegistry,
@@ -79,7 +81,7 @@ class HederaEVMTest {
                 .jump(33) // Loop
                 .toString();
 
-        final var code = TestHelpers.CODE_FACTORY.createCode(Bytes.fromHexString(byteCodeBuilder), false);
+        final var code = new Code(Bytes.fromHexString(byteCodeBuilder));
 
         final var frame = MessageFrame.builder()
                 .type(MessageFrame.Type.MESSAGE_CALL)

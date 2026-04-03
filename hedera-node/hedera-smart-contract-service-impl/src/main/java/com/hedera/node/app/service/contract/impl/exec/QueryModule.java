@@ -30,7 +30,6 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 @Module
 public interface QueryModule {
@@ -122,9 +121,7 @@ public interface QueryModule {
     @Provides
     @QueryScope
     static EvmFrameStateFactory provideEvmFrameStateFactory(
-            @NonNull final CodeFactory codeFactory,
-            @NonNull final HederaOperations operations,
-            @NonNull final HederaNativeOperations nativeOperations) {
-        return EvmFrameStates.DEFAULT.from(operations, nativeOperations, codeFactory);
+            @NonNull final HederaOperations operations, @NonNull final HederaNativeOperations nativeOperations) {
+        return EvmFrameStates.DEFAULT.from(operations, nativeOperations);
     }
 }

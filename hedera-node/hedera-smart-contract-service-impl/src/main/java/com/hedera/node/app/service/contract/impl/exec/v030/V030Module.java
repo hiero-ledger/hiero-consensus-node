@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.exec.v030;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
-import static org.hyperledger.besu.evm.MainnetEVMs.registerLondonOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
@@ -34,6 +33,7 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractC
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -47,7 +47,6 @@ import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
@@ -77,7 +76,6 @@ public interface V030Module {
             @ServicesV030 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV030 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory,
             @NonNull final GasCalculator gasCalculator) {
         return new TransactionProcessor(
                 frameBuilder,
@@ -86,7 +84,6 @@ public interface V030Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                codeFactory,
                 gasCalculator);
     }
 
@@ -123,7 +120,8 @@ public interface V030Module {
             @CustomOps @NonNull final Set<Operation> customOps) {
         // Use London EVM with 0.30 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
-        registerLondonOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
+        HederaOperationsRegistry.forVersion(EvmSpecVersion.LONDON)
+                .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
         return new EVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.LONDON);
@@ -206,19 +204,16 @@ public interface V030Module {
     @Provides
     @IntoSet
     @ServicesV030
-    static Operation provideCreateOperation(
-            @NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
-        return new CustomCreateOperation(gasCalculator, codeFactory);
+    static Operation provideCreateOperation(@NonNull final GasCalculator gasCalculator) {
+        return new CustomCreateOperation(gasCalculator);
     }
 
     @Provides
     @IntoSet
     @ServicesV030
     static Operation provideCreate2Operation(
-            @NonNull final GasCalculator gasCalculator,
-            @ServicesV030 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory) {
-        return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
+            @NonNull final GasCalculator gasCalculator, @ServicesV030 @NonNull final FeatureFlags featureFlags) {
+        return new CustomCreate2Operation(gasCalculator, featureFlags);
     }
 
     @Provides

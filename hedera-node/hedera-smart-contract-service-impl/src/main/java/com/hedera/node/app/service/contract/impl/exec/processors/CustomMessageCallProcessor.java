@@ -70,30 +70,64 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
 
         static CustomMessageCallContext create(MessageFrame frame, OperationTracer tracer) {
             final Account contractAccount = frame.getWorldUpdater().get(frame.getContractAddress());
+            final boolean transfersValue = FrameUtils.transfersValue(frame);
 
+            // Verify that the account exists and has substantial code (not EOA, not delegation)
+            // This avoids expensive delegation checks for regular contract calls
+            if (contractAccount != null) {
+                final var code = contractAccount.getCode();
+                // Check whether the code is large enough to be a real contract (not EOA, not delegation prefix only)
+                if (code.size() > CodeDelegationHelper.DELEGATED_CODE_SIZE) {
+                    // No need for HAS redirect check or delegation check for regular contracts
+                    return new CustomMessageCallContext(
+                            frame,
+                            tracer,
+                            Optional.of(contractAccount),
+                            frame.getContractAddress(),
+                            false,
+                            transfersValue);
+                }
+                // Additional checks covering for HAS proxy calls and code delegations
+                // might also produce standard call for contact with
+                return createProxyOrCodeDelegationContext(frame, tracer, contractAccount, code, transfersValue);
+            }
+
+            // Account doesn't exist - use contract address directly
+            return new CustomMessageCallContext(
+                    frame, tracer, Optional.empty(), frame.getContractAddress(), false, transfersValue);
+        }
+
+        /**
+         * Full analysis path for accounts with small or empty code that might be:
+         * - EOA eligible for HAS proxy redirect
+         * - Account with code delegation (EIP-7702)
+         * - Regular account/contract with small code
+         */
+        private static CustomMessageCallContext createProxyOrCodeDelegationContext(
+                @NonNull final MessageFrame frame,
+                @NonNull final OperationTracer tracer,
+                @NonNull final Account contractAccount,
+                @NonNull final Bytes code,
+                final boolean transfersValue) {
             final Address executableCodeAddress;
             final boolean isCodeDelegation;
-            if (contractAccount != null) {
-                final var hasCodeDelegation = CodeDelegationHelper.hasCodeDelegation(contractAccount.getCode());
-                final var isEoa = contractAccount.getCode().isEmpty() || hasCodeDelegation;
-                final var isEligibleForHasRedirect =
-                        HasSystemContract.isPayloadEligibleForHasProxyRedirect(frame.getInputData());
 
-                if (isEoa && isEligibleForHasRedirect) {
-                    // HAS proxy calls have priority, even if code delegation is set
-                    // - this is a built-in redirect functionality, and it isn't considered code delegation.
-                    executableCodeAddress = Address.fromHexString(HAS_EVM_ADDRESS);
-                    isCodeDelegation = false;
-                } else if (hasCodeDelegation) {
-                    executableCodeAddress = Address.wrap(
-                            contractAccount.getCode().slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
-                    isCodeDelegation = true;
-                } else {
-                    executableCodeAddress = frame.getContractAddress();
-                    isCodeDelegation = false;
-                }
+            final boolean hasCodeDelegation = CodeDelegationHelper.hasCodeDelegation(code);
+
+            final var isEoa = code.isEmpty() || hasCodeDelegation;
+            final var isEligibleForHasRedirect =
+                    HasSystemContract.isPayloadEligibleForHasProxyRedirect(frame.getInputData());
+
+            if (isEoa && isEligibleForHasRedirect) {
+                // HAS proxy calls have priority, even if code delegation is set
+                // - this is a built-in redirect functionality, and it isn't considered code delegation.
+                executableCodeAddress = Address.fromHexString(HAS_EVM_ADDRESS);
+                isCodeDelegation = false;
+            } else if (hasCodeDelegation) {
+                executableCodeAddress = Address.wrap(code.slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
+                isCodeDelegation = true;
             } else {
-                // Call target account doesn't exist
+                // case for contract with small bytecode
                 executableCodeAddress = frame.getContractAddress();
                 isCodeDelegation = false;
             }
@@ -101,10 +135,10 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             return new CustomMessageCallContext(
                     frame,
                     tracer,
-                    Optional.ofNullable(contractAccount),
+                    Optional.of(contractAccount),
                     executableCodeAddress,
                     isCodeDelegation,
-                    FrameUtils.transfersValue(frame));
+                    transfersValue);
         }
     }
 
@@ -252,7 +286,9 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             contractMetrics
                     .opsDurationMetrics()
                     .recordSystemContractOpsDuration(
-                            systemContract.getName(), systemContractAddress.toHexString(), opsDurationCost);
+                            systemContract.getName(),
+                            systemContractAddress.getBytes().toHexString(),
+                            opsDurationCost);
 
             result = fullResult.result();
         }

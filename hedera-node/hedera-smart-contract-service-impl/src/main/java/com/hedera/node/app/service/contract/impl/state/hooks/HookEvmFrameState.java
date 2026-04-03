@@ -35,7 +35,6 @@ import java.util.TreeMap;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.MutableAccount;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
  * EVM frame state used during hook execution. For address 0x16d, it returns
@@ -43,7 +42,6 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  */
 public class HookEvmFrameState extends DispatchingEvmFrameState {
     private final EvmHookState hook;
-    private final CodeFactory codeFactory;
     private final WritableEvmHookStore writableEvmHookStore;
     private final EntityIdFactory entityIdFactory;
     private final ContractID hooksContractId;
@@ -56,12 +54,10 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
             @NonNull final HederaNativeOperations nativeOperations,
             @NonNull final ContractStateStore contractStateStore,
             @NonNull final WritableEvmHookStore writableEvmHookStore,
-            @NonNull final CodeFactory codeFactory,
             @NonNull final EvmHookState hook) {
-        super(nativeOperations, contractStateStore, codeFactory);
+        super(nativeOperations, contractStateStore);
         this.entityIdFactory = requireNonNull(nativeOperations).entityIdFactory();
         this.hook = requireNonNull(hook);
-        this.codeFactory = requireNonNull(codeFactory);
         this.writableEvmHookStore = requireNonNull(writableEvmHookStore);
         this.hooksContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
     }
@@ -74,7 +70,7 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     @Override
     public @Nullable MutableAccount getMutableAccount(@NonNull final Address address) {
         if (address.equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
-            return new ProxyEvmHook(this, hook, codeFactory, entityIdFactory);
+            return new ProxyEvmHook(this, hook, entityIdFactory);
         }
         return super.getMutableAccount(address);
     }

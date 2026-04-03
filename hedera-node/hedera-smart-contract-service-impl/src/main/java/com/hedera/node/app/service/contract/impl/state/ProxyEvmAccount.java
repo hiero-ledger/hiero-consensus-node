@@ -9,7 +9,7 @@ import com.hedera.hapi.node.state.token.Account;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.code.CodeV0;
+import org.hyperledger.besu.evm.Code;
 
 /**
  * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a regular account.
@@ -41,7 +41,7 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
     @Override
     public @NonNull Hash getCodeHash() {
         if (account.delegationAddress().length() == 0) {
-            return CodeV0.EMPTY_CODE.getCodeHash();
+            return Code.EMPTY_CODE.getCodeHash();
         } else {
             return Hash.wrap(keccak256(getCode()));
         }

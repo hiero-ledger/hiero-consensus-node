@@ -99,7 +99,8 @@ public class AutoCreateUtils {
                 // create a hollow account with the correct create1 address
                 final var create1Address =
                         contractAddress(Address.wrap(Bytes.wrap(recoverAddressFromPubKey(ecdsaKey))), 0L);
-                final var create1ByteString = ByteString.copyFrom(create1Address.toArray());
+                final var create1ByteString =
+                        ByteString.copyFrom(create1Address.getBytes().toArray());
 
                 final var op3 = cryptoTransfer(
                                 tinyBarsFromTo(LAZY_CREATE_SPONSOR, create1ByteString, ONE_HUNDRED_HBARS))

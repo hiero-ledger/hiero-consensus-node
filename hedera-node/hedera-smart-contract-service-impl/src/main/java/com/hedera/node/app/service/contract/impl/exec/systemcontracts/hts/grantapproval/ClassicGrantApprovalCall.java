@@ -20,8 +20,8 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 
 /**
  * Implements the token redirect {@code approve()} call of the HTS system contract
