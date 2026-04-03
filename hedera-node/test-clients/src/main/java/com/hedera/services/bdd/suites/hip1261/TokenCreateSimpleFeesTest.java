@@ -27,7 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftFullFeeUsd;
@@ -121,7 +121,7 @@ public class TokenCreateSimpleFeesTest {
                             .via(tokenCreateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenCreateTxn,
-                            txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                            txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
                                     KEYS, 0L,
                                     PROCESSING_BYTES, (long) txnSize)),
@@ -170,7 +170,7 @@ public class TokenCreateSimpleFeesTest {
                             .via(tokenCreateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenCreateTxn,
-                            txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                            txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
@@ -206,7 +206,7 @@ public class TokenCreateSimpleFeesTest {
                             .via(tokenCreateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenCreateTxn,
-                            txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                            txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 7L,
                                     PROCESSING_BYTES, (long) txnSize)),
@@ -322,7 +322,7 @@ public class TokenCreateSimpleFeesTest {
                             .via(tokenCreateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenCreateTxn,
-                            txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                            txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 0L,
                                     PROCESSING_BYTES, (long) txnSize)),
@@ -388,7 +388,7 @@ public class TokenCreateSimpleFeesTest {
                     }),
                     validateChargedUsdWithinWithTxnSize(
                             tokenCreateTxn,
-                            txnSize -> expectedTokenCreateFungibleFullFeeUsd(
+                            txnSize -> expectedTokenCreateFullFeeUsd(
                                     Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenCreateTxn, PAYER));
@@ -420,7 +420,7 @@ public class TokenCreateSimpleFeesTest {
                     }),
                     validateChargedUsdWithinWithTxnSize(
                             tokenCreateTxn,
-                            txnSize -> expectedTokenCreateFungibleFullFeeUsd(
+                            txnSize -> expectedTokenCreateFullFeeUsd(
                                     Map.of(SIGNATURES, 56L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
@@ -695,7 +695,7 @@ public class TokenCreateSimpleFeesTest {
                                 .hasKnownStatus(MISSING_TOKEN_NAME),
                         validateChargedUsdWithinWithTxnSize(
                                 tokenCreateTxn,
-                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
                                         KEYS, 0L,
                                         PROCESSING_BYTES, (long) txnSize)),
@@ -719,7 +719,7 @@ public class TokenCreateSimpleFeesTest {
                                 .hasKnownStatus(MISSING_TOKEN_SYMBOL),
                         validateChargedUsdWithinWithTxnSize(
                                 tokenCreateTxn,
-                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
                                         KEYS, 0L,
                                         PROCESSING_BYTES, (long) txnSize)),
@@ -742,7 +742,7 @@ public class TokenCreateSimpleFeesTest {
                                 .hasKnownStatus(INVALID_SIGNATURE),
                         validateChargedUsdWithinWithTxnSize(
                                 tokenCreateTxn,
-                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
                                         KEYS, 0L,
                                         PROCESSING_BYTES, (long) txnSize)),
@@ -780,7 +780,7 @@ public class TokenCreateSimpleFeesTest {
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
                         validateChargedUsdWithinWithTxnSize(
                                 tokenCreateTxn,
-                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
                                         KEYS, 0L,
                                         PROCESSING_BYTES, (long) txnSize)),
@@ -842,7 +842,7 @@ public class TokenCreateSimpleFeesTest {
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                         validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(
+                                txnSize -> expectedTokenCreateFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(INNER_ID, PAYER));
