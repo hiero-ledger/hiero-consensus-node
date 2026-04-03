@@ -9,11 +9,9 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualMapReconnect;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Map;
@@ -52,14 +50,9 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     private final ReconnectConfig reconnectConfig;
 
     /**
-     * Handles removal of old nodes.
+     * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
      */
-    private final ReconnectNodeRemover nodeRemover;
-
-    /**
-     * A {@link RecordAccessor} for getting access to the original records.
-     */
-    private final RecordAccessor originalRecords;
+    private final VirtualMapReconnect reconnect;
 
     /**
      * Node traversal order. Defines the order in which node requests will be sent to the teacher.
@@ -95,34 +88,19 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
-     * @param map
-     * 		The map node of the <strong>reconnect</strong> tree. Cannot be null.
-     * @param originalRecords
-     * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
-     * 		Cannot be null.
-     * @param originalState
-     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
-     * 		unmodified <strong>original</strong> tree. Cannot be null.
-     * @param reconnectState
-     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
-     * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
-     * 		Cannot be null.
+     * @param reconnect
+     * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
      * @param mapStats
      *      A ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPullVirtualTreeView(
             @NonNull final ReconnectConfig reconnectConfig,
-            @NonNull final VirtualMap map,
-            @NonNull final RecordAccessor originalRecords,
-            @NonNull final VirtualMapMetadata originalState,
-            @NonNull final VirtualMapMetadata reconnectState,
-            @NonNull final ReconnectNodeRemover nodeRemover,
+            @NonNull final VirtualMapReconnect reconnect,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {
-        super(map, originalState, reconnectState);
+        super(reconnect.getOriginalState(), reconnect.getReconnectState());
         this.reconnectConfig = reconnectConfig;
-        this.originalRecords = Objects.requireNonNull(originalRecords);
-        this.nodeRemover = nodeRemover;
+        this.reconnect = Objects.requireNonNull(reconnect);
         this.traversalOrder = traversalOrder;
         this.mapStats = mapStats;
     }
@@ -206,13 +184,9 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             final long lastLeafPath = response.getLastLeafPath();
             assert firstNodeResponse.compareAndSet(true, false)
                     : "Root node must be the first node received from the teacher";
-            reconnectState.setPaths(firstLeafPath, lastLeafPath);
             traversalOrder.start(
                     originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
-            map.prepareReconnectHashing(firstLeafPath, lastLeafPath);
-            rootResponseReceived.countDown();
-            // setPathInformation() below may take a while
-            nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
+            reconnect.onStart(firstLeafPath, lastLeafPath, rootResponseReceived::countDown);
         }
         if ((responsePath == 0) || !isLeaf(responsePath)) {
             handleResponse(response);
@@ -250,8 +224,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
                 final VirtualLeafBytes<?> leaf = response.getLeafData();
                 assert leaf != null;
                 assert path == leaf.path();
-                nodeRemover.newLeafNode(path, leaf.keyBytes());
-                map.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
+                reconnect.onLeaf(leaf); // may block if hashing is slower than ingest
             }
             mapStats.incrementLeafData(1, isClean ? 1 : 0);
         } else {
@@ -281,7 +254,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             return Cryptography.NULL_HASH;
         }
 
-        final Hash hash = originalRecords.findHash(originalChild);
+        final Hash hash = reconnect.findHash(originalChild);
         // The hash must have been specified by this point. The original tree was hashed before
         // we started running on the learner, so either the hash is in cache or on disk, but it
         // definitely exists at this point. If it is null, something bad happened elsewhere.
@@ -337,8 +310,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void close() {
-        nodeRemover.allNodesReceived();
-        map.endLearnerReconnect();
+        reconnect.onEnd();
     }
 
     /**

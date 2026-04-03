@@ -17,6 +17,7 @@ import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualMapReconnect;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -94,16 +95,14 @@ public class MerkleBenchmarkUtils {
             final LearningSynchronizer learner;
             final TeachingSynchronizer teacher;
 
-            final VirtualMap newRoot = startingTree.newReconnectRoot();
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
-
+            final VirtualMapReconnect reconnect = new VirtualMapReconnect(startingTree, reconnectConfig, mapStats);
+            final LearnerTreeView learnerView = reconnect.getLearnerView();
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(
                         getStaticThreadManager(),
                         streams.getLearnerInput(),
                         streams.getLearnerOutput(),
-                        newRoot,
                         learnerView,
                         () -> {
                             try {
@@ -133,7 +132,6 @@ public class MerkleBenchmarkUtils {
                 learner = new BenchmarkSlowLearningSynchronizer(
                         streams.getLearnerInput(),
                         streams.getLearnerOutput(),
-                        newRoot,
                         learnerView,
                         randomSeed,
                         delayStorageMicroseconds,
@@ -191,7 +189,7 @@ public class MerkleBenchmarkUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            return newRoot;
+            return reconnect.getVirtualMap();
         }
     }
 

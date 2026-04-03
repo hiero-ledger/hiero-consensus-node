@@ -7,7 +7,6 @@ import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
 
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TreeView;
-import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
@@ -16,11 +15,6 @@ import java.util.Objects;
  * A convenient base class for {@link TreeView} implementations for virtual merkle.
  */
 public abstract class VirtualTreeViewBase implements TreeView {
-    /**
-     * The root node that is involved in reconnect. This would be the saved state for the teacher, and
-     * the new root node into which things are being serialized for the learner.
-     */
-    protected final VirtualMap map;
 
     /**
      * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
@@ -38,18 +32,13 @@ public abstract class VirtualTreeViewBase implements TreeView {
     /**
      * Create a new {@link VirtualTreeViewBase}.
      *
-     * @param map
-     * 		The map. Cannot be null.
      * @param originalState
      * 		The original state of a learner. Cannot be null.
      * @param reconnectState
      * 		The state of the trees being reconnected. Cannot be null.
      */
     protected VirtualTreeViewBase(
-            @NonNull final VirtualMap map,
-            @NonNull final VirtualMapMetadata originalState,
-            @NonNull final VirtualMapMetadata reconnectState) {
-        this.map = Objects.requireNonNull(map);
+            @NonNull final VirtualMapMetadata originalState, @NonNull final VirtualMapMetadata reconnectState) {
         this.originalState = Objects.requireNonNull(originalState);
         this.reconnectState = Objects.requireNonNull(reconnectState);
     }

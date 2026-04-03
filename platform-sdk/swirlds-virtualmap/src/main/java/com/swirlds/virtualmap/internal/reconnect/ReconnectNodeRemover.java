@@ -103,7 +103,6 @@ public class ReconnectNodeRemover {
                 newFirstLeafPath,
                 oldLastLeafPath,
                 newLastLeafPath);
-        flusher.start(newFirstLeafPath, newLastLeafPath);
         this.newLastLeafPath = newLastLeafPath;
         if (oldLastLeafPath > 0) {
             // no-op if new first leaf path is less or equal to old first leaf path

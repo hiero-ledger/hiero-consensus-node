@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 import static com.swirlds.virtualmap.internal.Path.getChildPath;
 import static com.swirlds.virtualmap.internal.Path.getParentPath;
@@ -15,15 +14,11 @@ import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 import com.swirlds.common.merkle.synchronization.task.LearnerPushTask;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualMapReconnect;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.RecordAccessor;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -37,8 +32,6 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  */
 public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView {
 
-    private static final Logger logger = LogManager.getLogger(LearnerPushVirtualTreeView.class);
-
     /**
      * Some reasonable default initial capacity for the {@link BooleanBitSetQueue}s used for
      * storing {@link ExpectedLesson} data. If the value is too large, we use some more memory
@@ -47,9 +40,9 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
     private static final int EXPECTED_BIT_SET_INITIAL_CAPACITY = 1024 * 1024;
 
     /**
-     * Handles removal of old nodes.
+     * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
      */
-    private final ReconnectNodeRemover nodeRemover;
+    private final VirtualMapReconnect reconnect;
 
     /**
      * As part of tracking {@link ExpectedLesson}s, this keeps track of the "nodeAlreadyPresent" boolean.
@@ -68,41 +61,20 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     private final BooleanBitSetQueue expectedOriginalExists = new BooleanBitSetQueue(EXPECTED_BIT_SET_INITIAL_CAPACITY);
 
-    /**
-     * A {@link RecordAccessor} for getting access to the original records.
-     */
-    private final RecordAccessor originalRecords;
-
     private final ReconnectMapStats mapStats;
 
     /**
      * Create a new {@link LearnerPushVirtualTreeView}.
      *
-     * @param map
-     * 		The map node of the <strong>reconnect</strong> tree. Cannot be null.
-     * @param originalRecords
-     * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
-     * 		Cannot be null.
-     * @param originalState
-     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
-     * 		unmodified <strong>original</strong> tree. Cannot be null.
-     * @param reconnectState
-     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
-     * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
-     * 		Cannot be null.
+     * @param reconnect
+     * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
      * @param mapStats
      *      A ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPushVirtualTreeView(
-            @NonNull final VirtualMap map,
-            @NonNull final RecordAccessor originalRecords,
-            @NonNull final VirtualMapMetadata originalState,
-            @NonNull final VirtualMapMetadata reconnectState,
-            @NonNull final ReconnectNodeRemover nodeRemover,
-            @NonNull final ReconnectMapStats mapStats) {
-        super(map, originalState, reconnectState);
-        this.originalRecords = requireNonNull(originalRecords);
-        this.nodeRemover = requireNonNull(nodeRemover);
+            @NonNull final VirtualMapReconnect reconnect, @NonNull final ReconnectMapStats mapStats) {
+        super(reconnect.getOriginalState(), reconnect.getReconnectState());
+        this.reconnect = requireNonNull(reconnect);
         this.mapStats = requireNonNull(mapStats);
     }
 
@@ -132,7 +104,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
 
         // Make sure the path is valid for the original state
         checkValidNode(originalChild, originalState);
-        final Hash hash = originalRecords.findHash(originalChild);
+        final Hash hash = reconnect.findHash(originalChild);
 
         // The hash must have been specified by this point. The original tree was hashed before
         // we started running on the learner, so either the hash is in cache or on disk, but it
@@ -185,8 +157,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
         final VirtualLeafBytes<?> leaf = VirtualReconnectUtils.readLeafRecord(in);
-        nodeRemover.newLeafNode(leaf.path(), leaf.keyBytes());
-        map.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
+        reconnect.onLeaf(leaf); // may block if hashing is slower than ingest
         return leaf.path();
     }
 
@@ -205,10 +176,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             // of the VirtualMap. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
-            reconnectState.setLastLeafPath(lastLeafPath);
-            reconnectState.setFirstLeafPath(firstLeafPath);
-            map.prepareReconnectHashing(firstLeafPath, lastLeafPath);
-            nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
+            reconnect.onStart(firstLeafPath, lastLeafPath, null);
         }
         return node;
     }
@@ -218,11 +186,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void close() {
-        logger.info(RECONNECT.getMarker(), "call nodeRemover.allNodesReceived()");
-        nodeRemover.allNodesReceived();
-        logger.info(RECONNECT.getMarker(), "call root.endLearnerReconnect()");
-        map.endLearnerReconnect();
-        logger.info(RECONNECT.getMarker(), "close() complete");
+        reconnect.onEnd();
     }
 
     /**

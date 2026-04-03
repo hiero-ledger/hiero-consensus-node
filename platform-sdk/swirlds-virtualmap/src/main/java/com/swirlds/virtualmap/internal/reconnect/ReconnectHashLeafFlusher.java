@@ -30,7 +30,7 @@ import org.apache.logging.log4j.Logger;
  * be called from multiple threads. However, some of the calling threads may be blocked
  * till the currently accumulated data is flushed to disk.
  *
- * <p>{@link #start(long, long)} must be called in the beginning of flush, and {@link
+ * <p>{@link #init(long, long)} must be called in the beginning of flush, and {@link
  * #finish()} must be called in the end.
  *
  */
@@ -70,7 +70,7 @@ public class ReconnectHashLeafFlusher {
         this.statistics = Objects.requireNonNull(statistics);
     }
 
-    synchronized void start(final long firstLeafPath, final long lastLeafPath) {
+    public synchronized void init(final long firstLeafPath, final long lastLeafPath) {
         if (firstLeafPath != Path.INVALID_PATH && !(firstLeafPath > 0 && firstLeafPath <= lastLeafPath)) {
             throw new IllegalArgumentException("The first leaf path is invalid. firstLeafPath=" + firstLeafPath
                     + ", lastLeafPath=" + lastLeafPath);

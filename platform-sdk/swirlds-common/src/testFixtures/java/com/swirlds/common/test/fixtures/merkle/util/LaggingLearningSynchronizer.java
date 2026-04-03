@@ -7,7 +7,6 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -26,12 +25,11 @@ public class LaggingLearningSynchronizer extends LearningSynchronizer {
     public LaggingLearningSynchronizer(
             final SerializableDataInputStream in,
             final SerializableDataOutputStream out,
-            final Hashable newRoot,
             final LearnerTreeView view,
             final int latencyMilliseconds,
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig) {
-        super(getStaticThreadManager(), in, out, newRoot, view, breakConnection, reconnectConfig);
+        super(getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
 
         this.latencyMilliseconds = latencyMilliseconds;
     }
