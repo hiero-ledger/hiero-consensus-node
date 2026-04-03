@@ -145,7 +145,7 @@ public class BlockNodeConfigService {
      * Stops the configuration service. This will also clear any previously held configuration and stop the file watcher
      * that is monitoring configuration file changes.
      */
-    public void stop() {
+    public void shutdown() {
         if (!isActive.compareAndSet(true, false)) {
             return;
         }
@@ -271,8 +271,10 @@ public class BlockNodeConfigService {
 
                             if (StandardWatchEventKinds.ENTRY_DELETE == kind) {
                                 // treat a deletion as a version change
-                                configVersionCounter.incrementAndGet();
-                                latestConfigRef.set(null);
+                                final int newVersionNumber = configVersionCounter.incrementAndGet();
+                                final VersionedBlockNodeConfigurationSet newConfig =
+                                        new VersionedBlockNodeConfigurationSet(newVersionNumber, List.of());
+                                latestConfigRef.set(newConfig);
                             } else {
                                 loadConfiguration();
                             }
@@ -283,14 +285,14 @@ public class BlockNodeConfigService {
                     if (e instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
                     }
-                    stop();
+                    shutdown();
                 } catch (final Exception e) {
                     logger.warn("Error encountered in configuration watcher (ignoring)", e);
                 } finally {
                     // Always reset the key to continue watching for events, even if an exception occurred
                     if (key != null && !key.reset()) {
                         logger.warn("WatchKey could not be reset; exiting watcher loop");
-                        stop();
+                        shutdown();
                     }
                 }
             }

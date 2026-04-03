@@ -150,7 +150,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(nodeConfig, globalActiveStreamingConnectionCount, stats),
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, stats),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -230,7 +230,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(cfgWithMax, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(configProvider, cfgWithMax, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -292,7 +292,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -393,7 +393,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -688,7 +688,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -753,7 +753,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,

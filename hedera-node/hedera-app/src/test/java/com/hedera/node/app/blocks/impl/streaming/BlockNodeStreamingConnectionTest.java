@@ -128,7 +128,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         configProvider = createConfigProvider(createDefaultConfigProvider());
         stats = mock(BlockNodeStats.class);
         globalActiveStreamingConnectionCount = new AtomicInteger();
-        blockNode = new BlockNode(newBlockNodeConfig(8080, 1), globalActiveStreamingConnectionCount, stats);
+        blockNode =
+                new BlockNode(configProvider, newBlockNodeConfig(8080, 1), globalActiveStreamingConnectionCount, stats);
         connectionManager = mock(BlockNodeConnectionManager.class);
         bufferService = mock(BlockBufferService.class);
         grpcServiceClient = mock(BlockStreamPublishServiceClient.class);

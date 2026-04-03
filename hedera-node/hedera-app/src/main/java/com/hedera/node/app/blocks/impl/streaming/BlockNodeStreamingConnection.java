@@ -1034,6 +1034,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      */
     public void closeAtBlockBoundary(@NonNull final CloseReason closeReason) {
         requireNonNull(closeReason, "Close reason is required");
+
+        if (closeAtNextBlockBoundary.get()) {
+            return; // we are already closing the connection so don't override the previous close reason
+        }
+
         logger.info("{} Connection will be closed at the next block boundary (reason: {})", this, closeReason);
         closeAtNextBlockBoundary.set(true);
         pendingCloseReason.set(closeReason);

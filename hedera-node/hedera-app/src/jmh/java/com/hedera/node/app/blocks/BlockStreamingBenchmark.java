@@ -384,7 +384,7 @@ public class BlockStreamingBenchmark {
 
         final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(nodeConfig, new AtomicInteger(), new BlockNodeStats()),
+                new BlockNode(configProvider, nodeConfig, new AtomicInteger(), new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 blockStreamMetrics,

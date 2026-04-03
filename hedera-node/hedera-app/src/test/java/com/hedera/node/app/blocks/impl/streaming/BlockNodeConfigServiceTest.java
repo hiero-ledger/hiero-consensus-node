@@ -102,7 +102,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     @AfterEach
     void afterEach() {
         if (configService != null) {
-            configService.stop();
+            configService.shutdown();
         }
     }
 
@@ -186,26 +186,26 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testStop_alreadyStopped() {
+    void testShutdown_alreadyStopped() {
         final WatchService watchService = mock(WatchService.class);
         watchServiceRef().set(watchService); // set the watch service so we can confirm the early exit from #stop
         isActive().set(false);
 
-        configService.stop();
+        configService.shutdown();
 
         assertThat(isActive()).isFalse();
         assertThat(watchServiceRef()).doesNotHaveNullValue().hasValue(watchService);
     }
 
     @Test
-    void testStop_watcherCloseFailure() throws Exception {
+    void testShutdown_watcherCloseFailure() throws Exception {
         final WatchService watchService = mock(WatchService.class);
         doThrow(new IOException("why am I such a failure?")).when(watchService).close();
 
         watchServiceRef().set(watchService);
         isActive().set(true);
 
-        configService.stop();
+        configService.shutdown();
 
         verify(watchService).close();
 
@@ -216,7 +216,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testStop() throws Exception {
+    void testShutdown() throws Exception {
         final WatchService watchService = mock(WatchService.class);
         final VersionedBlockNodeConfigurationSet config = new VersionedBlockNodeConfigurationSet(1, List.of());
 
@@ -225,7 +225,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
         configVersionCounter().set(1);
         isActive().set(true);
 
-        configService.stop();
+        configService.shutdown();
 
         verify(watchService).close();
 
