@@ -129,9 +129,8 @@ public class StartupStateUtilsTests {
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager = createLifecycleManager();
         final VirtualMapState state = signedState.getState();
         stateLifecycleManager.initWithState(state);
-        stateLifecycleManager.getMutableState().release();
-        // hash the state
-        state.getHash();
+        // Async snapshot requires all references to the state being written to disk to be released
+        state.release();
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
@@ -140,7 +139,7 @@ public class StartupStateUtilsTests {
                 selfId,
                 savedStateDirectory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
-                signedState,
+                signedState.reserve("test"),
                 stateLifecycleManager);
 
         if (corrupted) {
@@ -151,7 +150,7 @@ public class StartupStateUtilsTests {
             writer.close();
         }
 
-        state.release();
+        stateLifecycleManager.getMutableState().release();
         destroyStateLifecycleManager(stateLifecycleManager);
         return signedState;
     }

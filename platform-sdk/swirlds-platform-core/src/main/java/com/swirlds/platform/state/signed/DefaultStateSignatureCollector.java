@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static java.util.stream.Collectors.collectingAndThen;
-import static java.util.stream.Collectors.toList;
-
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.logging.legacy.LogMarker;
@@ -12,14 +9,14 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Queue;
-import java.util.stream.Stream;
+import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
@@ -48,6 +45,14 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     private long lastStateRound = ConsensusConstants.ROUND_UNDEFINED;
     /** Signed states awaiting signatures */
     private final Map<Long, ReservedSignedState> incompleteStates = new HashMap<>();
+    /**
+     * Completed states awaiting release in ascending round order.
+     * A state is held here until all lower rounds have completed or been purged,
+     * ensuring that downstream consumers (specifically {@code saveStateTask}) always
+     * receive states in ascending round order. This prevents the deadlock in
+     * {@code VirtualPipeline}, which enforces strict oldest-first flushing.
+     */
+    private final TreeMap<Long, ReservedSignedState> completedBuffer = new TreeMap<>();
     /** State config */
     private final StateConfig stateConfig;
     /** Signatures for rounds in the future */
@@ -108,11 +113,21 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
                         "Two states with the same round ({}) have been added to the signature collector",
                         signedState.getRound());
             }
-            return Optional.of(purgeOldStates()).filter(l -> !l.isEmpty()).orElse(null);
+            purgeOldStates().forEach(rss -> completedBuffer.put(rss.get().getRound(), rss));
+            return drainCompleted();
+        } else {
+            completedBuffer.put(signedState.getRound(), reservedSignedState);
         }
-        return Stream.concat(Stream.of(reservedSignedState), purgeOldStates().stream())
-                .filter(Objects::nonNull)
-                .collect(collectingAndThen(toList(), l -> l.isEmpty() ? null : l));
+        purgeOldStates().forEach(rss -> completedBuffer.put(rss.get().getRound(), rss));
+        if (signedState.isFreezeState()) {
+            // Freeze is the final state — drain everything regardless of threshold.
+            // The node is about to shut down, ordering relative to the VirtualPipeline
+            // no longer matters, and freeze uses synchronous snapshots anyway.
+            final List<ReservedSignedState> result = new ArrayList<>(completedBuffer.values());
+            completedBuffer.clear();
+            return result.isEmpty() ? null : result;
+        }
+        return drainCompleted();
     }
 
     /**
@@ -122,13 +137,11 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     public @Nullable List<ReservedSignedState> handlePreconsensusSignatures(
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         Objects.requireNonNull(transactions, "transactions");
-        return transactions.stream()
-                .map(this::handlePreconsensusSignature)
-                .filter(Objects::nonNull)
-                .collect(collectingAndThen(toList(), l -> l.isEmpty() ? null : l));
+        transactions.forEach(this::handlePreconsensusSignature);
+        return drainCompleted();
     }
 
-    private @Nullable ReservedSignedState handlePreconsensusSignature(
+    private void handlePreconsensusSignature(
             @NonNull final ScopedSystemTransaction<StateSignatureTransaction> scopedTransaction) {
 
         final long round = scopedTransaction.transaction().round();
@@ -146,9 +159,12 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         if (reservedState == null) {
             // This round has already been completed, or it is really old or in the future
             savedSignatures.add(new SavedSignature(round, scopedTransaction.submitterId(), signature));
-            return null;
+            return;
         }
-        return addSignature(reservedState, scopedTransaction.submitterId(), signature);
+        final ReservedSignedState completed = addSignature(reservedState, scopedTransaction.submitterId(), signature);
+        if (completed != null) {
+            completedBuffer.put(completed.get().getRound(), completed);
+        }
     }
 
     /**
@@ -158,13 +174,11 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     public @Nullable List<ReservedSignedState> handlePostconsensusSignatures(
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         Objects.requireNonNull(transactions, "transactions");
-        return transactions.stream()
-                .map(this::handlePostconsensusSignature)
-                .filter(Objects::nonNull)
-                .collect(collectingAndThen(toList(), l -> l.isEmpty() ? null : l));
+        transactions.forEach(this::handlePostconsensusSignature);
+        return drainCompleted();
     }
 
-    private @Nullable ReservedSignedState handlePostconsensusSignature(
+    private void handlePostconsensusSignature(
             @NonNull final ScopedSystemTransaction<StateSignatureTransaction> scopedTransaction) {
         final long round = scopedTransaction.transaction().round();
 
@@ -173,15 +187,18 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         // and if we don't have the state for an old round, we never will.
         // in both cases, the signature can be ignored
         if (reservedState == null) {
-            return null;
+            return;
         }
 
-        return addSignature(
+        final ReservedSignedState completed = addSignature(
                 reservedState,
                 scopedTransaction.submitterId(),
                 new Signature(
                         SignatureType.RSA,
                         scopedTransaction.transaction().signature().toByteArray()));
+        if (completed != null) {
+            completedBuffer.put(completed.get().getRound(), completed);
+        }
     }
 
     /**
@@ -272,6 +289,13 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
             state.close();
             iterator.remove();
         }
+        for (final Iterator<ReservedSignedState> iterator =
+                        completedBuffer.values().iterator();
+                iterator.hasNext(); ) {
+            final ReservedSignedState state = iterator.next();
+            state.close();
+            iterator.remove();
+        }
         savedSignatures.clear();
         lastStateRound = ConsensusConstants.ROUND_UNDEFINED;
     }
@@ -281,4 +305,41 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
      */
     private record SavedSignature(
             long round, @NonNull NodeId memberId, @NonNull Signature signature) {}
+
+    /**
+     * Returns the highest round that is safe to drain from the completed buffer.
+     * A completed state for round R is safe to release only when no round less than R
+     * exists in {@link #incompleteStates}, because such a round could still complete
+     * and must be output first.
+     *
+     * @return the highest round safe to drain, or {@link Long#MAX_VALUE} if all can be drained
+     */
+    private long drainThreshold() {
+        if (incompleteStates.isEmpty()) {
+            return Long.MAX_VALUE;
+        }
+        return Collections.min(incompleteStates.keySet()) - 1;
+    }
+
+    /**
+     * Drains all completed states from the buffer whose round is at or below the
+     * current {@link #drainThreshold()}. Returns them in ascending round order.
+     *
+     * @return a list of states in ascending round order, or {@code null} if nothing to drain
+     */
+    @Nullable
+    private List<ReservedSignedState> drainCompleted() {
+        if (completedBuffer.isEmpty()) {
+            return null;
+        }
+
+        final long threshold = drainThreshold();
+        final List<ReservedSignedState> result = new ArrayList<>();
+
+        while (!completedBuffer.isEmpty() && completedBuffer.firstKey() <= threshold) {
+            result.add(completedBuffer.pollFirstEntry().getValue());
+        }
+
+        return result.isEmpty() ? null : result;
+    }
 }
