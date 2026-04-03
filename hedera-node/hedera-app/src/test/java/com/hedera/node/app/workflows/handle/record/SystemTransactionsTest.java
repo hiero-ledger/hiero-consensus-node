@@ -569,7 +569,7 @@ class SystemTransactionsTest {
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
 
         given(wrappedRecordBlockHashMigration.result())
-                .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, Bytes.EMPTY, List.of(), 0));
+                .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, List.of(), 0));
 
         @SuppressWarnings("unchecked")
         final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
@@ -688,7 +688,7 @@ class SystemTransactionsTest {
         final long migrationLeafCount = 42L;
         given(wrappedRecordBlockHashMigration.result())
                 .willReturn(new WrappedRecordBlockHashMigration.Result(
-                        Bytes.EMPTY, migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
+                        migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
 
         // Set up BlockInfo in state with DIFFERENT values than the migration
         final var staleBlockInfo = BlockInfo.newBuilder()
@@ -782,7 +782,7 @@ class SystemTransactionsTest {
     @Test
     void maybeSubmitStartupMigrationVoteSubmitsWhenSelfVoteAbsent() {
         final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+                Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
         given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
         given(creatorNodeInfo.nodeId()).willReturn(0L);
@@ -805,7 +805,7 @@ class SystemTransactionsTest {
     @Test
     void maybeSubmitStartupMigrationVoteSkipsWhenSelfVotePresent() {
         final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                Bytes.wrap(new byte[] {9}), Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+                Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
         given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
         given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
         given(creatorNodeInfo.nodeId()).willReturn(0L);

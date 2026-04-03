@@ -33,6 +33,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.output.BlockFooter;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.Timestamp;
@@ -99,6 +100,7 @@ import org.junit.jupiter.api.Assertions;
  * A validator that asserts the state changes in the block stream, when applied directly to a {@link VirtualMapState}
  * initialized with the genesis {@link Service} schemas, result in the given root hash.
  */
+@SuppressWarnings("removal")
 public class StateChangesValidator implements BlockStreamValidator {
 
     private static final Logger logger = LogManager.getLogger(StateChangesValidator.class);
@@ -155,6 +157,11 @@ public class StateChangesValidator implements BlockStreamValidator {
     @NonNull
     private final Supplier<IndirectProofSequenceValidator> proofSeqFactory;
 
+    private final CutoverEnabled cutoverEnabled;
+
+    @Nullable
+    private final Path preservedPreviewBlocksDir;
+
     private final Map<Bytes, Set<Long>> signers = new HashMap<>();
     private final Map<Bytes, Long> blockNumbers = new HashMap<>();
     private final boolean wrapsEnabled;
@@ -183,7 +190,12 @@ public class StateChangesValidator implements BlockStreamValidator {
         NO
     }
 
-    public static void main(String[] args) {
+    public enum CutoverEnabled {
+        YES,
+        NO
+    }
+
+    static void main() {
         final var node0Dir = Paths.get("hedera-node/test-clients")
                 .resolve(workingDirFor(0, "hapi"))
                 .toAbsolutePath()
@@ -205,7 +217,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                 false,
                 StateProofsEnabled.NO,
                 shard,
-                realm);
+                realm,
+                CutoverEnabled.NO,
+                null);
         final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(
                 node0Dir.resolve("data/blockStreams/block-%d.%d.3".formatted(shard, realm)));
         validator.validateBlocks(blocks);
@@ -251,6 +265,10 @@ public class StateChangesValidator implements BlockStreamValidator {
         final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
         final boolean stateProofsEnabled = spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
         final boolean adaptiveChecksEnabled = ADAPTIVE_SIGNATURE_CHECKS_ENABLED.get();
+        // Detect if cutover executed by checking for preserved preview blocks on disk
+        final Path preservedPreviewBlocksDir =
+                node0.metadata().workingDir().resolve("data").resolve("cutover").resolve("preservedPreviewBlocks");
+        final boolean isCutoverEnabled = Files.isDirectory(preservedPreviewBlocksDir);
         return new StateChangesValidator(
                 rootHash,
                 node0.getExternalPath(SWIRLDS_LOG),
@@ -267,7 +285,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                         .orElse(false),
                 stateProofsEnabled ? StateProofsEnabled.YES : StateProofsEnabled.NO,
                 spec.shard(),
-                spec.realm());
+                spec.realm(),
+                isCutoverEnabled ? CutoverEnabled.YES : CutoverEnabled.NO,
+                preservedPreviewBlocksDir);
     }
 
     public StateChangesValidator(
@@ -282,11 +302,15 @@ public class StateChangesValidator implements BlockStreamValidator {
             final boolean assertAtLeastOneWraps,
             @NonNull final StateProofsEnabled stateProofsEnabled,
             final long shard,
-            final long realm) {
+            final long realm,
+            @NonNull final CutoverEnabled cutoverEnabled,
+            @Nullable final Path preservedPreviewBlocksDir) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
         this.hintsThresholdDenominator = hintsThresholdDenominator;
         this.assertAtLeastOneWraps = assertAtLeastOneWraps;
+        this.cutoverEnabled = requireNonNull(cutoverEnabled);
+        this.preservedPreviewBlocksDir = preservedPreviewBlocksDir;
 
         System.setProperty(
                 "hedera.app.properties.path",
@@ -333,6 +357,131 @@ public class StateChangesValidator implements BlockStreamValidator {
         logger.info("Beginning validation of expected root hash {}", expectedRootHash);
         var previousBlockHash = BlockStreamManager.HASH_OF_ZERO;
         var startOfStateHash = requireNonNull(initializedGenesisStateHash).getBytes();
+        var incrementalBlockHashes = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+
+        // If cutover is enabled, first process preview blocks for state changes and hash chain
+        if (cutoverEnabled == CutoverEnabled.YES && preservedPreviewBlocksDir != null) {
+            logger.info("Cutover enabled, reading preserved preview blocks from {}", preservedPreviewBlocksDir);
+            final var previewBlocks =
+                    BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(preservedPreviewBlocksDir);
+            logger.info("Read {} preview blocks", previewBlocks.size());
+
+            for (final var block : previewBlocks) {
+                // Apply state changes from preview blocks to build up state
+                for (final var item : block.items()) {
+                    if (item.hasStateChanges()) {
+                        final var changes = item.stateChangesOrThrow();
+                        lastStateChanges = changes;
+                        lastStateChangesTime = asInstant(changes.consensusTimestampOrThrow());
+                        applyStateChanges(changes);
+                    }
+                }
+
+                // Verify preview block hash chain
+                if (block.items().stream().anyMatch(BlockItem::hasBlockFooter)) {
+                    final var footer = block.items().stream()
+                            .filter(BlockItem::hasBlockFooter)
+                            .findFirst()
+                            .orElseThrow()
+                            .blockFooterOrThrow();
+                    assertEquals(
+                            previousBlockHash,
+                            footer.previousBlockRootHash(),
+                            "Preview block footer previousBlockRootHash mismatch");
+
+                    // Compute preview block root hash using the same structure
+                    final var blockNum = block.items().stream()
+                            .filter(BlockItem::hasBlockHeader)
+                            .findFirst()
+                            .map(item -> item.blockHeaderOrThrow().number())
+                            .orElse(-1L);
+                    final var blockTimestamp = block.items().stream()
+                            .filter(BlockItem::hasBlockHeader)
+                            .findFirst()
+                            .map(item -> item.blockHeaderOrThrow().blockTimestamp())
+                            .orElse(null);
+
+                    if (blockTimestamp != null) {
+                        final IncrementalStreamingHasher previewInputHasher =
+                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        final IncrementalStreamingHasher previewOutputHasher =
+                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        final IncrementalStreamingHasher previewConsensusHasher =
+                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        final IncrementalStreamingHasher previewStateChangesHasher =
+                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        final IncrementalStreamingHasher previewTraceDataHasher =
+                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        for (final var item : block.items()) {
+                            hashSubTrees(
+                                    item,
+                                    previewInputHasher,
+                                    previewOutputHasher,
+                                    previewConsensusHasher,
+                                    previewStateChangesHasher,
+                                    previewTraceDataHasher);
+                        }
+                        final var previewStateChangesHash = Bytes.wrap(previewStateChangesHasher.computeRootHash());
+                        final var previewRootAndSiblings = computeBlockHash(
+                                blockTimestamp,
+                                previousBlockHash,
+                                incrementalBlockHashes,
+                                footer.startOfBlockStateRootHash(),
+                                previewInputHasher,
+                                previewOutputHasher,
+                                previewConsensusHasher,
+                                previewStateChangesHash,
+                                previewTraceDataHasher);
+                        previousBlockHash = previewRootAndSiblings.blockRootHash();
+                        incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
+                        logger.info("Preview block #{}: hash verified", blockNum);
+                    }
+                }
+            }
+            logger.info(
+                    "Finished processing {} preview blocks, transitioning to post-cutover blocks",
+                    previewBlocks.size());
+
+            // At the cutover boundary, reinitialize hash state from the first post-cutover
+            // block's BlockInfo
+            final var firstPostCutoverBlock = blocks.getFirst();
+            final var blockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
+                    List.of(firstPostCutoverBlock),
+                    SingletonUpdateChange::blockInfoValue,
+                    StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+            if (blockInfo != null
+                    && blockInfo.previousWrappedRecordBlockRootHash() != null
+                    && !blockInfo.previousWrappedRecordBlockRootHash().equals(Bytes.EMPTY)) {
+                logger.info(
+                        """
+                                Reinitializing hash state at cutover boundary from BlockInfo:
+                                  previousWrappedRecordBlockRootHash={}
+                                  wrappedIntermediateCount={}
+                                  wrappedIntermediateLeafCount={}""",
+                        blockInfo.previousWrappedRecordBlockRootHash().toHex(),
+                        blockInfo.wrappedIntermediatePreviousBlockRootHashes().size(),
+                        blockInfo.wrappedIntermediateBlockRootsLeafCount());
+                previousBlockHash = blockInfo.previousWrappedRecordBlockRootHash();
+                // Rebuild the incremental block hashes tree from wrapped intermediate hashes
+                incrementalBlockHashes = new IncrementalStreamingHasher(
+                        sha384DigestOrThrow(),
+                        blockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
+                                .map(Bytes::toByteArray)
+                                .toList(),
+                        blockInfo.wrappedIntermediateBlockRootsLeafCount());
+                incrementalBlockHashes.addNodeByHash(
+                        blockInfo.previousWrappedRecordBlockRootHash().toByteArray());
+            } else {
+                throw new AssertionError(
+                        "Cutover enabled but first post-cutover block has no BlockInfo with wrapped hashes");
+            }
+
+            // Update startOfStateHash to reflect state after processing all preview blocks
+            final var previewState = state;
+            this.state = stateLifecycleManager.copyMutableState();
+            startOfStateHash = requireNonNull(previewState.getRoot().getHash()).getBytes();
+            logger.info("State hash after preview blocks: {}", startOfStateHash.toHex());
+        }
 
         final int n = blocks.size();
         final int lastVerifiableIndex =
@@ -341,8 +490,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                                 (int) b.items().getFirst().blockHeaderOrThrow().number())
                         .findFirst()
                         .orElseThrow();
-        final IncrementalStreamingHasher incrementalBlockHashes =
-                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
         boolean hashChainBroken = false;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
@@ -481,6 +628,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     // The state changes hasher already incorporated the last state change, so compute its root hash
                     final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
+                    final var thisBlockNum =
+                            block.items().getFirst().blockHeaderOrThrow().number();
                     final var expectedRootAndSiblings = computeBlockHash(
                             firstConsensusTimestamp,
                             previousBlockHash,
@@ -492,11 +641,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                             finalStateChangesHash,
                             traceDataHasher);
                     final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
-                    blockNumbers.put(
-                            expectedBlockHash,
-                            block.items().getFirst().blockHeaderOrThrow().number());
+                    blockNumbers.put(expectedBlockHash, thisBlockNum);
                     validateBlockProof(
-                            i,
+                            thisBlockNum,
                             firstBlockRound,
                             footer.blockFooterOrThrow(),
                             blockProof,

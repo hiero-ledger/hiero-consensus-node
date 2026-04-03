@@ -859,8 +859,13 @@ public final class Hedera
         boundaryStateChangeListener.reset();
         // If still using BlockRecordManager state, then for specifically a non-genesis upgrade,
         // set in state that post-upgrade work is pending
-        if (streamMode != BLOCKS && isUpgrade && trigger != RECONNECT && trigger != GENESIS) {
-            unmarkMigrationRecordsStreamed(state);
+        if (isUpgrade && trigger != RECONNECT && trigger != GENESIS) {
+            if (streamMode != BLOCKS) {
+                unmarkMigrationRecordsStreamed(state);
+            }
+            if (streamMode != RECORDS && blockStreamService.isCutoverExecuted()) {
+                markCutoverExecuted(state);
+            }
             migrationStateChanges.add(
                     StateChanges.newBuilder().stateChanges(boundaryStateChangeListener.allStateChanges()));
             boundaryStateChangeListener.reset();
@@ -1348,6 +1353,17 @@ public final class Hedera
         blockInfoState.put(nextBlockInfo);
         logger.info("Unmarked post-upgrade work as done");
         ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+    }
+
+    private void markCutoverExecuted(@NonNull final State state) {
+        final var blockServiceState = state.getWritableStates(BlockRecordService.NAME);
+        final var blockInfoState = blockServiceState.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+        final var currentBlockInfo = requireNonNull(blockInfoState.get());
+        final var nextBlockInfo =
+                currentBlockInfo.copyBuilder().cutoverExecuted(true).build();
+        blockInfoState.put(nextBlockInfo);
+        ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+        logger.info("Cutover execution noted in state");
     }
 
     private void assertEnvSanityChecks(@NonNull final NodeId nodeId) {

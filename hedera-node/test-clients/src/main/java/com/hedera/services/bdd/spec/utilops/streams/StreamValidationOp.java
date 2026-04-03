@@ -106,7 +106,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),
                 // Wait for the final record file to be created
                 sleepFor(2 * BUFFER_MS));
-        // Validate the record streams
         final AtomicReference<StreamFileAccess.RecordStreamData> dataRef = new AtomicReference<>();
         readMaybeRecordStreamDataFor(spec)
                 .ifPresentOrElse(
@@ -117,6 +116,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                         "Unable to read stream data at " + recordStreamLocationsOf(spec),
                                         dataOrException.e());
                             }
+                            dataRef.set(data);
                             final var maybeErrors = recordStreamValidators.stream()
                                     .flatMap(v -> v.validationErrorsIn(data))
                                     .peek(t -> log.error("Record stream validation error!", t))
@@ -126,7 +126,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                 throw new AssertionError(
                                         "Record stream validation failed:" + ERROR_PREFIX + maybeErrors);
                             }
-                            dataRef.set(data);
                         },
                         () -> Assertions.fail(
                                 "Aborted reading record stream data at " + recordStreamLocationsOf(spec)));

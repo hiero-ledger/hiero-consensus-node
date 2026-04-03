@@ -167,4 +167,12 @@ message BlockInfo {
      * Wrapped hashes captured while voting is pending.
      */
     repeated com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes migration_wrapped_hashes = 16;
+
+    /**
+     * A flag indicating that the block stream cutover has been executed.
+     * <p>
+     * This SHALL be set to `true` after the cutover initialization logic
+     * has run, to prevent the cutover logic from repeating.
+     */
+    bool cutover_executed = 17;
 }
