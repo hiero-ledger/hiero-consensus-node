@@ -84,21 +84,11 @@ if [[ -n "${JAVA_HEAP_MAX}" ]]; then
   JAVA_HEAP_OPTS="${JAVA_HEAP_OPTS} -Xmx${JAVA_HEAP_MAX}"
 fi
 
-# Setup Main Class - Updated to default to the ServicesMain entrypoint class introduced in release v0.35.0 and production
-# ready as of the v0.52.0 release.
-[[ -z "${JAVA_MAIN_CLASS}" ]] && JAVA_MAIN_CLASS="com.hedera.node.app.ServicesMain"
+# Setup Main Module
+[[ -z "${JAVA_MAIN_MODULE}" ]] && JAVA_MAIN_MODULE="com.hedera.node.app"
 
-# Setup Classpath
-JCP_OVERRIDDEN="false"
-if [[ -z "${JAVA_CLASS_PATH}" ]]; then
-  JAVA_CLASS_PATH="data/lib/*:data/apps/*"
-else
-  JCP_OVERRIDDEN="true"
-fi
-
-if [[ "${JCP_OVERRIDDEN}" != true && "${JAVA_MAIN_CLASS}" == "com.swirlds.platform.Browser" ]]; then
-  JAVA_CLASS_PATH="data/lib/*"
-fi
+# Setup Module Path
+[[ -z "${JAVA_MODULE_PATH}" ]] && JAVA_MODULE_PATH="data/lib:data/apps"
 
 # Setup Consensus Node Arguments
 CONSENSUS_NODE_ARGS=""
@@ -174,7 +164,7 @@ echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> BEGIN NODE OUTPUT >>>>>>>>>>>>>>
 ## starting the platform software if the exit code is 205 which indicates a config.txt/address book loading issue.
 ATTEMPTS=0
 while true; do
-  /usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "${JAVA_CLASS_PATH}" "${JAVA_MAIN_CLASS}" ${CONSENSUS_NODE_ARGS}
+  /usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} --module-path "${JAVA_MODULE_PATH}" --module "${JAVA_MAIN_MODULE}" ${CONSENSUS_NODE_ARGS}
   EC="${?}"
   if [[ "${EC}" -eq 205 && "${ATTEMPTS}" -lt 20 ]]; then
     printf "\n\n############# Retrying system initialization - DNS or Address Book Failure (Exit Code: %s) #############\n\n" "${EC}"
