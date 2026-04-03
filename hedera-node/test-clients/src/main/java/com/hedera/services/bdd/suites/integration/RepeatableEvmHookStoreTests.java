@@ -87,8 +87,6 @@ import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
@@ -120,7 +118,6 @@ public class RepeatableEvmHookStoreTests {
             EvmHookMappingEntry.newBuilder().preimage(ZERO).value(A).build();
     private static final EvmHookMappingEntry F_E_ENTRY =
             EvmHookMappingEntry.newBuilder().key(F).value(E).build();
-    private static final Logger log = LogManager.getLogger(RepeatableEvmHookStoreTests.class);
 
     @Account
     static SpecAccount HOOK_OWNER;
