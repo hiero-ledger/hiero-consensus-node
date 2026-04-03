@@ -63,6 +63,7 @@ on:
 permissions:
   id-token: write
   actions: write
+  issues: write
   pull-requests: write
   statuses: write
   checks: write
@@ -156,3 +157,14 @@ jobs:
       slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+
+  report-flaky-tests:
+    name: Report Flaky Tests
+    needs:
+      - xts-execution
+    if: ${{ !cancelled() && always() }}
+    uses: ./.github/workflows/800-call-report-flaky-test.yaml
+    with:
+      workflow-context: dry-run
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
