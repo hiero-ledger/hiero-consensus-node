@@ -100,8 +100,7 @@ public class FrameUtils {
      *
      * @param frame a frame in the transaction of interest
      */
-    public static HevmPropagatedCallFailure getAndClearPropagatedCallFailure(
-            @NonNull final MessageFrame frame) {
+    public static HevmPropagatedCallFailure getAndClearPropagatedCallFailure(@NonNull final MessageFrame frame) {
         var ref = propagatedCallFailureReference(frame);
         return ref == null ? null : ref.getAndClear();
     }

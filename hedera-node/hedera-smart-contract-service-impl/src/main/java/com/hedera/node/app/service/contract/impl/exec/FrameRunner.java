@@ -81,14 +81,7 @@ public class FrameRunner {
         var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
         tracer.traceOriginAction(frame);
 
-        // <Soapbox> Pass these golden instances to Bonneville through this
-        // silly back door channel, because the endless wrappers & injectors
-        // stop me from doing it the obvious way - CNC. </soapbox>
-
-        // TODO for CNC: @lukasz points out the HEVM can be passed through the
-        // TransactionProcessor constructor and then as an argument here.
-        // Much cleaner than this backdoor.
-        if ( hevm instanceof BonnevilleEVM bonneville ) {
+        if (hevm instanceof BonnevilleEVM bonneville) {
             bonneville.setProcessors(messageCall, (CustomContractCreationProcessor) contractCreation);
             runToCompletion(frame, tracer, messageCall, contractCreation);
         } else {

@@ -77,7 +77,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
             @NonNull final AddressChecks addressChecks,
             @NonNull final Map<Address, HederaSystemContract> systemContracts,
             @NonNull final ContractMetrics contractMetrics) {
-        super(evm,precompiles);
+        super(evm, precompiles);
         this.featureFlags = Objects.requireNonNull(featureFlags);
         this.precompiles = Objects.requireNonNull(precompiles);
         this.addressChecks = Objects.requireNonNull(addressChecks);
@@ -366,5 +366,4 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
             }
         }
     }
-
 }
