@@ -269,6 +269,16 @@ message CryptoGetInfoResponse {
          * Staking information for this account.
          */
         StakingInfo staking_info = 22;
+
+        /**
+         * The delegated contract address set for this account.
+         * <p>
+         * If this field is set on the account, anytime a call is made to the account's address
+         * (either an EVM call within HSCS or a child call dispatched by CryptoTransfer)
+         * the EVM code of the contract referenced by `delegation_address` will be
+         * executed in the context of the account.
+         */
+        bytes delegation_address = 23;
     }
 
     /**
