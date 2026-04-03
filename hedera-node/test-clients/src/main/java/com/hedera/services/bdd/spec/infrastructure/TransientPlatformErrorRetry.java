@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.spec.infrastructure;
 
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -67,12 +66,14 @@ public final class TransientPlatformErrorRetry {
             final int retryCount,
             final long platformNotActiveStart,
             final long nowMs) {
-        if (precheck == PLATFORM_NOT_ACTIVE) {
-            final long firstSeen = platformNotActiveStart == 0 ? nowMs : platformNotActiveStart;
-            final boolean shouldRetry = (nowMs - firstSeen) < PLATFORM_NOT_ACTIVE_TIMEOUT_MS;
-            final long sleepMs = computePlatformNotActiveBackoffMs(retryCount);
-            return new RetryDecision(shouldRetry, sleepMs, firstSeen);
-        }
+        // Disabled to surface PLATFORM_NOT_ACTIVE without client masking while validating
+        // SubProcessNetwork platformStatus.activeStatusDelay; restore before merge.
+        // if (precheck == ResponseCodeEnum.PLATFORM_NOT_ACTIVE) {
+        //     final long firstSeen = platformNotActiveStart == 0 ? nowMs : platformNotActiveStart;
+        //     final boolean shouldRetry = (nowMs - firstSeen) < PLATFORM_NOT_ACTIVE_TIMEOUT_MS;
+        //     final long sleepMs = computePlatformNotActiveBackoffMs(retryCount);
+        //     return new RetryDecision(shouldRetry, sleepMs, firstSeen);
+        // }
         if (precheck == PLATFORM_TRANSACTION_NOT_CREATED || precheck == BUSY) {
             final boolean shouldRetry = retryCount < MAX_OTHER_TRANSIENT_RETRIES;
             return new RetryDecision(shouldRetry, OTHER_TRANSIENT_BACKOFF_MS, 0);

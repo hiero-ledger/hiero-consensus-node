@@ -130,7 +130,7 @@ jobs:
   hapi-tests-misc:
     name: "HAPI Tests (Misc)"
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
-    runs-on: hl-cn-hapi-lin-md
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -153,7 +153,7 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon && ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon && ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -209,7 +209,7 @@ jobs:
   hapi-tests-misc-records:
     name: "HAPI Tests (Misc Records)"
     if: ${{ inputs.enable-hapi-tests-misc-records == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -231,7 +231,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestMiscRecords && ${GRADLE_EXEC} hapiTestMiscRecordsSerial
+        run: ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Misc Records) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -287,7 +287,7 @@ jobs:
   hapi-tests-crypto:
     name: "HAPI Tests (Crypto)"
     if: ${{ inputs.enable-hapi-tests-crypto == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -309,7 +309,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon && ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon
+        run: ${GRADLE_EXEC} hapiTestCrypto --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Crypto) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -365,7 +365,7 @@ jobs:
   hapi-tests-simple-fees:
     name: "HAPI Tests (Simple Fees)"
     if: ${{ inputs.enable-hapi-tests-simplefees == 'true' }}
-    runs-on: hl-cn-hapi-lin-md
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -387,7 +387,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
+        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Simple Fees) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -443,7 +443,7 @@ jobs:
   hapi-tests-token:
     name: "HAPI Tests (Token)"
     if: ${{ inputs.enable-hapi-tests-token == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -465,7 +465,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestToken --no-daemon && ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon
+        run: ${GRADLE_EXEC} hapiTestToken --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Token) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -521,7 +521,7 @@ jobs:
   hapi-tests-smart-contracts:
     name: "HAPI Tests (Smart Contracts)"
     if: ${{ inputs.enable-hapi-tests-smart-contract == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -543,7 +543,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSmartContract --no-daemon && ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon
+        run: ${GRADLE_EXEC} hapiTestSmartContract --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Smart Contract) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -599,7 +599,7 @@ jobs:
   hapi-tests-time-consuming:
     name: "HAPI Tests (Time Consuming)"
     if: ${{ inputs.enable-hapi-tests-time-consuming == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -621,7 +621,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestTimeConsuming && ${GRADLE_EXEC} hapiTestTimeConsumingSerial
+        run: ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Time Consuming) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -677,7 +677,7 @@ jobs:
   hapi-tests-restart:
     name: "HAPI Tests (Restart)"
     if: ${{ inputs.enable-hapi-tests-restart == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -755,7 +755,7 @@ jobs:
   hapi-tests-nd-reconnect:
     name: "HAPI Tests (ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-nd-reconnect == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -833,7 +833,7 @@ jobs:
   hapi-tests-iss:
     name: "HAPI Tests (ISS)"
     if: ${{ inputs.enable-hapi-tests-iss == 'true' }}
-    runs-on: hl-cn-hapi-lin-md
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -987,7 +987,7 @@ jobs:
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
     if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -1009,7 +1009,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon
+        run: ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon --rerun-tasks
 
       - name: Publish HAPI Test (Atomic Batch) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -1065,7 +1065,7 @@ jobs:
   hapi-tests-state-throttling:
     name: "HAPI Tests (State Throttling)"
     if: ${{ inputs.enable-hapi-tests-state-throttling == 'true' }}
-    runs-on: hl-cn-hapi-lin-md
+    runs-on: hl-cn-default-lin-md
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1

@@ -17,7 +17,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_T
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -535,11 +534,9 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                     // to the non-default node in embedded mode, bypassing ingest; we retry until the default
                     // node caches the receipt at consensus
                     continue;
-                } else if (lookupStatus == PLATFORM_NOT_ACTIVE
-                        || lookupStatus == PLATFORM_TRANSACTION_NOT_CREATED
+                } else if (lookupStatus == PLATFORM_TRANSACTION_NOT_CREATED
                         || lookupStatus == BUSY) {
-                    // Retry transient platform errors from the receipt query precheck, consistent
-                    // with how the transaction submission loop and query submission loop handle them
+                    // Receipt precheck retry; PLATFORM_NOT_ACTIVE omitted (see TransientPlatformErrorRetry) for validation runs.
                     continue;
                 } else {
                     return statusNow;

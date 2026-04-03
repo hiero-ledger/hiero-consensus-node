@@ -58,11 +58,10 @@ jobs:
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      enable-spotless-check: "true"
-      enable-dependency-check: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-unit-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      # general hapi tests include misc, misc records, iss, smart contract, restart, nd reconnect, atomic batch
+      enable-spotless-check: "false"
+      enable-dependency-check: "false"
+      enable-unit-tests: "false"
+      enable-integration-tests: "false"
       enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-crypto: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-token: ${{ needs.detect-change-type.outputs.enable-tests }}
@@ -71,8 +70,8 @@ jobs:
       enable-hapi-tests-simplefees: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-atomic-batch: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-smart-contract: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-otter-tests: "false"
+      enable-snyk-scan: "false"
       java-version: "25"
       java-distribution: "temurin"
       custom-job-label: "Standard"

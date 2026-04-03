@@ -42,6 +42,9 @@ import org.junit.jupiter.api.Assertions;
 
 public class ProcessUtils {
     private static final Logger log = LogManager.getLogger(ProcessUtils.class);
+    private static final String SUBPROCESS_NODE_MAX_HEAP_MIB_PROPERTY = "hapi.spec.subprocess.node.maxHeapMiB";
+    private static final String SUBPROCESS_NODE_ACTIVE_PROCESSOR_COUNT_PROPERTY =
+            "hapi.spec.subprocess.node.activeProcessorCount";
 
     private static final int FIRST_AGENT_PORT = 5005;
     private static final long NODE_ID_TO_SUSPEND = -1;
@@ -178,6 +181,9 @@ public class ProcessUtils {
                     + (metadata.nodeId() == NODE_ID_TO_SUSPEND ? "y" : "n") + ",address=*:"
                     + (FIRST_AGENT_PORT + metadata.nodeId()));
         }
+        appendConfiguredJvmArg(commandLine, SUBPROCESS_NODE_MAX_HEAP_MIB_PROPERTY, "-Xmx%dm");
+        appendConfiguredJvmArg(
+                commandLine, SUBPROCESS_NODE_ACTIVE_PROCESSOR_COUNT_PROPERTY, "-XX:ActiveProcessorCount=%d");
         commandLine.addAll(List.of(
                 "--module-path",
                 // Use the same module path that started this process, excluding test-clients
@@ -193,6 +199,22 @@ public class ProcessUtils {
                 "-local",
                 Long.toString(metadata.nodeId())));
         return commandLine;
+    }
+
+    private static void appendConfiguredJvmArg(
+            @NonNull final List<String> commandLine, @NonNull final String propertyName, @NonNull final String format) {
+        final var property = System.getProperty(propertyName);
+        if (property == null || property.isBlank()) {
+            return;
+        }
+        try {
+            final int value = Integer.parseInt(property);
+            if (value > 0) {
+                commandLine.add(format.formatted(value));
+            }
+        } catch (NumberFormatException e) {
+            log.warn("Ignoring invalid '{}' value '{}'", propertyName, property, e);
+        }
     }
 
     /**

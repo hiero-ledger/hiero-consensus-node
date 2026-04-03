@@ -722,8 +722,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Appends platform settings overrides to the {@code settings.txt} in the node's working directory.
-     * These overrides only affect HAPI test subprocess nodes, not the shared dev configuration.
+     * Appends platform settings overrides to the node's {@code settings.txt} (subprocess HAPI tests only).
      */
     private static void configurePlatformSettings(@NonNull final HederaNode node) {
         final var settingsPath = node.getExternalPath(WORKING_DIR).resolve("settings.txt");

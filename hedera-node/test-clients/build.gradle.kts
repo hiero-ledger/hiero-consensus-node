@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import com.sun.management.OperatingSystemMXBean
+import java.lang.management.ManagementFactory
 
 plugins {
     id("org.hiero.gradle.module.application")
@@ -60,6 +62,97 @@ tasks.test {
     // Limit heap and number of processors
     maxHeapSize = "8g"
     jvmArgs("-XX:ActiveProcessorCount=6")
+}
+
+data class SubprocessJvmBudget(
+    val totalCores: Int,
+    val totalMemoryMiB: Int,
+    val reservedMemoryMiB: Int,
+    val workerHeapMiB: Int,
+    val nodeHeapMiB: Int,
+    val workerActiveProcessorCount: Int,
+    val nodeActiveProcessorCount: Int,
+)
+
+val subprocessJvmBudget by lazy {
+    val osMx = ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
+    val totalCores = osMx.availableProcessors
+    val totalMemoryMiB = (osMx.totalMemorySize / (1024L * 1024L)).toInt()
+
+    // Budget for the worst case subprocess topology: four node JVMs plus one test worker JVM.
+    val budgetedNodeJvmCount = 4
+    val workerMemoryWeight = 2
+    val totalMemoryWeight = budgetedNodeJvmCount + workerMemoryWeight
+
+    // Preserve headroom for the OS, Gradle daemon, filesystem cache, and log processing.
+    val reservedMemoryMiB =
+        when {
+            totalMemoryMiB >= 32 * 1024 -> 4 * 1024
+            totalMemoryMiB >= 16 * 1024 -> 3 * 1024
+            else -> maxOf(1024, totalMemoryMiB / 5)
+        }
+    val usableMemoryMiB = maxOf(1536, totalMemoryMiB - reservedMemoryMiB)
+    val nodeHeapMiB = maxOf(512, usableMemoryMiB / totalMemoryWeight)
+    val workerHeapMiB = maxOf(1024, usableMemoryMiB - budgetedNodeJvmCount * nodeHeapMiB)
+
+    // Give each node at least one virtual CPU and let the test worker use the remainder.
+    // This still oversubscribes hosts with fewer than five cores, but avoids pretending
+    // the test worker owns the whole machine when subprocess nodes are also active.
+    val reservedSystemCores = if (totalCores >= 6) 1 else 0
+    val cpuBudget = maxOf(1, totalCores - reservedSystemCores)
+    val totalCpuWeight = budgetedNodeJvmCount + workerMemoryWeight
+    val nodeActiveProcessorCount = maxOf(1, cpuBudget / totalCpuWeight)
+    val workerActiveProcessorCount = maxOf(1, cpuBudget - budgetedNodeJvmCount * nodeActiveProcessorCount)
+
+    SubprocessJvmBudget(
+        totalCores = totalCores,
+        totalMemoryMiB = totalMemoryMiB,
+        reservedMemoryMiB = reservedMemoryMiB,
+        workerHeapMiB = workerHeapMiB,
+        nodeHeapMiB = nodeHeapMiB,
+        workerActiveProcessorCount = workerActiveProcessorCount,
+        nodeActiveProcessorCount = nodeActiveProcessorCount,
+    )
+}
+
+fun Test.applySubprocessJvmBudget(concurrentClasses: Boolean, extraJvmArgs: List<String> = emptyList()) {
+    systemProperty("hapi.spec.subprocess.node.maxHeapMiB", subprocessJvmBudget.nodeHeapMiB.toString())
+    systemProperty(
+        "hapi.spec.subprocess.node.activeProcessorCount",
+        subprocessJvmBudget.nodeActiveProcessorCount.toString(),
+    )
+    systemProperty("hapi.spec.subprocess.worker.maxHeapMiB", subprocessJvmBudget.workerHeapMiB.toString())
+    systemProperty(
+        "hapi.spec.subprocess.worker.activeProcessorCount",
+        subprocessJvmBudget.workerActiveProcessorCount.toString(),
+    )
+    if (concurrentClasses) {
+        systemProperty(
+            "junit.jupiter.execution.parallel.config.fixed.parallelism",
+            subprocessJvmBudget.workerActiveProcessorCount.toString(),
+        )
+    }
+
+    maxHeapSize = "${subprocessJvmBudget.workerHeapMiB}m"
+    jvmArgs(
+        "-XX:ActiveProcessorCount=${subprocessJvmBudget.workerActiveProcessorCount}",
+        *extraJvmArgs.toTypedArray(),
+    )
+    maxParallelForks = 1
+
+    doFirst {
+        logger.lifecycle(
+            "$path subprocess JVM budget: totalCores=${subprocessJvmBudget.totalCores}, " +
+                "totalMemoryMiB=${subprocessJvmBudget.totalMemoryMiB}, " +
+                "reservedMemoryMiB=${subprocessJvmBudget.reservedMemoryMiB}, " +
+                "workerHeapMiB=${subprocessJvmBudget.workerHeapMiB}, " +
+                "workerActiveProcessorCount=${subprocessJvmBudget.workerActiveProcessorCount}, " +
+                "nodeHeapMiB=${subprocessJvmBudget.nodeHeapMiB}, " +
+                "nodeActiveProcessorCount=${subprocessJvmBudget.nodeActiveProcessorCount}, " +
+                "junitFixedParallelism=" +
+                if (concurrentClasses) subprocessJvmBudget.workerActiveProcessorCount else 1,
+        )
+    }
 }
 
 val miscTags =
@@ -335,18 +428,19 @@ tasks.register<Test>("testSubprocess") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "-XX:ActiveProcessorCount=6",
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    // Budget the test worker and subprocess nodes from the same host resources.
+    applySubprocessJvmBudget(
+        concurrentClasses = false,
+        extraJvmArgs =
+            listOf(
+                // Fix testcontainers module system access to commons libraries.
+                // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies.
+                "--add-reads=org.testcontainers=org.apache.commons.lang3",
+                "--add-reads=org.testcontainers=org.apache.commons.compress",
+                "--add-reads=org.testcontainers=org.apache.commons.io",
+                "--add-reads=org.testcontainers=org.apache.commons.codec",
+            ),
     )
-    maxParallelForks = 1
 }
 
 tasks.register<Test>("testSubprocessConcurrent") {
@@ -455,16 +549,13 @@ tasks.register<Test>("testSubprocessConcurrent") {
     // Limit concurrent test classes to prevent transaction backlog
     // Use fixed strategy with limited parallelism to balance speed and stability
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
-    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "4")
     systemProperty(
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
-    maxParallelForks = 1
+    // Budget the test worker and subprocess nodes from the same host resources.
+    applySubprocessJvmBudget(concurrentClasses = true)
 }
 
 tasks.register<Test>("testRemote") {
