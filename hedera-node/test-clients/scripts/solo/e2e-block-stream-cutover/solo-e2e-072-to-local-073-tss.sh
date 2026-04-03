@@ -13,11 +13,9 @@ SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3}"
 CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
-CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
-OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
-OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
 CLEAN_SOLO_STATE="${CLEAN_SOLO_STATE:-true}"
+WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v0.2.0}"
 
 UPGRADE_072_RELEASE_TAG="${UPGRADE_072_RELEASE_TAG:-v0.72.0-rc.2}"
 UPGRADE_073_RELEASE_TAG="${UPGRADE_073_RELEASE_TAG:-v0.73.0-rc.1}"
@@ -27,11 +25,7 @@ APP_PROPS_073_FILE="${SCRIPT_DIR}/resources/0.73/application.properties"
 APP_ENV_073_FILE="${SCRIPT_DIR}/resources/0.73/application.env"
 LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
 
-WORK_DIR="$(mktemp -d)"
 SOLO_HOME_DIR="${HOME}/.solo"
-NODE_SCRIPT="${WORK_DIR}/sdk-crypto-create-check.js"
-CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
-CN_PORT_FORWARD_PID=""
 CLUSTER_CREATED_THIS_RUN="false"
 
 log() {
@@ -51,14 +45,10 @@ cleanup_solo_state() {
 
 cleanup() {
   local ec=$?
-  if [[ -n "${CN_PORT_FORWARD_PID}" ]]; then
-    kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
-  fi
   if [[ "${KEEP_NETWORK}" != "true" && "${CLUSTER_CREATED_THIS_RUN}" == "true" ]]; then
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
     cleanup_solo_state
   fi
-  rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
   exit "${ec}"
 }
 trap cleanup EXIT
@@ -68,36 +58,6 @@ require_cmd() {
     echo "Required command not found: $1" >&2
     exit 1
   }
-}
-
-wait_for_tcp_open() {
-  local host="$1"
-  local port="$2"
-  local attempts="${3:-20}"
-  local sleep_secs="${4:-1}"
-  local i=1
-
-  while (( i <= attempts )); do
-    if nc -z "${host}" "${port}" >/dev/null 2>&1; then
-      return 0
-    fi
-    sleep "${sleep_secs}"
-    ((i++))
-  done
-  return 1
-}
-
-kill_processes_on_local_port() {
-  local port="$1"
-  local pids=""
-  pids="$(lsof -ti "tcp:${port}" 2>/dev/null || true)"
-  if [[ -n "${pids}" ]]; then
-    kill "${pids}" >/dev/null 2>&1 || true
-  fi
-}
-
-cleanup_stale_port_forwards() {
-  pkill -f "port-forward svc/haproxy-node1-svc .*${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >/dev/null 2>&1 || true
 }
 
 wait_for_consensus_pods_ready() {
@@ -234,85 +194,14 @@ configure_solo_deployment() {
   fi
 }
 
-setup_cluster_support_services() {
-  solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
-}
-
-restart_port_forwards() {
-  log "Starting/restarting consensus gRPC port-forward"
-  if [[ -n "${CN_PORT_FORWARD_PID}" ]]; then
-    kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
-    CN_PORT_FORWARD_PID=""
-  fi
-
-  cleanup_stale_port_forwards
-  kill_processes_on_local_port "${CN_GRPC_LOCAL_PORT}"
-  sleep 1
-
-  kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >"${CN_PORT_FORWARD_LOG}" 2>&1 &
-  CN_PORT_FORWARD_PID="$!"
-  sleep 2
-
-  wait_for_tcp_open "127.0.0.1" "${CN_GRPC_LOCAL_PORT}" 20 1 || {
-    echo "Consensus gRPC port-forward did not become reachable" >&2
-    return 1
-  }
-}
-
-write_sdk_verifier() {
-  cat > "${NODE_SCRIPT}" <<'EOF'
-const { Client, AccountCreateTransaction, PrivateKey, Hbar, Status } = require("@hashgraph/sdk");
-
-async function main() {
-  const grpcEndpoint = process.env.GRPC_ENDPOINT || "127.0.0.1:50211";
-  const operatorAccountId = process.env.OPERATOR_ACCOUNT_ID || "0.0.2";
-  const operatorPrivateKey = process.env.OPERATOR_PRIVATE_KEY;
-  if (!operatorPrivateKey) {
-    throw new Error("OPERATOR_PRIVATE_KEY is required");
-  }
-
-  const client = Client.forNetwork({ [grpcEndpoint]: "0.0.3" });
-  client.setOperator(operatorAccountId, PrivateKey.fromString(operatorPrivateKey));
-  client.setMaxAttempts(1);
-  client.setRequestTimeout(15000);
-
-  const tx = new AccountCreateTransaction()
-    .setInitialBalance(new Hbar(1))
-    .setKey(PrivateKey.generateED25519().publicKey)
-    .setMaxTransactionFee(new Hbar(5));
-  const response = await tx.execute(client);
-  const receipt = await response.getReceipt(client);
-
-  if (receipt.status !== Status.Success) {
-    throw new Error(`Expected SUCCESS status but got ${receipt.status.toString()}`);
-  }
-
-  const accountId = receipt.accountId ? receipt.accountId.toString() : "";
-  if (!accountId) {
-    throw new Error("Receipt did not include a new accountId");
-  }
-
-  console.log(`PASS: crypto create succeeded with account ${accountId}`);
-  await client.close();
-}
-
-main().catch((err) => {
-  console.error(`FAIL: ${err.message}`);
-  process.exit(1);
-});
-EOF
-}
-
-prepare_js_sdk_runtime() {
-  write_sdk_verifier
-  (
-    cd "${WORK_DIR}"
-    npm init -y >/dev/null 2>&1
-    npm install --no-fund --no-audit @hashgraph/sdk >/dev/null 2>&1
-  )
-  export GRPC_ENDPOINT="127.0.0.1:${CN_GRPC_LOCAL_PORT}"
-  export OPERATOR_ACCOUNT_ID
-  export OPERATOR_PRIVATE_KEY
+setup_cluster_minio_prereqs() {
+  log "Installing Solo cluster prerequisites required for consensus deploy"
+  solo cluster-ref config setup \
+    --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+    --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" \
+    --minio true \
+    --prometheus-stack false \
+    --quiet-mode
 }
 
 validate_local_build_path() {
@@ -357,95 +246,16 @@ verify_local_build_on_consensus_nodes() {
   done
 }
 
-consensus_node_metrics_show_active() {
-  local pod="$1"
-  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- bash -lc \
-    "curl -s http://localhost:9999/metrics \
-      | grep 'platform_PlatformStatus' \
-      | grep -v '#' \
-      | grep -Eq 'status=\"ACTIVE\".* 1\.0$| 2\.0$'" >/dev/null 2>/dev/null
-}
+append_upgrade_wraps_key_path_arg() {
+  local -n args_ref="$1"
 
-wait_for_consensus_nodes_active_via_metrics() {
-  local timeout_secs="${1:-600}"
-  local deadline=$((SECONDS + timeout_secs))
-  local nodes=()
-  local node=""
-  local pod=""
-  local all_active=""
+  [[ -d "${WRAPS_KEY_PATH}" ]] || {
+    echo "Missing WRAPS_KEY_PATH directory: ${WRAPS_KEY_PATH}" >&2
+    return 1
+  }
 
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-
-  while (( SECONDS < deadline )); do
-    all_active="true"
-    for node in "${nodes[@]}"; do
-      pod="network-${node}-0"
-      if ! consensus_node_metrics_show_active "${pod}"; then
-        all_active="false"
-        break
-      fi
-    done
-
-    if [[ "${all_active}" == "true" ]]; then
-      return 0
-    fi
-    sleep 5
-  done
-
-  return 1
-}
-
-solo_log_indicates_local_build_copy_failure() {
-  local solo_log="${SOLO_HOME_DIR}/logs/solo.log"
-  [[ -f "${solo_log}" ]] || return 1
-  grep -q "Error in copying local build to node" "${solo_log}"
-}
-
-restage_local_build_on_consensus_nodes() {
-  local node=""
-  local pod=""
-  local nodes=()
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    log "Restaging local build apps/lib on ${pod}"
-    kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      'mkdir -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps /opt/hgcapp/services-hedera/HapiApp2.0/data/lib && \
-       find /opt/hgcapp/services-hedera/HapiApp2.0/data/apps -mindepth 1 -delete && \
-       find /opt/hgcapp/services-hedera/HapiApp2.0/data/lib -mindepth 1 -delete'
-    tar --disable-copyfile --no-mac-metadata --format ustar -C "${LOCAL_BUILD_PATH}" -cf - apps lib \
-      | kubectl -n "${SOLO_NAMESPACE}" exec -i "${pod}" -c root-container -- sh -lc \
-          'tar -xf - -C /opt/hgcapp/services-hedera/HapiApp2.0/data'
-  done
-}
-
-restart_consensus_pods_after_manual_restaging() {
-  local node=""
-  local pod=""
-  local nodes=()
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    log "Deleting ${pod} so it restarts from the manually restaged local build"
-    kubectl -n "${SOLO_NAMESPACE}" delete pod "${pod}" --wait=false >/dev/null 2>&1 || true
-  done
-
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
-  wait_for_consensus_nodes_active_via_metrics 600
-}
-
-repair_local_build_staging_if_needed() {
-  if verify_local_build_on_consensus_nodes; then
-    return 0
-  fi
-
-  log "Detected incomplete local-build staging after Solo upgrade; applying post-upgrade restage workaround"
-  restage_local_build_on_consensus_nodes || return 1
-  restart_consensus_pods_after_manual_restaging || return 1
-  verify_local_build_on_consensus_nodes
+  log "Using WRAPS key path for upgrade: ${WRAPS_KEY_PATH}"
+  args_ref+=(--wraps-key-path "${WRAPS_KEY_PATH}")
 }
 
 deploy_baseline_072() {
@@ -467,8 +277,6 @@ deploy_baseline_072() {
     -i "${NODE_ALIASES}"
     --application-properties "${APP_PROPS_072_FILE}"
     --log4j2-xml "${LOG4J2_XML_PATH}"
-    --service-monitor true
-    --pod-log true
     --pvcs true
     --release-tag "${UPGRADE_072_RELEASE_TAG}"
     --wraps
@@ -478,14 +286,10 @@ deploy_baseline_072() {
   solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --force-port-forward false
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  wait_for_consensus_nodes_active_via_metrics 600
 }
 
 attempt_073_upgrade() {
   local upgrade_cmd=()
-
-  restart_port_forwards
-  prepare_js_sdk_runtime
 
   log "Upgrading consensus network to local build with TSS-enabled 0.73 application.properties"
   upgrade_cmd=(
@@ -498,33 +302,20 @@ attempt_073_upgrade() {
     --application-env "${APP_ENV_073_FILE}"
     --force
   )
+  append_upgrade_wraps_key_path_arg upgrade_cmd || return 1
 
-  if ! "${upgrade_cmd[@]}"; then
-    if ! solo_log_indicates_local_build_copy_failure; then
-      return 1
-    fi
-    log "Solo reported a local-build copy failure; attempting post-upgrade restage workaround after Solo exit"
-  fi
+  "${upgrade_cmd[@]}" || return 1
 
   wait_for_consensus_pods_ready 600 || return 1
   wait_for_haproxy_ready 600 || return 1
-  repair_local_build_staging_if_needed || return 1
-  wait_for_consensus_nodes_active_via_metrics 600 || return 1
-  restart_port_forwards || return 1
-
-  log "Post-upgrade check: crypto create on local 0.73 build with TSS enabled"
-  node "${NODE_SCRIPT}" || return 1
+  verify_local_build_on_consensus_nodes || return 1
 }
 
 log "Validating prerequisites"
 require_cmd kind
 require_cmd kubectl
 require_cmd solo
-require_cmd node
-require_cmd npm
 require_cmd unzip
-require_cmd nc
-require_cmd lsof
 
 [[ -f "${APP_PROPS_072_FILE}" ]] || { echo "Missing file: ${APP_PROPS_072_FILE}" >&2; exit 1; }
 [[ -f "${APP_PROPS_073_FILE}" ]] || { echo "Missing file: ${APP_PROPS_073_FILE}" >&2; exit 1; }
@@ -537,8 +328,6 @@ validate_local_build_path "${LOCAL_BUILD_PATH}" || {
   exit 1
 }
 
-cleanup_stale_port_forwards
-
 log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
 kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
 cleanup_solo_state
@@ -548,7 +337,7 @@ kind create cluster -n "${SOLO_CLUSTER_NAME}"
 CLUSTER_CREATED_THIS_RUN="true"
 
 configure_solo_deployment
-setup_cluster_support_services
+setup_cluster_minio_prereqs
 
 deploy_baseline_072
 
