@@ -21,7 +21,18 @@ import java.util.SplittableRandom;
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
     public static final SplittableRandom RANDOM = new SplittableRandom();
-    public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
+    private static volatile WRAPSLibraryBridge wraps;
+
+    private static WRAPSLibraryBridge getWraps() {
+        if (wraps == null) {
+            synchronized (HistoryLibraryImpl.class) {
+                if (wraps == null) {
+                    wraps = WRAPSLibraryBridge.getInstance();
+                }
+            }
+        }
+        return wraps;
+    }
 
     @Override
     public byte[] wrapsVerificationKey() {
@@ -32,13 +43,13 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public SchnorrKeys newSchnorrKeyPair() {
         final var seed = new byte[WRAPSLibraryBridge.ENTROPY_SIZE];
         RANDOM.nextBytes(seed);
-        return WRAPS.generateSchnorrKeys(seed);
+        return getWraps().generateSchnorrKeys(seed);
     }
 
     @Override
     public byte[] hashAddressBook(@NonNull final AddressBook addressBook) {
         requireNonNull(addressBook);
-        return WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds());
+        return getWraps().hashAddressBook(addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds());
     }
 
     @Override
@@ -46,7 +57,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
             @NonNull final AddressBook addressBook, @NonNull final byte[] hintsVerificationKey) {
         requireNonNull(addressBook);
         requireNonNull(hintsVerificationKey);
-        return WRAPS.formatRotationMessage(
+        return getWraps().formatRotationMessage(
                 addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds(), hintsVerificationKey);
     }
 
@@ -56,7 +67,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(entropy);
         requireNonNull(message);
         requireNonNull(privateKey);
-        return WRAPS.runSigningProtocolPhase(
+        return getWraps().runSigningProtocolPhase(
                 R1,
                 entropy,
                 message,
@@ -84,7 +95,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(r1Messages);
         requireNonNull(currentBook);
         requireNonNull(r1NodeIds);
-        return WRAPS.runSigningProtocolPhase(
+        return getWraps().runSigningProtocolPhase(
                 R2,
                 entropy,
                 message,
@@ -114,7 +125,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(r2Messages);
         requireNonNull(currentBook);
         requireNonNull(r1NodeIds);
-        return WRAPS.runSigningProtocolPhase(
+        return getWraps().runSigningProtocolPhase(
                 R3,
                 entropy,
                 message,
@@ -142,7 +153,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(r3Messages);
         requireNonNull(currentBook);
         requireNonNull(r1NodeIds);
-        return WRAPS.runSigningProtocolPhase(
+        return getWraps().runSigningProtocolPhase(
                 Aggregate,
                 null,
                 message,
@@ -168,7 +179,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(signature);
         requireNonNull(nodeIds);
         requireNonNull(weights);
-        return WRAPS.verifySignature(publicKeys, weights, nodeIds, message, signature);
+        return getWraps().verifySignature(publicKeys, weights, nodeIds, message, signature);
     }
 
     @Override
@@ -183,7 +194,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(aggregatedSignature);
         requireNonNull(signers);
         requireNonNull(addressBook);
-        return WRAPS.constructWrapsProof(
+        return getWraps().constructWrapsProof(
                 genesisAddressBookHash,
                 addressBook.publicKeys(),
                 addressBook.weights(),
@@ -212,7 +223,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(targetHintsVerificationKey);
         requireNonNull(aggregatedSignature);
         requireNonNull(signers);
-        return WRAPS.constructWrapsProof(
+        return getWraps().constructWrapsProof(
                 genesisAddressBookHash,
                 sourceAddressBook.publicKeys(),
                 sourceAddressBook.weights(),
