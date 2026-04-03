@@ -21,14 +21,12 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static HintsLibraryBridge bridge;
 
     private static HintsLibraryBridge getBridge() {
-        if (bridge == null) {
-            synchronized (HintsLibraryImpl.class) {
-                if (bridge == null) {
-                    bridge = HintsLibraryBridge.getInstance();
-                }
+        synchronized (HintsLibraryImpl.class) {
+            if (bridge == null) {
+                bridge = HintsLibraryBridge.getInstance();
             }
+            return bridge;
         }
-        return bridge;
     }
 
     public static final int VK_LENGTH = 1096;

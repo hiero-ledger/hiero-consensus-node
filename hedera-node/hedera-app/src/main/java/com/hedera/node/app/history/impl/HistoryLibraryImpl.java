@@ -24,14 +24,12 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     private static WRAPSLibraryBridge wraps;
 
     private static WRAPSLibraryBridge getWraps() {
-        if (wraps == null) {
-            synchronized (HistoryLibraryImpl.class) {
-                if (wraps == null) {
-                    wraps = WRAPSLibraryBridge.getInstance();
-                }
+        synchronized (HistoryLibraryImpl.class) {
+            if (wraps == null) {
+                wraps = WRAPSLibraryBridge.getInstance();
             }
+            return wraps;
         }
-        return wraps;
     }
 
     @Override
