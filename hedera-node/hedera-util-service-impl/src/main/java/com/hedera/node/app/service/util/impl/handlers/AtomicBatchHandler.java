@@ -56,7 +56,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -186,7 +185,7 @@ public class AtomicBatchHandler implements TransactionHandler {
                 }
                 dispatchMetadata.putMetadata(EXPLICIT_WRITE_TRACING, batchHasMoreThanOneContractOp);
             }
-            recordedFeeCharging.startRecording();
+            recordedFeeCharging.rollback();
             final var streamBuilder = context.dispatch(dispatchOptions);
             recordedFeeCharging.finishRecordingTo(streamBuilder);
             if (streamBuilder.status() != SUCCESS) {
@@ -278,21 +277,11 @@ public class AtomicBatchHandler implements TransactionHandler {
                 @NonNull List<Charge> charges) {}
 
         private final FeeCharging delegate;
+        private final List<Charge> charges = new ArrayList<>();
         private final List<ChargingEvent> chargingEvents = new ArrayList<>();
-
-        // We track just the final charging event of any dispatch (earlier ones would be rolled back)
-        @Nullable
-        private Charge finalCharge;
 
         public RecordedFeeCharging(@NonNull final FeeCharging delegate) {
             this.delegate = requireNonNull(delegate);
-        }
-
-        /**
-         * Starts recording balance adjustments for a new charging event.
-         */
-        public void startRecording() {
-            finalCharge = null;
         }
 
         /**
@@ -300,9 +289,7 @@ public class AtomicBatchHandler implements TransactionHandler {
          */
         public void finishRecordingTo(@NonNull final ReplayableFeeStreamBuilder streamBuilder) {
             requireNonNull(streamBuilder);
-            chargingEvents.add(new ChargingEvent(
-                    streamBuilder,
-                    finalCharge == null ? Collections.emptyList() : Collections.singletonList(finalCharge)));
+            chargingEvents.add(new ChargingEvent(streamBuilder, List.copyOf(charges)));
         }
 
         /**
@@ -312,6 +299,17 @@ public class AtomicBatchHandler implements TransactionHandler {
          */
         public void forEachRecorded(@NonNull final BiConsumer<ReplayableFeeStreamBuilder, List<Charge>> cb) {
             chargingEvents.forEach(event -> cb.accept(event.streamBuilder(), event.charges()));
+        }
+
+        @Override
+        public void rollback() {
+            charges.clear();
+        }
+
+        @Override
+        public Context customized(@NonNull final Context ctx) {
+            requireNonNull(ctx);
+            return new RecordingContext(ctx, charges::add);
         }
 
         @Override
@@ -332,7 +330,7 @@ public class AtomicBatchHandler implements TransactionHandler {
                 @NonNull final Context ctx,
                 @NonNull final Validation validation,
                 @NonNull final Fees fees) {
-            final var recordingContext = new RecordingContext(ctx, charge -> this.finalCharge = charge);
+            final var recordingContext = new RecordingContext(ctx, charges::add);
             return delegate.charge(payerId, recordingContext, validation, fees);
         }
 
