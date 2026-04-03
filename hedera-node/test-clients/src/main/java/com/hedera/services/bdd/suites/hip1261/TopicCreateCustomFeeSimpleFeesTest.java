@@ -1,38 +1,58 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
+import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateWithCustomFeeFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -54,9 +74,13 @@ public class TopicCreateCustomFeeSimpleFeesTest {
     private static final String PAYER = "payer";
     private static final String ADMIN_KEY = "adminKey";
     private static final String SUBMIT_KEY = "submitKey";
+    private static final String PAYER_KEY = "payerKey";
     private static final String FEE_SCHEDULE_KEY = "feeScheduleKey";
     private static final String COLLECTOR = "collector";
+    private static final String AUTO_RENEW_ACCOUNT = "autoRenewAccount";
     private static final String TOPIC = "testTopic";
+    private static final String createTopicTxn = "createTopicTxn";
+    private static final String DUPLICATE_TXN_ID = "duplicateTopicDeleteTxnId";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -77,12 +101,15 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                             .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn"),
-                    validateChargedUsdWithin(
-                            "createTopicTxn",
-                            expectedTopicCreateWithCustomFeeFullFeeUsd(1L, 0L), // 1 sig, 0 extra keys, with custom fee
-                            1.0));
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -97,13 +124,15 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                             .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn"),
-                    validateChargedUsdWithin(
-                            "createTopicTxn",
-                            expectedTopicCreateWithCustomFeeFullFeeUsd(
-                                    2L, 1L), // 2 sigs (payer + admin), 1 extra key, with custom fee
-                            1.0));
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -120,13 +149,15 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                             .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn"),
-                    validateChargedUsdWithin(
-                            "createTopicTxn",
-                            expectedTopicCreateWithCustomFeeFullFeeUsd(
-                                    2L, 2L), // 2 sigs, 2 extra keys (admin + submit), with custom fee
-                            1.0));
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -145,13 +176,15 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                             .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn"),
-                    validateChargedUsdWithin(
-                            "createTopicTxn",
-                            expectedTopicCreateWithCustomFeeFullFeeUsd(
-                                    3L, 2L), // 3 sigs (1 payer + 2 admin threshold), 2 extra keys (threshold key)
-                            1.0));
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -166,12 +199,97 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                             .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR / 2, "collector2"))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn"),
-                    validateChargedUsdWithin(
-                            "createTopicTxn",
-                            expectedTopicCreateWithCustomFeeFullFeeUsd(1L, 0L), // Single surcharge regardless of count
-                            1.0));
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(createTopicTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TopicCreate with custom fee + auto-renew account - extra sig, no extra keys")
+        final Stream<DynamicTest> topicCreateWithCustomFeeAndAutoRenewAccount() {
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(COLLECTOR).balance(0L),
+                    cryptoCreate(AUTO_RENEW_ACCOUNT).balance(ONE_HBAR),
+                    createTopic(TOPIC)
+                            .autoRenewAccountId(AUTO_RENEW_ACCOUNT)
+                            .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, AUTO_RENEW_ACCOUNT)
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(createTopicTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TopicCreate with custom fee + large payer key - extra processing bytes fee")
+        final Stream<DynamicTest> topicCreateWithCustomFeeAndLargePayerKey() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(
+                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(COLLECTOR).balance(0L),
+                    createTopic(TOPIC)
+                            .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER)
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                    SIGNATURES, 20L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
+        }
+
+        @HapiTest
+        @DisplayName("TopicCreate with custom fee + very large payer key below oversize - extra processing bytes fee")
+        final Stream<DynamicTest> topicCreateWithCustomFeeAndVeryLargePayerKey() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(sigs(
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(COLLECTOR).balance(0L),
+                    createTopic(TOPIC)
+                            .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER)
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                    SIGNATURES, 41L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
     }
 
@@ -188,12 +306,15 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                             // No custom fee
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn"),
-                    validateChargedUsdWithin(
-                            "createTopicTxn",
-                            expectedTopicCreateFullFeeUsd(1L, 0L), // Standard fee without custom fee surcharge
-                            1.0));
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -208,13 +329,15 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                             .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn"),
-                    validateChargedUsdWithin(
-                            "createTopicTxn",
-                            expectedTopicCreateWithCustomFeeFullFeeUsd(
-                                    1L, 1L), // 1 sig, 1 extra key (fee schedule key), with custom fee
-                            1.0));
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
     }
 
@@ -222,63 +345,271 @@ public class TopicCreateCustomFeeSimpleFeesTest {
     @DisplayName("TopicCreate with Custom Fee Simple Fees Negative Test Cases")
     class TopicCreateCustomFeeNegativeTestCases {
 
-        @HapiTest
-        @DisplayName("TopicCreate with invalid collector - fee charged")
-        final Stream<DynamicTest> topicCreateWithInvalidCollectorFails() {
-            final AtomicLong initialBalance = new AtomicLong();
-            final AtomicLong afterBalance = new AtomicLong();
+        @Nested
+        @DisplayName("TopicCreate with Custom Fee Failures on Ingest")
+        class TopicCreateCustomFeeFailuresOnIngest {
 
-            return hapiTest(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                    createTopic(TOPIC)
-                            .withConsensusCustomFee(
-                                    fixedConsensusHbarFee(ONE_HBAR, "0.0.99999999")) // Invalid collector
-                            .payingWith(PAYER)
-                            .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn")
-                            .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR),
-                    getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                    withOpContext((spec, log) -> {
-                        assertTrue(initialBalance.get() > afterBalance.get());
-                    }),
-                    validateChargedFeeToUsd(
-                            "createTopicTxn",
-                            initialBalance,
-                            afterBalance,
-                            expectedTopicCreateWithCustomFeeFullFeeUsd(1L, 0L),
-                            1.0));
+            @HapiTest
+            @DisplayName("TopicCreate with custom fee - insufficient tx fee fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicCreateCustomFeeInsufficientTxFeeFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .fee(1L) // Fee too low
+                                .via(createTopicTxn)
+                                .hasPrecheck(INSUFFICIENT_TX_FEE),
+                        getTxnRecord(createTopicTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName(
+                    "TopicCreate with custom fee - threshold payer key invalid sig fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicCreateCustomFeeThresholdKeyInvalidSigFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .via(createTopicTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(createTopicTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicCreate with custom fee - insufficient payer balance fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicCreateCustomFeeInsufficientPayerBalanceFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HBAR / 100_000L),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .via(createTopicTxn)
+                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                        getTxnRecord(createTopicTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicCreate with custom fee - memo too long fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicCreateCustomFeeMemoTooLongFailsOnIngest() {
+                final var LONG_MEMO = "x".repeat(1025);
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        createTopic(TOPIC)
+                                .memo(LONG_MEMO)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .via(createTopicTxn)
+                                .hasPrecheck(MEMO_TOO_LONG),
+                        getTxnRecord(createTopicTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicCreate with custom fee - expired transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicCreateCustomFeeExpiredTransactionFailsOnIngest() {
+                final var expiredTxnId = "expiredCustomFeeCreateTxn";
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        usableTxnIdNamed(expiredTxnId).modifyValidStart(-3_600L).payerId(PAYER),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .txnId(expiredTxnId)
+                                .via(createTopicTxn)
+                                .hasPrecheck(TRANSACTION_EXPIRED),
+                        getTxnRecord(createTopicTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicCreate with custom fee - too far start time fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicCreateCustomFeeTooFarStartTimeFailsOnIngest() {
+                final var futureTxnId = "futureCustomFeeCreateTxn";
+
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        usableTxnIdNamed(futureTxnId).modifyValidStart(3_600L).payerId(PAYER),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .txnId(futureTxnId)
+                                .via(createTopicTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_START),
+                        getTxnRecord(createTopicTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicCreate with custom fee - invalid transaction duration fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicCreateCustomFeeInvalidTransactionDurationFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .validDurationSecs(0)
+                                .via(createTopicTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_DURATION),
+                        getTxnRecord(createTopicTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicCreate with custom fee - duplicate transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicCreateCustomFeeDuplicateTxnFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .via("createFirst"),
+                        createTopic("anotherTopic")
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .txnId("createFirst")
+                                .via(createTopicTxn)
+                                .hasPrecheck(DUPLICATE_TRANSACTION));
+            }
         }
 
-        @HapiTest
-        @DisplayName("TopicCreate with deleted collector - fee charged")
-        final Stream<DynamicTest> topicCreateWithDeletedCollectorFails() {
-            final AtomicLong initialBalance = new AtomicLong();
-            final AtomicLong afterBalance = new AtomicLong();
+        @Nested
+        @DisplayName("TopicCreate with Custom Fee Failures on Pre-Handle")
+        class TopicCreateCustomFeeFailuresOnPreHandle {
 
-            return hapiTest(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate(COLLECTOR).balance(0L),
-                    cryptoDelete(COLLECTOR).transfer(PAYER),
-                    getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                    createTopic(TOPIC)
-                            .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR)) // Deleted collector
-                            .payingWith(PAYER)
-                            .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("createTopicTxn")
-                            .hasKnownStatus(ACCOUNT_DELETED),
-                    getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                    withOpContext((spec, log) -> {
-                        assertTrue(initialBalance.get() > afterBalance.get());
-                    }),
-                    validateChargedFeeToUsd(
-                            "createTopicTxn",
-                            initialBalance,
-                            afterBalance,
-                            expectedTopicCreateWithCustomFeeFullFeeUsd(1L, 0L),
-                            1.0));
+            @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
+            @DisplayName(
+                    "TopicCreate with custom fee - invalid payer signature fails on pre-handle - network fee only, no custom fee surcharge")
+            final Stream<DynamicTest> topicCreateCustomFeeInvalidPayerSigFailsOnPreHandle() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "4")),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .setNode("4")
+                                .via(createTopicTxn)
+                                .hasKnownStatus(INVALID_PAYER_SIGNATURE),
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0),
+                        validateChargedAccount(createTopicTxn, "4"));
+            }
+        }
+
+        @Nested
+        @DisplayName("TopicCreate with Custom Fee Failures on Handle")
+        class TopicCreateCustomFeeFailuresOnHandle {
+
+            @HapiTest
+            @DisplayName("TopicCreate with invalid collector fails on handle - full fee charged")
+            final Stream<DynamicTest> topicCreateWithInvalidCollectorFailsOnHandle() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(
+                                        fixedConsensusHbarFee(ONE_HBAR, "0.0.99999999")) // Invalid collector
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .via(createTopicTxn)
+                                .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR),
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
+                                txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0),
+                        validateChargedAccount(createTopicTxn, PAYER));
+            }
+
+            @HapiTest
+            @DisplayName("TopicCreate with deleted collector fails on handle - full fee charged")
+            final Stream<DynamicTest> topicCreateWithDeletedCollectorFailsOnHandle() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        cryptoDelete(COLLECTOR).transfer(PAYER),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR)) // Deleted collector
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .via(createTopicTxn)
+                                .hasKnownStatus(ACCOUNT_DELETED),
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
+                                txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0),
+                        validateChargedAccount(createTopicTxn, PAYER));
+            }
+
+            @LeakyHapiTest
+            @Tag(ONLY_SUBPROCESS)
+            @DisplayName(
+                    "TopicCreate with custom fee - duplicate transaction fails on handle - payer charged for first only")
+            final Stream<DynamicTest> topicCreateCustomFeeDuplicateFailsOnHandle() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(COLLECTOR).balance(0L),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "3")),
+                        usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
+                        createTopic(TOPIC)
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .setNode(4)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via(createTopicTxn),
+                        createTopic("anotherTopic")
+                                .withConsensusCustomFee(fixedConsensusHbarFee(ONE_HBAR, COLLECTOR))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .setNode(3)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .hasPrecheck(DUPLICATE_TRANSACTION),
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
+                                txnSize -> expectedTopicCreateWithCustomFeeFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0),
+                        validateChargedAccount(createTopicTxn, PAYER));
+            }
         }
     }
 }
