@@ -15,6 +15,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -41,6 +42,9 @@ public class QuiescedHeartbeat {
 
     @Nullable
     private ScheduledFuture<?> heartbeatFuture;
+
+    @Nullable
+    private AtomicReference<QuiescenceCommand> lastIssuedCommand;
 
     @Inject
     public QuiescedHeartbeat(@NonNull final QuiescenceController controller, Platform platform) {
@@ -69,10 +73,19 @@ public class QuiescedHeartbeat {
     /**
      * Schedules a heartbeat at the given interval that will last until the {@link QuiescenceController} reports a
      * status other than {@link QuiescenceCommand#QUIESCE}.
+     *
+     * @param heartbeatInterval the interval between heartbeats
+     * @param probe the TCT probe to use
+     * @param lastIssuedCommand the caller's tracked command state, updated when the heartbeat issues a command
+     *                          so the caller stays in sync with what was sent to the platform
      */
-    public void start(@NonNull final Duration heartbeatInterval, @NonNull final TctProbe probe) {
+    public void start(
+            @NonNull final Duration heartbeatInterval,
+            @NonNull final TctProbe probe,
+            @NonNull final AtomicReference<QuiescenceCommand> lastIssuedCommand) {
         requireNonNull(heartbeatInterval);
         requireNonNull(probe);
+        this.lastIssuedCommand = requireNonNull(lastIssuedCommand);
 
         // Cancel any existing heartbeat
         stop();
@@ -127,11 +140,18 @@ public class QuiescedHeartbeat {
             if (commandNow != QUIESCE) {
                 log.info("Stopping quiescence heartbeat ({})", commandNow);
                 platform.quiescenceCommand(commandNow);
+                // Sync the caller's tracked command so subsequent checks detect the change
+                if (lastIssuedCommand != null) {
+                    lastIssuedCommand.set(commandNow);
+                }
                 stop();
             }
         } catch (final Exception e) {
             // End quiescence and stop the heartbeat to avoid log spam from repeated failures
             platform.quiescenceCommand(DONT_QUIESCE);
+            if (lastIssuedCommand != null) {
+                lastIssuedCommand.set(DONT_QUIESCE);
+            }
             stop();
             throw e;
         }
