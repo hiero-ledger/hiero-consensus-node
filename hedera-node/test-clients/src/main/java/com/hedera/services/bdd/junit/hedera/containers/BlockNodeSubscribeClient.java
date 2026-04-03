@@ -17,9 +17,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockStreamSubscribeServiceInterface.BlockStreamSubscribeServiceClient;
@@ -77,14 +79,19 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
                 .endBlockNumber(endBlock)
                 .build();
 
-        final List<Block> blocks = new ArrayList<>();
+        // CopyOnWriteArrayList: safe for concurrent add (callback thread) + read (calling thread)
+        // in the window between subscription.cancel() and the final in-flight onNext completing
+        final List<Block> blocks = new CopyOnWriteArrayList<>();
+        // Only accessed from the callback thread (Reactive Streams guarantees serial onNext)
         final List<BlockItem> currentBlockItems = new ArrayList<>();
         final var latch = new CountDownLatch(1);
+        final var subscriptionRef = new AtomicReference<Flow.Subscription>();
 
         try (final var client = createSubscribeClient()) {
             client.subscribeBlockStream(request, new Pipeline<>() {
                 @Override
                 public void onSubscribe(final Flow.Subscription subscription) {
+                    subscriptionRef.set(subscription);
                     subscription.request(Long.MAX_VALUE);
                 }
 
@@ -123,6 +130,7 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
 
             // Wait for the async stream to complete
             if (!latch.await(DEFAULT_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+                cancelSubscription(subscriptionRef);
                 log.warn(
                         "Timed out waiting for subscribe stream from {}:{} after {}s (got {} blocks so far)",
                         host,
@@ -131,18 +139,27 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
                         blocks.size());
             }
         } catch (final InterruptedException e) {
+            cancelSubscription(subscriptionRef);
             Thread.currentThread().interrupt();
             log.error("Interrupted while subscribing to blocks from {}:{}", host, port, e);
         } catch (final Exception e) {
+            cancelSubscription(subscriptionRef);
             log.error("Failed to subscribe to blocks from {}:{}", host, port, e);
         }
 
-        return blocks;
+        return List.copyOf(blocks);
     }
 
     @Override
     public void close() {
         // No persistent resources to close; clients are created per-call
+    }
+
+    private static void cancelSubscription(@NonNull final AtomicReference<Flow.Subscription> ref) {
+        final var subscription = ref.get();
+        if (subscription != null) {
+            subscription.cancel();
+        }
     }
 
     private BlockStreamSubscribeServiceClient createSubscribeClient() {

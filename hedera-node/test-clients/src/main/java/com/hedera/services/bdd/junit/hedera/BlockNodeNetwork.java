@@ -96,21 +96,24 @@ public class BlockNodeNetwork {
             boolean ready = false;
             while (System.currentTimeMillis() < deadline) {
                 try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
-                    client.getLastAvailableBlock();
-                    logger.info(
-                            "Block node container {} gRPC ready at {}:{}",
-                            id,
-                            container.getHost(),
-                            container.getPort());
-                    ready = true;
-                    break;
-                } catch (final Exception e) {
-                    try {
-                        Thread.sleep(500);
-                    } catch (final InterruptedException ie) {
-                        Thread.currentThread().interrupt();
+                    final long lastBlock = client.getLastAvailableBlock();
+                    if (lastBlock >= 0) {
+                        logger.info(
+                                "Block node container {} gRPC ready at {}:{}",
+                                id,
+                                container.getHost(),
+                                container.getPort());
+                        ready = true;
                         break;
                     }
+                } catch (final Exception e) {
+                    // Unexpected failure — fall through to retry
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (final InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
             }
             if (!ready) {
