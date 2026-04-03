@@ -18,15 +18,11 @@ import java.util.SplittableRandom;
  */
 public class HintsLibraryImpl implements HintsLibrary {
     private static final SplittableRandom RANDOM = new SplittableRandom();
-    private static volatile HintsLibraryBridge bridge;
+    private static HintsLibraryBridge bridge;
 
-    private static HintsLibraryBridge getBridge() {
+    private static synchronized HintsLibraryBridge getBridge() {
         if (bridge == null) {
-            synchronized (HintsLibraryImpl.class) {
-                if (bridge == null) {
-                    bridge = HintsLibraryBridge.getInstance();
-                }
-            }
+            bridge = HintsLibraryBridge.getInstance();
         }
         return bridge;
     }
@@ -119,7 +115,8 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(aggregationKey);
-        return getBridge().verifyBls(signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId);
+        return getBridge().verifyBls(
+                signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId);
     }
 
     @Override

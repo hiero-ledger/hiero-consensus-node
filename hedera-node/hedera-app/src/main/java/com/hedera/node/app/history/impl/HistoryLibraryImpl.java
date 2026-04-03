@@ -21,15 +21,11 @@ import java.util.SplittableRandom;
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
     public static final SplittableRandom RANDOM = new SplittableRandom();
-    private static volatile WRAPSLibraryBridge wraps;
+    private static WRAPSLibraryBridge wraps;
 
-    private static WRAPSLibraryBridge getWraps() {
+    private static synchronized WRAPSLibraryBridge getWraps() {
         if (wraps == null) {
-            synchronized (HistoryLibraryImpl.class) {
-                if (wraps == null) {
-                    wraps = WRAPSLibraryBridge.getInstance();
-                }
-            }
+            wraps = WRAPSLibraryBridge.getInstance();
         }
         return wraps;
     }
@@ -57,8 +53,9 @@ public class HistoryLibraryImpl implements HistoryLibrary {
             @NonNull final AddressBook addressBook, @NonNull final byte[] hintsVerificationKey) {
         requireNonNull(addressBook);
         requireNonNull(hintsVerificationKey);
-        return getWraps().formatRotationMessage(
-                addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds(), hintsVerificationKey);
+        return getWraps()
+                .formatRotationMessage(
+                        addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds(), hintsVerificationKey);
     }
 
     @Override
