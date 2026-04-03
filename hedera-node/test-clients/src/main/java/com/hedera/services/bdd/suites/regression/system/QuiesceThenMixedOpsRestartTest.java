@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
-import static com.hedera.services.bdd.junit.TestTags.RESTART;
+import static com.hedera.services.bdd.junit.TestTags.QUIESCENCE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -10,11 +10,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPairTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -23,14 +22,12 @@ import static com.hedera.services.bdd.suites.regression.system.MixedOperations.b
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -39,28 +36,24 @@ import org.junit.jupiter.api.Tag;
  * <p>
  * Then submits a burst of mixed operations, freezes all nodes, shuts them down, restarts them, and submits the same
  * burst of mixed operations again.
+ * <p>
+ * Requires {@code staking.periodMins=1440} and {@code nodes.nodeRewardsEnabled=false} to be set
+ * in the Gradle task overrides so that staking period transactions do not interfere with quiescence.
  */
-@Tag(RESTART)
-@Disabled
+@Tag(QUIESCENCE)
 public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
     private static final int MIXED_OPS_BURST_TPS = 50;
 
-    @LeakyHapiTest(overrides = {"staking.periodMins", "nodes.nodeRewardsEnabled"})
+    @HapiTest
     final Stream<DynamicTest> quiesceAndThenRestartMixedOps() {
         final AtomicReference<Instant> scheduleExpiry = new AtomicReference<>();
-        final AtomicReference<Instant> sleepStart = new AtomicReference<>(Instant.now());
+        final AtomicReference<Instant> logAssertionStart = new AtomicReference<>();
         return hapiTest(
-                // Override properties that interfere with the idle->QUIESCE
-                // transition and restart so they take effect with a fresh
-                // lastQuiescenceCommand in BlockStreamManagerImpl
-                overridingAllOf(Map.of(
-                        "staking.periodMins", "1440",
-                        "nodes.nodeRewardsEnabled", "false")),
-                LifecycleTest.restartAtNextConfigVersion(),
                 // Ensure the network is out of quiescence before the test logic
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 // --- actual test workflow ---
                 cryptoCreate("scheduledReceiver").via("txn").balance(41 * ONE_HBAR),
+                doingContextual((ignored) -> logAssertionStart.set(Instant.now())),
                 doWithStartupDuration("quiescence.tctDuration", duration -> scheduleCreate(
                                 "schedule", cryptoTransfer(tinyBarsFromTo(GENESIS, "scheduledReceiver", ONE_HBAR)))
                         .payingWith(GENESIS)
@@ -71,14 +64,16 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                 getScheduleInfo("schedule")
                         .exposingInfoTo(info -> scheduleExpiry.set(asInstant(info.getExpirationTime())))
                         .logged(),
-                withOpContext((spec, opLog) -> sleepStart.set(Instant.now())),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(2 * duration.toSeconds())),
-                assertHgcaaLogContainsTimeframe(
+                assertHgcaaLogContainsPairTimeframe(
                         NodeSelector.byNodeId(0),
-                        sleepStart::get,
-                        Duration.ofSeconds(15),
-                        Duration.ofSeconds(15),
-                        "to QUIESCE"),
+                        logAssertionStart::get,
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
+                        "Started quiesced heartbeat",
+                        "Stopping quiescence heartbeat",
+                        Duration.ofSeconds(5),
+                        Duration.ofSeconds(40)),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
                 getTxnRecord("creation").scheduled().exposingTo(r -> {

@@ -163,6 +163,7 @@ import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecSleep;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntil;
 import com.hedera.services.bdd.spec.utilops.pauses.HapiSpecWaitUntilNextBlock;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentOp;
+import com.hedera.services.bdd.spec.utilops.streams.LogContainmentPairTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
@@ -3510,6 +3511,42 @@ public class UtilVerbs {
             @NonNull final String... patterns) {
         return new LogContainmentTimeframeOp(
                 selector, APPLICATION_LOG, Arrays.asList(patterns), startTimeSupplier, timeframe, waitTimeout);
+    }
+
+    /**
+     * Asserts that two log patterns appear in order in the specified node's HGCAA log within a timeframe,
+     * with a time gap between them that falls within {@code [minGap, maxGap]}. This is useful for
+     * distinguishing real state transitions (e.g. sustained quiescence) from transient flickers.
+     *
+     * @param selector the node selector
+     * @param startTimeSupplier supplier for the start time of the timeframe
+     * @param timeframe the duration of the timeframe window to search
+     * @param waitTimeout the duration to wait (polling) for the pair to appear
+     * @param firstPattern the first pattern to match
+     * @param secondPattern the second pattern to match (must appear after the first)
+     * @param minGap minimum required time gap between the two pattern matches
+     * @param maxGap maximum allowed time gap between the two pattern matches
+     * @return a new LogContainmentPairTimeframeOp
+     */
+    public static LogContainmentPairTimeframeOp assertHgcaaLogContainsPairTimeframe(
+            @NonNull final NodeSelector selector,
+            @NonNull final Supplier<Instant> startTimeSupplier,
+            @NonNull final Duration timeframe,
+            @NonNull final Duration waitTimeout,
+            @NonNull final String firstPattern,
+            @NonNull final String secondPattern,
+            @NonNull final Duration minGap,
+            @NonNull final Duration maxGap) {
+        return new LogContainmentPairTimeframeOp(
+                selector,
+                APPLICATION_LOG,
+                startTimeSupplier,
+                timeframe,
+                waitTimeout,
+                firstPattern,
+                secondPattern,
+                minGap,
+                maxGap);
     }
 
     public static CustomSpecAssert valueIsInRange(

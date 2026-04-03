@@ -63,7 +63,7 @@ tasks.test {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD|QUIESCENCE)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -74,6 +74,7 @@ val prCheckTags =
         "hapiTestToken" to "TOKEN",
         "hapiTestTokenSerial" to "(TOKEN&SERIAL)",
         "hapiTestRestart" to "RESTART|UPGRADE",
+        "hapiTestQuiescence" to "QUIESCENCE",
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestSmartContractSerial" to "(SMART_CONTRACT&SERIAL)",
         "hapiTestNDReconnect" to "ND_RECONNECT",
@@ -102,6 +103,7 @@ val remoteCheckTags =
                 listOf(
                     "hapiTestIss",
                     "hapiTestRestart",
+                    "hapiTestQuiescence",
                     "hapiTestWrapsDownload",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
@@ -135,6 +137,7 @@ val prCheckStartPorts =
         "hapiTestSimpleFeesSerial" to "29000",
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
+        "hapiTestQuiescence" to "29600",
     )
 val prCheckPropOverrides =
     mapOf(
@@ -170,6 +173,8 @@ val prCheckPropOverrides =
         "hapiTestCutover" to
             "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestQuiescence" to
+            "tss.forceMockSignatures=true,blockStream.quiescedHeartbeatInterval=PT3S,quiescence.enabled=true,staking.periodMins=1440,nodes.nodeRewardsEnabled=false",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
@@ -203,6 +208,7 @@ val prCheckNetSizeOverrides =
         "hapiTestSmartContractSerial" to "3",
         "hapiTestAtomicBatch" to "3",
         "hapiTestAtomicBatchSerial" to "3",
+        "hapiTestQuiescence" to "3",
     )
 
 tasks {
