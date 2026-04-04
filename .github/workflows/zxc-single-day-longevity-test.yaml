@@ -603,7 +603,7 @@ jobs:
           do
 
             echo "{\"nodes\": [" > block-nodes_${i}.json
-            echo "{ \"address\": \"block-node-${i}.${{ steps.set-namespace.outputs.namespace }}.svc.cluster.local", \
+            echo "{ \"address\": \"block-node-${i}.${{ steps.set-namespace.outputs.namespace }}.svc.cluster.local\", \
                     \"streamingPort\": 40840, \
                     \"servicePort\": 40840, \
                     \"priority\": 1, \
