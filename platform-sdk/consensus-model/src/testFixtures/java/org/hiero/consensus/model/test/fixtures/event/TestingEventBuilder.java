@@ -166,7 +166,7 @@ public class TestingEventBuilder {
      * @param creatorId the creator ID
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setCreatorId(@Nullable final NodeId creatorId) {
+    public @NonNull TestingEventBuilder withCreatorId(@Nullable final NodeId creatorId) {
         this.creatorId = creatorId;
         return this;
     }
@@ -177,7 +177,7 @@ public class TestingEventBuilder {
      * @param nGen the ngen
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setNGen(final long nGen) {
+    public @NonNull TestingEventBuilder withNGen(final long nGen) {
         this.nGen = nGen;
         return this;
     }
@@ -191,7 +191,7 @@ public class TestingEventBuilder {
      * @param timeCreated the time created
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setTimeCreated(@Nullable final Instant timeCreated) {
+    public @NonNull TestingEventBuilder withTimeCreated(@Nullable final Instant timeCreated) {
         this.timeCreated = timeCreated;
         return this;
     }
@@ -204,7 +204,7 @@ public class TestingEventBuilder {
      * @param numberOfAppTransactions the number of app transactions
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setAppTransactionCount(final int numberOfAppTransactions) {
+    public @NonNull TestingEventBuilder withAppTransactionCount(final int numberOfAppTransactions) {
         if (transactionBytes != null) {
             throw new IllegalStateException("Cannot set app transaction count when transactions are explicitly set");
         }
@@ -224,7 +224,7 @@ public class TestingEventBuilder {
      * at the moment. it should be removed and cannot be relied upon.
      */
     @Deprecated
-    public @NonNull TestingEventBuilder setSystemTransactionCount(final int numberOfSystemTransactions) {
+    public @NonNull TestingEventBuilder withSystemTransactionCount(final int numberOfSystemTransactions) {
         if (transactionBytes != null) {
             throw new IllegalStateException("Cannot set system transaction count when transactions are explicitly set");
         }
@@ -241,7 +241,7 @@ public class TestingEventBuilder {
      * @param transactionSize the transaction size
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setTransactionSize(final int transactionSize) {
+    public @NonNull TestingEventBuilder withTransactionSize(final int transactionSize) {
         if (transactionBytes != null) {
             throw new IllegalStateException("Cannot set transaction size when transactions are explicitly set");
         }
@@ -256,7 +256,7 @@ public class TestingEventBuilder {
      * @param transactions {@link List<Bytes>} transactions
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setTransactionBytes(@Nullable final List<Bytes> transactions) {
+    public @NonNull TestingEventBuilder withTransactionBytes(@Nullable final List<Bytes> transactions) {
         if (appTransactionCount != null || systemTransactionCount != null || transactionSize != null) {
             throw new IllegalStateException(
                     "Cannot set transactions when app transaction count, system transaction count, or transaction "
@@ -275,7 +275,7 @@ public class TestingEventBuilder {
      * @param selfParent the self-parent
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setSelfParent(@Nullable final PlatformEvent selfParent) {
+    public @NonNull TestingEventBuilder withSelfParent(@Nullable final PlatformEvent selfParent) {
         this.selfParent = selfParent;
         return this;
     }
@@ -288,7 +288,7 @@ public class TestingEventBuilder {
      * @param otherParent the other-parent
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setOtherParent(@Nullable final PlatformEvent otherParent) {
+    public @NonNull TestingEventBuilder withOtherParent(@Nullable final PlatformEvent otherParent) {
         this.otherParents = otherParent == null ? null : List.of(otherParent);
         return this;
     }
@@ -301,7 +301,7 @@ public class TestingEventBuilder {
      * @param otherParents the other-parents
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setOtherParents(@NonNull final List<PlatformEvent> otherParents) {
+    public @NonNull TestingEventBuilder withOtherParents(@NonNull final List<PlatformEvent> otherParents) {
         this.otherParents = otherParents;
         return this;
     }
@@ -341,7 +341,7 @@ public class TestingEventBuilder {
      * @param birthRound the birth round to set
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setBirthRound(final long birthRound) {
+    public @NonNull TestingEventBuilder withBirthRound(final long birthRound) {
         this.birthRound = birthRound;
         return this;
     }
@@ -356,7 +356,7 @@ public class TestingEventBuilder {
      * @param consensusTimestamp the consensus timestamp
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setConsensusTimestamp(@Nullable final Instant consensusTimestamp) {
+    public @NonNull TestingEventBuilder withConsensusTimestamp(@Nullable final Instant consensusTimestamp) {
         this.consensusTimestamp = consensusTimestamp;
         return this;
     }
@@ -371,7 +371,7 @@ public class TestingEventBuilder {
      * @param consensusOrder the consensus order
      * @return this instance
      */
-    public @NonNull TestingEventBuilder setConsensusOrder(@Nullable final Long consensusOrder) {
+    public @NonNull TestingEventBuilder withConsensusOrder(@Nullable final Long consensusOrder) {
         this.consensusOrder = consensusOrder;
         return this;
     }
