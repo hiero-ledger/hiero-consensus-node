@@ -181,10 +181,19 @@ public class TransferExecutor extends BaseTokenHandler {
             txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
         }
         final boolean hasHooks = HookUtils.hasHookExecutions(replacedOp);
-        final var hookCalls = hasHooks
-                ? hookCallsFactory.from(
-                        transferContext.getHandleContext(), replacedOp, transferContext.getItemizedAssessedFees())
-                : null;
+        final HookCalls hookCalls;
+        if (hasHooks) {
+            // Use OrThrow() on all required fields, catch and propagate NPE as INVALID_HOOK_CALL; other
+            // exception types should not occur and will propagate as a FAIL_INVALID with fees re-charged
+            try {
+                hookCalls = hookCallsFactory.from(
+                        transferContext.getHandleContext(), replacedOp, transferContext.getItemizedAssessedFees());
+            } catch (NullPointerException ignore) {
+                throw new HandleException(INVALID_HOOK_CALL);
+            }
+        } else {
+            hookCalls = null;
+        }
         final var numAttemptedHookCalls = new Counter();
         if (hasHooks) {
             try {
