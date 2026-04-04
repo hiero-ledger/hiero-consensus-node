@@ -613,7 +613,7 @@ jobs:
 
             echo "DEBUG: block-nodes_${i}.json is:"
             cat block-nodes_${i}.json
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${i}.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${i}.json network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
           done
 
       - name: Restart CNs with BlockNodes defined
