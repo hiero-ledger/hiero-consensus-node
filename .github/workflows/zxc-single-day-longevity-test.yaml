@@ -590,9 +590,34 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
+          #FIXME:
+          rm -rf ~/.solo/cache/block-nodes*.json
           task installCNs
 
+      - name: Update CNs with BNs
+        run: |
+          set +x
+          set +e
+          #create block-nodes.json for CNs
+          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
+          do
+
+            echo "{\"nodes\": [" > block-nodes_${i}.json
+            echo "{ \"address\": \"block-node-${i}.${{ steps.set-namespace.outputs.namespace }}.svc.cluster.local", \
+                    \"streamingPort\": 40840, \
+                    \"servicePort\": 40840, \
+                    \"priority\": 1, \
+                    \"messageSizeSoftLimitBytes\": 4194304, \
+                    \"messageSizeHardLimitBytes\": 37748736 \
+                     }],\"blockItemBatchSize\": 256 }" >> block-nodes_${i}.json
+
+            echo "DEBUG: block-nodes_${i}.json is:"
+            cat block-nodes_${i}.json
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${i}.json $i:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
+          done
+
       - name: Restart CNs with BlockNodes defined
+        if: false
         run: |
           set +x
           set +e
@@ -622,6 +647,7 @@ jobs:
           
             echo "DEBUG: block-nodes_$counter.json is:"
             cat block-nodes_$counter.json
+
           done
 
           #create block-nodes-source.json for BNs
