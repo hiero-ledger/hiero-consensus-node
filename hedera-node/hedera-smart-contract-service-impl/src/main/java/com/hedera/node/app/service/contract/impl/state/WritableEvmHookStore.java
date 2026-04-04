@@ -81,7 +81,9 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         for (final var update : updates) {
             if (update.hasStorageSlot()) {
                 final var slot = update.storageSlotOrThrow();
-                keys.add(slot.key());
+                // If coming from HookStore, could be empty bytes that need to swap canonicalize to 0x00
+                final var minimalKey = minimalKey(slot.key());
+                keys.add(minimalKey);
                 values.add(slot.value());
             } else {
                 final var entries = update.mappingEntriesOrThrow();
