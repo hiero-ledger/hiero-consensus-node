@@ -12,7 +12,6 @@ on:
           - AdHoc5
           - AdHoc6
           - AdHoc7
-          - AdHocSD8
           - AdHocSD9
       ref:
         required: true

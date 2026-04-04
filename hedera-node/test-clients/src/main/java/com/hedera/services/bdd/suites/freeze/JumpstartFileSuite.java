@@ -5,27 +5,24 @@ import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartFile;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyJumpstartHash;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyLiveWrappedHash;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp.CLASSIC_NODE_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,65 +41,90 @@ class JumpstartFileSuite implements LifecycleTest {
     // For excluding any of the 'non-core' nodes that are expected to be added, reconnected, or removed
     private static final long[] LATER_NODE_IDS = new long[] {4, 5, 6, 7, 8};
 
-    @LeakyHapiTest(overrides = {"hedera.recordStream.computeHashesFromWrappedRecordBlocks"})
-    final Stream<DynamicTest> generatesJumpstart() {
+    @SuppressWarnings("DuplicatedCode")
+    @LeakyHapiTest(
+            overrides = {
+                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
+                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
+                "blockStream.jumpstart.blockNum",
+                "blockStream.jumpstart.previousWrappedRecordBlockHash",
+                "blockStream.jumpstart.streamingHasherLeafCount",
+                "blockStream.jumpstart.streamingHasherHashCount",
+                "blockStream.jumpstart.streamingHasherSubtreeHashes",
+            })
+    final Stream<DynamicTest> jumpstartsCorrectLiveWrappedRecordBlockHashes() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
-        final AtomicReference<byte[]> jumpstartFileContents = new AtomicReference<>();
+        final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
+        final AtomicReference<String> liveWrappedHash = new AtomicReference<>();
+        final AtomicReference<String> liveBlockNum = new AtomicReference<>();
+
+        // Mutable map so buildDynamicJumpstartConfig can add jumpstart config properties
+        // before the restart reads them
+        final var envOverrides = new HashMap<>(Map.of(
+                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                "true",
+                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
+                "true",
+                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
+                "true"));
 
         return hapiTest(
-                overriding("hedera.recordStream.computeHashesFromWrappedRecordBlocks", "true"),
+                // Any nodes added after genesis will not have a complete wrapped hashes file on disk, so shut them down
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
-                MixedOperations.burstOfTps(5, Duration.ofSeconds(60)),
-                logIt("Phase 2: Restarting with jumpstart file"),
+                MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
+                logIt("Phase 2: Restarting with jumpstart config"),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(
-                        Map.of("hedera.recordStream.computeHashesFromWrappedRecordBlocks", "true"),
-                        buildDynamicJumpstartFile(jumpstartFileContents)),
+                upgradeToNextConfigVersion(envOverrides, buildDynamicJumpstartConfig(jumpstartConfig, envOverrides)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
-                logIt("Phase 3: Verify node can process transactions after migration"),
+                logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
                 cryptoCreate("shouldWork").payingWith(GENESIS),
-                logIt("Phase 4: Verify jumpstart file processed successfully"),
-                assertHgcaaLogDoesNotContainText(
+                assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
-                        "Resuming calculation of wrapped record file hashes until next attempt, but this node will likely experience an ISS",
+                        "Migration root hash voting finalized after node\\d+ vote, >1/3 threshold reached",
                         Duration.ofSeconds(30)),
+                logIt("Phase 4: Verify jumpstart file processed successfully"),
                 assertHgcaaLogContainsPattern(
                                 NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                                 "Completed processing all \\d+ recent wrapped record hashes\\. Final wrapped record block hash \\(as of expected freeze block (\\d+)\\): (\\S+)",
                                 Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, freezeBlockNum)
                         .exposingMatchGroupTo(2, nodeComputedHash),
-                // Verify the jumpstart file was archived after successful migration
-                withOpContext((spec, opLog) -> {
-                    for (final var node : spec.targetNetworkOrThrow().nodes()) {
-                        if (!CLASSIC_NODE_IDS.contains(node.getNodeId())) {
-                            continue;
-                        }
-
-                        final var workingDir = node.metadata().workingDir();
-                        final var cutoverDir = workingDir.resolve(Path.of("data", "cutover"));
-                        final var original = cutoverDir.resolve("jumpstart.bin");
-                        final var archived = cutoverDir.resolve("archived_jumpstart.bin");
-                        org.junit.jupiter.api.Assertions.assertFalse(
-                                Files.exists(original),
-                                "Jumpstart file should have been archived on node " + node.getNodeId()
-                                        + " but still exists at " + original);
-                        org.junit.jupiter.api.Assertions.assertTrue(
-                                Files.exists(archived),
-                                "Archived jumpstart file not found on node " + node.getNodeId() + " at " + archived);
-                    }
-                }),
                 // Independently verify the node's computed hash. The wrapped record hashes file
                 // may have grown since the migration ran (nodes continue writing after restart),
                 // so we pass the freeze block number to bound the replay to the same range the
                 // migration processed.
                 getWrappedRecordHashes(wrappedRecordHashes),
                 sourcing(() -> verifyJumpstartHash(
-                        jumpstartFileContents.get(),
+                        jumpstartConfig.get(),
                         wrappedRecordHashes.get(),
                         nodeComputedHash.get(),
-                        freezeBlockNum.get())));
+                        freezeBlockNum.get())),
+                logIt("Phase 5: Verify migration is not re-applied on restart"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(envOverrides),
+                waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Jumpstart migration already applied \\(votingComplete=true\\), skipping",
+                        Duration.ofSeconds(30)),
+                logIt("Phase 6: Third burst with live wrapped record hashes"),
+                MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
+                logIt("Phase 7: Freeze and live hash verification"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(
+                        Map.of(
+                                "hedera.recordStream.computeHashesFromWrappedRecordBlocks", "false",
+                                "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true"),
+                        assertHgcaaLogContainsPattern(
+                                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                                        "Persisted live wrapped record block root hash \\(as of block (\\d+)\\): (\\S+)",
+                                        Duration.ofSeconds(1))
+                                .exposingMatchGroupTo(1, liveBlockNum)
+                                .exposingMatchGroupTo(2, liveWrappedHash)),
+                waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                sourcing(() -> verifyLiveWrappedHash(liveWrappedHash.get(), liveBlockNum.get())));
     }
 }

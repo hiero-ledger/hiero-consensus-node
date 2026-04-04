@@ -374,10 +374,5 @@ class BlockStateProofGeneratorTest {
         public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
             // No-op
         }
-
-        @Override
-        public void jumpToBlockAfterFreeze(long blockNumber) {
-            // No-op
-        }
     }
 }

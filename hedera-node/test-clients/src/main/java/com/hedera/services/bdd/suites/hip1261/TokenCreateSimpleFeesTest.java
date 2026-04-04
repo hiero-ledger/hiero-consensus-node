@@ -2,56 +2,70 @@
 package com.hedera.services.bdd.suites.hip1261;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
+import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleWithCustomFeesFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFeesFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_TOKEN_NAME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MISSING_TOKEN_SYMBOL;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -67,7 +81,6 @@ import org.junit.jupiter.api.Tag;
  * - Presence of custom fees
  * - Token type (fungible vs NFT)
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class TokenCreateSimpleFeesTest {
@@ -83,6 +96,7 @@ public class TokenCreateSimpleFeesTest {
     private static final String FEE_SCHEDULE_KEY = "feeScheduleKey";
     private static final String PAYER_KEY = "payerKey";
     private static final String HBAR_COLLECTOR = "hbarCollector";
+    private static final String tokenCreateTxn = "tokenCreateTxn";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -104,9 +118,15 @@ public class TokenCreateSimpleFeesTest {
                             .treasury(TREASURY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenCreateTxn"),
-                    validateChargedUsdWithin("tokenCreateTxn", expectedTokenCreateFungibleFullFeeUsd(2L, 0L), 0.001));
+                            .via(tokenCreateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
         }
 
         @HapiTest
@@ -123,12 +143,15 @@ public class TokenCreateSimpleFeesTest {
                             .treasury(TREASURY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenCreateTxn"),
-                    validateChargedUsdWithin(
-                            "tokenCreateTxn",
-                            expectedTokenCreateNftFullFeeUsd(2L, 1L), // 1 key = supply key
-                            0.001));
+                            .via(tokenCreateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateNftFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
         }
 
         @HapiTest
@@ -144,12 +167,15 @@ public class TokenCreateSimpleFeesTest {
                             .treasury(TREASURY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenCreateTxn"),
-                    validateChargedUsdWithin(
-                            "tokenCreateTxn",
-                            expectedTokenCreateFungibleFullFeeUsd(3L, 1L), // 3 sigs: payer + treasury + admin key
-                            0.001));
+                            .via(tokenCreateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
         }
 
         @HapiTest
@@ -177,13 +203,15 @@ public class TokenCreateSimpleFeesTest {
                             .treasury(TREASURY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenCreateTxn"),
-                    validateChargedUsdWithin(
-                            "tokenCreateTxn",
-                            expectedTokenCreateFungibleFullFeeUsd(
-                                    3L, 7L), // 3 sigs: payer + treasury + admin key, 7 keys
-                            0.001));
+                            .via(tokenCreateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 7L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
         }
 
         @HapiTest
@@ -212,12 +240,15 @@ public class TokenCreateSimpleFeesTest {
                             .treasury(TREASURY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenCreateTxn"),
-                    validateChargedUsdWithin(
-                            "tokenCreateTxn",
-                            expectedTokenCreateNftFullFeeUsd(3L, 7L), // 3 sigs: payer + treasury + admin key, 7 keys
-                            0.001));
+                            .via(tokenCreateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateNftFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 7L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
         }
 
         @HapiTest
@@ -233,10 +264,15 @@ public class TokenCreateSimpleFeesTest {
                             .withCustom(fixedHbarFee(100L, HBAR_COLLECTOR))
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenCreateTxn"),
-                    validateChargedUsdWithin(
-                            "tokenCreateTxn", expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(2L, 0L), 0.001));
+                            .via(tokenCreateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateFungibleWithCustomFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
         }
 
         @HapiTest
@@ -255,12 +291,15 @@ public class TokenCreateSimpleFeesTest {
                             .withCustom(fixedHbarFee(100L, HBAR_COLLECTOR))
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenCreateTxn"),
-                    validateChargedUsdWithin(
-                            "tokenCreateTxn",
-                            expectedTokenCreateNftWithCustomFeesFullFeeUsd(2L, 1L), // 1 key = supply key
-                            0.001));
+                            .via(tokenCreateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateNftWithCustomFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
         }
 
         @HapiTest
@@ -280,12 +319,15 @@ public class TokenCreateSimpleFeesTest {
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .signedBy(PAYER, TREASURY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenCreateTxn"),
-                    validateChargedUsdWithin(
-                            "tokenCreateTxn",
-                            expectedTokenCreateFungibleFullFeeUsd(3L, 0L), // 3 sigs: 2 payer + 1 treasury
-                            0.001));
+                            .via(tokenCreateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
         }
 
         @HapiTest
@@ -307,13 +349,80 @@ public class TokenCreateSimpleFeesTest {
                             .withCustom(fixedHbarFee(100L, HBAR_COLLECTOR))
                             .payingWith(PAYER)
                             .signedBy(PAYER, TREASURY, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("tokenCreateTxn"),
-                    validateChargedUsdWithin(
-                            "tokenCreateTxn",
-                            expectedTokenCreateFungibleWithCustomFeesFullFeeUsd(
-                                    3L, 3L), // 3 sigs: payer + treasury + admin key, 3 keys
-                            0.001));
+                            .via(tokenCreateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateFungibleWithCustomFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 3L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TokenCreate - large key txn above NODE_INCLUDED_BYTES threshold - extra PROCESSING_BYTES charged")
+        final Stream<DynamicTest> tokenCreateLargeKeyExtraProcessingBytesFee() {
+            final KeyShape largeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    tokenCreate("fungibleToken")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, TREASURY)
+                            .via(tokenCreateTxn),
+                    assertionsHold((spec, log) -> {
+                        final int txnSize = signedTxnSizeFor(spec, tokenCreateTxn);
+                        log.info(
+                                "Large-key TokenCreate signed size: {} bytes (threshold: {})",
+                                txnSize,
+                                NODE_INCLUDED_BYTES);
+                        assertTrue(
+                                txnSize > NODE_INCLUDED_BYTES,
+                                "Expected txn size (" + txnSize + ") to exceed " + NODE_INCLUDED_BYTES + " bytes");
+                    }),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateFullFeeUsd(
+                                    Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(tokenCreateTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TokenCreate - very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
+        final Stream<DynamicTest> tokenCreateVeryLargeKeyBelowOversizeFee() {
+            final KeyShape veryLargeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(TREASURY).balance(0L),
+                    tokenCreate("fungibleToken")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .treasury(TREASURY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, TREASURY)
+                            .via(tokenCreateTxn),
+                    assertionsHold((spec, log) -> {
+                        final int txnSize = signedTxnSizeFor(spec, tokenCreateTxn);
+                        log.info("Very-large TokenCreate signed size: {} bytes", txnSize);
+                        assertTrue(txnSize < 6_000, "Expected txn size (" + txnSize + ") to not exceed 6000 bytes");
+                    }),
+                    validateChargedUsdWithinWithTxnSize(
+                            tokenCreateTxn,
+                            txnSize -> expectedTokenCreateFullFeeUsd(
+                                    Map.of(SIGNATURES, 56L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
     }
 
@@ -322,8 +431,301 @@ public class TokenCreateSimpleFeesTest {
     class TokenCreateSimpleFeesNegativeTestCases {
 
         @Nested
-        @DisplayName("TokenCreate Failures on Handle")
-        class TokenCreateFailuresOnHandle {
+        @DisplayName("TokenCreate Failures on Ingest and Handle")
+        class TokenCreateFailuresOnIngest {
+
+            @HapiTest
+            @DisplayName("TokenCreate - insufficient tx fee fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenCreateInsufficientTxFeeFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, TREASURY)
+                                .fee(1L) // Fee too low
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(INSUFFICIENT_TX_FEE),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - insufficient payer balance fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenCreateInsufficientPayerBalanceFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(100L), // Very low balance
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, TREASURY)
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - threshold key with invalid signature fails on ingest")
+            final Stream<DynamicTest> tokenCreateThresholdInvalidSignatureFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF)); // Only 1 of 2 required
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .signedBy(PAYER, TREASURY)
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - key list with missing signature fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenCreateKeyListMissingSigFailsOnIngest() {
+                return hapiTest(
+                        newKeyNamed("firstKey"),
+                        newKeyNamed("secondKey"),
+                        newKeyListNamed(PAYER_KEY, List.of("firstKey", "secondKey")),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .signedBy("firstKey", TREASURY) // missing secondKey
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName(
+                    "TokenCreate - threshold key with nested list invalid signature fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenCreateThresholdWithListInvalidSigFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
+                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF, sigs(OFF, OFF)));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER)
+                                .key(PAYER_KEY)
+                                .sigControl(forKey(PAYER_KEY, keyShape.signedWith(sigs(ON, ON, sigs(ON, ON)))))
+                                .balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, invalidSig))
+                                .signedBy(PAYER, TREASURY)
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(INVALID_SIGNATURE),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - memo too long fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenCreateMemoTooLongFailsOnIngest() {
+                final var LONG_MEMO = "x".repeat(1025);
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .memo(LONG_MEMO)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .signedBy(PAYER, TREASURY)
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(MEMO_TOO_LONG),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - expired transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenCreateExpiredTransactionFailsOnIngest() {
+                final var expiredTxnId = "expiredTokenCreate";
+                final var oneHourPast = -3_600L;
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        usableTxnIdNamed(expiredTxnId)
+                                .modifyValidStart(oneHourPast)
+                                .payerId(PAYER),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .signedBy(PAYER, TREASURY)
+                                .txnId(expiredTxnId)
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(TRANSACTION_EXPIRED),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - too far start time fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenCreateTooFarStartTimeFailsOnIngest() {
+                final var futureTxnId = "futureTokenCreate";
+                final var oneHourFuture = 3_600L;
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        usableTxnIdNamed(futureTxnId)
+                                .modifyValidStart(oneHourFuture)
+                                .payerId(PAYER),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .signedBy(PAYER, TREASURY)
+                                .txnId(futureTxnId)
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_START),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - invalid duration fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenCreateInvalidDurationFailsOnIngest() {
+                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
+                SigControl validSig = keyShape.signedWith(sigs(ON, ON));
+
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(keyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .sigControl(forKey(PAYER_KEY, validSig))
+                                .signedBy(PAYER, TREASURY)
+                                .validDurationSecs(0)
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_DURATION),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - duplicate transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> tokenCreateDuplicateTxnFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        // first successful token create
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, TREASURY)
+                                .via(tokenCreateTxn),
+                        // duplicate reusing same txnId
+                        tokenCreate("anotherToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, TREASURY)
+                                .txnId(tokenCreateTxn)
+                                .via("tokenCreateDuplicateTxn")
+                                .hasPrecheck(DUPLICATE_TRANSACTION));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - very large txn (above 6KB) - fails on ingest")
+            final Stream<DynamicTest> tokenCreateTransactionOversizeFailsOnIngest() {
+                final KeyShape veryLargeKeyShape = threshOf(
+                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+                return hapiTest(
+                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, TREASURY)
+                                .via(tokenCreateTxn)
+                                .hasPrecheck(TRANSACTION_OVERSIZE),
+                        getTxnRecord(tokenCreateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - missing token name fails at handle - full fee charged")
+            final Stream<DynamicTest> tokenCreateMissingNameFailsAtHandle() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .name("")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, TREASURY)
+                                .via(tokenCreateTxn)
+                                .hasKnownStatus(MISSING_TOKEN_NAME),
+                        validateChargedUsdWithinWithTxnSize(
+                                tokenCreateTxn,
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(tokenCreateTxn, PAYER));
+            }
+
+            @HapiTest
+            @DisplayName("TokenCreate - missing token symbol fails at handle - full fee charged")
+            final Stream<DynamicTest> tokenCreateMissingSymbolFailsAtHandle() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(TREASURY).balance(0L),
+                        tokenCreate("fungibleToken")
+                                .symbol("")
+                                .tokenType(FUNGIBLE_COMMON)
+                                .treasury(TREASURY)
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, TREASURY)
+                                .via(tokenCreateTxn)
+                                .hasKnownStatus(MISSING_TOKEN_SYMBOL),
+                        validateChargedUsdWithinWithTxnSize(
+                                tokenCreateTxn,
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(tokenCreateTxn, PAYER));
+            }
 
             @HapiTest
             @DisplayName("TokenCreate - missing treasury signature fails at handle - full fee charged")
@@ -336,160 +738,54 @@ public class TokenCreateSimpleFeesTest {
                                 .treasury(TREASURY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER) // Missing treasury signature
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenCreateTxn")
+                                .via(tokenCreateTxn)
                                 .hasKnownStatus(INVALID_SIGNATURE),
-                        validateChargedUsdWithin(
-                                "tokenCreateTxn",
-                                expectedTokenCreateFungibleFullFeeUsd(1L, 0L), // 1 sig (payer only)
-                                0.001));
+                        validateChargedUsdWithinWithTxnSize(
+                                tokenCreateTxn,
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(tokenCreateTxn, PAYER));
             }
-        }
 
-        @Nested
-        @DisplayName("TokenCreate Failures on Ingest and Handle")
-        class TokenCreateFailuresOnIngest {
-
-            @HapiTest
-            @DisplayName("TokenCreate - insufficient tx fee fails on ingest - no fee charged")
-            final Stream<DynamicTest> tokenCreateInsufficientTxFeeFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
+            @Tag(ONLY_SUBPROCESS)
+            @LeakyHapiTest
+            @DisplayName("TokenCreate - duplicate transaction fails on handle - payer charged full fee")
+            final Stream<DynamicTest> tokenCreateDuplicateFailsOnHandle() {
+                final String DUPLICATE_TXN_ID = "tokenCreateDuplicateTxnId";
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "3")),
+                        usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
                         tokenCreate("fungibleToken")
                                 .tokenType(FUNGIBLE_COMMON)
                                 .treasury(TREASURY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, TREASURY)
-                                .fee(1L) // Fee too low
-                                .via("tokenCreateTxn")
-                                .hasPrecheck(INSUFFICIENT_TX_FEE),
-                        getTxnRecord("tokenCreateTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
-            }
-
-            @HapiTest
-            @DisplayName("TokenCreate - insufficient payer balance fails on ingest - no fee charged")
-            final Stream<DynamicTest> tokenCreateInsufficientPayerBalanceFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
-                return hapiTest(
-                        cryptoCreate(PAYER).balance(100L), // Very low balance
-                        cryptoCreate(TREASURY).balance(0L),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        tokenCreate("fungibleToken")
+                                .setNode(4)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .via(tokenCreateTxn)
+                                .logged(),
+                        tokenCreate("anotherToken")
                                 .tokenType(FUNGIBLE_COMMON)
                                 .treasury(TREASURY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, TREASURY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenCreateTxn")
-                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
-                        getTxnRecord("tokenCreateTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
-            }
-
-            @HapiTest
-            @DisplayName("TokenCreate - missing token name fails at handle - full fee charged")
-            final Stream<DynamicTest> tokenCreateMissingNameFailsAtHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
-                return hapiTest(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TREASURY).balance(0L),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        tokenCreate("fungibleToken")
-                                .name("")
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER, TREASURY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenCreateTxn")
-                                .hasKnownStatus(MISSING_TOKEN_NAME),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "tokenCreateTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenCreateFungibleFullFeeUsd(2L, 0L),
-                                0.001));
-            }
-
-            @HapiTest
-            @DisplayName("TokenCreate - missing token symbol fails at handle - full fee charged")
-            final Stream<DynamicTest> tokenCreateMissingSymbolFailsAtHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
-                return hapiTest(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TREASURY).balance(0L),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        tokenCreate("fungibleToken")
-                                .symbol("")
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER, TREASURY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenCreateTxn")
-                                .hasKnownStatus(MISSING_TOKEN_SYMBOL),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "tokenCreateTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTokenCreateFungibleFullFeeUsd(2L, 0L),
-                                0.001));
-            }
-
-            @HapiTest
-            @DisplayName("TokenCreate - threshold key with invalid signature fails on ingest")
-            final Stream<DynamicTest> tokenCreateThresholdInvalidSignatureFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
-                KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
-                SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF)); // Only 1 of 2 required
-
-                return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(keyShape),
-                        cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate(TREASURY).balance(0L),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        tokenCreate("fungibleToken")
-                                .tokenType(FUNGIBLE_COMMON)
-                                .treasury(TREASURY)
-                                .payingWith(PAYER)
-                                .sigControl(forKey(PAYER_KEY, invalidSig))
-                                .signedBy(PAYER, TREASURY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("tokenCreateTxn")
-                                .hasPrecheck(INVALID_SIGNATURE),
-                        getTxnRecord("tokenCreateTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                                .setNode(3)
+                                .txnId(DUPLICATE_TXN_ID)
+                                .via("tokenCreateDuplicateTxn")
+                                .hasPrecheck(DUPLICATE_TRANSACTION),
+                        validateChargedUsdWithinWithTxnSize(
+                                tokenCreateTxn,
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(tokenCreateTxn, PAYER));
             }
         }
 
@@ -500,11 +796,6 @@ public class TokenCreateSimpleFeesTest {
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
             @DisplayName("TokenCreate - invalid payer signature fails on pre-handle - network fee only")
             final Stream<DynamicTest> tokenCreateInvalidPayerSigFailsOnPreHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 final String INNER_ID = "token-create-txn-inner-id";
 
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -514,37 +805,27 @@ public class TokenCreateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "0.0.4"))
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance("0.0.4").exposingBalanceTo(initialNodeBalance::set),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "4")),
                         tokenCreate("fungibleToken")
                                 .tokenType(FUNGIBLE_COMMON)
                                 .treasury(TREASURY)
                                 .payingWith(PAYER)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .signedBy(PAYER, TREASURY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .setNode("0.0.4")
+                                .setNode("4")
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("0.0.4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                expectedTokenCreateNetworkFeeOnlyUsd(2L),
-                                0.001));
+                                txnSize -> expectedTokenCreateNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, "0.0.4"));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-            @DisplayName("TokenCreate - invalid treasury fails on handle - full fee charged")
+            @DisplayName("TokenCreate - invalid treasury fails on pre-handle - full fee charged")
             final Stream<DynamicTest> tokenCreateInvalidTreasuryFailsOnPreHandle() {
                 final String INNER_ID = "token-create-txn-inner-id";
 
@@ -555,15 +836,16 @@ public class TokenCreateSimpleFeesTest {
                                 .treasury("0.0.99999999") // Invalid treasury
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .setNode("0.0.4")
+                                .setNode("4")
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_ACCOUNT_ID),
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        validateChargedUsdWithin(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                expectedTokenCreateFungibleFullFeeUsd(1L, 0L), // 1 sig (payer only), 0 keys
-                                0.001));
+                                txnSize -> expectedTokenCreateFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, PAYER));
             }
         }
     }

@@ -45,33 +45,37 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
     private static final Logger logger = LogManager.getLogger();
 
     private final Path outputDirectory;
+    private final PcesEventHashReader.PcesData pcesData;
 
     /**
-     * Factory for creating RedactingBlockStreamValidator instances.
+     * Factory for creating RedactingBlockStreamValidator instances. Reads PCES files from the spec's
+     * network nodes to use as the source of truth for parent hash validation.
      */
     public static final Factory FACTORY = new Factory() {
         @Override
         public boolean appliesTo(@NonNull final HapiSpec spec) {
-            // Apply to all specs by default, but could be configured based on spec properties
             return true;
         }
 
         @Override
         @NonNull
         public BlockStreamValidator create(@NonNull final HapiSpec spec) {
-            // Create output directory based on spec working directory
             final Path outputDir = Path.of(".", "redacted-blocks", spec.getName());
-            return new RedactingEventHashBlockStreamValidator(outputDir);
+            final var pcesData = EventHashBlockStreamValidator.readPcesDataFromSpec(spec);
+            return new RedactingEventHashBlockStreamValidator(outputDir, pcesData);
         }
     };
 
     /**
-     * Creates a new RedactingBlockStreamValidator with the specified output directory.
+     * Creates a new RedactingBlockStreamValidator with the specified output directory and PCES data.
      *
      * @param outputDirectory the directory where redacted blocks will be written
+     * @param pcesData PCES event hashes and per-creator birth round data
      */
-    public RedactingEventHashBlockStreamValidator(@NonNull final Path outputDirectory) {
+    public RedactingEventHashBlockStreamValidator(
+            @NonNull final Path outputDirectory, @NonNull final PcesEventHashReader.PcesData pcesData) {
         this.outputDirectory = outputDirectory;
+        this.pcesData = pcesData;
         try {
             // Ensure output directory exists
             Files.createDirectories(outputDirectory);
@@ -272,8 +276,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
      * @param reloadedBlocks the blocks that were written to and read from disk
      * @param expectedBlockCount the expected number of blocks
      */
-    private void verifyRedactedBlocks(@NonNull final List<Block> reloadedBlocks, final int expectedBlockCount)
-            throws IOException {
+    private void verifyRedactedBlocks(@NonNull final List<Block> reloadedBlocks, final int expectedBlockCount) {
         logger.debug("Verifying event hash integrity in {} reloaded redacted blocks", reloadedBlocks.size());
 
         if (reloadedBlocks.size() != expectedBlockCount) {
@@ -285,6 +288,6 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
         // Reconstruct events from all blocks and validate hash chain
         final BlockStreamEventBuilder eventBuilder = new BlockStreamEventBuilder(reloadedBlocks);
         EventHashBlockStreamValidator.validateEventHashChain(
-                eventBuilder.getEvents(), eventBuilder.getCrossBlockParentHashes());
+                eventBuilder.getEvents(), eventBuilder.getCrossBlockParentRefs(), pcesData);
     }
 }

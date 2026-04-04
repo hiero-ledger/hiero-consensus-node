@@ -12,6 +12,7 @@ on:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHoc14
           - AdHocSD8
           - AdHocSD9
           - MDLT3
@@ -44,8 +45,10 @@ on:
           - "9"
           - "21"
           - "30"
+          - "60"
           - "180"
           - "330"
+          - "720"
           - "960"
           - "1200"
           - "10080"
@@ -61,6 +64,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      reconnect-uptime:
+        required: false
+        default: "600"
+        type: string
+        description: "Reconnect uptime (secs). Downtime is Uptime x 3"
       disable-notifications:
         required: false
         default: true
@@ -138,7 +146,8 @@ jobs:
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
-      delete-namespace: "${{ inputs.delete-namespace }}"
+      reconnect-uptime: "${{ inputs.reconnect-uptime }}"
+      delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 

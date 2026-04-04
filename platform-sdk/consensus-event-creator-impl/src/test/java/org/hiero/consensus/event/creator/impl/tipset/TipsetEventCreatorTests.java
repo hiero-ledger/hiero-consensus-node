@@ -188,6 +188,120 @@ class TipsetEventCreatorTests {
     }
 
     /**
+     * This test simulates bug in Orphan Buffer, which resets NGen to 1 for events in case node has almost fallen behind.
+     * This in turn invoked the bug in event creator, which was picking the event due to selfishness reasons, but
+     * was not considering it as advancing weight (due to NGen being smaller than last used event), leading to
+     * not creating the event (and writing scary warnings)
+     * In the fixed code, when this situation happens, we fall back to using other eligible events, without focusing
+     * on reducing selfishness.
+     */
+    @TestTemplate
+    @ExtendWith(ParameterCombinationExtension.class)
+    @UseParameterSources({
+        @ParamSource(
+                param = "random",
+                fullyQualifiedClass = "org.hiero.base.utility.test.fixtures.RandomUtils",
+                method = "getRandomPrintSeed")
+    })
+    @DisplayName("Tipset failure due to reset NGEN")
+    void tipsetFailureTest(@ParamName("random") final Random random) {
+
+        for (int loop = 0; loop < 10; loop++) {
+
+            final int networkSize = 4;
+
+            final Roster roster = RandomRosterBuilder.create(random)
+                    .withMinimumWeight(1)
+                    .withMaximumWeight(1)
+                    .withSize(networkSize)
+                    .build();
+
+            final FakeTime time = new FakeTime();
+
+            final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+            final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+            final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
+            final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+
+            // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
+            final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList, 1);
+            // Set the event window to the genesis value so that no events get stuck in the Future Event Buffer
+            eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
+
+            // Create some genesis events
+            final PlatformEvent eventA1 = eventCreator.maybeCreateEvent();
+            assertNotNull(eventA1);
+
+            final PlatformEvent eventB1 = createTestEventWithParent(random, nodeB, 100, 1);
+            final PlatformEvent eventC1 = createTestEventWithParent(random, nodeC, 100, 5);
+            final PlatformEvent eventD1 = createTestEventWithParent(random, nodeD, 100, 5);
+
+            eventCreator.registerEvent(eventB1);
+            eventCreator.registerEvent(eventC1);
+            eventCreator.registerEvent(eventD1);
+
+            // Create the next several events.
+            // We should be able to create a total of 3 before we exhaust all possible parents in the address book.
+
+            // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
+            final PlatformEvent eventA2 = eventCreator.maybeCreateEvent();
+            assertNotNull(eventA2);
+            eventCreator.registerEvent(eventA2);
+
+            // This will advance the snapshot, total advancement weight is 2 (2+1/4 > 2/3)
+            final PlatformEvent eventA3 = eventCreator.maybeCreateEvent();
+            assertNotNull(eventA3);
+            eventCreator.registerEvent(eventA3);
+
+            // This will not advance the snapshot, total advancement weight is 1 (1+1/4 !> 2/3)
+            final PlatformEvent eventA4 = eventCreator.maybeCreateEvent();
+            assertNotNull(eventA4);
+            eventCreator.registerEvent(eventA4);
+
+            // It should not be possible to create another event since we have exhausted all possible other parents in
+            // the address book.
+            assertNull(eventCreator.maybeCreateEvent());
+
+            final PlatformEvent eventB2 = createTestEventWithParent(random, nodeB, 102, 1);
+            eventCreator.registerEvent(eventB2);
+
+            PlatformEvent previousD = eventB2;
+            PlatformEvent previousC = null;
+
+            // now, we brute force creation of multiple tipset snapshots, without advancing node B
+            for (int i = 0; i < 100; i++) {
+                final PlatformEvent eventCX = createTestEventWithParent(random, nodeC, 200 + i, 6 + i, previousD);
+                eventCreator.registerEvent(eventCX);
+                eventCreator.maybeCreateEvent();
+                previousC = eventCX;
+                final PlatformEvent eventDX = createTestEventWithParent(random, nodeD, 200 + i, 6 + i, previousC);
+                eventCreator.registerEvent(eventDX);
+                eventCreator.maybeCreateEvent();
+                previousD = eventDX;
+            }
+
+            // this is an event which won't be used as parent, but updates internal data and then becomes ancient
+            final PlatformEvent eventBToExpire = createTestEventWithParent(random, nodeB, 200, 50, previousD);
+            eventCreator.registerEvent(eventBToExpire);
+            eventCreator.setEventWindow(new EventWindow(106, 107, 90, 60));
+
+            // and here we insert 'broken' event, which comes from bug in Orphan buffer, with reset nGen
+            final PlatformEvent eventBbrokenNGen = createTestEventWithParent(random, nodeB, 1, 107, previousD);
+            eventCreator.registerEvent(eventBbrokenNGen);
+
+            // and an useful event, which can be used to advance weight
+            final PlatformEvent eventCValid = createTestEventWithParent(random, nodeC, 400, 107, previousD);
+            eventCreator.registerEvent(eventCValid);
+
+            // given that we haven't used event from B in ages, chances are that anti-selfish code will pick it up
+            // in old code, it would fail due to not advancing weight; with a fix, it will fall back to eventCValid
+            // given it is random (only 80% chance of failing each time), we repeat test multiple times in a loop above
+            final PlatformEvent eventACheck = eventCreator.maybeCreateEvent();
+            assertNotNull(eventACheck);
+        }
+    }
+
+    /**
      * This test is very similar to the {@link #randomOrderTest(boolean, Random)}, except that we repeat the test
      * several times using the same event creator. This fails when we do not clear the event creator in between runs,
      * but should not fail if we have cleared the vent creator.

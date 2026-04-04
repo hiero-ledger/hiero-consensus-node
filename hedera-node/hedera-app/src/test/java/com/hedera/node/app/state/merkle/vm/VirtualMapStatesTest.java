@@ -89,7 +89,7 @@ class VirtualMapStatesTest extends MerkleTestBase {
             }
         };
 
-        builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
+        builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100);
         virtualMap = new VirtualMap(builder, CONFIGURATION);
 
         Configuration config = mock(Configuration.class);
