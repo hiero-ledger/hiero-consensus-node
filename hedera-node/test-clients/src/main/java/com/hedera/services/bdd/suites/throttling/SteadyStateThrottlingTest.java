@@ -371,8 +371,16 @@ public class SteadyStateThrottlingTest {
             public List<SpecOperation> suggestedInitializers() {
                 return List.of(
                         newKeyNamed(SUPPLY),
-                        cryptoCreate(TOKEN_TREASURY).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
-                        tokenCreate(TOKEN).treasury(TOKEN_TREASURY).supplyKey(SUPPLY));
+                        cryptoCreate(TOKEN_TREASURY)
+                                .payingWith(GENESIS)
+                                .balance(ONE_MILLION_HBARS)
+                                .hasPrecheckFrom(OK, BUSY)
+                                .hasKnownStatusFrom(PERMITTED_STATUSES),
+                        tokenCreate(TOKEN)
+                                .treasury(TOKEN_TREASURY)
+                                .supplyKey(SUPPLY)
+                                .hasPrecheckFrom(OK, BUSY)
+                                .hasKnownStatusFrom(PERMITTED_STATUSES));
             }
 
             @Override
