@@ -1270,12 +1270,14 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ inputs.ref }}"
+      gharef: "${{ github.ref }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-test: "HeliSwapLoadTest"
       nlg-time: "${{ inputs.nlg-time }}"
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+      kubernetes-cluster: ${{ inputs.kubernetes-cluster }}
 
   performance-post-test-validation:
     name: Consensus Node State Validator
