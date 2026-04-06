@@ -77,7 +77,6 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
         givenSpawnPrereqs(4);
         givenGasCostPrereqs();
         given(frame.getStackItem(0)).willReturn(Bytes.ofUnsignedLong(VALUE));
-        given(frame.readMemory(anyLong(), anyLong())).willReturn(INITCODE);
         given(frame.readMutableMemory(anyLong(), anyLong())).willReturn(MUTABLE_INITCODE);
         given(featureFlags.isCreate2Enabled(frame)).willReturn(true);
         given(worldUpdater.isHollowAccount(EIP_1014_ADDRESS)).willReturn(true);

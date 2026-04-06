@@ -10,8 +10,9 @@ import java.io.IOException;
 import java.io.SyncFailedException;
 import java.nio.file.Path;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.io.extendable.ExtendableOutputStream;
-import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
+import org.hiero.consensus.io.counting.ByteCounter;
+import org.hiero.consensus.io.counting.CounterType;
+import org.hiero.consensus.io.counting.CountingOutputStream;
 
 /**
  * Writes events to a file using an output stream.
@@ -22,7 +23,7 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
     /** The file descriptor of the file being written to */
     private final FileDescriptor fileDescriptor;
     /** Counts the bytes written to the file */
-    private final CountingStreamExtension counter;
+    private final ByteCounter counter;
 
     /**
      * Create a new file writer.
@@ -31,11 +32,12 @@ public class PcesOutputStreamFileWriter implements PcesFileWriter {
      * @throws IOException if the file cannot be opened
      */
     public PcesOutputStreamFileWriter(@NonNull final Path filePath) throws IOException {
-        counter = new CountingStreamExtension(false);
         final FileOutputStream fileOutputStream = new FileOutputStream(filePath.toFile());
         fileDescriptor = fileOutputStream.getFD();
-        out = new SerializableDataOutputStream(
-                new ExtendableOutputStream(new BufferedOutputStream(fileOutputStream), counter));
+        final CountingOutputStream meteredStream =
+                new CountingOutputStream(new BufferedOutputStream(fileOutputStream), CounterType.FAST);
+        counter = meteredStream.byteCounter();
+        out = new SerializableDataOutputStream(meteredStream);
     }
 
     @Override

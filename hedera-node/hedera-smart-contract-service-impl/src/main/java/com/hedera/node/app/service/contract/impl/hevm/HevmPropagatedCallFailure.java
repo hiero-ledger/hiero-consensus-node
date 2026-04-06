@@ -39,6 +39,9 @@ public enum HevmPropagatedCallFailure {
         this.exceptionalHaltReason = exceptionalHaltReason;
     }
 
+    public ExceptionalHaltReason exceptionalHaltReasonOrNull() {
+        return exceptionalHaltReason;
+    }
     /**
      * Returns the {@link ExceptionalHaltReason} that should be used to halt the parent frame, if any.
      *

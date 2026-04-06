@@ -446,7 +446,22 @@ public class VirtualHashChunk {
     }
 
     // index must be 0 <= index < chunkSize
+    private void setHashBytesImpl(final int index, final byte[] hash) {
+        final int pos = index * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+        assert pos < hashData.length;
+        final int len = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+        // No synchronization for reading or writing hashes. Memory visibility has
+        // to be ensured by the caller, typically virtual hashing tasks
+        System.arraycopy(hash, 0, hashData, pos, len);
+    }
+
+    // index must be 0 <= index < chunkSize
     private Hash getHashImpl(final int index) {
+        return new Hash(getHashBytesImpl(index), Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    // index must be 0 <= index < chunkSize
+    private byte[] getHashBytesImpl(final int index) {
         final int pos = index * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
         assert pos < hashData.length;
         final int len = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
@@ -454,7 +469,7 @@ public class VirtualHashChunk {
         // No synchronization for reading or writing hashes. Memory visibility has
         // to be ensured by the caller, typically virtual hashing tasks
         System.arraycopy(hashData, pos, hashBytes, 0, len);
-        return new Hash(hashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
+        return hashBytes;
     }
 
     /**
@@ -472,11 +487,26 @@ public class VirtualHashChunk {
         final int index = getPathIndexInChunk(path, this.path, height);
         setHashImpl(index, hash);
 
+        updateDataRank(path);
+    }
+
+    public void setHashBytesAtPath(final long path, final byte[] hash) {
+        final int index = getPathIndexInChunk(path, this.path, height);
+        setHashBytesImpl(index, hash);
+
+        updateDataRank(path);
+    }
+
+    /**
+     * Updates this chunk's data rank, given that a hash at the given path is stored
+     * in the chunk.
+     */
+    private void updateDataRank(final long hashPath) {
         final int chunkRank = Path.getRank(this.path);
-        final int pathRank = Path.getRank(path);
-        // No synchronization as setHashAtPath() should not be called in parallel for paths
-        // at different ranks. Field visibility is guaranteed by the caller, typically
-        // VirtualHasher fork-join tasks
+        final int pathRank = Path.getRank(hashPath);
+        // No synchronization as setHashAtPath() / setHashBytesAtPath() should not be called
+        // in parallel for paths at different ranks. Field visibility is guaranteed by the
+        // caller, typically VirtualHasher fork-join tasks
         dataRank = Math.max(dataRank, pathRank - chunkRank);
     }
 
@@ -496,6 +526,15 @@ public class VirtualHashChunk {
     public Hash getHashAtPath(final long path) {
         final int index = getPathIndexInChunk(path, this.path, height);
         return getHashImpl(index);
+    }
+
+    /**
+     * Returns hash bytes at the given path. This method is similar to {@link
+     * #getHashAtPath(long)}, except it returns hash bytes rather than a hash object.
+     */
+    public byte[] getHashBytesAtPath(final long path) {
+        final int index = getPathIndexInChunk(path, this.path, height);
+        return getHashBytesImpl(index);
     }
 
     /**
@@ -522,7 +561,7 @@ public class VirtualHashChunk {
      * even doesn't belong to the current chunk, it belongs to the parent chunk.
      */
     public Hash chunkRootHash(final long firstLeafPath, final long lastLeafPath) {
-        return calcHash(height, path, firstLeafPath, lastLeafPath);
+        return new Hash(calcHashBytes(path, firstLeafPath, lastLeafPath), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**
@@ -534,26 +573,49 @@ public class VirtualHashChunk {
      * hashes are stored at different paths.
      */
     public Hash calcHash(final long path, final long firstLeafPath, final long lastLeafPath) {
+        return new Hash(calcHashBytes(path, firstLeafPath, lastLeafPath), Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    /**
+     * Calculates a hash at the given path and returns its bytes. This method is similar to
+     * {@link #calcHash(long, long, long)}, except it does not allocate a hash object, but
+     * returns raw hash bytes instead.
+     */
+    public byte[] calcHashBytes(final long path, final long firstLeafPath, final long lastLeafPath) {
         final int pathRank = Path.getRank(path);
         final int chunkRank = Path.getRank(this.path);
         assert pathRank >= chunkRank;
         assert pathRank <= chunkRank + height;
-        return calcHash(chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
+        return calcHashBytes(chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
     }
 
-    private Hash calcHash(final long h, final long path, final long firstLeafPath, final long lastLeafPath) {
+    private byte[] calcHashBytes(final long h, final long path, final long firstLeafPath, final long lastLeafPath) {
         if (path > lastLeafPath) {
             assert path == 2;
-            return VirtualHasher.NO_PATH2_HASH;
+            return null;
         }
         if ((h == 0) || ((path >= firstLeafPath))) {
-            return getHashAtPath(path);
+            return getHashBytesAtPath(path);
         }
         assert h > 0;
         final long leftPath = Path.getLeftChildPath(path);
-        final Hash leftHash = calcHash(h - 1, leftPath, firstLeafPath, lastLeafPath);
+        final byte[] leftHash = calcHashBytes(h - 1, leftPath, firstLeafPath, lastLeafPath);
         final long rightPath = Path.getRightChildPath(path);
-        final Hash rightHash = calcHash(h - 1, rightPath, firstLeafPath, lastLeafPath);
+        final byte[] rightHash = calcHashBytes(h - 1, rightPath, firstLeafPath, lastLeafPath);
         return VirtualHasher.hashInternal(leftHash, rightHash);
+    }
+
+    /**
+     * Utility method for testing purposes. Calculates a hash for an internal node from
+     * its left and right child node hashes. This method may be called with the null right
+     * hash to calculate the root hash for a tree with only one leaf node.
+     *
+     * @see VirtualHasher#hashInternal(byte[], byte[])
+     */
+    public static Hash hashInternal(final Hash left, final Hash right) {
+        final byte[] leftBytes = left.copyToByteArray();
+        final byte[] rightBytes = (right != null) ? right.copyToByteArray() : null;
+        final byte[] hashBytes = VirtualHasher.hashInternal(leftBytes, rightBytes);
+        return new Hash(hashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 }
