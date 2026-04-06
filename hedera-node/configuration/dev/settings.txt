@@ -31,5 +31,3 @@ prometheus.endpointEnabled,                    true                        # dif
                                           #############################
                                           #          Security         #
                                           #############################
-
-loadKeysFromPfxFiles,                          false                        # differs from mainnet
