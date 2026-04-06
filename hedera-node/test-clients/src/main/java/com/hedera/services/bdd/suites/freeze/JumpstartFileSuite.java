@@ -61,6 +61,9 @@ class JumpstartFileSuite implements LifecycleTest {
         return hapiTest(
                 // Any nodes added after genesis will not have a complete wrapped hashes file on disk, so shut them down
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(
+                        Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true")),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 2: Restarting with jumpstart file"),
                 prepareFakeUpgrade(),
