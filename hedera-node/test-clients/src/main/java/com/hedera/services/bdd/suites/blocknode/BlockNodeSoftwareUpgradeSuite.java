@@ -134,6 +134,9 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
     @Order(0)
     final Stream<DynamicTest> multiUpgradeGrpcWriterTss() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        // After each upgrade, the comms log reverts to INFO level (DEBUG logging is only configured
+        // during initial network setup). Use "Selected new block node for streaming" (INFO level)
+        // instead of "saturation=0.0%" (DEBUG level) to verify the connection was re-established.
         return hapiTest(
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -143,18 +146,30 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 doingContextual((spec) -> sleepForSeconds(30)),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")),
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        "Selected new block node for streaming")),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(),
                 doingContextual((spec) -> sleepForSeconds(30)),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")),
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        "Selected new block node for streaming")),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(),
                 doingContextual((spec) -> sleepForSeconds(30)),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        "Selected new block node for streaming")));
     }
 }
