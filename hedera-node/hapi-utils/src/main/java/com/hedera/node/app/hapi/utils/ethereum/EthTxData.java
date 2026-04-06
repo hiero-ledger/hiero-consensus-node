@@ -159,9 +159,6 @@ public record EthTxData(
     // For more information on encoding `v` see EIP-155 - https://eips.ethereum.org/EIPS/eip-155
 
     public byte[] encodeTx() {
-        if (accessList != null && accessList.length > 0) {
-            throw new IllegalStateException("Re-encoding access list is unsupported");
-        }
         return switch (type) {
             case LEGACY_ETHEREUM ->
                 RLPEncoder.list(
@@ -323,10 +320,10 @@ public record EthTxData(
         result = 31 * result + Arrays.hashCode(to);
         result = 31 * result + (value != null ? value.hashCode() : 0);
         result = 31 * result + Arrays.hashCode(callData);
-        // accessListAsRlp is not considered when calculating the hash,
-        // as it is simply a different representation of the same dataset.
         result = 31 * result + Arrays.hashCode(accessList);
         result = 31 * result + Arrays.hashCode(authorizationList);
+        // 'accessListAsRlp' and 'authorizationListAsRlp' are not considered when calculating the hash,
+        // as it is simply a different representation of the same dataset.
         result = 31 * result + recId;
         result = 31 * result + Arrays.hashCode(v);
         result = 31 * result + Arrays.hashCode(r);
@@ -763,7 +760,6 @@ public record EthTxData(
     }
 
     private static Object[] encodeRlpList(final RLPList rlpList) {
-
         return rlpList.elements().stream()
                 .map(rlpItem -> rlpItem.isList() ? encodeRlpList(rlpItem.asRLPList()) : rlpItem.data())
                 .toArray();
