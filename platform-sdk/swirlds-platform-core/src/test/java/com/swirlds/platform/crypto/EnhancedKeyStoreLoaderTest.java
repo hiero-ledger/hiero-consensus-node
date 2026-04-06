@@ -338,6 +338,41 @@ class EnhancedKeyStoreLoaderTest {
         }
     }
 
+    /**
+     * Verifies that a WARN is logged during {@link EnhancedKeyStoreLoader#scan()} when the roster
+     * contains no entry for the local node, meaning no gossip CA certificate can be loaded.
+     */
+    @Test
+    @DisplayName("Missing roster cert logs a WARN during scan")
+    void missingRosterCertLogsWarnDuringScan() throws IOException, KeyLoadingException, KeyStoreException {
+        final Path keyDirectory = testDataDirectory.resolve("no-cert-keys");
+        Files.createDirectories(keyDirectory);
+
+        // Node 0 has no corresponding entry in the roster — no cert can be loaded.
+        final NodeId nodeId = NodeId.of(0);
+        final List<RosterEntry> rosterEntries = List.of();
+
+        final EnhancedKeyStoreLoader loader =
+                EnhancedKeyStoreLoader.using(configure(keyDirectory), Set.of(nodeId), rosterEntries);
+
+        final MockAppender appender = new MockAppender("NoCertTest");
+        final Logger logger = (Logger) LogManager.getLogger(EnhancedKeyStoreLoader.class);
+        appender.start();
+        logger.addAppender(appender);
+
+        try {
+            assertThatCode(loader::scan).doesNotThrowAnyException();
+
+            final boolean hasNoCertWarn = IntStream.range(0, appender.size())
+                    .mapToObj(appender::get)
+                    .anyMatch(msg -> msg.contains("WARN") && msg.contains("No signing certificate found in roster"));
+            assertThat(hasNoCertWarn).isTrue();
+        } finally {
+            logger.removeAppender(appender);
+            appender.stop();
+        }
+    }
+
     private static Roster createRoster() {
         final List<RosterEntry> rosterEntries = new ArrayList<>();
         rosterEntries.add(
