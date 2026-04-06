@@ -817,9 +817,9 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 logger.error("{} Error occurred while shutting down pipeline executor.", this, e);
             }
             blockStreamMetrics.recordConnectionClosed();
-            connectionManager.notifyConnectionClosed(this);
             // regardless of outcome, mark the connection as closed
             updateConnectionState(ConnectionState.CLOSED);
+            connectionManager.notifyConnectionClosed(this);
         }
     }
 
