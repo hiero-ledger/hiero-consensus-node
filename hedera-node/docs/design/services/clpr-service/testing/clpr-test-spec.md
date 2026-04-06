@@ -1,8 +1,8 @@
 # CLPR Test Specification
 
 This document defines the testing strategy for the CLPR protocol. It enumerates test types, specific test
-scenarios, and testable assertions derived from the [CLPR Design Document](clpr-service.md) and the
-[Cross-Platform Specification](clpr-service-spec.md). It is organized by test level — from single-ledger
+scenarios, and testable assertions derived from the [CLPR Design Document](../clpr-service.md) and the
+[Cross-Platform Specification](../clpr-service-spec.md). It is organized by test level — from single-ledger
 handler tests through multi-ledger integration, adversarial scenarios, application workflows, performance,
 and recovery. A cross-reference table at the end maps each CLPR specification section to the test IDs that
 cover it, enabling gap analysis and coverage tracking.
