@@ -56,6 +56,7 @@ public final class TestUtils {
             "invalid)name", // contains )
             "invalid~name", // contains ~
             "invalid`name", // contains backtick
+            "invalid:name", // contains :
         };
     }
 

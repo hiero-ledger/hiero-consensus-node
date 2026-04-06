@@ -26,13 +26,8 @@ public final class MetricUtils {
 
     /**
      * Validates that the provided metric name adheres to the required character set. <br>
-     * Patter to validate is: {@value #NAME_UNIT_LABEL_REGEX} <br>
-     * Definition in ABNF (Augmented Backus-Naur Form):
-     * <pre>
-     *   name = name-initial-char *name-char
-     *   name-initial-char = ALPHA / "_"
-     *   name-char = name-initial-char / DIGIT
-     * </pre>
+     * Pattern to validate is: {@value #NAME_UNIT_LABEL_REGEX}.
+     *
      * @param metricName the name to validate
      * @throws NullPointerException if metric name is {@code null}
      * @throws IllegalArgumentException if metric name is blank or contains invalid characters
@@ -43,13 +38,8 @@ public final class MetricUtils {
 
     /**
      * Validates that the provided unit name adheres to the required character set. <br>
-     * Patter to validate is: {@value #NAME_UNIT_LABEL_REGEX} <br>
-     * Definition in ABNF (Augmented Backus-Naur Form):
-     * <pre>
-     *   name = name-initial-char *name-char
-     *   name-initial-char = ALPHA / "_"
-     *   name-char = name-initial-char / DIGIT
-     * </pre>
+     * Patter to validate is: {@value #NAME_UNIT_LABEL_REGEX}.
+     *
      * @param unitName the unit name to validate
      * @throws NullPointerException if unit name is {@code null}
      * @throws IllegalArgumentException if unit name is blank or contains invalid characters
@@ -60,13 +50,8 @@ public final class MetricUtils {
 
     /**
      * Validates that the provided label name adheres to the required character set. <br>
-     * Patter to validate is: {@value #NAME_UNIT_LABEL_REGEX} <br>
-     * Definition in ABNF (Augmented Backus-Naur Form):
-     * <pre>
-     *   name = name-initial-char *name-char
-     *   name-initial-char = ALPHA / "_"
-     *   name-char = name-initial-char / DIGIT
-     * </pre>
+     * Patter to validate is: {@value #NAME_UNIT_LABEL_REGEX}.
+     *
      * @param labelName the unit name to validate
      * @throws NullPointerException if label name is {@code null}
      * @throws IllegalArgumentException if label name is blank or contains invalid characters
