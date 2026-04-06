@@ -188,7 +188,7 @@ public final class FeeManager {
      *
      * @param bytes The new simple fee schedule file content.
      */
-    public ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
+    public synchronized ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
         // Parse the current and next fee schedules
         try {
             final org.hiero.hapi.support.fees.FeeSchedule schedule =
