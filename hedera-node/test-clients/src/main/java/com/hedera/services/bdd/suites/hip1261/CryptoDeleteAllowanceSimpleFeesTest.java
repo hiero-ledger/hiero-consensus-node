@@ -26,6 +26,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -57,6 +58,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -762,6 +764,43 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                                 deleteAllowanceTxn,
                                 txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(deleteAllowanceTxn, PAYER));
+            }
+
+            @HapiTest
+            @DisplayName("CryptoDeleteAllowance - non-existent owner fails on handle - full fees charged")
+            final Stream<DynamicTest> cryptoDeleteAllowanceNonExistentOwnerFailsOnHandle() {
+                return hapiTest(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
+                        // register a non-existent account ID in the registry
+                        withOpContext((spec, log) -> spec.registry()
+                                .saveAccountId(
+                                        "nonExistentOwner",
+                                        AccountID.newBuilder()
+                                                .setShardNum(0)
+                                                .setRealmNum(0)
+                                                .setAccountNum(9_999_999L)
+                                                .build())),
+                        cryptoDeleteAllowance()
+                                .addNftDeleteAllowance("nonExistentOwner", NFT_TOKEN, List.of(1L))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .via(deleteAllowanceTxn)
+                                .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID),
+                        validateChargedUsdWithinWithTxnSize(
+                                deleteAllowanceTxn,
+                                txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
                                         ALLOWANCES, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
