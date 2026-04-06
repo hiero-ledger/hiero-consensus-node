@@ -49,8 +49,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.STATE_BYTES_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageServiceOnly;
 import static com.hedera.services.bdd.suites.hip904.UnlimitedAutoAssociationSuite.UNLIMITED_AUTO_ASSOCIATION_SLOTS;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.ADMIN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.A_SCHEDULE;
@@ -1042,15 +1041,17 @@ public class ScheduleExecutionTest {
                                             / 100;
                             // Scheduled execution charges service-only: base + byte overage
                             Assertions.assertEquals(
-                                    CONS_SUBMIT_MESSAGE_BASE_FEE_USD,
+                                    expectedTopicSubmitMessageServiceOnly(1024L, false),
                                     successUsd,
-                                    0.01 * CONS_SUBMIT_MESSAGE_BASE_FEE_USD,
+                                    0.01 * expectedTopicSubmitMessageServiceOnly(1024L, false),
                                     String.format("Success fee (%s) not within 1%% of expected!", successUsd));
                             Assertions.assertEquals(
-                                    CONS_SUBMIT_MESSAGE_BASE_FEE_USD + STATE_BYTES_FEE_USD,
+                                    expectedTopicSubmitMessageServiceOnly(1025L, false),
                                     failureUsd,
-                                    0.01 * (CONS_SUBMIT_MESSAGE_BASE_FEE_USD + STATE_BYTES_FEE_USD),
-                                    String.format("Failure fee (%s) not within 1%% of expected!", failureUsd));
+                                    0.01 * expectedTopicSubmitMessageServiceOnly(1025L, false),
+                                    String.format(
+                                            "Failure fee (%s) expectedTopicSubmitMessageServiceOnly within 1%% of expected!",
+                                            failureUsd));
                         });
                     } else {
                         return assertionsHold((spec, opLog) ->

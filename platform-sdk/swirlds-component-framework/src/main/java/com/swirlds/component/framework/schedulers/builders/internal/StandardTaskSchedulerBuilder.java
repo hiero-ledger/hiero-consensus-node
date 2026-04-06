@@ -16,9 +16,8 @@ import com.swirlds.component.framework.schedulers.internal.SequentialThreadTaskS
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
-import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.extensions.FractionalTimer;
 import org.hiero.consensus.metrics.extensions.NoOpFractionalTimer;
@@ -56,6 +55,22 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
     }
 
     /**
+     * Build an in-flight task counter if enabled.
+     *
+     * @return the counter, or null if not enabled
+     */
+    @Nullable
+    private AtomicLong buildInflightCount() {
+        if (!inflightTaskMetricEnabled || type == NO_OP) {
+            return null;
+        }
+        if (type != TaskSchedulerType.CONCURRENT) {
+            throw new IllegalStateException("In-flight task metric is only compatible with concurrent schedulers");
+        }
+        return new AtomicLong(0);
+    }
+
+    /**
      * Build a busy timer if enabled.
      *
      * @return the busy timer, or null if not enabled
@@ -74,25 +89,30 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
     /**
      * Register all configured metrics.
      *
-     * @param longSupplier      the counter that is used to track the number of unhandled tasks
+     * @param scheduler         the scheduler to register metrics for
      * @param busyFractionTimer the timer that is used to track the fraction of the time that the underlying thread
      *                             is busy
      */
     private void registerMetrics(
-            @Nullable final Supplier<Long> longSupplier, @NonNull final FractionalTimer busyFractionTimer) {
+            @NonNull final TaskScheduler<OUT> scheduler, @NonNull final FractionalTimer busyFractionTimer) {
 
         if (type == NO_OP) {
             return;
         }
 
         if (unhandledTaskMetricEnabled) {
-            Objects.requireNonNull(longSupplier);
-
             final FunctionGauge.Config<Long> config = new FunctionGauge.Config<>(
-                            "platform", name + "_unhandled_task_count", Long.class, longSupplier)
+                            "platform", name + "_unhandled_task_count", Long.class, scheduler::getUnprocessedTaskCount)
                     .withDescription(
                             "The number of scheduled tasks that have not been fully handled for the scheduler " + name);
             metrics.getOrCreate(config);
+        }
+
+        if (inflightTaskMetricEnabled) {
+            final FunctionGauge.Config<Long> inflightConfig = new FunctionGauge.Config<>(
+                            "platform", name + "_inflight_task_count", Long.class, scheduler::getInflightTaskCount)
+                    .withDescription("The number of tasks currently being executed for the scheduler " + name);
+            metrics.getOrCreate(inflightConfig);
         }
 
         if (busyFractionMetricEnabled) {
@@ -115,6 +135,8 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
         final boolean insertionIsBlocking =
                 ((unhandledTaskCapacity != UNLIMITED_CAPACITY) || externalBackPressure) && (type != NO_OP);
 
+        final AtomicLong inflightCount = buildInflightCount();
+
         final TaskScheduler<OUT> scheduler =
                 switch (type) {
                     case CONCURRENT ->
@@ -128,7 +150,8 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
                                 unhandledTaskCapacity,
                                 flushingEnabled,
                                 squelchingEnabled,
-                                insertionIsBlocking);
+                                insertionIsBlocking,
+                                inflightCount);
                     case SEQUENTIAL ->
                         new SequentialTaskScheduler<>(
                                 model,
@@ -172,7 +195,7 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
             model.registerScheduler(scheduler, hyperlink);
         }
 
-        registerMetrics(scheduler::getUnprocessedTaskCount, busyFractionTimer);
+        registerMetrics(scheduler, busyFractionTimer);
 
         return scheduler;
     }

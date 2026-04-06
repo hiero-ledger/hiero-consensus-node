@@ -36,7 +36,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_T
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
-import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -101,7 +101,7 @@ public class AllBaseOpFeesSuite {
                                             "moreSigsTxn",
                                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                                     SIGNATURES, 10L,
-                                                    TOKEN_TYPES, 1L,
+                                                    TOKEN_MINT_NFT, 1L,
                                                     PROCESSING_BYTES, (long) txnSize)),
                                             ALLOWED_DIFFERENCE_PERCENTAGE));
                         });
