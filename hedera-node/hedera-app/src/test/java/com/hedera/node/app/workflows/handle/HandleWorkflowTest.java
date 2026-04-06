@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -27,6 +28,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -39,6 +41,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
@@ -212,6 +215,14 @@ class HandleWorkflowTest {
         lenient()
                 .when(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
                 .thenReturn(singletonState);
+
+        // Mock BlockInfo readable state needed by handleRound's jumpstart voting check
+        final ReadableStates blockRecordReadableStates = mock(ReadableStates.class);
+        final ReadableSingletonState<BlockInfo> blockInfoSingleton = mock(ReadableSingletonState.class);
+        lenient().when(blockInfoSingleton.get()).thenReturn(BlockInfo.DEFAULT);
+        lenient().when(blockRecordReadableStates.getSingleton(BLOCKS_STATE_ID)).thenReturn((ReadableSingletonState)
+                blockInfoSingleton);
+        lenient().when(state.getReadableStates(BlockRecordService.NAME)).thenReturn(blockRecordReadableStates);
     }
 
     @Test
@@ -567,6 +578,27 @@ class HandleWorkflowTest {
 
         verify(blockRecordManager, never()).writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         verify(blockRecordManager).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+    }
+
+    @Test
+    void handleRoundCallsSetupJumpstartHashVotingOnlyOnce() {
+        final var creatorId = NodeId.of(0);
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        // First round should initialize jumpstart hash voting
+        subject.handleRound(state, round, ignored -> {});
+        verify(systemTransactions).maybeSetupJumpstartHashVoting(same(state), any());
+
+        // Second round should not re-initialize jumpstart hash voting
+        org.mockito.Mockito.clearInvocations(systemTransactions);
+        subject.handleRound(state, round, ignored -> {});
+        verify(systemTransactions, never()).maybeSetupJumpstartHashVoting(any(), any());
     }
 
     private void givenSubjectWith(
