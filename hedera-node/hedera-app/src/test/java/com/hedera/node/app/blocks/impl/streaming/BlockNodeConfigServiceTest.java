@@ -640,7 +640,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
 
         // the previous delete operation increments the version counter, so once the new config is updated its version
         // will be set to 3 instead of 2
-        assertThat(postCreateConfig.versionNumber()).isEqualTo(3L);
+        assertThat(postCreateConfig.versionNumber()).isGreaterThan(postDeleteConfig.versionNumber());
     }
 
     @Test

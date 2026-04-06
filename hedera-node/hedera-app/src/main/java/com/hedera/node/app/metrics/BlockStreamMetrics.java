@@ -76,6 +76,7 @@ public class BlockStreamMetrics {
     private RunningAverageMetric conn_blockEndSentToAckLatency;
     private RunningAverageMetric conn_blockClosedToAckLatency;
     private RunningAverageMetric conn_headerSentToBlockEndSentLatency;
+    private LongGauge conn_activeConnectionCount;
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -380,6 +381,20 @@ public class BlockStreamMetrics {
                 .withDescription(
                         "Number of times a pipeline onNext() or onComplete() operation timed out on a block node connection");
         conn_pipelineOperationTimeoutCounter = metrics.getOrCreate(pipelineTimeoutCfg);
+
+        final LongGauge.Config activeConnectionCountCfg = new LongGauge.Config(
+                        CATEGORY, GROUP_CONN + "_activeConnectionCount")
+                .withDescription("Current number of active streaming connections to block nodes");
+        conn_activeConnectionCount = metrics.getOrCreate(activeConnectionCountCfg);
+    }
+
+    /**
+     * Record the number of active connections that are streaming to block nodes.
+     *
+     * @param connectionCount the latest connection count
+     */
+    public void recordActiveConnectionCount(final long connectionCount) {
+        conn_activeConnectionCount.set(connectionCount);
     }
 
     /**

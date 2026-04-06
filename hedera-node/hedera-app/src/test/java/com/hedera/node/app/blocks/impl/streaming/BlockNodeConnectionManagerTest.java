@@ -1271,6 +1271,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef()).doesNotHaveNullValue().hasValue(newActiveConnection);
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(metrics).recordActiveConnectionCount(anyLong());
     }
 
     @Test
@@ -1310,6 +1311,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(lowerPriorityNode).onTerminate(CloseReason.CONFIG_UPDATE);
         // in the real world, when BlockNode#onTerminate(CloseReason) is called, it will close the connection
         // associated with the node, but since this is using mocks, those side effects aren't verifiable here
+        verify(metrics).recordActiveConnectionCount(anyLong());
     }
 
     @Test
@@ -1339,6 +1341,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // because there is only one block node, even though we are experiencing an unhealthy buffer we will not close
         // the active connection - having some sort of connection is better than nothing in this scenario
         verify(activeConnection, never()).closeAtBlockBoundary(any(CloseReason.class));
+        verify(metrics).recordActiveConnectionCount(anyLong());
     }
 
     @Test
@@ -1397,6 +1400,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(lowerPriorityConnection).closeAtBlockBoundary(CloseReason.HIGHER_PRIORITY_FOUND);
+        verify(metrics).recordActiveConnectionCount(anyLong());
     }
 
     @Test
@@ -1453,6 +1457,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(existingActiveConnection).closeAtBlockBoundary(CloseReason.CONNECTION_STALLED);
+        verify(metrics).recordActiveConnectionCount(anyLong());
     }
 
     @Test
@@ -1505,6 +1510,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(existingActiveConnection, times(2)).closeAtBlockBoundary(CloseReason.PERIODIC_RESET);
+        verify(metrics).recordActiveConnectionCount(anyLong());
     }
 
     @Test
@@ -1532,6 +1538,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // the active connection should not be changed
         assertThat(activeConnectionRef()).doesNotHaveNullValue().hasValue(activeConnection);
+        verify(metrics).recordActiveConnectionCount(anyLong());
     }
 
     @Test

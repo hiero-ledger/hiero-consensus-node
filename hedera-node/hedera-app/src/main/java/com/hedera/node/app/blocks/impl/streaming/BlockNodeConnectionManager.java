@@ -579,6 +579,9 @@ public class BlockNodeConnectionManager {
      * Checks if the current state of connectivity is healthy and if not, it will attempt to take corrective actions.
      */
     private void updateConnectionIfNeeded() {
+        // record the latest number of active connections
+        blockStreamMetrics.recordActiveConnectionCount(globalActiveStreamingConnectionCount.get());
+
         final Instant now = Instant.now();
         final BlockNodeStreamingConnection activeConnection = activeConnectionRef.get();
         CloseReason closeReason = null;
