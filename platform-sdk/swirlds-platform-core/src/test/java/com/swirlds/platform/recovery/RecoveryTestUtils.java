@@ -35,8 +35,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.config.EventConfig_;
 import org.hiero.consensus.io.IOIterator;
-import org.hiero.consensus.io.extendable.ExtendableInputStream;
-import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
+import org.hiero.consensus.io.counting.CounterType;
+import org.hiero.consensus.io.counting.CountingInputStream;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -252,12 +252,12 @@ public final class RecoveryTestUtils {
 
         // Read objects from the stream, and count the bytes at each object boundary.
         final Map<Integer, Integer> byteBoundaries = new HashMap<>();
-        final CountingStreamExtension counter = new CountingStreamExtension();
-        final ExtendableInputStream countingIn = new ExtendableInputStream(new FileInputStream(file.toFile()), counter);
+        final CountingInputStream countingIn =
+                new CountingInputStream(new FileInputStream(file.toFile()), CounterType.THREAD_SAFE);
         final IOIterator<SelfSerializable> iterator = new ObjectStreamIterator<>(countingIn, false);
         int count = 0;
         while (iterator.hasNext()) {
-            byteBoundaries.put(count, (int) counter.getCount());
+            byteBoundaries.put(count, (int) countingIn.byteCounter().getCount());
             iterator.next();
             count++;
         }
