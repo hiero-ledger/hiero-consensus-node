@@ -61,13 +61,15 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
      * @param nodeConfig the block node configuration to use for this connection
      * @param blockingIoExecutor the executor service to use for executing blocking I/O tasks
      * @param clientFactory the factory to use for creating clients to the block node
+     * @param nodeId the id of the node owning this connection
      */
     public BlockNodeServiceConnection(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockNodeConfiguration nodeConfig,
             @NonNull final ExecutorService blockingIoExecutor,
-            @NonNull final BlockNodeClientFactory clientFactory) {
-        super(ConnectionType.SERVER_STATUS, nodeConfig, configProvider);
+            @NonNull final BlockNodeClientFactory clientFactory,
+            final long nodeId) {
+        super(ConnectionType.SERVER_STATUS, nodeConfig, configProvider, nodeId);
         this.blockingIoExecutor = requireNonNull(blockingIoExecutor, "Blocking I/O executor is required");
         this.clientFactory = requireNonNull(clientFactory, "client factory is required");
     }
@@ -129,7 +131,8 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
             final long clientId = clientCtr.incrementAndGet();
             logger.debug("{} Creating new client (clientId: {})", BlockNodeServiceConnection.this, clientId);
-            final BlockNodeServiceClient client = clientFactory.createServiceClient(configuration(), timeout);
+            final BlockNodeServiceClient client =
+                    clientFactory.createServiceClient(configuration(), timeout, connectionId());
             if (clientRef.compareAndSet(null, new BlockNodeServiceConnection.ServiceClientHolder(clientId, client))) {
                 // unlike the streaming connection, these connections don't really have an intermediate state between
                 // UNINITIALIZED and ACTIVE, so just set the state to ACTIVE
@@ -241,6 +244,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
 
         final long startMillis = System.currentTimeMillis();
+        final String correlationId = connectionId();
         Future<ServerStatusResponse> future = null;
         final ServerStatusResponse response;
         final long durationMillis;
@@ -271,6 +275,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         logger.debug(
                 "{} Received the following block node server status: lastAvailableBlock={} (latency: {}ms)",
                 this,
+                correlationId,
                 response.lastAvailableBlock(),
                 durationMillis);
 
@@ -287,13 +292,17 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
          */
         private final BlockNodeServiceClient client;
 
+        private final String correlationId;
+
         GetBlockNodeStatusTask(@NonNull final BlockNodeServiceClient client) {
             this.client = requireNonNull(client, "client is required");
+            this.correlationId = connectionId();
         }
 
         @Override
         public ServerStatusResponse call() throws Exception {
-            return client.serverStatus(new ServerStatusRequest());
+            return client.serverStatus(
+                    new ServerStatusRequest(), clientFactory.requestOptionsForCorrelationId(correlationId));
         }
     }
 }

@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
@@ -75,6 +76,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
+    private static final long NODE_ID = 0L;
     private static final long ONCE_PER_DAY_MILLIS = Duration.ofHours(24).toMillis();
     private static final VarHandle connectionStateHandle;
     private static final Thread FAKE_WORKER_THREAD = new Thread(() -> {}, "fake-worker");
@@ -164,7 +166,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
         connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
@@ -174,7 +176,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 executorService,
                 pipelineExecutor,
                 null,
-                clientFactory);
+                clientFactory,
+                NODE_ID);
 
         // To avoid potential non-deterministic effects due to the worker thread, assign a fake worker thread to the
         // connection that does nothing.
@@ -209,7 +212,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.READY);
         verify(grpcServiceClient).publishBlockStream(connection);
-        verify(clientFactory).createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+        verify(clientFactory)
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
     }
 
     @Test
@@ -233,7 +237,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 executorService,
                 pipelineExecutor,
                 100L,
-                clientFactory);
+                clientFactory,
+                NODE_ID);
 
         // Verify the streamingBlockNumber was set
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
@@ -2103,7 +2108,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 executorService,
                 pipelineExecutor,
                 null,
-                clientFactory);
+                clientFactory,
+                NODE_ID);
         jitterConnection.initialize();
         reset(connectionManager, requestPipeline, bufferService, metrics);
 
@@ -2145,7 +2151,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 executorService,
                 pipelineExecutor,
                 null,
-                clientFactory);
+                clientFactory,
+                NODE_ID);
         jitterConnection.initialize();
         reset(connectionManager, requestPipeline, bufferService, metrics);
 

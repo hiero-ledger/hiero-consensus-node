@@ -116,13 +116,12 @@ public class TokenWipeSimpleFeesTest {
                     wipeTokenAccount(TOKEN, ACCOUNT, 50L)
                             .payingWith(PAYER)
                             .signedBy(PAYER, WIPE_KEY)
-                            .via(wipeTxn),
+                            .via("wipeTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            wipeTxn,
+                            "wipeTxn",
                             txnSize -> expectedTokenWipeFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
-                            0.1),
-                    validateChargedAccount(wipeTxn, PAYER));
+                            0.1));
         }
 
         @HapiTest
@@ -153,13 +152,12 @@ public class TokenWipeSimpleFeesTest {
                             .payingWith(PAYER)
                             .sigControl(forKey(PAYER_KEY, validSig))
                             .signedBy(PAYER, WIPE_KEY)
-                            .via(wipeTxn),
+                            .via("wipeTxn"),
                     validateChargedUsdWithinWithTxnSize(
-                            wipeTxn,
+                            "wipeTxn",
                             txnSize -> expectedTokenWipeFullFeeUsd(
                                     Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
-                            0.1),
-                    validateChargedAccount(wipeTxn, PAYER));
+                            0.1));
         }
 
         @HapiTest

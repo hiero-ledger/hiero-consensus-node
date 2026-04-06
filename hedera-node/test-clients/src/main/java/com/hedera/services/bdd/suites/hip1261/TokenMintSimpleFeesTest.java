@@ -43,7 +43,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
-import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -267,7 +267,7 @@ public class TokenMintSimpleFeesTest {
                             tokenMintTxn,
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_TYPES, 1L,
+                                    TOKEN_MINT_NFT, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenMintTxn, PAYER));
@@ -299,7 +299,7 @@ public class TokenMintSimpleFeesTest {
                             tokenMintTxn,
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_TYPES, 3L,
+                                    TOKEN_MINT_NFT, 3L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenMintTxn, PAYER));
@@ -333,7 +333,7 @@ public class TokenMintSimpleFeesTest {
                             tokenMintTxn,
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_TYPES, 5L,
+                                    TOKEN_MINT_NFT, 5L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenMintTxn, PAYER));
@@ -368,7 +368,7 @@ public class TokenMintSimpleFeesTest {
                             tokenMintTxn,
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
-                                    TOKEN_TYPES, 2L,
+                                    TOKEN_MINT_NFT, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenMintTxn, PAYER));
@@ -404,7 +404,7 @@ public class TokenMintSimpleFeesTest {
                             tokenMintTxn,
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 21L,
-                                    TOKEN_TYPES, 1L,
+                                    TOKEN_MINT_NFT, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenMintTxn, PAYER));
