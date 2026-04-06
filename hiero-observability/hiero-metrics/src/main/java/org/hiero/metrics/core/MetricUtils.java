@@ -28,7 +28,7 @@ public final class MetricUtils {
      * Validates that the provided metric name adheres to the required character set. <br>
      * Pattern to validate is: {@value #NAME_UNIT_LABEL_REGEX}.
      *
-     * @param metricName the name to validate
+     * @param metricName the metric name to validate
      * @throws NullPointerException if metric name is {@code null}
      * @throws IllegalArgumentException if metric name is blank or contains invalid characters
      */
@@ -38,7 +38,7 @@ public final class MetricUtils {
 
     /**
      * Validates that the provided unit name adheres to the required character set. <br>
-     * Patter to validate is: {@value #NAME_UNIT_LABEL_REGEX}.
+     * Pattern to validate is: {@value #NAME_UNIT_LABEL_REGEX}.
      *
      * @param unitName the unit name to validate
      * @throws NullPointerException if unit name is {@code null}
@@ -50,9 +50,9 @@ public final class MetricUtils {
 
     /**
      * Validates that the provided label name adheres to the required character set. <br>
-     * Patter to validate is: {@value #NAME_UNIT_LABEL_REGEX}.
+     * Pattern to validate is: {@value #NAME_UNIT_LABEL_REGEX}.
      *
-     * @param labelName the unit name to validate
+     * @param labelName the label name to validate
      * @throws NullPointerException if label name is {@code null}
      * @throws IllegalArgumentException if label name is blank or contains invalid characters
      */
