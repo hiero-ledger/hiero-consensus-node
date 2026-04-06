@@ -244,10 +244,11 @@ val prCheckNetSizeOverrides =
         "hapiTestSimpleFees" to "3",
         "hapiTestSimpleFeesSerial" to "3",
         "hapiTestTokenSerial" to "3",
-        "hapiTestSmartContract" to "4",
+        "hapiTestSmartContract" to "3",
         "hapiTestSmartContractSerial" to "3",
         "hapiTestAtomicBatch" to "3",
         "hapiTestAtomicBatchSerial" to "3",
+        "hapiTestStateThrottling" to "3",
     )
 
 tasks {
