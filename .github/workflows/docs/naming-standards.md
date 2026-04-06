@@ -14,7 +14,7 @@ It is intended to ensure consistency, readability, and maintainability across al
 
 - 3-digit prefix (000 to 999)
 
-  | Prefix | Category / Description         | Notes / Subcategory               |
+  | Prefix |     Category / Description     |        Notes / Subcategory        |
   |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |
@@ -70,7 +70,7 @@ Name of the Workflow: `000: [USER] Status Checks`
 
 - 3-digit prefix (000 to 999)
 
-  | Prefix | Category / Description         | Notes / Subcategory               |
+  | Prefix |     Category / Description     |        Notes / Subcategory        |
   |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |

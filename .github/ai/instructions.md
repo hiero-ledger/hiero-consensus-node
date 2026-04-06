@@ -18,7 +18,7 @@ The `./gradlew` wrapper handles it.
 - `./gradlew :<module>:<test-type>` - Runs a specific type of test (e.g., `unitTest`, `integrationTest`) for a specific module.
 
 ## Module Structure
-    
+
 - platform-sdk/ — the consensus platform layer
 - hedera-node/ — Hedera services implementation
 - hapi/ — protobuf API definitions

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 name: "700: [Flow] Copilot Setup Steps"
 
 # Automatically run the setup steps when they are changed to allow for easy validation and
