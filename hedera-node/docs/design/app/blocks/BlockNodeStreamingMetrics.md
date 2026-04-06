@@ -29,7 +29,7 @@ These metrics relate to the block buffer and are identified by the prefix "buffe
 These metrics relate to general connectivity events between the consensus node and the block node. They are prefixed
 with "conn" for identification.
 
-| Metric Name                                        | Type            | Description                                                                                            |
+|                    Metric Name                     |      Type       |                                              Description                                               |
 |----------------------------------------------------|-----------------|--------------------------------------------------------------------------------------------------------|
 | `blockStream_conn_onComplete`                      | Counter         | Number of onComplete handler invocations on block node connections                                     |
 | `blockStream_conn_onError`                         | Counter         | Number of onError handler invocations on block node connections                                        |
