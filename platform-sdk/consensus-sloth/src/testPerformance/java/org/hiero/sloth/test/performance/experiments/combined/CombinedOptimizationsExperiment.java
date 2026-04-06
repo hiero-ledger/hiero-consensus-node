@@ -43,7 +43,7 @@ public class CombinedOptimizationsExperiment {
     @Benchmark
     void combinedAllOptimizations(@NonNull final TestEnvironment env) {
         log.info("=== Combined Experiment: All Optimizations ===");
-        runBenchmark(env, "combinedAllOptimizations", (network, params) -> {
+        runBenchmark(env, "combinedAllOptimizations", true, (network, params) -> {
             // Apply all config optimizations
             network.withConfigValue("event.creation.maxOtherParents", params.numberOfNodes())
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
