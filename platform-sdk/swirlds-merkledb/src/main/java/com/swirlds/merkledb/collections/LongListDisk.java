@@ -97,7 +97,7 @@ public class LongListDisk extends AbstractLongList<Long> {
         TRANSFER_BUFFER_THREAD_LOCAL = new ThreadLocal<>();
         // it's initialized as 8 bytes (Long.BYTES) but likely it's going to be resized later
         TEMP_LONG_BUFFER_THREAD_LOCAL =
-                ThreadLocal.withInitial(() -> ByteBuffer.allocate(Long.BYTES).order(ByteOrder.nativeOrder()));
+                ThreadLocal.withInitial(() -> ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN));
     }
 
     /**
@@ -245,7 +245,7 @@ public class LongListDisk extends AbstractLongList<Long> {
     private ByteBuffer initOrGetTransferBuffer() {
         ByteBuffer buffer = TRANSFER_BUFFER_THREAD_LOCAL.get();
         if ((buffer == null) || (buffer.capacity() < memoryChunkSize)) {
-            buffer = ByteBuffer.allocate(memoryChunkSize).order(ByteOrder.nativeOrder());
+            buffer = ByteBuffer.allocate(memoryChunkSize).order(ByteOrder.LITTLE_ENDIAN);
             TRANSFER_BUFFER_THREAD_LOCAL.set(buffer);
         } else {
             // clean up the buffer

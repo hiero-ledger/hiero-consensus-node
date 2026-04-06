@@ -292,8 +292,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
             @NonNull final FileChannel fileChannel, final int chunkIndex, final int startIndex, final int endIndex)
             throws IOException {
         final SegmentChunk chunk = createChunk();
-        // Get a ByteBuffer view of the segment — backed by the same native memory, no copy
-        final ByteBuffer buf = chunk.segment().asByteBuffer().order(ByteOrder.nativeOrder());
+        final ByteBuffer buf = chunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
         readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, buf);
         // Reset position/limit — segment access is always by absolute offset
         buf.clear();
@@ -325,7 +324,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         // FileChannel.write never touches chunk-scoped memory directly.
         try (final Arena writeArena = Arena.ofConfined()) {
             final MemorySegment writeBufSegment = writeArena.allocate(memoryChunkSize, Long.BYTES);
-            final ByteBuffer writeBuf = writeBufSegment.asByteBuffer().order(ByteOrder.nativeOrder());
+            final ByteBuffer writeBuf = writeBufSegment.asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
 
             for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
                 writeBuf.clear();

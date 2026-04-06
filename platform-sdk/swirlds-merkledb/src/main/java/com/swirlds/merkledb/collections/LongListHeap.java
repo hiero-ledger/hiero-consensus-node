@@ -114,7 +114,7 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
     protected void readBodyFromFileChannelOnInit(
             final String sourceFileName, final FileChannel fileChannel, Configuration configuration)
             throws IOException {
-        initReadBuffer = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.nativeOrder());
+        initReadBuffer = ByteBuffer.allocateDirect(memoryChunkSize).order(ByteOrder.LITTLE_ENDIAN);
         try {
             super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel, configuration);
         } finally {
@@ -166,7 +166,7 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
         // write data
         final ByteBuffer tempBuffer = allocateDirect(1024 * 1024);
         try {
-            tempBuffer.order(ByteOrder.nativeOrder());
+            tempBuffer.order(ByteOrder.LITTLE_ENDIAN);
             final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
             for (long i = minValidIndex.get(); i < size(); i++) {
                 // if buffer is full then write

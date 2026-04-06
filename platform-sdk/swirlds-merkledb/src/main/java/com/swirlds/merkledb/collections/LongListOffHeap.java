@@ -214,7 +214,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
 
     protected ByteBuffer createChunk() {
         final ByteBuffer directBuffer = ByteBuffer.allocateDirect(memoryChunkSize);
-        directBuffer.order(ByteOrder.nativeOrder());
+        directBuffer.order(ByteOrder.LITTLE_ENDIAN);
         return directBuffer;
     }
 
