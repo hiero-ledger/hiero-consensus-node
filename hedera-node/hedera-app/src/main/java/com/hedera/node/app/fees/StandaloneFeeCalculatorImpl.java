@@ -19,7 +19,6 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.exceptions.NotImplementedException;
 import org.hiero.hapi.fees.FeeResult;
 
 public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
@@ -45,13 +44,15 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
     @Override
     public FeeResult calculateIntrinsic(Transaction transaction) throws ParseException {
-        final var context = new StandaloneFeeContextImpl(transaction);
+        final var context = new StandaloneFeeContextImpl(transaction, null, null);
         return calc.calculateTxFee(context.body(), context);
     }
 
     @Override
-    public FeeResult calculateStateful(Transaction transaction) {
-        throw new NotImplementedException();
+    public FeeResult calculateStateful(Transaction transaction, FeeContext feeContext, QueryContext queryContext)
+            throws ParseException {
+        final var context = new StandaloneFeeContextImpl(transaction, feeContext, queryContext);
+        return calc.calculateTxFee(context.body(), context);
     }
 
     private class StandaloneFeeContextImpl implements SimpleFeeContext {
@@ -59,8 +60,14 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
         private final int numTxnSignatures;
         private final TransactionBody body;
         private final Transaction transaction;
+        private final FeeContext feeContext;
+        private final QueryContext queryContext;
 
-        public StandaloneFeeContextImpl(final Transaction transaction) throws ParseException {
+        public StandaloneFeeContextImpl(
+                final Transaction transaction, final FeeContext feeContext, final QueryContext queryContext)
+                throws ParseException {
+            this.feeContext = feeContext;
+            this.queryContext = queryContext;
             this.transaction = transaction;
             if (transaction.hasBody()) {
                 this.body = transaction.bodyOrThrow();
@@ -117,12 +124,12 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
         @Override
         public FeeContext feeContext() {
-            return null;
+            return this.feeContext;
         }
 
         @Override
         public QueryContext queryContext() {
-            return null;
+            return this.queryContext;
         }
 
         @NonNull
