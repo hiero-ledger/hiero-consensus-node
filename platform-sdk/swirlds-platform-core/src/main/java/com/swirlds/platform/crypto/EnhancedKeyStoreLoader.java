@@ -252,7 +252,8 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     public EnhancedKeyStoreLoader scan() throws KeyLoadingException, KeyStoreException {
-        logger.debug(STARTUP.getMarker(), "Starting key store enumeration [ keyStoreDirectory = {} ]", keyStoreDirectory);
+        logger.debug(
+                STARTUP.getMarker(), "Starting key store enumeration [ keyStoreDirectory = {} ]", keyStoreDirectory);
 
         for (final NodeId nodeId : this.nodeIds) {
             logger.debug(STARTUP.getMarker(), "Attempting to locate key stores for nodeId {}", nodeId);
@@ -741,7 +742,8 @@ public class EnhancedKeyStoreLoader {
                 logger.warn(
                         STARTUP.getMarker(),
                         "Signing private key does not match certificate public key for nodeId {} "
-                                + "[ purpose = {}, certFingerprint = {}, rosterPubKeyFingerprint = {}, diskPubKeyFingerprint = {} ]"
+                                + "[ purpose = {}, certFingerprint = {}, rosterPubKeyFingerprint = {},"
+                                + " diskPubKeyFingerprint = {} ]"
                                 + " — node may fail to establish gossip connections",
                         nodeId,
                         KeyCertPurpose.SIGNING,
@@ -750,9 +752,11 @@ public class EnhancedKeyStoreLoader {
                         keyFingerprint(derivedPublicKey));
             }
         } catch (
-                // NoSuchAlgorithmException / NoSuchProviderException: KeyFactory.getInstance() if RSA or BouncyCastle unavailable
+                // NoSuchAlgorithmException / NoSuchProviderException: KeyFactory.getInstance() if RSA
+                //   or BouncyCastle unavailable
                 // InvalidKeySpecException: kf.generatePublic() if the private key's CRT params are corrupt
-                // RuntimeException: cert.getPublicKey() declares no checked throws but can throw unchecked on malformed certs
+                // RuntimeException: cert.getPublicKey() declares no checked throws but can throw
+                //   unchecked on malformed certs
                 final NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException
                         | RuntimeException e) {
             logger.warn(
@@ -774,7 +778,7 @@ public class EnhancedKeyStoreLoader {
      * log output against manual certificate inspection.
      *
      * @param cert the certificate to fingerprint.
-     * @return a colon-separated uppercase hex fingerprint string.
+     * @return a colon-separated uppercase hex fingerprint string
      */
     @NonNull
     private static String certFingerprint(@NonNull final Certificate cert) {
@@ -796,7 +800,7 @@ public class EnhancedKeyStoreLoader {
      * certificate. Two values from this method are directly comparable to each other.
      *
      * @param publicKey the public key to fingerprint.
-     * @return a colon-separated uppercase hex fingerprint string.
+     * @return a colon-separated uppercase hex fingerprint string
      */
     @NonNull
     private static String keyFingerprint(@NonNull final PublicKey publicKey) {
@@ -813,7 +817,7 @@ public class EnhancedKeyStoreLoader {
      * formatted as colon-separated uppercase hex octets (e.g. {@code "A1:B2:C3:..."}).
      *
      * @param encoded the raw bytes to hash.
-     * @return a colon-separated uppercase hex string.
+     * @return a colon-separated uppercase hex string
      * @throws NoSuchAlgorithmException if the SHA-384 algorithm is unavailable.
      */
     @NonNull

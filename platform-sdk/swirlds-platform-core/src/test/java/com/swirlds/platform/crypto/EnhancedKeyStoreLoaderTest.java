@@ -258,11 +258,11 @@ class EnhancedKeyStoreLoaderTest {
         final Path keyDirectory = testDataDirectory.resolve("mismatch-keys");
         Files.createDirectories(keyDirectory);
         final NodeId nodeId = NodeId.of(0);
-        final KeysAndCerts kc = KeysAndCertsGenerator.generate(nodeId);
+        final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
         EnhancedKeyStoreLoader.writePemFile(
                 true,
                 keyDirectory.resolve("s-private-node1.pem"),
-                kc.sigKeyPair().getPrivate().getEncoded());
+                keysAndCerts.sigKeyPair().getPrivate().getEncoded());
 
         // Roster entry uses a pre-generated cert that does NOT match the private key above.
         final List<RosterEntry> rosterEntries = List.of(
@@ -303,17 +303,17 @@ class EnhancedKeyStoreLoaderTest {
         final Path keyDirectory = testDataDirectory.resolve("matching-keys");
         Files.createDirectories(keyDirectory);
         final NodeId nodeId = NodeId.of(0);
-        final KeysAndCerts kc = KeysAndCertsGenerator.generate(nodeId);
+        final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
         EnhancedKeyStoreLoader.writePemFile(
                 true,
                 keyDirectory.resolve("s-private-node1.pem"),
-                kc.sigKeyPair().getPrivate().getEncoded());
+                keysAndCerts.sigKeyPair().getPrivate().getEncoded());
 
         // Roster entry uses the cert that MATCHES the private key above.
         final List<RosterEntry> rosterEntries = List.of(
                 RandomRosterEntryBuilder.create(new Random(42))
                         .withNodeId(0L)
-                        .withSigCert(kc.sigCert())
+                        .withSigCert(keysAndCerts.sigCert())
                         .build());
 
         final EnhancedKeyStoreLoader loader =
