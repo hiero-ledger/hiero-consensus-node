@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.lang.Math.toIntExact;
 
 import com.swirlds.config.api.Configuration;
@@ -16,8 +15,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * A {@link LongList} that stores its contents off-heap via {@link MemorySegment}s backed by
@@ -43,12 +40,10 @@ import org.apache.logging.log4j.Logger;
  */
 public final class LongListSegment extends AbstractLongList<LongListSegment.SegmentChunk> implements OffHeapUser {
 
-    private static final Logger logger = LogManager.getLogger(LongListSegment.class);
-
     /**
      * A VarHandle for performing volatile long reads, volatile writes, and CAS operations
      * on a {@link MemorySegment}. Coordinates are {@code (MemorySegment, long)} where the
-     * long is the byte offset. {@link ValueLayout#JAVA_LONG} uses native byte order by
+     * long is the byte offset. {@link ValueLayout#JAVA_LONG} uses LITTLE_ENDIAN byte order by
      * default, matching the behavior of the Unsafe-based off-heap implementation.
      */
     private static final VarHandle LONG_HANDLE = ValueLayout.JAVA_LONG.varHandle();
@@ -189,15 +184,6 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         } catch (final IllegalStateException e) {
             // Arena was closed concurrently — chunk is outside the valid range
             return IMPERMISSIBLE_VALUE;
-        } catch (final IndexOutOfBoundsException e) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "Index out of bounds in lookupInChunk: segment size={}, offset={}, subIndex={}",
-                    chunk.segment().byteSize(),
-                    subIndex * Long.BYTES,
-                    subIndex,
-                    e);
-            throw e;
         }
     }
 
@@ -292,6 +278,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
             @NonNull final FileChannel fileChannel, final int chunkIndex, final int startIndex, final int endIndex)
             throws IOException {
         final SegmentChunk chunk = createChunk();
+        // Get a ByteBuffer view of the segment — backed by the same native memory, no copy
         final ByteBuffer buf = chunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
         readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, buf);
         // Reset position/limit — segment access is always by absolute offset
@@ -303,14 +290,13 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      * {@inheritDoc}
      *
      * <p>Writes all chunk data to the file channel. Each chunk's {@link MemorySegment}
-     * data is bulk-copied into a reusable, arena-independent direct {@link ByteBuffer}
-     * before being written to the channel. This decouples the write from the chunk's
-     * arena lifecycle: even if a concurrent {@link #closeChunk} invalidates the segment
-     * after the copy, the write proceeds safely from the detached buffer.
+     * is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
+     * for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
+     * pre-allocated zero-filled buffer is written instead.
      *
-     * <p>If a chunk's arena is closed during the copy itself (narrow race between
-     * {@code chunkList.get(i)} and the bulk copy), the chunk is treated as empty and
-     * zeros are written — consistent with how null chunk slots are handled.
+     * <p>This method runs exclusively during snapshot, which is sequenced after flush
+     * completion by the virtual pipeline. No concurrent {@link #closeChunk} can
+     * invalidate a chunk's arena during this operation.
      */
     @Override
     protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
@@ -318,49 +304,35 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         final long currentMinValidIndex = minValidIndex.get();
         final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
 
-        // A confined arena for the temporary write buffer. Confined is sufficient because
-        // writeLongsData is a single-threaded operation (snapshot/flush), and it is cheaper
-        // than a shared arena. The buffer is decoupled from any chunk arena, so
-        // FileChannel.write never touches chunk-scoped memory directly.
-        try (final Arena writeArena = Arena.ofConfined()) {
-            final MemorySegment writeBufSegment = writeArena.allocate(memoryChunkSize, Long.BYTES);
-            final ByteBuffer writeBuf = writeBufSegment.asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+        // A zero-filled buffer for null chunk slots. Heap-allocated — no arena needed.
+        final ByteBuffer emptyBuffer = ByteBuffer.allocate(memoryChunkSize);
 
-            for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
-                writeBuf.clear();
-
-                final SegmentChunk segChunk = chunkList.get(i);
-                if (segChunk != null) {
-                    try {
-                        // Bulk copy from the chunk's arena-scoped segment into the detached
-                        // buffer. After this copy completes, writeBuf holds a snapshot of the
-                        // chunk data that is independent of the chunk arena's lifetime.
-                        MemorySegment.copy(segChunk.segment(), 0, writeBufSegment, 0, memoryChunkSize);
-                    } catch (final IllegalStateException e) {
-                        // Arena was closed between chunkList.get and the copy — treat as empty
-                        writeBufSegment.fill((byte) 0);
-                    }
-                } else {
-                    writeBufSegment.fill((byte) 0);
-                }
-
-                if (i == firstChunkWithDataIndex) {
-                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
-                    writeBuf.position(firstValidIndexInChunk * Long.BYTES);
-                } else {
-                    writeBuf.position(0);
-                }
-
-                if (i == (totalNumOfChunks - 1)) {
-                    final long bytesWrittenSoFar = (long) memoryChunkSize * i;
-                    final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
-                    writeBuf.limit(toIntExact(remainingBytes));
-                } else {
-                    writeBuf.limit(memoryChunkSize);
-                }
-
-                MerkleDbFileUtils.completelyWrite(fc, writeBuf);
+        for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
+            final SegmentChunk segChunk = chunkList.get(i);
+            final ByteBuffer buf;
+            if (segChunk != null) {
+                buf = segChunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+            } else {
+                emptyBuffer.clear();
+                buf = emptyBuffer;
             }
+
+            if (i == firstChunkWithDataIndex) {
+                final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+                buf.position(firstValidIndexInChunk * Long.BYTES);
+            } else {
+                buf.position(0);
+            }
+
+            if (i == (totalNumOfChunks - 1)) {
+                final long bytesWrittenSoFar = (long) memoryChunkSize * i;
+                final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
+                buf.limit(toIntExact(remainingBytes));
+            } else {
+                buf.limit(memoryChunkSize);
+            }
+
+            MerkleDbFileUtils.completelyWrite(fc, buf);
         }
     }
 
