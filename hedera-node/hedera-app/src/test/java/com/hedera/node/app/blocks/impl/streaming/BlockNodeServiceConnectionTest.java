@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -20,6 +21,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.GetB
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.ServiceClientHolder;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
@@ -44,6 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
+    private static final long NODE_ID = 0L;
 
     private static final VarHandle connectionStateHandle;
     private static final VarHandle clientRefHandle;
@@ -84,9 +87,14 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .doReturn(client)
                 .when(clientFactory)
-                .createServiceClient(any(BlockNodeConfiguration.class), any(Duration.class));
+                .createServiceClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
+        lenient()
+                .doReturn(mock(ServiceInterface.RequestOptions.class))
+                .when(clientFactory)
+                .requestOptionsForCorrelationId(anyString());
 
-        connection = new BlockNodeServiceConnection(configProvider, nodeConfiguration, executorService, clientFactory);
+        connection = new BlockNodeServiceConnection(
+                configProvider, nodeConfiguration, executorService, clientFactory, NODE_ID);
     }
 
     @AfterEach
@@ -107,7 +115,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(holder).isNotNull();
         assertThat(holder.client()).isEqualTo(client);
 
-        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class));
+        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class), anyString());
 
         verifyNoInteractions(executorService);
         verifyNoInteractions(client);
@@ -138,7 +146,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         final ArgumentCaptor<? extends Runnable> execSvcCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class));
+        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class), anyString());
         verify(executorService).submit(execSvcCaptor.capture());
 
         assertThat(execSvcCaptor.getAllValues()).hasSize(1);
@@ -180,7 +188,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         final ArgumentCaptor<? extends Runnable> execSvcCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class));
+        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class), anyString());
         verify(executorService).submit(execSvcCaptor.capture());
 
         assertThat(execSvcCaptor.getAllValues()).hasSize(1);
@@ -440,15 +448,18 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testGetBlockNodeStatusTask_success() throws Exception {
         final ServerStatusResponse expectedResponse = new ServerStatusResponse(100, 200, false, null);
-        doReturn(expectedResponse).when(client).serverStatus(any(ServerStatusRequest.class));
+        doReturn(expectedResponse)
+                .when(client)
+                .serverStatus(any(ServerStatusRequest.class), any(ServiceInterface.RequestOptions.class));
 
         final ServerStatusResponse actualResponse = new GetBlockNodeStatusTask(client).call();
 
         assertThat(actualResponse).isEqualTo(expectedResponse);
 
-        verify(client).serverStatus(any(ServerStatusRequest.class));
+        verify(client).serverStatus(any(ServerStatusRequest.class), any(ServiceInterface.RequestOptions.class));
+        verify(clientFactory).requestOptionsForCorrelationId(anyString());
         verifyNoMoreInteractions(client);
-        verifyNoInteractions(clientFactory);
+        verifyNoMoreInteractions(clientFactory);
         verifyNoInteractions(executorService);
     }
 

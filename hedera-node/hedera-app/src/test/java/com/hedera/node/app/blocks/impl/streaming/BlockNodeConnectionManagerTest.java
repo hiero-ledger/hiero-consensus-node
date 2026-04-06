@@ -28,6 +28,8 @@ import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -150,11 +152,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         }
     }
 
+    private static final long NODE_ID = 0;
+
     private BlockNodeConnectionManager connectionManager;
 
     private BlockBufferService bufferService;
     private BlockStreamMetrics metrics;
     private ExecutorService blockingIoExecutor;
+    private NetworkInfo networkInfo;
+    private NodeInfo selfNodeInfo;
     private Supplier<ExecutorService> blockingIoExecutorSupplier;
     private BlockNodeConfigService blockNodeConfigService;
     private ConfigProvider configProvider;
@@ -175,8 +181,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         blockingIoExecutor = mock(ExecutorService.class);
         blockNodeConfigService = mock(BlockNodeConfigService.class);
         blockingIoExecutorSupplier = () -> blockingIoExecutor;
+        networkInfo = mock(NetworkInfo.class);
+        selfNodeInfo = mock(NodeInfo.class);
+        when(networkInfo.selfNodeInfo()).thenReturn(selfNodeInfo);
+        when(selfNodeInfo.nodeId()).thenReturn(NODE_ID);
         connectionManager = new BlockNodeConnectionManager(
-                configProvider, bufferService, metrics, blockingIoExecutorSupplier, blockNodeConfigService);
+                configProvider,
+                bufferService,
+                metrics,
+                networkInfo,
+                blockingIoExecutorSupplier,
+                blockNodeConfigService);
 
         // Clear any nodes that might have been loaded
         blockNodes().clear();
@@ -276,7 +291,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration activeConfig = newBlockNodeConfig("localhost", 9999, 1);
         final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
         when(activeConnection.configuration()).thenReturn(activeConfig);
-        when(activeConnection.connectionId()).thenReturn(new ConnectionId(ConnectionType.BLOCK_STREAMING, 1));
+        when(activeConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
         when(activeConnection.createTimestamp()).thenReturn(Instant.now());
         when(activeConnection.activeTimestamp()).thenReturn(Instant.now());
 
@@ -305,7 +320,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration activeConfig = newBlockNodeConfig("localhost", 9999, 2);
         final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
         when(activeConnection.configuration()).thenReturn(activeConfig);
-        when(activeConnection.connectionId()).thenReturn(new ConnectionId(ConnectionType.BLOCK_STREAMING, 1));
+        when(activeConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
         when(activeConnection.createTimestamp()).thenReturn(Instant.now());
         when(activeConnection.activeTimestamp()).thenReturn(Instant.now());
 
@@ -1529,7 +1544,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(bsConfig.streamToBlockNodes()).thenReturn(false);
 
         connectionManager = new BlockNodeConnectionManager(
-                localConfigProvider, bufferService, metrics, blockingIoExecutorSupplier, blockNodeConfigService);
+                localConfigProvider,
+                bufferService,
+                metrics,
+                networkInfo,
+                blockingIoExecutorSupplier,
+                blockNodeConfigService);
         connectionManager.start();
 
         assertThat(isConnectionManagerActive()).isFalse();

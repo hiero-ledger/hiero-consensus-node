@@ -48,6 +48,7 @@ class AbstractBlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(connectionId).isNotNull();
         assertThat(connectionId.type()).isEqualTo(ConnectionType.SERVER_STATUS);
+        assertThat(connection.connectionId().toString()).startsWith("N0-SVC");
         assertThat(connection.configuration()).isEqualTo(config);
         assertThat(connection.configProvider()).isEqualTo(configProvider);
         assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
@@ -234,7 +235,7 @@ class AbstractBlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     private AbstractBlockNodeConnection newInstance(final ConnectionType type, final BlockNodeConfiguration config) {
-        return new AbstractBlockNodeConnection(type, config, configProvider) {
+        return new AbstractBlockNodeConnection(type, config, configProvider, 0L) {
             @Override
             void initialize() {
                 // do nothing

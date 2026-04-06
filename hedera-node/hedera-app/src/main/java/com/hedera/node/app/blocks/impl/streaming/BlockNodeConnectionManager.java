@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toList;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -118,7 +119,10 @@ public class BlockNodeConnectionManager {
      * Reference to the connection monitor thread.
      */
     private final AtomicReference<Thread> connectionMonitorThreadRef = new AtomicReference<>();
-
+    /**
+     * Numeric ID of this consensus node used in connection correlation IDs.
+     */
+    private final long selfNodeId;
     /**
      * A record that holds a candidate node configuration along with the block number it wants to stream.
      *
@@ -151,11 +155,15 @@ public class BlockNodeConnectionManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
+            @NonNull final NetworkInfo networkInfo,
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
             @NonNull final BlockNodeConfigService blockNodeConfigService) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
+        this.selfNodeId = requireNonNull(networkInfo, "networkInfo must not be null")
+                .selfNodeInfo()
+                .nodeId();
         this.blockingIoExecutorSupplier =
                 requireNonNull(blockingIoExecutorSupplier, "Blocking I/O executor supplier is required");
         this.clientFactory = new BlockNodeClientFactory();
@@ -350,7 +358,7 @@ public class BlockNodeConnectionManager {
         final List<RetrieveBlockNodeStatusTask> tasks = new ArrayList<>();
         for (final BlockNode node : nodes) {
             final BlockNodeServiceConnection svcConnection = new BlockNodeServiceConnection(
-                    configProvider, node.configuration(), blockingIoExecutor, clientFactory);
+                    configProvider, node.configuration(), blockingIoExecutor, clientFactory, selfNodeId);
             tasks.add(new RetrieveBlockNodeStatusTask(svcConnection));
         }
 
@@ -903,7 +911,8 @@ public class BlockNodeConnectionManager {
                 blockStreamMetrics,
                 blockingIoExecutorSupplier.get(),
                 null,
-                clientFactory);
+                clientFactory,
+                selfNodeId);
         connection.initialize();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 

@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
@@ -54,8 +55,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 import org.hiero.block.api.PublishStreamRequest;
@@ -77,8 +76,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
-    private static final Logger logger = LogManager.getLogger(BlockNodeStreamingConnectionTest.class);
-
+    private static final long NODE_ID = 0L;
     private static final VarHandle connectionStateHandle;
     private static final Thread FAKE_WORKER_THREAD = new Thread(() -> {}, "fake-worker");
     private static final VarHandle streamingBlockNumberHandle;
@@ -123,8 +121,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void beforeEach() throws Exception {
-        logger.info("--- setup -->");
-
         configProvider = createConfigProvider(createDefaultConfigProvider());
         stats = mock(BlockNodeStats.class);
         globalActiveStreamingConnectionCount = new AtomicInteger();
@@ -172,7 +168,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
         connection = new BlockNodeStreamingConnection(
                 configProvider,
                 blockNode,
@@ -181,7 +177,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 metrics,
                 pipelineExecutor,
                 null,
-                clientFactory);
+                clientFactory,
+                NODE_ID);
 
         // To avoid potential non-deterministic effects due to the worker thread, assign a fake worker thread to the
         // connection that does nothing.
@@ -189,14 +186,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(FAKE_WORKER_THREAD);
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
-
-        logger.info("<-- setup ---");
     }
 
     @AfterEach
     void afterEach() throws Exception {
-        logger.info("--- tear down -->");
-
         if (realExecutor != null) {
             realExecutor.shutdownNow();
         }
@@ -210,8 +203,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         if (workerThread != null && !workerThread.equals(FAKE_WORKER_THREAD)) {
             assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
         }
-
-        logger.info("<-- tear down ---");
     }
 
     @Test
@@ -222,7 +213,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.READY);
         verify(grpcServiceClient).publishBlockStream(connection);
-        verify(clientFactory).createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+        verify(clientFactory)
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
     }
 
     @Test
@@ -245,7 +237,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 metrics,
                 pipelineExecutor,
                 100L,
-                clientFactory);
+                clientFactory,
+                NODE_ID);
 
         // Verify the streamingBlockNumber was set
         final AtomicLong streamingBlockNumber = streamingBlockNumber();

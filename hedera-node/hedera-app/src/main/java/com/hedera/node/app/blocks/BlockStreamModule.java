@@ -12,6 +12,7 @@ import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -49,12 +50,14 @@ public interface BlockStreamModule {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final BlockStreamMetrics blockStreamMetrics,
+            @NonNull final NetworkInfo networkInfo,
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
             @NonNull final BlockNodeConfigService blockNodeConfigService) {
         final BlockNodeConnectionManager manager = new BlockNodeConnectionManager(
                 configProvider,
                 blockBufferService,
                 blockStreamMetrics,
+                networkInfo,
                 blockingIoExecutorSupplier,
                 blockNodeConfigService);
         manager.start();

@@ -6,7 +6,7 @@ import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationErro
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
+import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -152,22 +152,23 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                 && valueErrorCount.get() == 0
                 && hashMismatchCount.get() == 0
                 && exceptionCount.get() == 0;
-        ValidationAssertions.requireTrue(
-                ok,
-                getName(),
-                ("%s validation failed. "
-                                + "successCount=%d vs expectedCount=%d, "
-                                + "pathMismatchCount=%d, valueErrorCount=%d, hashMismatchCount=%d, "
-                                + "exceptionCount=%d, successCount=%d")
-                        .formatted(
-                                getName(),
-                                successCount.get(),
-                                leafCount,
-                                pathMismatchCount.get(),
-                                valueErrorCount.get(),
-                                hashMismatchCount.get(),
-                                exceptionCount.get(),
-                                successCount.get()));
+        if (!ok) {
+            throw new ValidationException(
+                    getName(),
+                    ("%s validation failed. "
+                                    + "successCount=%d vs expectedCount=%d, "
+                                    + "pathMismatchCount=%d, valueErrorCount=%d, hashMismatchCount=%d, "
+                                    + "exceptionCount=%d, successCount=%d")
+                            .formatted(
+                                    getName(),
+                                    successCount.get(),
+                                    leafCount,
+                                    pathMismatchCount.get(),
+                                    valueErrorCount.get(),
+                                    hashMismatchCount.get(),
+                                    exceptionCount.get(),
+                                    successCount.get()));
+        }
     }
 
     private static StateValue parseValue(Bytes valueBytes) throws ParseException {
