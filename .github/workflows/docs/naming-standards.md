@@ -14,7 +14,7 @@ It is intended to ensure consistency, readability, and maintainability across al
 
 - 3-digit prefix (000 to 999)
 
-  | Prefix |     Category / Description     |        Notes / Subcategory        |
+  | Prefix | Category / Description         | Notes / Subcategory               |
   |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |
@@ -26,7 +26,7 @@ It is intended to ensure consistency, readability, and maintainability across al
   | 400    | TBD                            |                                   |
   | 500    | TBD                            |                                   |
   | 600    | TBD                            |                                   |
-  | 700    | TBD                            |                                   |
+  | 700    | AI Helpers                     | Helpers for AI workflows          |
   | 800    | Reusable workflows             |                                   |
   | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom |
 
@@ -70,7 +70,7 @@ Name of the Workflow: `000: [USER] Status Checks`
 
 - 3-digit prefix (000 to 999)
 
-  | Prefix |     Category / Description     |        Notes / Subcategory        |
+  | Prefix | Category / Description         | Notes / Subcategory               |
   |--------|--------------------------------|-----------------------------------|
   | 000    | User-centric workflows         | Sorted by priority/use            |
   | 100    | Operational workflows          | Manual-run RE flows               |
@@ -82,7 +82,7 @@ Name of the Workflow: `000: [USER] Status Checks`
   | 400    | TBD                            |                                   |
   | 500    | TBD                            |                                   |
   | 600    | TBD                            |                                   |
-  | 700    | TBD                            |                                   |
+  | 700    | AI Helpers                     | Helpers for AI Workflows          |
   | 800    | Reusable workflows             |                                   |
   | 900    | Cron tasks                     | Prefixed by 900 to sort to bottom |
 
