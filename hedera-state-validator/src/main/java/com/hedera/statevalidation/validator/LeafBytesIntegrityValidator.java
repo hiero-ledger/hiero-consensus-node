@@ -44,6 +44,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     private final AtomicLong pathMismatchCount = new AtomicLong(0);
     private final AtomicLong valueErrorCount = new AtomicLong(0);
     private final AtomicLong hashMismatchCount = new AtomicLong(0);
+    private final AtomicLong indexMismatchCount = new AtomicLong(0);
 
     // A minor optimization to avoid multiple chunk loads from disk
     private final ThreadLocal<VirtualHashChunk> lastChunk = new ThreadLocal<>();
@@ -108,6 +109,27 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                 return;
             }
 
+            // Cross-check: read the same data item using the index (path -> value) and compare
+            // with what was read from the disk stream (leafBytes). This detects inconsistencies
+            // between the chunked file iterator reads and the indexed lookup.
+            final VirtualLeafBytes<?> byIndex = vds.loadLeafRecord(p2KvPath);
+            if (byIndex == null) {
+                indexMismatchCount.incrementAndGet();
+                log.error("Index cross-check failed: no record found at path={}", p2KvPath);
+                return;
+            }
+            if (!Objects.equals(byIndex.keyBytes(), keyBytes) || !Objects.equals(byIndex.valueBytes(), valueBytes)) {
+                indexMismatchCount.incrementAndGet();
+                log.error(
+                        "Index cross-check mismatch at path={}. diskKey={} diskValueLen={} vs indexKey={} indexValueLen={}",
+                        p2KvPath,
+                        keyBytes == null ? null : keyBytes.length(),
+                        valueBytes == null ? -1 : valueBytes.length(),
+                        byIndex.keyBytes() == null ? null : byIndex.keyBytes().length(),
+                        byIndex.valueBytes() == null ? -1 : byIndex.valueBytes().length());
+                return;
+            }
+
             // Check leaf hash against the hash stored in the hash chunk
             final Hash leafHash = VirtualHasher.hashLeafRecord(leafBytes);
             final long hashChunkPath = VirtualHashChunk.pathToChunkPath(p2KvPath, hashChunkHeight);
@@ -147,18 +169,21 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
 
         final long leafCount = lastLeafPath - firstLeafPath + 1;
 
+        // Include indexMismatchCount in the overall OK check
         final boolean ok = successCount.get() == leafCount
                 && pathMismatchCount.get() == 0
                 && valueErrorCount.get() == 0
                 && hashMismatchCount.get() == 0
+                && indexMismatchCount.get() == 0
                 && exceptionCount.get() == 0;
+
         if (!ok) {
             throw new ValidationException(
                     getName(),
                     ("%s validation failed. "
                                     + "successCount=%d vs expectedCount=%d, "
                                     + "pathMismatchCount=%d, valueErrorCount=%d, hashMismatchCount=%d, "
-                                    + "exceptionCount=%d, successCount=%d")
+                                    + "indexMismatchCount=%d, exceptionCount=%d")
                             .formatted(
                                     getName(),
                                     successCount.get(),
@@ -166,8 +191,8 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                                     pathMismatchCount.get(),
                                     valueErrorCount.get(),
                                     hashMismatchCount.get(),
-                                    exceptionCount.get(),
-                                    successCount.get()));
+                                    indexMismatchCount.get(),
+                                    exceptionCount.get()));
         }
     }
 
