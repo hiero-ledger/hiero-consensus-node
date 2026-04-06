@@ -253,8 +253,8 @@ class EnhancedKeyStoreLoaderTest {
     @Test
     @DisplayName("Mismatched signing key and cert logs a WARN during verify")
     void mismatchedSigningKeyAndCertLogsWarn()
-            throws IOException, KeyLoadingException, KeyStoreException,
-                   NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
+            throws IOException, KeyLoadingException, KeyStoreException, NoSuchAlgorithmException,
+                    NoSuchProviderException, KeyGeneratingException {
         final Path keyDirectory = testDataDirectory.resolve("mismatch-keys");
         Files.createDirectories(keyDirectory);
         final NodeId nodeId = NodeId.of(0);
@@ -298,8 +298,8 @@ class EnhancedKeyStoreLoaderTest {
     @Test
     @DisplayName("Matching signing key and cert does not log a WARN during verify")
     void matchingSigningKeyAndCertNoWarnLogged()
-            throws IOException, KeyLoadingException, KeyStoreException,
-                   NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
+            throws IOException, KeyLoadingException, KeyStoreException, NoSuchAlgorithmException,
+                    NoSuchProviderException, KeyGeneratingException {
         final Path keyDirectory = testDataDirectory.resolve("matching-keys");
         Files.createDirectories(keyDirectory);
         final NodeId nodeId = NodeId.of(0);
@@ -310,11 +310,10 @@ class EnhancedKeyStoreLoaderTest {
                 keysAndCerts.sigKeyPair().getPrivate().getEncoded());
 
         // Roster entry uses the cert that MATCHES the private key above.
-        final List<RosterEntry> rosterEntries = List.of(
-                RandomRosterEntryBuilder.create(new Random(42))
-                        .withNodeId(0L)
-                        .withSigCert(keysAndCerts.sigCert())
-                        .build());
+        final List<RosterEntry> rosterEntries = List.of(RandomRosterEntryBuilder.create(new Random(42))
+                .withNodeId(0L)
+                .withSigCert(keysAndCerts.sigCert())
+                .build());
 
         final EnhancedKeyStoreLoader loader =
                 EnhancedKeyStoreLoader.using(configure(keyDirectory), Set.of(nodeId), rosterEntries);

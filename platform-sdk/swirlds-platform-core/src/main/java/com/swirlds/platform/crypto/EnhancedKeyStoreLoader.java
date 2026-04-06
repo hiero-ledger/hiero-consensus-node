@@ -40,8 +40,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HexFormat;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -728,17 +728,16 @@ public class EnhancedKeyStoreLoader {
 
         try {
             // RSAPrivateCrtKey contains the public exponent, allowing us to reconstruct the public key.
-            final RSAPublicKeySpec pubSpec =
-                    new RSAPublicKeySpec(rsaKey.getModulus(), rsaKey.getPublicExponent());
-            final KeyFactory kf =
-                    KeyFactory.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
+            final RSAPublicKeySpec pubSpec = new RSAPublicKeySpec(rsaKey.getModulus(), rsaKey.getPublicExponent());
+            final KeyFactory kf = KeyFactory.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
             final PublicKey derivedPublicKey = kf.generatePublic(pubSpec);
 
             // Compare DER-encoded SubjectPublicKeyInfo bytes rather than using PublicKey.equals().
             // equals() is not specified by the JCA contract and can return false for mathematically
             // identical keys when the derived key (BouncyCastle provider) and the cert's key
             // (JDK SunRsaSign provider) are from different providers.
-            if (!Arrays.equals(derivedPublicKey.getEncoded(), cert.getPublicKey().getEncoded())) {
+            if (!Arrays.equals(
+                    derivedPublicKey.getEncoded(), cert.getPublicKey().getEncoded())) {
                 logger.warn(
                         STARTUP.getMarker(),
                         "Signing private key does not match certificate public key for nodeId {} "
@@ -757,8 +756,10 @@ public class EnhancedKeyStoreLoader {
                 // InvalidKeySpecException: kf.generatePublic() if the private key's CRT params are corrupt
                 // RuntimeException: cert.getPublicKey() declares no checked throws but can throw
                 //   unchecked on malformed certs
-                final NoSuchAlgorithmException | NoSuchProviderException | InvalidKeySpecException
-                        | RuntimeException e) {
+                final NoSuchAlgorithmException
+                | NoSuchProviderException
+                | InvalidKeySpecException
+                | RuntimeException e) {
             logger.warn(
                     STARTUP.getMarker(),
                     "Unable to verify signing key/cert correspondence for nodeId {} [ purpose = {} ]",
@@ -822,7 +823,8 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     private static String fingerprint(@NonNull final byte[] encoded) throws NoSuchAlgorithmException {
-        final byte[] digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(encoded);
+        final byte[] digest =
+                MessageDigest.getInstance(DigestType.SHA_384.algorithmName()).digest(encoded);
         return HexFormat.ofDelimiter(":").withUpperCase().formatHex(digest);
     }
 
