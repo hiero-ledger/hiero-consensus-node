@@ -206,19 +206,18 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      *
      * <p>Performs a volatile write of the long at the given sub-index within the chunk.
      *
-     * <p>If the chunk's arena has been closed by a concurrent {@link #closeChunk} call,
-     * the write is silently dropped. This is safe because the chunk has already been
-     * removed from {@code chunkList} — the index is outside the valid range, and
-     * {@code AbstractLongList#putImpl} assertions (when enabled) would have caught
-     * the out-of-range access before reaching this point.
+     * <p>Unlike {@link #lookupInChunk} and {@link #putIfEqual}, this method does
+     * <b>not</b> catch {@link IllegalStateException} from a closed arena. In production,
+     * {@code put()} and {@code updateValidRange()} are always called sequentially on the
+     * same thread (e.g. within {@code writeLeavesToPathToKeyValue} or {@code writeHashes}),
+     * so the arena cannot be closed between {@code createOrGetChunk} and this call. If an
+     * {@code IllegalStateException} occurs here, it indicates a bug in higher-level
+     * coordination (e.g. a concurrent {@code close()} during flush) and must not be
+     * silently swallowed — a lost write is silent data corruption.
      */
     @Override
-    protected void putToChunk(@NonNull final SegmentChunk chunk, final int subIndex, final long value) {
-        try {
-            LONG_HANDLE.setVolatile(chunk.segment(), (long) subIndex * Long.BYTES, value);
-        } catch (final IllegalStateException e) {
-            // Arena was closed concurrently — chunk is outside the valid range, drop the write
-        }
+    protected void putToChunk(final SegmentChunk chunk, final int subIndex, final long value) {
+        LONG_HANDLE.setVolatile(chunk.segment(), (long) subIndex * Long.BYTES, value);
     }
 
     /**

@@ -447,10 +447,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     @Override
     public long getOffHeapConsumption() {
-        if (bucketIndexToBucketLocation instanceof LongListSegment offheapIndex) {
-            return offheapIndex.getOffHeapConsumption();
-        }
-        return 0;
+        return bucketIndexToBucketLocation.getOffHeapConsumption();
     }
 
     /**
