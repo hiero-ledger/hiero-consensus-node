@@ -73,8 +73,7 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
                 // try the bodyBytes(). Even though it is deprecated some tests and
                 // transactions still use it.
                 if (signedBytes.length() == 0) {
-                    final var bytes = transaction.bodyBytes();
-                    this.body = TransactionBody.PROTOBUF.parse(bytes);
+                    this.body = TransactionBody.PROTOBUF.parse(transaction.bodyBytes());
                     if (transaction.hasSigMap()) {
                         var sigmap = transaction.sigMap();
                         numTxnSignatures = sigmap.sigPair().size();
@@ -83,7 +82,7 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
                     }
                 } else {
                     final var signedTransaction =
-                            SignedTransaction.PROTOBUF.parse(BufferedData.wrap(signedBytes.toByteArray()));
+                            SignedTransaction.PROTOBUF.parse(transaction.signedTransactionBytes());
                     this.body = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
                     numTxnSignatures = signedTransaction
                             .sigMapOrElse(SignatureMap.DEFAULT)
