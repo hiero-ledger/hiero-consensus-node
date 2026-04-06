@@ -220,12 +220,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
     @Override
     protected boolean putIfEqual(
             @NonNull final SegmentChunk chunk, final int subIndex, final long oldValue, final long newValue) {
-        try {
-            return LONG_HANDLE.compareAndSet(chunk.segment(), (long) subIndex * Long.BYTES, oldValue, newValue);
-        } catch (final IllegalStateException e) {
-            // Arena was closed concurrently — chunk is outside the valid range
-            return false;
-        }
+        return LONG_HANDLE.compareAndSet(chunk.segment(), (long) subIndex * Long.BYTES, oldValue, newValue);
     }
 
     // =========================================================================
@@ -281,8 +276,6 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         // Get a ByteBuffer view of the segment — backed by the same native memory, no copy
         final ByteBuffer buf = chunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
         readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, buf);
-        // Reset position/limit — segment access is always by absolute offset
-        buf.clear();
         return chunk;
     }
 
