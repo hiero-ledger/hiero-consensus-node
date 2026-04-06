@@ -42,7 +42,7 @@ public final class GaugeAdapter<M> extends SettableMetric<Supplier<M>, M> {
 
     /**
      * Create a metric key for a {@link GaugeAdapter} with the given name.<br>
-     * Name must match {@value org.hiero.metrics.core.MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value org.hiero.metrics.core.MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the name of the metric
      * @param <M>  the type of the measurement data
