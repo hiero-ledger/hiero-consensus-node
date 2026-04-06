@@ -30,7 +30,7 @@ jobs:
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-java: "true"
           java-version: "25"
-          java-distribution: "$temurin"
+          java-distribution: "temurin"
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
