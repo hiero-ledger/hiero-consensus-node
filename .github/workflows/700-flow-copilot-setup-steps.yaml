@@ -14,7 +14,7 @@ on:
       - .github/workflows/700-flow-copilot-setup-steps.yaml
 
 permissions:
-  content: read
+  contents: read
 
 jobs:
   copilot-setup-steps:
