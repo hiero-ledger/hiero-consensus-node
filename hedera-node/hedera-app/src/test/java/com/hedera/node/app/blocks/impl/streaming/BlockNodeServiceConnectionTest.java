@@ -452,7 +452,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
                 .when(client)
                 .serverStatus(any(ServerStatusRequest.class), any(ServiceInterface.RequestOptions.class));
 
-        final ServerStatusResponse actualResponse = new GetBlockNodeStatusTask(client).call();
+        final ServerStatusResponse actualResponse = connection.new GetBlockNodeStatusTask(client).call();
 
         assertThat(actualResponse).isEqualTo(expectedResponse);
 
@@ -465,7 +465,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testGetBlockNodeStatusTask_nullClient() {
-        assertThatThrownBy(() -> new GetBlockNodeStatusTask(null))
+        assertThatThrownBy(() -> connection.new GetBlockNodeStatusTask(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("client is required");
     }

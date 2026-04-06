@@ -60,6 +60,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         }
     }
 
+    private static final long NODE_ID = 0L;
     private static final int COOL_DOWN_SECONDS = 15;
 
     private ConfigProvider configProvider;
@@ -111,7 +112,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testWriteInformation_withHistory() {
-        final ConnectionId conn1Id = new ConnectionId(ConnectionType.BLOCK_STREAMING, 1);
+        final ConnectionId conn1Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
         final ConnectionHistory conn1 = new ConnectionHistory(
                 conn1Id,
                 Instant.parse("2026-04-02T10:00:00.000Z"),
@@ -119,7 +120,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
                 Instant.parse("2026-04-02T10:00:05.000Z"),
                 CloseReason.CONFIG_UPDATE,
                 10);
-        final ConnectionId conn2Id = new ConnectionId(ConnectionType.BLOCK_STREAMING, 2);
+        final ConnectionId conn2Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2);
         final ConnectionHistory conn2 = new ConnectionHistory(
                 conn2Id,
                 Instant.parse("2026-04-02T11:00:00.000Z"),
@@ -127,7 +128,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
                 Instant.parse("2026-04-02T11:00:05.000Z"),
                 CloseReason.CONNECTION_STALLED,
                 2);
-        final ConnectionId conn3Id = new ConnectionId(ConnectionType.BLOCK_STREAMING, 3);
+        final ConnectionId conn3Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 3);
         final ConnectionHistory conn3 = new ConnectionHistory(
                 conn3Id,
                 Instant.parse("2026-04-02T12:00:00.000Z"),
@@ -145,9 +146,9 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         final String expectedOutput = """
                 Block Node (host: localhost, port: 1234, priority: 1, isStreamingCandidate: false, coolDownTimestamp: 2026-04-02T18:00:15Z, activeConnections: 1)
                   Connection History
-                    STR.000003 => created: 2026-04-02T12:00:00Z, activated: 2026-04-02T12:00:01Z, closed: -, duration: -, closeReason: -, blocksSent: -
-                    STR.000002 => created: 2026-04-02T11:00:00Z, activated: 2026-04-02T11:00:01Z, closed: 2026-04-02T11:00:05Z, duration: PT4S, closeReason: CONNECTION_STALLED, blocksSent: 2
-                    STR.000001 => created: 2026-04-02T10:00:00Z, activated: 2026-04-02T10:00:01Z, closed: 2026-04-02T10:00:05Z, duration: PT4S, closeReason: CONFIG_UPDATE, blocksSent: 10""";
+                    N0-STR3 => created: 2026-04-02T12:00:00Z, activated: 2026-04-02T12:00:01Z, closed: -, duration: -, closeReason: -, blocksSent: -
+                    N0-STR2 => created: 2026-04-02T11:00:00Z, activated: 2026-04-02T11:00:01Z, closed: 2026-04-02T11:00:05Z, duration: PT4S, closeReason: CONNECTION_STALLED, blocksSent: 2
+                    N0-STR1 => created: 2026-04-02T10:00:00Z, activated: 2026-04-02T10:00:01Z, closed: 2026-04-02T10:00:05Z, duration: PT4S, closeReason: CONFIG_UPDATE, blocksSent: 10""";
 
         final StringBuilder sb = new StringBuilder();
         node.writeInformation(sb);
@@ -171,11 +172,13 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
         final BlockNodeStreamingConnection newConnection = mock(BlockNodeStreamingConnection.class);
         when(newConnection.configuration()).thenReturn(configuration);
-        when(newConnection.connectionId()).thenReturn(new ConnectionId(ConnectionType.BLOCK_STREAMING, 2));
+        when(newConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2));
 
         node.onActive(newConnection);
 
-        assertThat(connectionHistories()).hasSize(1).containsKey(new ConnectionId(ConnectionType.BLOCK_STREAMING, 2));
+        assertThat(connectionHistories())
+                .hasSize(1)
+                .containsKey(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2));
         assertThat(globalActiveStreamConnectionCount).hasValue(2);
         assertThat(localActiveStreamingConnectionCount()).hasValue(2);
         assertThat(activeStreamingConnectionRef()).doesNotHaveNullValue().hasValue(newConnection);
@@ -189,19 +192,19 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     void testOnActive_maxHistoryEntries() {
         // add 5 entries to the history map so when the next onActive happens, the oldest will be removed
         final Instant now = Instant.now();
-        final ConnectionId conn1Id = new ConnectionId(ConnectionType.BLOCK_STREAMING, 1);
+        final ConnectionId conn1Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
         final ConnectionHistory conn1History =
                 new ConnectionHistory(conn1Id, now.minusSeconds(30), null, null, null, null);
-        final ConnectionId conn2Id = new ConnectionId(ConnectionType.BLOCK_STREAMING, 2);
+        final ConnectionId conn2Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2);
         final ConnectionHistory conn2History =
                 new ConnectionHistory(conn2Id, now.minusSeconds(25), null, null, null, null);
-        final ConnectionId conn3Id = new ConnectionId(ConnectionType.BLOCK_STREAMING, 3);
+        final ConnectionId conn3Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 3);
         final ConnectionHistory conn3History =
                 new ConnectionHistory(conn3Id, now.minusSeconds(20), null, null, null, null);
-        final ConnectionId conn4Id = new ConnectionId(ConnectionType.BLOCK_STREAMING, 4);
+        final ConnectionId conn4Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 4);
         final ConnectionHistory conn4History =
                 new ConnectionHistory(conn4Id, now.minusSeconds(15), null, null, null, null);
-        final ConnectionId conn5Id = new ConnectionId(ConnectionType.BLOCK_STREAMING, 5);
+        final ConnectionId conn5Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 5);
         final ConnectionHistory conn5History =
                 new ConnectionHistory(conn5Id, now.minusSeconds(10), null, null, null, null);
 
@@ -211,7 +214,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         connectionHistories().put(conn4Id, conn4History);
         connectionHistories().put(conn5Id, conn5History);
 
-        final ConnectionId conn6Id = new ConnectionId(ConnectionType.BLOCK_STREAMING, 6);
+        final ConnectionId conn6Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 6);
         final BlockNodeStreamingConnection newConnection = mock(BlockNodeStreamingConnection.class);
         when(newConnection.createTimestamp()).thenReturn(now);
         when(newConnection.configuration()).thenReturn(configuration);
@@ -236,7 +239,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         // don't create a history entry for the connection
         final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
         when(connection.configuration()).thenReturn(configuration);
-        when(connection.connectionId()).thenReturn(new ConnectionId(ConnectionType.BLOCK_STREAMING, 134));
+        when(connection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 134));
 
         node.onClose(connection);
 
@@ -252,7 +255,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     void testOnClose_noCloseReason() {
         localActiveStreamingConnectionCount().set(1);
         globalActiveStreamConnectionCount.set(1);
-        final ConnectionId connectionId = new ConnectionId(ConnectionType.BLOCK_STREAMING, 110);
+        final ConnectionId connectionId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 110);
         final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(connectionId);
@@ -286,7 +289,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     void testOnClose_coolDownRequired() {
         localActiveStreamingConnectionCount().set(1);
         globalActiveStreamConnectionCount.set(1);
-        final ConnectionId connectionId = new ConnectionId(ConnectionType.BLOCK_STREAMING, 110);
+        final ConnectionId connectionId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 110);
         final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(connectionId);

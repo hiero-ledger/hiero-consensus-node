@@ -122,8 +122,8 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
             final long clientId = clientCtr.incrementAndGet();
             logger.debug("{} Creating new client (clientId: {})", BlockNodeServiceConnection.this, clientId);
-            final BlockNodeServiceClient client =
-                    clientFactory.createServiceClient(configuration(), timeout, connectionId());
+            final BlockNodeServiceClient client = clientFactory.createServiceClient(
+                    configuration(), timeout, connectionId().toString());
             if (clientRef.compareAndSet(null, new BlockNodeServiceConnection.ServiceClientHolder(clientId, client))) {
                 // unlike the streaming connection, these connections don't really have an intermediate state between
                 // UNINITIALIZED and ACTIVE, so just set the state to ACTIVE
@@ -235,7 +235,6 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
 
         final long startMillis = System.currentTimeMillis();
-        final String correlationId = connectionId();
         Future<ServerStatusResponse> future = null;
         final ServerStatusResponse response;
         final long durationMillis;
@@ -266,7 +265,6 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         logger.debug(
                 "{} Received the following block node server status: lastAvailableBlock={} (latency: {}ms)",
                 this,
-                correlationId,
                 response.lastAvailableBlock(),
                 durationMillis);
 
@@ -276,7 +274,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
     /**
      * Task to get the server status.
      */
-    static class GetBlockNodeStatusTask implements Callable<ServerStatusResponse> {
+    class GetBlockNodeStatusTask implements Callable<ServerStatusResponse> {
 
         /**
          * The client to use
@@ -287,7 +285,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         GetBlockNodeStatusTask(@NonNull final BlockNodeServiceClient client) {
             this.client = requireNonNull(client, "client is required");
-            this.correlationId = connectionId();
+            this.correlationId = connectionId().toString();
         }
 
         @Override
