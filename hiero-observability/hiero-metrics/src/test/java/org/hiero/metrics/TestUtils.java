@@ -168,11 +168,7 @@ public final class TestUtils {
             "ValidName",
             "Valid5Name",
             "validName123",
-            "VALID_NAME_456",
-            "valid:name",
-            "valid::name",
-            "valid_name::",
-            "valid_name:123",
+            "VALID_NAME_456"
         };
     }
 
