@@ -1,3 +1,3 @@
 # Instructions for GitHub Copilot
 
-Read all instructions from `./ai/instructions.md`
+Read all instructions from `.github/ai/instructions.md`
