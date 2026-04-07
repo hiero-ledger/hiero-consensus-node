@@ -625,14 +625,10 @@ jobs:
           SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS run cancelled (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
         run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_summary.json
 
-
-
-
-
-
-
-
-
+      # Notification routing:
+      #   test failures       -> citr-operations (detailed)
+      #   infrastructure      -> citr-operations (summary) + citr-failures (detailed)
+      #   canceled            -> citr-operations (summary) + citr-failures (summary)
       - name: Notify test failure detailed (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
