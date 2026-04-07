@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -33,7 +31,6 @@ import org.junit.jupiter.params.provider.EnumSource;
 class MemoryIndexDiskKeyValueStoreTest {
 
     /** Temporary directory provided by JUnit */
-    @SuppressWarnings("unused")
     @TempDir
     Path testDirectory;
 
@@ -127,8 +124,8 @@ class MemoryIndexDiskKeyValueStoreTest {
             store.put(
                     i,
                     o -> {
-                        for (int k = 0; k < dataValue.length; k++) {
-                            o.writeLong(dataValue[k]);
+                        for (long val : dataValue) {
+                            o.writeLong(val);
                         }
                     },
                     dataValue.length * Long.BYTES);
@@ -157,13 +154,7 @@ class MemoryIndexDiskKeyValueStoreTest {
         future.get(10, TimeUnit.MINUTES);
         executorService.shutdown();
         // check all memory is freed after DB is closed
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
     }
 
     void createDataAndCheckImpl(final FilesTestType testType) throws Exception {
@@ -290,7 +281,5 @@ class MemoryIndexDiskKeyValueStoreTest {
         // clean up and delete files
         store.close();
         index.close();
-        deleteDirectoryAndContents(tempDir);
-        deleteDirectoryAndContents(tempSnapshotDir);
     }
 }

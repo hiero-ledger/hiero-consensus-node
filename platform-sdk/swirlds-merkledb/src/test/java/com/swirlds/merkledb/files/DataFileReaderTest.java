@@ -5,12 +5,14 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class DataFileReaderTest {
 
@@ -18,19 +20,17 @@ class DataFileReaderTest {
 
     private final DataFileMetadata dataFileMetadata = new DataFileMetadata(0, Instant.now(), 0, 0);
 
-    private File file;
     private DataFileReader dataFileReader;
 
     @BeforeEach
-    void setUp() throws IOException {
-        file = File.createTempFile("file-reader", "test");
-        dataFileReader = new DataFileReader(dbConfig, file.toPath(), dataFileMetadata);
+    void setUp(@TempDir Path tmpDir) throws IOException {
+        Path readerFile = Files.createFile(tmpDir.resolve("file-reader"));
+        dataFileReader = new DataFileReader(dbConfig, readerFile, dataFileMetadata);
     }
 
     @AfterEach
     public void tearDown() throws IOException {
         dataFileReader.close();
-        file.deleteOnExit();
     }
 
     @Test

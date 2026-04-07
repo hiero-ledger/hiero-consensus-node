@@ -25,8 +25,8 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         RANDOM.nextBytes(RANDOM_DATA);
     }
 
-    private int id;
-    private byte[] data;
+    private final int id;
+    private final byte[] data;
 
     public static Bytes intToValue(final int v) {
         return intToValue(v, RANDOM_DATA, 0, 256 + (v % 768));

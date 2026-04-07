@@ -30,6 +30,16 @@ class LongListValidRangeTest {
     public static final int MAX_LONGS = 1000;
     private AbstractLongList<?> list;
 
+    @AfterEach
+    public void cleanUp() {
+        if (list != null) {
+            list.close();
+            if (list instanceof LongListDisk) {
+                ((LongListDisk) list).resetTransferBuffer();
+            }
+        }
+    }
+
     @Tag(TestComponentTags.VMAP)
     @ParameterizedTest
     @MethodSource("defaultLongListProvider")
@@ -767,15 +777,5 @@ class LongListValidRangeTest {
 
     private long maxValidIndex() {
         return list.getMaxValidIndex();
-    }
-
-    @AfterEach
-    public void cleanUp() {
-        if (list != null) {
-            list.close();
-            if (list instanceof LongListDisk) {
-                ((LongListDisk) list).resetTransferBuffer();
-            }
-        }
     }
 }

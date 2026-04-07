@@ -3,6 +3,7 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -512,12 +513,12 @@ class LongListDiskConcurrentChunkRecyclingTest {
 
         // Wrong expected → no change
         boolean changed = list.putIfEqual(42, 999, 200);
-        assertEquals(false, changed);
+        assertFalse(changed);
         assertEquals(100, list.get(42, 0));
 
         // Correct expected → swap
         changed = list.putIfEqual(42, 100, 200);
-        assertEquals(true, changed);
+        assertTrue(changed);
         assertEquals(200, list.get(42, 0));
     }
 }

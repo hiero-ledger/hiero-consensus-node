@@ -8,7 +8,6 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.TestType.long_fixed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -22,31 +21,27 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class MerkleDbDataSourceMetricsTest {
 
     public static final String TABLE_NAME = "test";
     // default number of longs per chunk
     private static final int COUNT = 1_048_576;
-    private static Path testDirectory;
+
+    private Path testDirectory;
     private MerkleDbDataSource dataSource;
     private Metrics metrics;
 
-    @BeforeAll
-    static void setup() throws Exception {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
-                "MerkleDbDataSourceMetricsTest", MerkleDbTestUtils.CONFIGURATION);
-    }
-
     @BeforeEach
-    public void beforeEach() throws IOException {
+    public void beforeEach(@TempDir Path tmpDir) throws IOException {
         // check db count
         MerkleDbTestUtils.assertAllDatabasesClosed();
         // create db
+        testDirectory = tmpDir.resolve("MerkleDbDataSourceMetricsTest");
         dataSource = createDataSource(testDirectory, TABLE_NAME, long_fixed, COUNT * 10);
 
         metrics = createMetrics();
@@ -54,6 +49,17 @@ class MerkleDbDataSourceMetricsTest {
 
         // check db count
         MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
+    }
+
+    @AfterEach
+    public void afterEach() throws IOException {
+        dataSource.close();
+        MerkleDbTestUtils.assertAllDatabasesClosed();
+        // check the database was deleted
+        assertEventuallyFalse(
+                () -> Files.exists(testDirectory.resolve(TABLE_NAME)),
+                Duration.ofSeconds(1),
+                "Database should have been deleted by closeAndDelete()");
     }
 
     @Tag(TestComponentTags.VMAP)
@@ -149,17 +155,6 @@ class MerkleDbDataSourceMetricsTest {
         assertMetricValue("ds_offheap_objectKeyBucketsIndexMb_" + TABLE_NAME, 8);
         assertMetricValue("ds_offheap_dataSourceMb_" + TABLE_NAME, 16);
         assertNoMemoryForInternalList();
-    }
-
-    @AfterEach
-    public void afterEach() throws IOException {
-        dataSource.close();
-        MerkleDbTestUtils.assertAllDatabasesClosed();
-        // check the database was deleted
-        assertEventuallyFalse(
-                () -> Files.exists(testDirectory.resolve(TABLE_NAME)),
-                Duration.ofSeconds(1),
-                "Database should have been deleted by closeAndDelete()");
     }
 
     // =================================================================================================================

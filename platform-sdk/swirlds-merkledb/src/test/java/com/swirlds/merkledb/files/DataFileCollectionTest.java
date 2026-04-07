@@ -19,7 +19,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.test.fixtures.logging.MockAppender;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
@@ -62,14 +61,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mockito;
 
-@SuppressWarnings("SameParameterValue")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DataFileCollectionTest {
 
     private static final MerkleDbConfig MERKLE_DB_CONFIG = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
     /** Temporary directory provided by JUnit */
-    @SuppressWarnings("unused")
     @TempDir
     static Path tempFileDir;
 
@@ -776,13 +773,7 @@ class DataFileCollectionTest {
     @AfterEach
     void checkDirectMemoryUsage() {
         // check all memory is freed after DB is closed
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
     }
 
     private static class LoadedDataCallbackImpl implements DataFileCollection.LoadedDataCallback {

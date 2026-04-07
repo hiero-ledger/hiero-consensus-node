@@ -5,11 +5,9 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChu
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -19,24 +17,22 @@ import org.junit.jupiter.api.io.TempDir;
 
 class DataSourceValidatorTest {
 
-    @TempDir
-    private Path tempDir;
-
     private int count;
 
     @BeforeEach
     public void setUp() throws IOException {
         count = 10_000;
         MerkleDbTestUtils.assertAllDatabasesClosed();
-        if (Files.exists(tempDir)) {
-            FileUtils.deleteDirectory(tempDir);
-        }
     }
 
     @Test
-    void testValidateValidDataSource() throws IOException {
+    void testValidateValidDataSource(@TempDir Path tempDir) throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, dataSource -> {
+                tempDir.resolve("store"),
+                "createAndCheckInternalNodeHashes",
+                TestType.long_fixed,
+                count,
+                dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
 
@@ -57,9 +53,13 @@ class DataSourceValidatorTest {
     }
 
     @Test
-    void testValidateInvalidDataSource() throws IOException {
+    void testValidateInvalidDataSource(@TempDir Path tempDir) throws IOException {
         MerkleDbDataSourceTest.createAndApplyDataSource(
-                tempDir, "createAndCheckInternalNodeHashes", TestType.long_fixed, count, dataSource -> {
+                tempDir.resolve("store"),
+                "createAndCheckInternalNodeHashes",
+                TestType.long_fixed,
+                count,
+                dataSource -> {
                     // check db count
                     MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
                     final var validator = new DataSourceValidator(dataSource);

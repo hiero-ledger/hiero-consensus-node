@@ -51,7 +51,6 @@ class CompactionInterruptTest {
     /**
      * Temporary directory provided by JUnit
      */
-    @SuppressWarnings("unused")
     @TempDir
     Path tmpFileDir;
 
