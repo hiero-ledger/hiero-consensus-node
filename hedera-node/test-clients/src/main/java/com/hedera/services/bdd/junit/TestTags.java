@@ -59,4 +59,6 @@ public class TestTags {
      * typically because it is state-changing or requires isolation from other tests.
      */
     public static final String SERIAL = "SERIAL";
+
+    public static final String MATS = "MATS";
 }
