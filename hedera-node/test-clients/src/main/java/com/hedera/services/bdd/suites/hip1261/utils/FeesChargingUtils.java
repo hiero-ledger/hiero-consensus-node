@@ -1235,6 +1235,8 @@ public class FeesChargingUtils {
         return expectedGetTopicInfoFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
     public static double expectedTopicSubmitMessageServiceOnly(long messageBytes, boolean includesCustomFee) {
         double serviceFee = 0;
         if (includesCustomFee) {
