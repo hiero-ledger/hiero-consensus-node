@@ -2,7 +2,9 @@
 package com.hedera.statevalidation.validator;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.statevalidation.util.ConfigUtils.NET_NAME;
 import static com.hedera.statevalidation.validator.EntityIdUniquenessValidator.ENTITY_ID_GROUP;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.StateKey;
@@ -106,22 +108,42 @@ public class EntityIdCountValidator implements LeafBytesValidator {
             throw new ValidationException(getName(), "Expected non-null value but was null");
         }
 
-        final boolean ok = entityCounts.numAccounts() == accountCount.get()
-                && entityCounts.numAliases() == aliasesCount.get()
-                && entityCounts.numTokens() == tokenCount.get()
-                && entityCounts.numTokenRelations() == tokenRelCount.get()
-                && entityCounts.numNfts() == nftsCount.get()
-                && entityCounts.numAirdrops() == airdropsCount.get()
-                && entityCounts.numStakingInfos() == stakingInfoCount.get()
-                && entityCounts.numTopics() == topicCount.get()
-                && entityCounts.numFiles() == fileCount.get()
-                && entityCounts.numNodes() == nodesCount.get()
-                //      To be investigated - https://github.com/hiero-ledger/hiero-consensus-node/issues/20993
-                //      && entityCounts.numSchedules() == scheduleCount.get()
-                //      && entityCounts.numContractStorageSlots() == contractStorageCount.get()
-                && entityCounts.numContractBytecodes() == contractBytecodeCount.get()
-                && entityCounts.numHooks() == hookCount.get()
-                && entityCounts.numEvmHookStorageSlots() == evmHookStorageCount.get();
+        final boolean ok;
+        if(!NET_NAME.equals("Mainnet")) {
+            ok = entityCounts.numAccounts() == accountCount.get()
+                    && entityCounts.numAliases() == aliasesCount.get()
+                    && entityCounts.numTokens() == tokenCount.get()
+                    && entityCounts.numTokenRelations() == tokenRelCount.get()
+                    && entityCounts.numNfts() == nftsCount.get()
+                    && entityCounts.numAirdrops() == airdropsCount.get()
+                    && entityCounts.numStakingInfos() == stakingInfoCount.get()
+                    && entityCounts.numTopics() == topicCount.get()
+                    && entityCounts.numFiles() == fileCount.get()
+                    && entityCounts.numNodes() == nodesCount.get()
+                    //      To be investigated - https://github.com/hiero-ledger/hiero-consensus-node/issues/20993
+                    //      && entityCounts.numSchedules() == scheduleCount.get()
+                    //      && entityCounts.numContractStorageSlots() == contractStorageCount.get()
+                    && entityCounts.numContractBytecodes() == contractBytecodeCount.get()
+                    && entityCounts.numHooks() == hookCount.get()
+                    && entityCounts.numEvmHookStorageSlots() == evmHookStorageCount.get();
+        } else {
+            // PreviewNet and TestNet have numEvmHookStorageSlots count validation disabled
+            // See https://github.com/hiero-ledger/hiero-consensus-node/issues/24802
+            ok = entityCounts.numAccounts() == accountCount.get()
+                    && entityCounts.numAliases() == aliasesCount.get()
+                    && entityCounts.numTokens() == tokenCount.get()
+                    && entityCounts.numTokenRelations() == tokenRelCount.get()
+                    && entityCounts.numNfts() == nftsCount.get()
+                    && entityCounts.numAirdrops() == airdropsCount.get()
+                    && entityCounts.numStakingInfos() == stakingInfoCount.get()
+                    && entityCounts.numTopics() == topicCount.get()
+                    && entityCounts.numFiles() == fileCount.get()
+                    && entityCounts.numNodes() == nodesCount.get()
+                    && entityCounts.numContractBytecodes() == contractBytecodeCount.get()
+                    && entityCounts.numHooks() == hookCount.get();
+        }
+
+
 
         if (!ok) {
             throw new ValidationException(
