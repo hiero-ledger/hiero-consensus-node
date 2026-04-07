@@ -75,6 +75,7 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.util.ThrottledLogging;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
@@ -181,6 +182,10 @@ public class HandleWorkflow {
     private final NodeFeeManager nodeFeeManager;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
+    // Flag to indicate whether jumpstart hash voting setup has already been attempted
+    private boolean jumpstartHashVotingSetupDone;
+
+    private final ThrottledLogging tssReconcileFailureLogging = new ThrottledLogging();
 
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
@@ -324,6 +329,19 @@ public class HandleWorkflow {
             }
         }
 
+        if (!jumpstartHashVotingSetupDone) {
+            final var deadline = systemTransactions.maybeSetupJumpstartHashVoting(state, this::doStreamingAllChanges);
+            if (deadline.isPresent()) {
+                blockRecordManager.syncVotingMetadata(false, deadline.getAsLong());
+                logger.info(
+                        "Jumpstart hash voting initialized with deadline {}",
+                        deadline.stream().mapToObj(Long::toString));
+            } else {
+                logger.info("Skipping jumpstart hash voting setup");
+            }
+            jumpstartHashVotingSetupDone = true;
+        }
+
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
         // ensure we don't do this in the same round as externalizing migration state changes to
         // avoid complicated edge cases in setting consensus times for block items
@@ -356,8 +374,9 @@ public class HandleWorkflow {
             configureTssCallbacks(state, setLedgerIdContext);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());
+                resetTssReconcileFailureSuppression();
             } catch (Exception e) {
-                logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+                logTssReconcileFailure(e);
             }
         }
         final var lastUsedConsTime = blockHashSigner.isReady()
@@ -1230,6 +1249,17 @@ public class HandleWorkflow {
             logStartUserTransactionPreHandleResultP2(parentTxn.preHandleResult());
             logStartUserTransactionPreHandleResultP3(parentTxn.preHandleResult());
         }
+    }
+
+    private void logTssReconcileFailure(@NonNull final Exception e) {
+        if (!tssReconcileFailureLogging.shouldLog(e)) {
+            return;
+        }
+        logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+    }
+
+    private void resetTssReconcileFailureSuppression() {
+        tssReconcileFailureLogging.reset();
     }
 
     /**

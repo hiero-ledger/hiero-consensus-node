@@ -13,6 +13,7 @@ defaults:
 permissions:
   id-token: write
   actions: read
+  issues: write
   pull-requests: write
   statuses: write
   checks: write
@@ -94,6 +95,209 @@ jobs:
             "dry-run-enabled": false
             }'
 
+  report-flaky-tests:
+    name: Report Flaky Tests
+    needs:
+      - mats-tests
+    if: ${{ !cancelled() && always() }}
+    uses: ./.github/workflows/800-call-report-flaky-test.yaml
+    with:
+      workflow-context: main-scheduled
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+
+  report-flaky-success:
+    name: Report Flaky Tests (Success)
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - mats-tests
+      - report-flaky-tests
+    if: ${{ needs.mats-tests.result == 'success' && needs.report-flaky-tests.outputs.flaky-count > 0 && !cancelled() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "1"
+          ref: ${{ github.sha }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Get Commit Information
+        id: fetch-commit-info
+        run: |
+          COMMIT_SHA="${{ github.sha }}"
+          echo "commit-hash=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git log -1 --pretty=format:'%an <%ae>' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git log -1 --pretty=format:'%ae' ${COMMIT_SHA})" >> "${GITHUB_OUTPUT}"
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        continue-on-error: true
+        run: |
+          SLACK_USER_ID=$(curl -s -X GET "https://slack.com/api/users.list" \
+            -H "Authorization: Bearer ${SLACK_BOT_TOKEN}" | jq -r --arg email "${EMAIL}" \
+            '.members[] | select((.profile.email // "" | ascii_downcase) == ($email | ascii_downcase)) | .name')
+
+          if [[ -z "${SLACK_USER_ID}" || "${SLACK_USER_ID}" == "null" ]]; then
+            echo "No Slack user found for email: ${EMAIL}"
+            SLACK_USER_ID="No matching slack user found"
+          else
+            echo "Found slack user for email: ${EMAIL}"
+            SLACK_USER_ID="<@${SLACK_USER_ID}>"
+          fi
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Report Summary
+        id: report-summary
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+        run: |
+          title="MATS Flaky Test Report"
+
+          FLAKY_LIST=$(echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"')
+
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "MATS tests passed but flaky tests were detected."
+            echo "Flaky Test(s):"
+            echo "${FLAKY_LIST}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Report Summary
+        run: |
+          echo "## Flaky Test Summary:" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.report-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Build Slack Payload Message
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+        run: |
+          FLAKY_LIST=""
+          while IFS= read -r line; do
+            class=$(echo "${line}" | jq -r '.class')
+            method=$(echo "${line}" | jq -r '.method')
+            issue_url=$(echo "${line}" | jq -r '.issue_url')
+            issue_number=$(echo "${line}" | jq -r '.issue_number')
+            is_new=$(echo "${line}" | jq -r '.is_new')
+            status=""
+            if [[ "${is_new}" == "true" ]]; then
+              status=" (New)"
+            fi
+            FLAKY_LIST="${FLAKY_LIST}• \`${class}#${method}\` — <${issue_url}|#${issue_number}>${status}\n"
+          done < <(echo "${FLAKY_TESTS_JSON}" | jq -c '.[]')
+
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FFA500",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":warning: Hiero Consensus Node - MATS Flaky Test Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*MATS Job Succeeded on \`main\` but flaky tests were detected.*\nThe following tests failed initially but passed on retry:"
+                    }
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "${FLAKY_LIST}"
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Slack user*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report flaky tests (slack citr-operations)
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
   # Always run on the outcome (MATS failure, Deploy CI Trigger failure, or canceled)
   # so it can classify the result into a category and send the appropriate Slack notification.
   report-status:
@@ -102,6 +306,7 @@ jobs:
     needs:
       - mats-tests
       - deploy-ci-trigger
+      - report-flaky-tests
     if: ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() }}
 
     steps:
@@ -114,7 +319,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: main
+          ref: ${{ github.sha }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Collect run logs in a log file
@@ -205,6 +410,8 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
         run: |
           title="MATS Error Report"
 
@@ -220,6 +427,11 @@ jobs:
               echo "MATS tests failed due to a ${{ needs.mats-tests.outputs.failure-mode }} error."
               echo "- Failing Test(s):"
               bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-tests.outputs.failed-tests }}"
+              echo "------------------------------------"
+            fi
+            if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
+              echo "Flaky Test(s) (failed initially but passed on retry):"
+              echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"'
               echo "------------------------------------"
             fi
             echo "Commit information:"
@@ -265,6 +477,122 @@ jobs:
           echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
           sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
 
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
+        run: |
+          FLAKY_SECTION=""
+          if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
+            FLAKY_LIST=""
+            while IFS= read -r line; do
+              class=$(echo "${line}" | jq -r '.class')
+              method=$(echo "${line}" | jq -r '.method')
+              issue_url=$(echo "${line}" | jq -r '.issue_url')
+              issue_number=$(echo "${line}" | jq -r '.issue_number')
+              is_new=$(echo "${line}" | jq -r '.is_new')
+              status=""
+              if [[ "${is_new}" == "true" ]]; then
+                status=" (New)"
+              fi
+              FLAKY_LIST="${FLAKY_LIST}• \`${class}#${method}\` — <${issue_url}|#${issue_number}>${status}\n"
+            done < <(echo "${FLAKY_TESTS_JSON}" | jq -c '.[]')
+
+            FLAKY_SECTION=',{"type":"divider"},{"type":"section","text":{"type":"mrkdwn","text":"*Flaky Tests (failed initially but passed on retry):*\n'"${FLAKY_LIST}"'"}}'
+          fi
+
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "#FF0000",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":exclamation: Hiero Consensus Node - MATS Error Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*MATS Job Resulted in failure on `main`. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*MATS Tests*: ${{ needs.mats-tests.result }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Deploy CI Triggers*: ${{ needs.deploy-ci-trigger.result }}"
+                      }
+                    ]
+                  }${FLAKY_SECTION},
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.fetch-commit-info.outputs.commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Slack user*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
         env:

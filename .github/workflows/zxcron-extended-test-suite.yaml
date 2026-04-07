@@ -20,6 +20,7 @@ on:
 permissions:
   id-token: write
   actions: write
+  issues: write
   pull-requests: write
   statuses: write
   checks: write
@@ -310,6 +311,17 @@ jobs:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
+  report-flaky-tests:
+    name: Report Flaky Tests
+    needs:
+      - xts-execution
+    if: ${{ !cancelled() && always() }}
+    uses: ./.github/workflows/800-call-report-flaky-test.yaml
+    with:
+      workflow-context: main-scheduled
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+
   tag-for-promotion:
     name: Tag as XTS-Passing
     runs-on: hl-cn-default-lin-sm
@@ -380,6 +392,7 @@ jobs:
       - fetch-xts-candidate
       - xts-execution
       - tag-for-promotion
+      - report-flaky-tests
     if: ${{ (needs.fetch-xts-candidate.result == 'success' &&
       needs.xts-execution.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
@@ -390,7 +403,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: main
-          checkout-fetch-depth: "0"
+          checkout-fetch-depth: "1"
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Install gomplate
@@ -430,6 +443,7 @@ jobs:
       - fetch-xts-candidate
       - xts-execution
       - tag-for-promotion
+      - report-flaky-tests
     if: ${{ !( needs.fetch-xts-candidate.result == 'success' &&
       needs.xts-execution.result == 'success' &&
       needs.tag-for-promotion.result == 'success') && always() }}
@@ -519,6 +533,8 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
         run: |
           title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
 
@@ -538,6 +554,11 @@ jobs:
               echo "XTS failure - ${FAILURE_MODE} error."
               echo "Failing Test(s):"
               bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.xts-execution.outputs.failed-tests }}"
+              echo "------------------------------------"
+            fi
+            if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
+              echo "Flaky Test(s) (failed initially but passed on retry):"
+              echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"'
               echo "------------------------------------"
             fi
             echo "Commit information:"
