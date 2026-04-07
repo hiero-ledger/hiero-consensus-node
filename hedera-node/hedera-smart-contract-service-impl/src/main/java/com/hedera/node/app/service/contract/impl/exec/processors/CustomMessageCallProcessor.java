@@ -29,12 +29,11 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.Account;
@@ -190,8 +189,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         return systemContracts.containsKey(context.executableCodeAddress);
     }
 
-    private void handleSystemContractCall(@NonNull final CustomMessageCallContext context,
-                                          @Nullable final OperationTracer tracer) {
+    private void handleSystemContractCall(
+            @NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
         if (context.isCodeDelegation) {
             final var recipientIsTokenOrScheduleAccount = context.contractAccount.stream()
                     .anyMatch(a -> a instanceof TokenEvmAccount || a instanceof ScheduleEvmAccount);
@@ -284,8 +283,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         return evmPrecompile != null && isPrecompileEnabled(context.executableCodeAddress, context.frame);
     }
 
-    private void handlePrecompileCall(@NonNull final CustomMessageCallContext context,
-                                      @Nullable final OperationTracer tracer) {
+    private void handlePrecompileCall(
+            @NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
         final var evmPrecompile = precompiles.get(context.executableCodeAddress);
 
         if (context.isCodeDelegation) {
@@ -333,8 +332,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         finishPrecompileExecution(context, result, PRECOMPILE);
     }
 
-    private void handleNonExtantSystemAccountCall(@NonNull final CustomMessageCallContext context,
-                                                  @Nullable final OperationTracer tracer) {
+    private void handleNonExtantSystemAccountCall(
+            @NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
         if (context.isCodeDelegation) {
             // Code delegation is a no-op - so just succeed.
             context.frame.setState(MessageFrame.State.COMPLETED_SUCCESS);
@@ -354,7 +353,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         }
     }
 
-    private void handleRegularCall(@NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
+    private void handleRegularCall(
+            @NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
         if (context.transfersValue) {
             doTransferValueOrHalt(context, tracer);
             if (alreadyHalted(context.frame)) {
@@ -412,7 +412,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         return featureFlags.isImplicitCreationEnabled();
     }
 
-    private void doTransferValueOrHalt(@NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
+    private void doTransferValueOrHalt(
+            @NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
         final var frame = context.frame;
         final var proxyWorldUpdater = (ProxyWorldUpdater) frame.getWorldUpdater();
         // Try to lazy-create the recipient address if it doesn't exist
@@ -436,13 +437,16 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     }
 
     private void doHaltOnFailedLazyCreation(
-            @NonNull final CustomMessageCallContext context, @NonNull final ExceptionalHaltReason reason,
+            @NonNull final CustomMessageCallContext context,
+            @NonNull final ExceptionalHaltReason reason,
             @Nullable final OperationTracer tracer) {
         doHalt(context, reason, tracer, ForLazyCreation.YES);
     }
 
-    private void doHalt(@NonNull final CustomMessageCallContext context, @NonNull final ExceptionalHaltReason reason,
-                        @Nullable final OperationTracer tracer) {
+    private void doHalt(
+            @NonNull final CustomMessageCallContext context,
+            @NonNull final ExceptionalHaltReason reason,
+            @Nullable final OperationTracer tracer) {
         doHalt(context, reason, tracer, ForLazyCreation.NO);
     }
 

@@ -50,7 +50,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
