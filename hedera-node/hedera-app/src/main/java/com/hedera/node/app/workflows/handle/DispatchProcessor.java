@@ -179,9 +179,11 @@ public class DispatchProcessor {
             // For EIP-7702 eth type 4 transactions we need to commit the code delegation related actions before rolling
             // back
             commitPossibleDelegationActions(dispatch, functionality);
+            final var feeCharging = dispatch.feeChargingOrElse(appFeeCharging);
+            feeCharging.rollback();
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
             chargePayer(dispatch, validation, false);
-            e.maybeReplay(dispatch, dispatch.handleContext()::dispatch);
+            e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext()::dispatch);
         } catch (ThrottleException e) {
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
@@ -234,6 +236,7 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final ResponseCodeEnum status) {
+        dispatch.feeChargingOrElse(appFeeCharging).rollback();
         rollback(status, dispatch.stack(), dispatch.streamBuilder());
         chargePayer(dispatch, validation, true);
         dispatchUsageManager.trackFeePayments(dispatch);

@@ -40,7 +40,7 @@ public class UpdateRegisteredNodeCommand implements Callable<Integer> {
 
     @CommandLine.Option(
             names = {"--blockNodeEndpoint"},
-            paramLabel = "updated block node endpoint, format: addr:port:blockNodeApi[:tls]",
+            paramLabel = "updated block node endpoint, format: addr:port:api1[,api2][:tls]",
             arity = "0..*")
     @Nullable
     List<String> blockNodeEndpoints;

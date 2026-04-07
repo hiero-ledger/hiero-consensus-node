@@ -23,10 +23,3 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
 }
-
-timingSensitiveModuleInfo {
-    requires("com.swirlds.common.test.fixtures")
-    requires("org.hiero.base.utility.test.fixtures")
-    requires("org.junit.jupiter.api")
-    requires("org.junit.jupiter.params")
-}

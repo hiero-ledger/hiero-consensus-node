@@ -232,9 +232,10 @@ public class TokenCancelAirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Fails to cancel airdrop without having any pending airdrops")
-    public Stream<DynamicTest> failToCancelAirdropWhenThereAreNoPending() {
+    public Stream<DynamicTest> failToCancelAirdropWhenThereAreNoPending(
+            @FungibleToken final SpecFungibleToken neverAirdropped) {
         return hapiTest(cancelAirdrop
-                .call("cancelAirdrop", sender, receiver, token)
+                .call("cancelAirdrop", sender, receiver, neverAirdropped)
                 .payingWith(sender)
                 .via("cancelAirdrop")
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_PENDING_AIRDROP_ID)));
