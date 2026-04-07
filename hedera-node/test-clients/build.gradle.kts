@@ -8,6 +8,51 @@ plugins {
 
 description = "Hedera Services Test Clients for End to End Tests (EET)"
 
+// Detect available resources and scale JVM settings accordingly
+val availableCpus = Runtime.getRuntime().availableProcessors()
+val totalMemoryGib: Double =
+    try {
+        val osName = System.getProperty("os.name", "").lowercase()
+        if (osName.contains("linux")) {
+            // Try cgroup limit first (container-aware), fall back to /proc/meminfo
+            val cgroupV2 = File("/sys/fs/cgroup/memory.max")
+            val cgroupV1 = File("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+            val cgroupBytes: Long? =
+                when {
+                    cgroupV2.exists() -> cgroupV2.readText().trim().toLongOrNull()
+                    cgroupV1.exists() -> cgroupV1.readText().trim().toLongOrNull()
+                    else -> null
+                }
+            if (cgroupBytes != null && cgroupBytes < Long.MAX_VALUE / 2) {
+                cgroupBytes / 1024.0 / 1024.0 / 1024.0
+            } else {
+                val memLine =
+                    File("/proc/meminfo").readLines().first { line -> line.startsWith("MemTotal") }
+                memLine.split("\\s+".toRegex())[1].toLong() / 1024.0 / 1024.0
+            }
+        } else {
+            // macOS/other: use Gradle JVM max memory as a proxy, fallback to 16 GiB
+            // This is the Gradle daemon's max heap, not physical RAM, but provides a
+            // reasonable lower bound for scaling test settings
+            Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0 / 1024.0
+        }
+    } catch (_: Exception) {
+        16.0
+    }
+// Use all available processors but cap at 8 to avoid excessive thread contention
+val testProcessorCount = availableCpus.coerceAtMost(8)
+// Reserve ~half of total memory for the test client JVM, leave the rest for forked node JVMs and OS
+val testClientHeapGib = (totalMemoryGib / 2).toInt().coerceIn(4, 8)
+val testMaxHeap = "${testClientHeapGib}g"
+// Remaining memory is split among forked node JVMs (default 4 nodes) with some left for OS
+val maxNodeCount = 4
+val nodeHeapMib =
+    ((totalMemoryGib - testClientHeapGib) * 1024 / maxNodeCount * 0.8).toInt().coerceIn(512, 4096)
+
+logger.lifecycle(
+    "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodeHeap=${nodeHeapMib}m"
+)
+
 mainModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
     runtimeOnly("org.junit.platform.launcher")
@@ -57,9 +102,9 @@ tasks.test {
     // Tell our launcher to target an embedded network whose mode is set per-class
     systemProperty("hapi.spec.embedded.mode", "per-class")
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
 }
 
 val miscTags =
@@ -199,10 +244,11 @@ val prCheckNetSizeOverrides =
         "hapiTestSimpleFees" to "3",
         "hapiTestSimpleFeesSerial" to "3",
         "hapiTestTokenSerial" to "3",
-        "hapiTestSmartContract" to "4",
+        "hapiTestSmartContract" to "3",
         "hapiTestSmartContractSerial" to "3",
         "hapiTestAtomicBatch" to "3",
         "hapiTestAtomicBatchSerial" to "3",
+        "hapiTestStateThrottling" to "3",
     )
 
 tasks {
@@ -335,12 +381,14 @@ tasks.register<Test>("testSubprocess") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    // Limit forked node JVM heap to avoid overcommitting container/runner memory
+    systemProperty("hapi.spec.node.maxHeapMib", "$nodeHeapMib")
     // Fix testcontainers module system access to commons libraries
     // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
     jvmArgs(
-        "-XX:ActiveProcessorCount=6",
+        "-XX:ActiveProcessorCount=$testProcessorCount",
         "--add-reads=org.testcontainers=org.apache.commons.lang3",
         "--add-reads=org.testcontainers=org.apache.commons.compress",
         "--add-reads=org.testcontainers=org.apache.commons.io",
@@ -455,15 +503,20 @@ tasks.register<Test>("testSubprocessConcurrent") {
     // Limit concurrent test classes to prevent transaction backlog
     // Use fixed strategy with limited parallelism to balance speed and stability
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
-    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "4")
+    systemProperty(
+        "junit.jupiter.execution.parallel.config.fixed.parallelism",
+        "$testProcessorCount",
+    )
     systemProperty(
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    // Limit forked node JVM heap to avoid overcommitting container/runner memory
+    systemProperty("hapi.spec.node.maxHeapMib", "$nodeHeapMib")
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
     maxParallelForks = 1
 }
 
@@ -529,9 +582,9 @@ tasks.register<Test>("testRemote") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
     maxParallelForks = 1
 }
 
@@ -607,9 +660,9 @@ tasks.register<Test>("testEmbedded") {
         systemProperty("fees.simpleFeesEnabled", "true")
     }
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
 }
 
 val repeatableBaseTags = mapOf("hapiTestMiscRepeatable" to "REPEATABLE&!CRYPTO")
@@ -653,9 +706,9 @@ tasks.register<Test>("testRepeatable") {
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"

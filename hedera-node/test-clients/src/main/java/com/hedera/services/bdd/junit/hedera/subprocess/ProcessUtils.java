@@ -172,6 +172,11 @@ public class ProcessUtils {
     private static List<String> javaCommandLineFor(@NonNull final NodeMetadata metadata) {
         final List<String> commandLine = new ArrayList<>();
         commandLine.add(ProcessHandle.current().info().command().orElseThrow());
+        // Limit node JVM heap if configured, to avoid overcommitting runner memory
+        final var nodeMaxHeapMib = System.getProperty("hapi.spec.node.maxHeapMib");
+        if (nodeMaxHeapMib != null && !nodeMaxHeapMib.isBlank()) {
+            commandLine.add("-Xmx" + nodeMaxHeapMib + "m");
+        }
         // Only activate JDWP if not in CI
         if (System.getenv("CI") == null) {
             commandLine.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend="
