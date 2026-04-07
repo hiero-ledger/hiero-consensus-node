@@ -134,9 +134,9 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
     @Order(0)
     final Stream<DynamicTest> multiUpgradeGrpcWriterTss() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
-        // After each upgrade, the comms log reverts to INFO level (DEBUG logging is only configured
-        // during initial network setup). Use "Selected new block node for streaming" (INFO level)
-        // instead of "saturation=0.0%" (DEBUG level) to verify the connection was re-established.
+        // After each upgrade, verify the connection manager started and established a connection.
+        // Use "Streaming connection update requested" (INFO level) which appears reliably at
+        // startup when the monitor first runs.
         return hapiTest(
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -150,7 +150,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        "Selected new block node for streaming")),
+                        "Streaming connection update requested")),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(),
                 doingContextual((spec) -> sleepForSeconds(30)),
@@ -160,7 +160,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        "Selected new block node for streaming")),
+                        "Streaming connection update requested")),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(),
                 doingContextual((spec) -> sleepForSeconds(30)),
@@ -170,6 +170,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        "Selected new block node for streaming")));
+                        "Streaming connection update requested")));
     }
 }

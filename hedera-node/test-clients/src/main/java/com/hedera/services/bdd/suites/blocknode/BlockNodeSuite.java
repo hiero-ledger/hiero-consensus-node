@@ -149,7 +149,7 @@ public class BlockNodeSuite {
                         "saturation=50.0%",
                         // look for the log that shows the monitor detected buffer saturation
                         "Streaming connection update requested",
-                        "bufferActionStage: true",
+                        "buffer-unhealthy",
                         "/localhost:" + portNumbers.get(1)
                                 + "/ACTIVE] Connection state transitioned from READY to ACTIVE")),
                 // re-enable acks so buffer can drain via node 1 streaming
