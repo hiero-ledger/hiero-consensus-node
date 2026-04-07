@@ -1177,23 +1177,9 @@ jobs:
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
-  performance-HeliSwapLoadTest:
-    needs:
-      - performance-CryptoTransferLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
-    with:
-      test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
-      nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-test: "HeliSwapLoadTest"
-      nlg-time: "${{ inputs.nlg-time }}"
-      workspace: "${{ github.workspace }}"
-      gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
-      gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
-
   performance-SmartContractLoadTest:
     needs:
-      - performance-HeliSwapLoadTest
+      - performance-CryptoTransferLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
@@ -1205,12 +1191,26 @@ jobs:
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
+  performance-HeliSwapLoadTest:
+    needs:
+      - performance-SmartContractLoadTest
+    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    with:
+      test-asset: "${{ inputs.test-asset }}"
+      ref: "${{ inputs.ref }}"
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-test: "HeliSwapLoadTest"
+      nlg-time: "${{ inputs.nlg-time }}"
+      workspace: "${{ github.workspace }}"
+      gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
+      gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+
   performance-post-test-validation:
     name: Consensus Node State Validator
     runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
-      - performance-SmartContractLoadTest
+      - performance-HeliSwapLoadTest
     outputs:
       ValidatorStatus: ${{ steps.validator-status.outputs.value }}
 

@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_DELETE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_INCLUDED_BYTES;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_UPDATE_TOPIC_INCLUDED_KEYS;
@@ -1116,14 +1117,15 @@ public class FeesChargingUtils {
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
 
         // ----- service fees -----
-        final long byteExtrasService = Math.max(0L, messageBytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
-        final double serviceBytesExtrasFee = byteExtrasService * STATE_BYTES_FEE_USD;
 
-        double serviceBaseFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
+        double serviceFee = 0;
         if (includesCustomFee) {
-            serviceBaseFee += CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
+        } else {
+            final long byteExtrasService = Math.max(0L, messageBytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
+            final double serviceBytesExtrasFee = byteExtrasService * CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES;
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + serviceBytesExtrasFee;
         }
-        final double serviceFee = serviceBaseFee + serviceBytesExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
     }
@@ -1155,7 +1157,7 @@ public class FeesChargingUtils {
     public static double expectedTopicSubmitMessageWithCustomFeeFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTopicSubmitMessageWithCustomFeeFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
-                extras.getOrDefault(Extra.STATE_BYTES, 0L),
+                extras.getOrDefault(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
@@ -1170,6 +1172,18 @@ public class FeesChargingUtils {
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    public static double expectedTopicSubmitMessageServiceOnly(long messageBytes, boolean includesCustomFee) {
+        double serviceFee = 0;
+        if (includesCustomFee) {
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD;
+        } else {
+            final long byteExtrasService = Math.max(0L, messageBytes - CONS_SUBMIT_MESSAGE_INCLUDED_BYTES);
+            final double serviceBytesExtrasFee = byteExtrasService * CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES;
+            serviceFee = CONS_SUBMIT_MESSAGE_BASE_FEE_USD + serviceBytesExtrasFee;
+        }
+        return serviceFee;
     }
 
     // -------- TokenCreate simple fees utils ---------//
@@ -1210,7 +1224,7 @@ public class FeesChargingUtils {
     /**
      * Overload for FT when extras are provided in a map.
      */
-    public static double expectedTokenCreateFungibleFullFeeUsd(final Map<Extra, Long> extras) {
+    public static double expectedTokenCreateFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenCreateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
                 extras.getOrDefault(Extra.KEYS, 0L),
@@ -1392,14 +1406,23 @@ public class FeesChargingUtils {
     /**
      * Network-only fee for TokenUpdate failures in pre-handle.
      */
-    public static double expectedTokenUpdateNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTokenUpdateNetworkFeeOnlyUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenUpdateNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTokenUpdateNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- TokenDelete simple fees utils ---------//
@@ -1533,7 +1556,7 @@ public class FeesChargingUtils {
     public static double expectedTokenMintNftFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenMintNftFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
-                extras.getOrDefault(Extra.TOKEN_TYPES, 0L),
+                extras.getOrDefault(Extra.TOKEN_MINT_NFT, 0L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
