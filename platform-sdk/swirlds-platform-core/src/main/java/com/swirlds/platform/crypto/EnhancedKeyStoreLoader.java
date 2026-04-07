@@ -702,10 +702,8 @@ public class EnhancedKeyStoreLoader {
      * embedded in the signing certificate loaded from the roster. The node is allowed to continue
      * starting — this is a diagnostic warning, not a hard failure.
      *
-     * <p>Only RSA keys in CRT form ({@link RSAPrivateCrtKey}) are checked. CRT form is required
-     * because deriving the corresponding public key requires the public exponent, which is only
-     * available on {@link RSAPrivateCrtKey} and not on the base {@link java.security.interfaces.RSAPrivateKey}.
-     * Non-RSA keys (e.g. Ed25519) are silently skipped with a DEBUG log.
+     * <p>Signing keys are always RSA in CRT form ({@link RSAPrivateCrtKey}). CRT form exposes the
+     * public exponent, which is required to reconstruct the corresponding public key for comparison.
      *
      * @param nodeId the {@link NodeId} whose key/cert pair should be checked.
      */
