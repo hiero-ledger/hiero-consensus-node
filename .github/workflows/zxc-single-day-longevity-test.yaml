@@ -263,7 +263,7 @@ jobs:
 
       - name: Install Solo
         run: |
-          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
 
           # verify the installation
           solo --version

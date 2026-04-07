@@ -30,7 +30,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.collections.HashListByteBuffer;
-import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
@@ -758,7 +758,7 @@ class MerkleDbDataSourceTest {
             }
             if (hashesRamToDiskThreshold <= lastLeafPath) {
                 final Path tmpDir = testDirectory.resolve("migrateHashesToChunks-tmp");
-                final LongListOffHeap hashStoreDiskIndex = new LongListOffHeap(1024, 2 * size, 1024);
+                final LongListSegment hashStoreDiskIndex = new LongListSegment(1024, 2 * size, 1024);
                 final MemoryIndexDiskKeyValueStore hashStoreDisk = new MemoryIndexDiskKeyValueStore(
                         CONFIGURATION.getConfigData(MerkleDbConfig.class),
                         tmpDir,
