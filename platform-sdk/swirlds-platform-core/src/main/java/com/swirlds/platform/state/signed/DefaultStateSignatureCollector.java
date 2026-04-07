@@ -120,12 +120,14 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         }
         purgeOldStates().forEach(rss -> completedBuffer.put(rss.get().getRound(), rss));
         if (signedState.isFreezeState()) {
-            // Freeze is the final state — drain everything regardless of threshold.
-            // The node is about to shut down, ordering relative to the VirtualPipeline
-            // no longer matters, and freeze uses synchronous snapshots anyway.
-            final List<ReservedSignedState> result = new ArrayList<>(completedBuffer.values());
-            completedBuffer.clear();
-            return result.isEmpty() ? null : result;
+            final List<ReservedSignedState> result = new ArrayList<>();
+            final ReservedSignedState freezeState = completedBuffer.pollLastEntry().getValue();
+            final List<ReservedSignedState> safelyOrdered = drainCompleted();
+            if (safelyOrdered != null) {
+                result.addAll(safelyOrdered);
+            }
+            result.add(freezeState);
+            return result;
         }
         return drainCompleted();
     }
