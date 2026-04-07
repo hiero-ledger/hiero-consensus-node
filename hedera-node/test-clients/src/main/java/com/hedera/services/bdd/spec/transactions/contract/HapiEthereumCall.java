@@ -23,6 +23,7 @@ import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -54,6 +55,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
+import org.apache.tuweni.bytes.Bytes;
 import org.bouncycastle.util.encoders.Hex;
 
 public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
@@ -87,7 +89,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private boolean wrongRecId;
     private boolean isJumboTxn = false;
     private byte[] signedBytes = null;
-    private List<AuthorizationListItem> authorizationListItems = new ArrayList<>();
+    private final List<AuthorizationListItem> authorizationListItems = new ArrayList<>();
+    private final List<AccessListItem> accessListItems = new ArrayList<>();
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -292,6 +295,34 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         return this;
     }
 
+    public HapiEthereumCall markAsJumboTxn() {
+        isJumboTxn = true;
+        return this;
+    }
+
+    public HapiEthereumCall withAccessList(final List<AccessListItem> items) {
+        accessListItems.addAll(items);
+        return this;
+    }
+
+    public HapiEthereumCall addSenderCodeDelegationWithSpecNonce(final Address target) {
+        authorizationListItems.add(
+                new AuthorizationListItem(target, hapiSpec -> hapiSpec.getNonce(privateKeyRef) + 1, privateKeyRef));
+        return this;
+    }
+
+    public HapiEthereumCall addCodeDelegationWithSpecNonce(final Address target, final String privateKeyRef) {
+        authorizationListItems.add(
+                new AuthorizationListItem(target, hapiSpec -> hapiSpec.getNonce(privateKeyRef), privateKeyRef));
+        return this;
+    }
+
+    public HapiEthereumCall addCodeDelegationWithNonce(
+            final Address target, final long nonce, final String privateKeyRef) {
+        authorizationListItems.add(new AuthorizationListItem(target, hapiSpec -> nonce, privateKeyRef));
+        return this;
+    }
+
     @Override
     protected HapiEthereumCall self() {
         return this;
@@ -355,6 +386,20 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
             nonce = spec.getNonce(privateKeyRef);
         }
 
+        // encode accessList
+        byte[] accessList = null;
+        Object[] accessListRlp = null;
+        if (type != EthTransactionType.LEGACY_ETHEREUM && !accessListItems.isEmpty()) {
+            accessListRlp = accessListItems.stream()
+                    .map(e -> new Object[] {
+                        e.address().toArray(),
+                        e.storageKeys().stream().map(Bytes::toArray).toArray()
+                    })
+                    .toArray();
+            accessList = RLPEncoder.sequence(accessListRlp);
+        }
+
+        // encode codeDelegation/authorizationList
         byte[] authorizationList = null;
         Object[] authorizationListRlp = null;
         if (type == EthTransactionType.EIP7702 && !authorizationListItems.isEmpty()) {
@@ -383,10 +428,10 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 to,
                 valueSent.orElse(BigInteger.ZERO),
                 callData,
-                new byte[] {},
-                null,
-                type.equals(EthTransactionType.EIP7702) ? authorizationList : null,
-                type.equals(EthTransactionType.EIP7702) ? authorizationListRlp : new Object[] {},
+                accessList,
+                accessListRlp,
+                authorizationList,
+                authorizationListRlp,
                 0,
                 null,
                 null,
@@ -499,28 +544,5 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 .add("contract", contract)
                 .add("abi", abi)
                 .add("params", Arrays.toString(params.orElse(null)));
-    }
-
-    public HapiEthereumCall markAsJumboTxn() {
-        isJumboTxn = true;
-        return this;
-    }
-
-    public HapiEthereumCall addSenderCodeDelegationWithSpecNonce(final Address target) {
-        authorizationListItems.add(
-                new AuthorizationListItem(target, hapiSpec -> hapiSpec.getNonce(privateKeyRef) + 1, privateKeyRef));
-        return this;
-    }
-
-    public HapiEthereumCall addCodeDelegationWithSpecNonce(final Address target, final String privateKeyRef) {
-        authorizationListItems.add(
-                new AuthorizationListItem(target, hapiSpec -> hapiSpec.getNonce(privateKeyRef), privateKeyRef));
-        return this;
-    }
-
-    public HapiEthereumCall addCodeDelegationWithNonce(
-            final Address target, final long nonce, final String privateKeyRef) {
-        authorizationListItems.add(new AuthorizationListItem(target, hapiSpec -> nonce, privateKeyRef));
-        return this;
     }
 }

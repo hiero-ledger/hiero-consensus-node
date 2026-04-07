@@ -315,7 +315,7 @@ public class EthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> matrixedPayerRelayerTest1() {
-        return feePaymentMatrix().get(0);
+        return feePaymentMatrix().getFirst();
     }
 
     @HapiTest
@@ -468,35 +468,33 @@ public class EthereumSuite {
                         .entityMemo(MEMO)
                         .payingWith(GENESIS)
                         .signedBy(SECP_256K1_SOURCE_KEY, GENESIS),
-                withOpContext((spec, opLog) -> {
-                    ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
-                            .type(EthTxData.EthTransactionType.EIP1559)
-                            .signingWith(SECP_256K1_SOURCE_KEY)
-                            .payingWith(RELAYER)
-                            .nonce(0)
-                            .balance(INITIAL_BALANCE)
-                            .gasPrice(10L)
-                            .maxGasAllowance(ONE_HUNDRED_HBARS)
-                            .exposingNumTo(num -> contractNum.set(String.valueOf(num)))
-                            .gasLimit(1_000_000L)
-                            .hasKnownStatus(SUCCESS);
-                    getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey());
-                    ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
-                            .type(EthTxData.EthTransactionType.EIP1559)
-                            .signingWith(SECP_256K1_SOURCE_KEY)
-                            .payingWith(RELAYER)
-                            .nonce(1L)
-                            .gasPrice(10L)
-                            .gasLimit(1_000_000L)
-                            .hasKnownStatus(SUCCESS);
-                    getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged();
-                    sourcing(() -> getContractInfo(contractNum.get())
-                            .has(contractWith()
-                                    .defaultAdminKey()
-                                    .autoRenew(AUTO_RENEW_PERIOD)
-                                    .balance(INITIAL_BALANCE)
-                                    .memo(MEMO)));
-                }));
+                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .balance(INITIAL_BALANCE)
+                        .gasPrice(10L)
+                        .maxGasAllowance(ONE_HUNDRED_HBARS)
+                        .exposingNumTo(num -> contractNum.set(String.valueOf(num)))
+                        .gasLimit(1_000_000L)
+                        .hasKnownStatus(SUCCESS),
+                getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().defaultAdminKey()),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(1L)
+                        .gasPrice(10L)
+                        .gasLimit(1_000_000L)
+                        .hasKnownStatus(SUCCESS),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).logged(),
+                sourcing(() -> getContractInfo(contractNum.get())
+                        .has(contractWith()
+                                .defaultAdminKey()
+                                .autoRenew(AUTO_RENEW_PERIOD)
+                                .balance(INITIAL_BALANCE)
+                                .memo(MEMO))));
     }
 
     @HapiTest
@@ -558,7 +556,6 @@ public class EthereumSuite {
     @HapiTest
     final Stream<DynamicTest> etx013PrecompileCallFailsWhenSignatureMissingFromBothEthereumAndHederaTxn() {
         final AtomicReference<TokenID> fungible = new AtomicReference<>();
-        final String fungibleToken = TOKEN;
         final String mintTxn = MINT_TXN;
         final String MULTI_KEY = "MULTI_KEY";
         return hapiTest(
@@ -570,7 +567,7 @@ public class EthereumSuite {
                 withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
                 getTxnRecord(AUTO_ACCOUNT_TRANSACTION_NAME).andAllChildRecords(),
                 uploadInitCode(HELLO_WORLD_MINT_CONTRACT),
-                tokenCreate(fungibleToken)
+                tokenCreate(TOKEN)
                         .tokenType(TokenType.FUNGIBLE_COMMON)
                         .initialSupply(0)
                         .adminKey(MULTI_KEY)
@@ -1017,7 +1014,7 @@ public class EthereumSuite {
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), 2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .via(HBAR_XFER);
 
@@ -1062,7 +1059,7 @@ public class EthereumSuite {
                 withOpContext((spec, opLog) -> {
                     var op1 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, partyAlias.get(), -2 * ONE_HBAR))
-                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), +2 * ONE_HBAR))))
+                                    .addAccountAmounts(Utils.aaWith(s, counterAlias.get(), 2 * ONE_HBAR))))
                             .signedBy(DEFAULT_PAYER, PARTY)
                             .hasKnownStatus(SUCCESS);
 
@@ -1114,7 +1111,6 @@ public class EthereumSuite {
 
     @HapiTest
     final Stream<DynamicTest> etx007FungibleTokenCreateWithFeesHappyPath() {
-        final var createdTokenNum = new AtomicLong();
         final var feeCollectorAndAutoRenew = "feeCollectorAndAutoRenew";
         final var contract = "TokenCreateContract";
         final var EXISTING_TOKEN = "EXISTING_TOKEN";
@@ -1153,9 +1149,8 @@ public class EthereumSuite {
                                 .payingWith(feeCollectorAndAutoRenew)
                                 .sending(DEFAULT_AMOUNT_TO_SEND)
                                 .hasKnownStatus(SUCCESS)
-                                .exposingResultTo(result -> {
-                                    opLog.info("Explicit create result" + " is {}", result[0]);
-                                }))),
+                                .exposingResultTo(
+                                        result -> opLog.info("Explicit create result" + " is {}", result[0])))),
                 getTxnRecord(firstTxn).andAllChildRecords().logged(),
                 childRecordsCheck(
                         firstTxn, SUCCESS, TransactionRecordAsserts.recordWith().status(ResponseCodeEnum.SUCCESS)),
@@ -1326,11 +1321,11 @@ public class EthereumSuite {
                         .via("bls12"),
                 getTxnRecord("bls12")
                         .exposingTo(record -> assertArrayEquals(
+                                new byte[32],
                                 record.getContractCallResult()
                                         .getContractCallResult()
                                         .substring(32)
-                                        .toByteArray(),
-                                new byte[32])));
+                                        .toByteArray())));
     }
 
     // TODO Pectra: failed due to auto creation account having nonce 1.
