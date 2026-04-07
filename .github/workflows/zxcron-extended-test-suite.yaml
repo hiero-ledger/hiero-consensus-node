@@ -387,6 +387,33 @@ jobs:
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        with:
+          checkout: "true"
+          checkout-ref: main
+          checkout-fetch-depth: "0"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Install gomplate
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v3.11.7/gomplate_linux-amd64" \
+            -o /usr/local/bin/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v3.11.7/checksums.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /usr/local/bin/gomplate" | sha256sum -c -
+          chmod +x /usr/local/bin/gomplate
+
+      - name: Build Success Slack Payload
+        env:
+          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
+          XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
+          TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          COMMIT_AUTHOR: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_LIST: ${{ needs.fetch-xts-candidate.outputs.commit-list }}
+        run: gomplate -f .github/workflows/templates/slack-xts-success-detailed.json.tpl -o slack_payload.json
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
@@ -394,108 +421,7 @@ jobs:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#00FF00",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*XTS Job Succeeded. Test panel status below*"
-                      },
-                      "fields": [
-                        {
-                          "type": "plain_text",
-                          "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "XTS Execution: ${{ needs.xts-execution.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Workflow and Commit Information*\nFor a full list of executed tests see `Workflow run URL` below"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Source Commit*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Commit author*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run ID*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": " ${{ github.run_id }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run URL*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Commit List*:"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
+          payload-file-path: slack_payload.json
 
   report-failure:
     name: Report XTS execution failure
