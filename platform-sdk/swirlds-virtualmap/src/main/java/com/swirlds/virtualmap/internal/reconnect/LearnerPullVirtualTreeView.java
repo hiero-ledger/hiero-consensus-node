@@ -6,14 +6,12 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -27,7 +25,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
@@ -40,9 +37,22 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
  * teacher side.
  */
-public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView {
+public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeView.class);
+
+    /**
+     * The state representing the original, unmodified tree on the learner. For simplicity, on the teacher,
+     * this is the same as {@link #reconnectState}. For the learner, it is the state of the detached, unmodified
+     * tree.
+     */
+    private final VirtualMapMetadata originalState;
+
+    /**
+     * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
+     * For the learner, this is the state of the tree being serialized into.
+     */
+    private final VirtualMapMetadata reconnectState;
 
     /**
      * Reconnect configuration.
@@ -98,7 +108,8 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {
-        super(vmapLearner.getOriginalState(), vmapLearner.getReconnectState());
+        this.originalState = vmapLearner.getOriginalState();
+        this.reconnectState = vmapLearner.getReconnectState();
         this.reconnectConfig = reconnectConfig;
         this.vmapLearner = Objects.requireNonNull(vmapLearner);
         this.traversalOrder = traversalOrder;
@@ -265,68 +276,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public void expectLessonFor(
-            final Long parentPath, final int childIndex, final Long originalPath, final boolean nodeAlreadyPresent) {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.expectLessonFor()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public ExpectedLesson getNextExpectedLesson() {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.getNextExpectedLesson()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean hasNextExpectedLesson() {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.hasNextExpectedLesson()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.deserializeLeaf()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long deserializeInternal(final SerializableDataInputStream in) throws IOException {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.deserializeInternal()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         vmapLearner.finish();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setChild(final Long parent, final int childIndex, final Long child) {
-        // No-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void recordHashStats(
-            @NonNull final ReconnectMapStats mapStats,
-            @NonNull final Long parent,
-            final int childIndex,
-            final boolean nodeAlreadyPresent) {
-        throw new UnsupportedOperationException("The Reconnect Pull Model records the hash stats elsewhere");
     }
 }
