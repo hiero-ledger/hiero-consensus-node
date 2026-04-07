@@ -112,8 +112,11 @@ Environment:
                             (default: resources/0.73/application.properties next to this script)
   APP_ENV_073_FILE           application.env for the 0.73 consensus upgrade
                             (default: resources/0.73/application.env next to this script)
+  UPGRADE_073_VERSION        Solo upgrade-version used for the 0.73 step (default: v0.73.0-rc.1)
+  WRAPS_KEY_PATH             WRAPS artifacts directory passed to Solo/remedy (default: ~/.solo/cache/wraps-v0.2.0)
   SOLO_073_NODE_COPY_CONCURRENT  Solo NODE_COPY_CONCURRENT for 0.73 step (default: 1)
   SOLO_073_LOCAL_BUILD_COPY_RETRY Solo LOCAL_BUILD_COPY_RETRY for 0.73 step (default: 300)
+  SOLO_073_UPGRADE_TIMEOUT_SECS  Timeout for the 0.73 Solo upgrade before remedy fallback (default: 900)
   FILE121_UPDATE_RETRIES         Retry count for Step 6 File 121 update (default: 3)
   FILE121_UPDATE_RETRY_DELAY_SECS Delay before retrying File 121 update (default: 15)
   SDK_READY_RETRIES              Retry count for SDK readiness probe before Step 6 transactions (default: 8)
@@ -162,10 +165,15 @@ APP_ENV_073_FILE="${APP_ENV_073_FILE:-${SCRIPT_DIR}/resources/0.73/application.e
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.71.2}"
 UPGRADE_072_RELEASE_TAG="${UPGRADE_072_RELEASE_TAG:-v0.72.0-rc.2}"
 UPGRADE_073_RELEASE_TAG="${UPGRADE_073_RELEASE_TAG:-0.73.0}"
+UPGRADE_073_VERSION="${UPGRADE_073_VERSION:-v0.73.0-rc.1}"
+WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v0.2.0}"
+REMEDY_SCRIPT_PATH="${SCRIPT_DIR}/solo-remedy-local-artifact-copy.sh"
+SOLO_HOME_DIR="${HOME}/.solo"
 # After "Update node configuration files", Solo Helm-rolls pods then kubectl-cp's LOCAL_BUILD_PATH in parallel (Solo default 4).
 # On kind, concurrent large copies can hit pods still in Failed/Terminating — serialize copies unless overridden.
 SOLO_073_NODE_COPY_CONCURRENT="${SOLO_073_NODE_COPY_CONCURRENT:-1}"
 SOLO_073_LOCAL_BUILD_COPY_RETRY="${SOLO_073_LOCAL_BUILD_COPY_RETRY:-300}"
+SOLO_073_UPGRADE_TIMEOUT_SECS="${SOLO_073_UPGRADE_TIMEOUT_SECS:-900}"
 FILE121_UPDATE_RETRIES="${FILE121_UPDATE_RETRIES:-3}"
 FILE121_UPDATE_RETRY_DELAY_SECS="${FILE121_UPDATE_RETRY_DELAY_SECS:-15}"
 SDK_READY_RETRIES="${SDK_READY_RETRIES:-8}"
@@ -173,6 +181,8 @@ SDK_READY_RETRY_DELAY_SECS="${SDK_READY_RETRY_DELAY_SECS:-10}"
 EXPLORER_ADD_RETRIES="${EXPLORER_ADD_RETRIES:-3}"
 EXPLORER_ADD_RETRY_DELAY_SECS="${EXPLORER_ADD_RETRY_DELAY_SECS:-20}"
 ALLOW_EXPLORER_DEPLOY_FAILURE="${ALLOW_EXPLORER_DEPLOY_FAILURE:-true}"
+MIRROR_RESTJAVA_MEMORY_REQUEST="${MIRROR_RESTJAVA_MEMORY_REQUEST:-512Mi}"
+MIRROR_RESTJAVA_MEMORY_LIMIT="${MIRROR_RESTJAVA_MEMORY_LIMIT:-1000Mi}"
 
 # SHA-384 hashes are 48 bytes => 96 hex chars.
 SHA384_ZERO_HEX="$(printf '0%.0s' {1..96})"
@@ -219,6 +229,7 @@ NODE_SCRIPT="${WORK_DIR}/sdk-crypto-create-check.js"
 NETWORK_PROBE_SCRIPT="${WORK_DIR}/sdk-network-probe.js"
 FILE_121_JUMPSTART_SCRIPT="${WORK_DIR}/file-121-jumpstart-update.js"
 JUMPSTART_PARSE_SCRIPT="${WORK_DIR}/parse-jumpstart-bin.js"
+MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-cutover-values.yaml"
 BLOCK_NODE_WRAP_LOG="${WORK_DIR}/block-node-wrap.log"
 MIRROR_METADATA_LOG="${WORK_DIR}/mirror-metadata.log"
 WRAP_INPUT_PREP_LOG="${WORK_DIR}/wrap-input-prep.log"
@@ -243,14 +254,6 @@ TOTAL_STEPS=6
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
-}
-
-build_local_project() {
-  log "Building local project with ./gradlew clean assemble"
-  (
-    cd "${REPO_ROOT}"
-    ./gradlew clean assemble
-  )
 }
 
 log_banner() {
@@ -454,6 +457,44 @@ mirror_rest_service_exists() {
   kubectl -n "${SOLO_NAMESPACE}" get svc "${MIRROR_REST_SERVICE}" >/dev/null 2>&1
 }
 
+deployment_ready() {
+  local deployment="$1"
+  local timeout_secs="${2:-5}"
+  kubectl -n "${SOLO_NAMESPACE}" rollout status "deployment/${deployment}" --timeout="${timeout_secs}s" >/dev/null 2>&1
+}
+
+required_mirror_services_ready() {
+  local deployment=""
+  local deployments=(mirror-1-rest mirror-1-grpc mirror-1-importer mirror-1-monitor mirror-1-web3)
+
+  for deployment in "${deployments[@]}"; do
+    deployment_ready "${deployment}" 5 || return 1
+  done
+}
+
+wait_for_required_mirror_services_ready() {
+  local timeout_secs="${1:-600}"
+  local start_ts
+  start_ts="$(date +%s)"
+
+  while true; do
+    if required_mirror_services_ready; then
+      return 0
+    fi
+    if (( $(date +%s) - start_ts >= timeout_secs )); then
+      return 1
+    fi
+    sleep 5
+  done
+}
+
+mirror_node_failed_only_on_restjava() {
+  kubectl -n "${SOLO_NAMESPACE}" get deployment mirror-1-restjava >/dev/null 2>&1 || return 1
+  required_mirror_services_ready || return 1
+  deployment_ready mirror-1-restjava 5 && return 1
+  return 0
+}
+
 ensure_mirror_rest_service_for_step6() {
   local attempt=1
   local max_attempts=60
@@ -464,7 +505,7 @@ ensure_mirror_rest_service_for_step6() {
   fi
 
   log "ONLY_STEP6: mirror REST service ${MIRROR_REST_SERVICE} not found; deploying mirror node"
-  solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger
+  deploy_mirror_node_for_cutover
 
   while (( attempt <= max_attempts )); do
     if mirror_rest_service_exists; then
@@ -986,6 +1027,75 @@ verify_local_build_on_consensus_nodes() {
   done
 }
 
+upgrade_failed_due_to_copy_error() {
+  local log_file="${SOLO_HOME_DIR}/logs/solo.log"
+  [[ -f "${log_file}" ]] || return 1
+  tail -n 200 "${log_file}" | grep -Eq \
+    'Error in copying local build to node|test -d "/opt/hgcapp/services-hedera/HapiApp2.0/wraps-v0.2.0"'
+}
+
+upgrade_stuck_in_copy_loop() {
+  local log_file="${SOLO_HOME_DIR}/logs/solo.log"
+  local repeated_copy_count
+  [[ -f "${log_file}" ]] || return 1
+
+  repeated_copy_count="$(
+    tail -n 400 "${log_file}" \
+      | grep -Ec 'copyTo: beginning copy .*solo/network-node[0-9]+-0:/opt/hgcapp/services-hedera/HapiApp2.0'
+  )"
+
+  (( repeated_copy_count >= 10 ))
+}
+
+run_command_with_timeout() {
+  local timeout_secs="$1"
+  shift
+
+  local cmd_pid=""
+  local start_ts
+  local elapsed
+
+  "$@" &
+  cmd_pid=$!
+  start_ts="$(date +%s)"
+
+  while kill -0 "${cmd_pid}" >/dev/null 2>&1; do
+    elapsed=$(( $(date +%s) - start_ts ))
+    if (( elapsed >= timeout_secs )); then
+      log "Command exceeded timeout (${timeout_secs}s); terminating PID ${cmd_pid}"
+      pkill -TERM -P "${cmd_pid}" >/dev/null 2>&1 || true
+      kill -TERM "${cmd_pid}" >/dev/null 2>&1 || true
+      sleep 5
+      pkill -KILL -P "${cmd_pid}" >/dev/null 2>&1 || true
+      kill -KILL "${cmd_pid}" >/dev/null 2>&1 || true
+      wait "${cmd_pid}" >/dev/null 2>&1 || true
+      return 124
+    fi
+    sleep 5
+  done
+
+  wait "${cmd_pid}"
+}
+
+run_local_copy_remedy() {
+  [[ -f "${REMEDY_SCRIPT_PATH}" ]] || {
+    echo "Missing remedy script: ${REMEDY_SCRIPT_PATH}" >&2
+    return 1
+  }
+  [[ -d "${WRAPS_KEY_PATH}" ]] || {
+    echo "Missing WRAPS_KEY_PATH directory: ${WRAPS_KEY_PATH}" >&2
+    return 1
+  }
+
+  log "Solo 0.73 upgrade failed with a copy-related error; invoking remedy script"
+  SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT}" \
+  SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
+  NODE_ALIASES="${NODE_ALIASES}" \
+  LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH}" \
+  WRAPS_KEY_PATH="${WRAPS_KEY_PATH}" \
+  bash "${REMEDY_SCRIPT_PATH}"
+}
+
 collect_consensus_diagnostics() {
   local node
   local pattern="FATAL|Critical failure|NullPointerException|Exception|ERROR|is ACTIVE|is STARTING|FAILED"
@@ -1042,6 +1152,7 @@ run_073_upgrade_once() {
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
+    --upgrade-version "${UPGRADE_073_VERSION}"
     --local-build-path "${LOCAL_BUILD_PATH}"
     --application-properties "${APP_PROPS_073_FILE}"
     --application-env "${APP_ENV_073_FILE}"
@@ -1049,9 +1160,32 @@ run_073_upgrade_once() {
     --force
   )
 
-  env NODE_COPY_CONCURRENT="${SOLO_073_NODE_COPY_CONCURRENT}" \
-    LOCAL_BUILD_COPY_RETRY="${SOLO_073_LOCAL_BUILD_COPY_RETRY}" \
-    "${upgrade_cmd[@]}"
+  [[ -d "${WRAPS_KEY_PATH}" ]] || {
+    echo "Missing WRAPS_KEY_PATH directory: ${WRAPS_KEY_PATH}" >&2
+    return 1
+  }
+  log "Using WRAPS key path for 0.73 upgrade: ${WRAPS_KEY_PATH}"
+  upgrade_cmd+=(--wraps-key-path "${WRAPS_KEY_PATH}")
+
+  if run_command_with_timeout "${SOLO_073_UPGRADE_TIMEOUT_SECS}" \
+    env NODE_COPY_CONCURRENT="${SOLO_073_NODE_COPY_CONCURRENT}" \
+      LOCAL_BUILD_COPY_RETRY="${SOLO_073_LOCAL_BUILD_COPY_RETRY}" \
+      "${upgrade_cmd[@]}"; then
+    return 0
+  fi
+
+  if upgrade_failed_due_to_copy_error; then
+    run_local_copy_remedy
+    return $?
+  fi
+
+  if upgrade_stuck_in_copy_loop; then
+    log "Solo 0.73 upgrade appears stuck in a local-build copy loop; invoking remedy script"
+    run_local_copy_remedy
+    return $?
+  fi
+
+  return 1
 }
 
 run_073_upgrade() {
@@ -1873,6 +2007,38 @@ prepare_js_sdk_runtime() {
   export OPERATOR_PRIVATE_KEY
 }
 
+write_mirror_node_values_override() {
+  cat > "${MIRROR_NODE_VALUES_FILE}" <<EOF
+restjava:
+  resources:
+    requests:
+      memory: ${MIRROR_RESTJAVA_MEMORY_REQUEST}
+    limits:
+      memory: ${MIRROR_RESTJAVA_MEMORY_LIMIT}
+EOF
+}
+
+deploy_mirror_node_for_cutover() {
+  local ec=0
+  write_mirror_node_values_override
+  if solo mirror node add \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --enable-ingress \
+    --pinger \
+    --values-file "${MIRROR_NODE_VALUES_FILE}"; then
+    return 0
+  fi
+  ec=$?
+
+  if ! mirror_node_failed_only_on_restjava; then
+    return "${ec}"
+  fi
+
+  log "Mirror node add failed only on REST Java readiness; waiting for required mirror services"
+  wait_for_required_mirror_services_ready 600 || return "${ec}"
+  log "Required mirror services are ready; continuing without REST Java"
+}
+
 log "Validating prerequisites"
 log "Node deployment plan: ${CONSENSUS_NODE_COUNT} consensus node(s) [${NODE_ALIASES}]"
 log "Execution mode: ONLY_STEP6=${ONLY_STEP6}"
@@ -1891,11 +2057,6 @@ if [[ "${USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
   fi
 fi
 
-if [[ ! -d "${LOCAL_BUILD_PATH}" ]]; then
-  echo "Local build path not found: ${LOCAL_BUILD_PATH}" >&2
-  echo "Build the consensus node first (for example: ./gradlew assemble)" >&2
-  exit 1
-fi
 if [[ ! -f "${LOG4J2_XML_PATH}" ]]; then
   echo "log4j2 config not found: ${LOG4J2_XML_PATH}" >&2
   exit 1
@@ -1916,16 +2077,12 @@ if [[ ! -f "${APP_ENV_073_FILE}" ]]; then
   echo "application.env file not found: ${APP_ENV_073_FILE}" >&2
   exit 1
 fi
-if [[ ! -x "${REPO_ROOT}/gradlew" ]]; then
-  echo "Missing executable gradlew: ${REPO_ROOT}/gradlew" >&2
+if [[ ! -f "${REMEDY_SCRIPT_PATH}" ]]; then
+  echo "remedy script not found: ${REMEDY_SCRIPT_PATH}" >&2
   exit 1
 fi
-
-build_local_project
-
-if ! validate_local_build_path "${LOCAL_BUILD_PATH}"; then
-  echo "Invalid LOCAL_BUILD_PATH content: ${LOCAL_BUILD_PATH}" >&2
-  echo "Expected jar artifacts under both data/lib and data/apps (run ./gradlew assemble)." >&2
+if [[ ! -x "${REPO_ROOT}/gradlew" ]]; then
+  echo "Missing executable gradlew: ${REPO_ROOT}/gradlew" >&2
   exit 1
 fi
 
@@ -1981,7 +2138,7 @@ else
   wait_for_haproxy_ready 600
 
   log "Deploying mirror node and explorer"
-  solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --pinger
+  deploy_mirror_node_for_cutover
   run_explorer_add_with_retry
 
   log "Starting port-forwards for consensus node and mirror REST"
