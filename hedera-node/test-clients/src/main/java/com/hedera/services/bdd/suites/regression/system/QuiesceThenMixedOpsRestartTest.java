@@ -72,8 +72,8 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
                         Duration.ofMinutes(2),
                         "Started quiesced heartbeat",
                         "Stopping quiescence heartbeat",
-                        Duration.ofSeconds(5),
-                        Duration.ofSeconds(40)),
+                        Duration.ofSeconds(8),
+                        Duration.ofSeconds(35)),
                 doWithStartupDuration("quiescence.tctDuration", duration -> sleepForSeconds(4 * duration.toSeconds())),
                 getAccountBalance("scheduledReceiver").hasTinyBars(42 * ONE_HBAR),
                 getTxnRecord("creation").scheduled().exposingTo(r -> {
