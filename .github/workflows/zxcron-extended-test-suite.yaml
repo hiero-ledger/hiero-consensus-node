@@ -403,7 +403,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: main
-          checkout-fetch-depth: "1"
+          checkout-fetch-depth: "0"
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
       - name: Install gomplate
