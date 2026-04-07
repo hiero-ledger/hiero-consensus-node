@@ -348,12 +348,11 @@ public class EnhancedKeyStoreLoader {
                     throw new KeyLoadingException("No certificate found for nodeId %s [purpose = %s ]"
                             .formatted(nodeId, KeyCertPurpose.SIGNING));
                 }
-
-                warnIfSigKeyMismatch(nodeId);
             } catch (final KeyLoadingException e) {
                 logger.warn(STARTUP.getMarker(), e.getMessage());
                 throw e;
             }
+            warnIfSigKeyMismatch(nodeId);
         }
 
         return this;
