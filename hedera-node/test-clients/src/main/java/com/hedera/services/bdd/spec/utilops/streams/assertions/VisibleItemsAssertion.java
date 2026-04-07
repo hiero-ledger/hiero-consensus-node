@@ -190,9 +190,10 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
                 validator.assertValid(spec, items);
                 lastValidationError = null;
                 return true;
-            } catch (final AssertionError e) {
+            } catch (final AssertionError | RuntimeException e) {
+                final var error = (e instanceof AssertionError ae) ? ae : new AssertionError(e.getMessage(), e);
                 stateSnapshotAtLastValidation = currentSnapshot;
-                lastValidationError = e;
+                lastValidationError = error;
                 if (withLogging) {
                     log.info("Validation not yet passing (items may still be arriving): {}", e.getMessage());
                 }
