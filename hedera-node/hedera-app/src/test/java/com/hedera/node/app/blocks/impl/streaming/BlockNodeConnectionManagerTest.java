@@ -32,6 +32,8 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.Retr
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.RetryState;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -154,6 +156,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     private BlockBufferService bufferService;
     private BlockStreamMetrics metrics;
+    private NetworkInfo networkInfo;
+    private NodeInfo selfNodeInfo;
     private ScheduledExecutorService scheduledExecutor;
     private ExecutorService blockingIoExecutor;
     private Supplier<ExecutorService> blockingIoExecutorSupplier;
@@ -180,11 +184,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         bufferService = mock(BlockBufferService.class);
         metrics = mock(BlockStreamMetrics.class);
+        networkInfo = mock(NetworkInfo.class);
+        selfNodeInfo = mock(NodeInfo.class);
+        when(networkInfo.selfNodeInfo()).thenReturn(selfNodeInfo);
+        when(selfNodeInfo.nodeId()).thenReturn(0L);
         scheduledExecutor = mock(ScheduledExecutorService.class);
         blockingIoExecutor = mock(ExecutorService.class);
         blockingIoExecutorSupplier = () -> blockingIoExecutor;
-        connectionManager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
+        connectionManager = new BlockNodeConnectionManager(
+                configProvider, bufferService, metrics, networkInfo, blockingIoExecutorSupplier);
         replaceLocalhostWithPbjUnitTestHost();
 
         // Inject mock executor to control scheduling behavior in tests.
@@ -283,8 +291,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockNode.protocolExpBackoffTimeframeReset", "1s");
         final ConfigProvider configProvider = createConfigProvider(configBuilder);
 
-        connectionManager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
+        connectionManager = new BlockNodeConnectionManager(
+                configProvider, bufferService, metrics, networkInfo, blockingIoExecutorSupplier);
         replaceLocalhostWithPbjUnitTestHost();
         // Inject the mock executor service to control scheduling in tests
         sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
@@ -1061,8 +1069,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
 
-        connectionManager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
+        connectionManager = new BlockNodeConnectionManager(
+                configProvider, bufferService, metrics, networkInfo, blockingIoExecutorSupplier);
 
         // Verify that the manager was created but has no available nodes
         final List<BlockNodeConfiguration> availableNodes = availableNodes();
@@ -1078,8 +1086,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .getOrCreateConfig();
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
 
-        connectionManager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
+        connectionManager = new BlockNodeConnectionManager(
+                configProvider, bufferService, metrics, networkInfo, blockingIoExecutorSupplier);
 
         sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
 
@@ -2090,8 +2098,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                         fileNotDir.toAbsolutePath().toString()));
 
         // This should trigger IOException when trying to create WatchService on a file
-        final var manager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
+        final var manager = new BlockNodeConnectionManager(
+                configProvider, bufferService, metrics, networkInfo, blockingIoExecutorSupplier);
         manager.start();
 
         // Manager should start successfully even though config watcher failed
@@ -3198,8 +3206,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockNode.blockNodeConnectionFileDir", "/tmp/non-existent-test-dir-" + System.nanoTime()));
 
         // Create the manager
-        connectionManager =
-                new BlockNodeConnectionManager(configProvider, bufferService, metrics, blockingIoExecutorSupplier);
+        connectionManager = new BlockNodeConnectionManager(
+                configProvider, bufferService, metrics, networkInfo, blockingIoExecutorSupplier);
 
         // Inject the mock executor service to control scheduling in tests
         sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
@@ -3328,8 +3336,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                                 .getPath())
                 .getOrCreateConfig();
         final ConfigProvider disabledProvider = () -> new VersionedConfigImpl(config, 1L);
-        connectionManager =
-                new BlockNodeConnectionManager(disabledProvider, bufferService, metrics, blockingIoExecutorSupplier);
+        connectionManager = new BlockNodeConnectionManager(
+                disabledProvider, bufferService, metrics, networkInfo, blockingIoExecutorSupplier);
         sharedExecutorServiceHandle.set(connectionManager, scheduledExecutor);
     }
 

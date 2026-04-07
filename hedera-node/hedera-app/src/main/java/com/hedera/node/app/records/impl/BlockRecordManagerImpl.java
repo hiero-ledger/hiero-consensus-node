@@ -37,6 +37,7 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.VersionConfig;
@@ -364,7 +365,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
             if (currentBlockStartRunningHash != null) {
                 final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
-                if (liveWritePrevWrappedRecordHashes()) {
+                if ((votingBlockNumInitialized() || votingComplete) && liveWritePrevWrappedRecordHashes()) {
                     final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
                             justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
                     if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
@@ -681,6 +682,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         return BlockRecordInfoUtils.lastBlockHash(lastBlockInfo);
     }
 
+    private boolean votingBlockNumInitialized() {
+        return configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockStreamJumpstartConfig.class)
+                        .blockNum()
+                > 0L;
+    }
     // ========================================================================================================
     // Running Hash Getter Methods
     /**
@@ -949,6 +957,15 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 "Synced in-memory wrapped hash state from finalized vote: prevHash={}, leafCount={}",
                 prevWrappedRecordBlockRootHash.toHex(),
                 leafCount);
+    }
+
+    @Override
+    public void syncVotingMetadata(final boolean votingComplete, final long votingCompletionDeadlineBlockNumber) {
+        this.lastBlockInfo = this.lastBlockInfo
+                .copyBuilder()
+                .votingComplete(votingComplete)
+                .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                .build();
     }
 
     private boolean writeWrappedRecordFileBlockHashesToDisk() {
