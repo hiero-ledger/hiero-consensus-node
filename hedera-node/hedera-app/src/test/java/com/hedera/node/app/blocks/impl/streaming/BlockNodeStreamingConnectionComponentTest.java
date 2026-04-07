@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
@@ -68,6 +69,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTestBase {
+    private static final long NODE_ID = 0L;
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle workerThreadRefHandle;
     private static final MethodHandle sendRequestHandle;
@@ -147,7 +149,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
         connection = new BlockNodeStreamingConnection(
                 configProvider,
                 nodeConfig,
@@ -157,7 +159,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 executorService,
                 pipelineExecutor,
                 null,
-                clientFactory);
+                clientFactory,
+                NODE_ID);
 
         // Unlike unit tests, we do NOT set a fake worker thread here
         // This allows real worker threads to be spawned during tests
@@ -216,7 +219,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(localFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
 
         final BlockNodeConfiguration cfgWithMax = BlockNodeConfiguration.newBuilder()
                 .address(nodeConfig.address())
@@ -238,7 +241,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 executorService,
                 pipelineExecutor,
                 null,
-                localFactory);
+                localFactory,
+                NODE_ID);
 
         // Ensure publish stream returns pipeline
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
@@ -299,7 +303,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 executorService,
                 pipelineExecutor,
                 null,
-                clientFactory);
+                clientFactory,
+                NODE_ID);
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -401,7 +406,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 executorService,
                 pipelineExecutor,
                 null,
-                clientFactory);
+                clientFactory,
+                NODE_ID);
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -695,7 +701,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 executorService,
                 pipelineExecutor,
                 blockNumber, // start streaming with block 10
-                clientFactory);
+                clientFactory,
+                NODE_ID);
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
 
@@ -759,7 +766,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 executorService,
                 pipelineExecutor,
                 blockNumber, // start streaming with block 10
-                clientFactory);
+                clientFactory,
+                NODE_ID);
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
 
