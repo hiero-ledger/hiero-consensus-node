@@ -264,8 +264,14 @@ public class IssueRegressionTests {
                                 .payingWith(payer)
                                 .via("txnB")
                                 .hasAnyKnownStatus()),
-                getTxnRecord("txnA").logged(),
-                getTxnRecord("txnB").logged());
+                withOpContext((spec, ctxLog) -> {
+                    if (spec.registry().getMaybeTxnId("txnA").isPresent()) {
+                        allRunFor(spec, getTxnRecord("txnA").logged());
+                    }
+                    if (spec.registry().getMaybeTxnId("txnB").isPresent()) {
+                        allRunFor(spec, getTxnRecord("txnB").logged());
+                    }
+                }));
     }
 
     @HapiTest

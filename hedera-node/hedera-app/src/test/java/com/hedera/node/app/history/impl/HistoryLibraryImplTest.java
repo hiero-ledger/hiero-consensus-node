@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -34,6 +36,18 @@ class HistoryLibraryImplTest {
     @Test
     void wrapsVerificationKeyIsTbd() {
         assertArrayEquals(WRAPSVerificationKey.getCurrentKey(), subject.wrapsVerificationKey());
+    }
+
+    @Test
+    void zeroSeedGeneratedPublicKeyProducesNonNullAddressBookHash() {
+        final var libraryImpl = new HistoryLibraryImpl();
+        final var availableKey = libraryImpl.newSchnorrKeyPair().publicKey();
+        // Ensure we can still hash an address book when a node fails to gossip its Schnorr key in time
+        final var hash = HistoryLibraryImpl.WRAPS.hashAddressBook(
+                new byte[][] {HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray(), availableKey},
+                new long[] {1L, 1L},
+                new long[] {1L, 2L});
+        assertNotNull(hash);
     }
 
     @Test
@@ -74,7 +88,7 @@ class HistoryLibraryImplTest {
         assertArrayEquals(new long[] {1L, 2L}, addressBook.nodeIds());
         assertArrayEquals(new byte[] {0x01}, addressBook.publicKeys()[0]);
         assertArrayEquals(
-                HistoryLibrary.EMPTY_PUBLIC_KEY.toByteArray(), addressBook.publicKeys()[1]);
+                HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray(), addressBook.publicKeys()[1]);
     }
 
     @Test
@@ -119,6 +133,42 @@ class HistoryLibraryImplTest {
     void newSchnorrKeyPairReturnsNonNull() {
         final var keys = subject.newSchnorrKeyPair();
         assertNotNull(keys);
+    }
+
+    @Test
+    void emptyPublicKeyMatchesGeneratedSchnorrKeyLength() {
+        final var generatedPublicKey = subject.newSchnorrKeyPair().publicKey();
+
+        assertEquals(generatedPublicKey.length, HistoryLibrary.MISSING_SCHNORR_KEY.length());
+    }
+
+    @Test
+    void hashAddressBookThrowsNullPointerExceptionForNullAddressBook() {
+        assertThrows(NullPointerException.class, () -> subject.hashAddressBook(null));
+    }
+
+    @Test
+    void hashAddressBookThrowsDetailedIllegalArgumentExceptionWhenWrapsReturnsNull() {
+        final var addressBook = new HistoryLibrary.AddressBook(
+                new long[] {1L, -2L}, new byte[][] {new byte[191], null}, new long[] {7L});
+
+        final var exception = assertThrows(IllegalArgumentException.class, () -> subject.hashAddressBook(addressBook));
+        final var message = exception.getMessage();
+
+        assertNotNull(message);
+        assertTrue(message.contains("WRAPS.hashAddressBook() returned null."));
+        assertTrue(message.contains("schnorrPublicKeys.length=2"));
+        assertTrue(message.contains("weights.length=2"));
+        assertTrue(message.contains("nodeIds.length=1"));
+        assertTrue(message.contains("schnorrPublicKeys.length==weights.length=true"));
+        assertTrue(message.contains("schnorrPublicKeys.length==nodeIds.length=false"));
+        assertTrue(message.contains("validateWeightsSum=false"));
+        assertTrue(message.contains("negativeWeights=[#1=-2]"));
+        assertTrue(message.contains("sumOverflowed=false"));
+        assertTrue(message.contains("validateSchnorrPublicKeys=false"));
+        assertTrue(message.contains("#0(nonNull=true, length=191, length==192=false)"));
+        assertTrue(message.contains("#1(nonNull=false, length=null, length==192=false)"));
+        assertTrue(message.contains("bridgePrechecksPassed=false"));
     }
 
     @Test
