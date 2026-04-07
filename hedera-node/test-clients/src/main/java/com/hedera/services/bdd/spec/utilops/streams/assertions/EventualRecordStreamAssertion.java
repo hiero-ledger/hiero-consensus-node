@@ -141,7 +141,7 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
                                 unsubscribe.run();
                             }
                         }
-                    } catch (final AssertionError e) {
+                    } catch (final AssertionError | RuntimeException e) {
                         result.fail(e.getMessage());
                     }
                 }
