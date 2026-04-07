@@ -9,11 +9,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
+import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
+import com.swirlds.merkledb.collections.LongList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
@@ -34,6 +36,8 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     private VirtualMap virtualMap;
     private MerkleDbDataSource vds;
     private HalfDiskHashMap keyToPath;
+    private LongList pathToDiskLocationLeafNodes;
+    private MemoryIndexDiskKeyValueStore keyValueStore;
     private long firstLeafPath;
     private long lastLeafPath;
     private int hashChunkHeight;
@@ -76,6 +80,10 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
         this.virtualMap = state.getRoot();
         this.vds = (MerkleDbDataSource) virtualMap.getDataSource();
         this.keyToPath = vds.getKeyToPath();
+    
+        this.pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
+        this.keyValueStore = vds.getKeyValueStore();
+
         this.firstLeafPath = vds.getFirstLeafPath();
         this.lastLeafPath = vds.getLastLeafPath();
         this.hashChunkHeight = vds.getHashChunkHeight();
@@ -109,24 +117,37 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                 return;
             }
 
-            // Cross-check: read the same data item using the index (path -> value) and compare
-            // with what was read from the disk stream (leafBytes). This detects inconsistencies
-            // between the chunked file iterator reads and the indexed lookup.
-            final VirtualLeafBytes<?> byIndex = vds.loadLeafRecord(p2KvPath);
-            if (byIndex == null) {
+            // Cross-check: use the on-disk index (path -> data location) and the keyValueStore
+            // to verify that the record we just read from the chunked file iterator is the same
+            // as the one the MerkleDB index points to.
+            final long dataLocationFromIndex = pathToDiskLocationLeafNodes.get(p2KvPath);
+            if (dataLocationFromIndex != dataLocation) {
                 indexMismatchCount.incrementAndGet();
-                log.error("Index cross-check failed: no record found at path={}", p2KvPath);
+                log.error("Index data location mismatch at path={}. diskLocationFromIterator={} vs indexLocation={}",
+                        p2KvPath, dataLocation, dataLocationFromIndex);
                 return;
             }
-            if (!Objects.equals(byIndex.keyBytes(), keyBytes) || !Objects.equals(byIndex.valueBytes(), valueBytes)) {
+            final VirtualLeafBytes<?> leafBytesFromStore;
+            try {
+                // read canonical bytes directly from the store and parse
+                leafBytesFromStore = VirtualLeafBytes.parseFrom(keyValueStore.get(p2KvPath));
+            } catch (RuntimeException ex) {
+                // Catch unchecked parsing/formatting issues (e.g. buffer underflow) and treat as index mismatch
                 indexMismatchCount.incrementAndGet();
-                log.error(
-                        "Index cross-check mismatch at path={}. diskKey={} diskValueLen={} vs indexKey={} indexValueLen={}",
+                log.error("Index cross-check failed: unable to parse bytes from store for path={}. error={}", p2KvPath, ex.getMessage());
+                return;
+            }
+            if (leafBytesFromStore == null) {
+                indexMismatchCount.incrementAndGet();
+                log.error("Index cross-check failed: keyValueStore returned null for path={}", p2KvPath);
+                return;
+            }
+            if (!leafBytesFromStore.equals(leafBytes)) {
+                indexMismatchCount.incrementAndGet();
+                log.error("Index cross-check mismatch at path={}. iteratorBytes vs storeBytes differ (diskValueLen={} storeValueLen={})",
                         p2KvPath,
-                        keyBytes == null ? null : keyBytes.length(),
                         valueBytes == null ? -1 : valueBytes.length(),
-                        byIndex.keyBytes() == null ? null : byIndex.keyBytes().length(),
-                        byIndex.valueBytes() == null ? -1 : byIndex.valueBytes().length());
+                        leafBytesFromStore.valueBytes() == null ? -1 : leafBytesFromStore.valueBytes().length());
                 return;
             }
 
