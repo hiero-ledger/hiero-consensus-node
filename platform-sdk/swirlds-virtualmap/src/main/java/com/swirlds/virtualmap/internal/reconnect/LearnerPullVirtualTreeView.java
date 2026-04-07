@@ -221,7 +221,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
                 final VirtualLeafBytes<?> leaf = response.getLeafData();
                 assert leaf != null;
                 assert path == leaf.path();
-                vmapLearner.onLeaf(leaf); // may block if hashing is slower than ingest
+                vmapLearner.onDirtyLeaf(leaf); // may block if hashing is slower than ingest
             }
             mapStats.incrementLeafData(1, isClean ? 1 : 0);
         } else {

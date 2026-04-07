@@ -22,7 +22,6 @@ import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeView;
-import com.swirlds.virtualmap.internal.reconnect.LearnerPushVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
@@ -47,7 +46,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  *     <li>Constructor {@link #VirtualMapLearner(VirtualMap, ReconnectConfig, ReconnectMapStats)}</li>
  *     <li>Caller access {@link LearnerTreeView} by {@link #getLearnerView()} to start lessons passing input/output streams.</li>
  *     <li>When synchronization starts, first info that teacher sends is his current leaf path range {@link LearnerTreeView} implementation triggers {@link #init(long, long, Runnable)}</li>
- *     <li>Then on each dirty leaf {@link #onLeaf(VirtualLeafBytes)} has to be called</li>
+ *     <li>Then on each dirty leaf {@link #onDirtyLeaf(VirtualLeafBytes)} has to be called</li>
  *     <li>After all dirty leaves handled, {@link #onEnd()} has to be called, that finishes synchronization and creates new {@link VirtualMap} instance accessible via {@link #getVirtualMap()}</li>
  * </ul>
  *
@@ -185,7 +184,7 @@ public final class VirtualMapLearner {
      * paths of the reconnected tree. This initializes the reconnect state and flusher,
      * starts the background hashing thread and registers old leaves that need to be removed.
      *
-     * <p><b>Must</b> be called before any {@link #onLeaf(VirtualLeafBytes)} and {@link #onEnd()} calls.
+     * <p><b>Must</b> be called before any {@link #onDirtyLeaf(VirtualLeafBytes)} and {@link #onEnd()} calls.
      *
      * @param firstLeafPath first leaf path in the reconnected tree
      * @param lastLeafPath  last leaf path in the reconnected tree
@@ -260,7 +259,7 @@ public final class VirtualMapLearner {
      *
      * @param leaf the leaf record received from the teacher; must not be null
      */
-    public void onLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
+    public void onDirtyLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
         checkOldLeafToBeDeleted(leaf);
         reconnectFlusher.updateLeaf(leaf);
 
@@ -422,7 +421,6 @@ public final class VirtualMapLearner {
     private LearnerTreeView buildLearnerView(
             @NonNull final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
         return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PUSH -> new LearnerPushVirtualTreeView(this, mapStats);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
                 new LearnerPullVirtualTreeView(reconnectConfig, this, new TopToBottomTraversalOrder(), mapStats);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
