@@ -205,7 +205,7 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if ${{ success() }}; then
+          if [[ "${{ job.status }}" == "success" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
@@ -417,7 +417,7 @@ jobs:
         if: ${{ always() }}
         run: |
           # If the job overall succeeded, mark as 'none', otherwise 'workflow'.
-          if ${{ success() }}; then
+          if [[ "${{ job.status }}" == "success" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
