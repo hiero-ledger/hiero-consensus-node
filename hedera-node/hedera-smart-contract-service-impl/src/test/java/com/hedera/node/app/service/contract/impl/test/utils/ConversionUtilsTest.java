@@ -75,6 +75,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -301,6 +302,19 @@ class ConversionUtilsTest {
                 .build();
         final var actualPbj = ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES);
         assertEquals(expectedPbj, actualPbj);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void combinedPbjStorageConversionMatchesSeparateCalls(final boolean traceExplicitWrites) {
+        final var combined = Objects.requireNonNull(
+                ConversionUtils.asPbjStateChangesAndSlotUsages(SOME_STORAGE_ACCESSES, traceExplicitWrites));
+        assertEquals(
+                Objects.requireNonNull(ConversionUtils.asPbjStateChanges(SOME_STORAGE_ACCESSES)),
+                combined.stateChanges());
+        assertEquals(
+                Objects.requireNonNull(ConversionUtils.asPbjSlotUsages(SOME_STORAGE_ACCESSES, traceExplicitWrites)),
+                combined.slotUsages());
     }
 
     @Test

@@ -40,6 +40,7 @@ import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -81,6 +82,16 @@ public class ConversionUtils {
     private ConversionUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
+
+    /**
+     * Pair of PBJ structures derived from the same {@link StorageAccesses} list in one pass.
+     *
+     * @param stateChanges contract storage sidecar payload, or null if not built
+     * @param slotUsages block-stream slot usage trace, or null if not built
+     */
+    public record StateChangesAndSlotUsages(
+            @Nullable ContractStateChanges stateChanges,
+            @Nullable List<ContractSlotUsage> slotUsages) {}
 
     /**
      * Given a list of {@link com.esaulpaugh.headlong.abi.Address}, returns their implied token ids.
@@ -325,17 +336,8 @@ public class ConversionUtils {
         if (storageAccesses == null) {
             return null;
         }
-        final List<ContractStateChange> allStateChanges = new ArrayList<>(storageAccesses.size());
-        for (final var storageAccess : storageAccesses) {
-            final var accesses = storageAccess.accesses();
-            final List<StorageChange> changes = new ArrayList<>(accesses.size());
-            for (final var access : accesses) {
-                changes.add(new StorageChange(
-                        access.trimmedKeyBytes(), access.trimmedValueBytes(), access.trimmedWrittenValueBytes()));
-            }
-            allStateChanges.add(new ContractStateChange(storageAccess.contractID(), changes));
-        }
-        return new ContractStateChanges(allStateChanges);
+        return requireNonNull(convertStorageAccessesToPbj(storageAccesses, false, true, false))
+                .stateChanges();
     }
 
     /**
@@ -349,44 +351,146 @@ public class ConversionUtils {
         if (storageAccesses == null) {
             return null;
         }
-        final List<ContractSlotUsage> slotUsages = new ArrayList<>(storageAccesses.size());
-        for (final var storageAccess : storageAccesses) {
-            final var accesses = storageAccess.accesses();
-            final List<SlotRead> reads = new ArrayList<>(accesses.size());
-            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = traceExplicitWrites ? new ArrayList<>() : null;
-            for (final var access : accesses) {
-                if (!access.isReadOnly()) {
-                    if (writes != null) {
-                        writes.add(access.trimmedKeyBytes());
-                        reads.add(SlotRead.newBuilder()
-                                .index(writes.size() - 1)
-                                .readValue(access.trimmedValueBytes())
-                                .build());
-                    } else {
-                        // The block stream builder replaces the key with its index in the writes list once known
-                        reads.add(SlotRead.newBuilder()
-                                .key(tuweniToPbjBytes(access.key()))
-                                .readValue(access.trimmedValueBytes())
-                                .build());
-                    }
-                } else {
-                    reads.add(SlotRead.newBuilder()
-                            .key(access.trimmedKeyBytes())
-                            .readValue(access.trimmedValueBytes())
-                            .build());
-                }
-            }
-            if (traceExplicitWrites) {
-                slotUsages.add(ContractSlotUsage.newBuilder()
-                        .contractId(storageAccess.contractID())
-                        .writtenSlotKeys(new WrittenSlotKeys(writes))
-                        .slotReads(reads)
-                        .build());
-            } else {
-                slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), null, reads));
-            }
+        return requireNonNull(convertStorageAccessesToPbj(storageAccesses, traceExplicitWrites, false, true))
+                .slotUsages();
+    }
+
+    /**
+     * Converts {@link StorageAccesses} to both {@link ContractStateChanges} and {@link ContractSlotUsage}s in one pass.
+     *
+     * @param storageAccesses the accesses to convert
+     * @param traceExplicitWrites whether slot usage writes should be traced explicitly
+     * @return both structures, or {@code null} if {@code storageAccesses} is null
+     */
+    public static @Nullable StateChangesAndSlotUsages asPbjStateChangesAndSlotUsages(
+            @Nullable final List<StorageAccesses> storageAccesses, final boolean traceExplicitWrites) {
+        if (storageAccesses == null) {
+            return null;
         }
-        return slotUsages;
+        return convertStorageAccessesToPbj(storageAccesses, traceExplicitWrites, true, true);
+    }
+
+    /**
+     * Shared implementation for {@link #asPbjStateChanges}, {@link #asPbjSlotUsages}, and
+     * {@link #asPbjStateChangesAndSlotUsages}.
+     */
+    private static StateChangesAndSlotUsages convertStorageAccessesToPbj(
+            @NonNull final List<StorageAccesses> storageAccesses,
+            final boolean traceExplicitWrites,
+            final boolean emitStateChanges,
+            final boolean emitSlotUsages) {
+        if (!emitStateChanges && !emitSlotUsages) {
+            throw new IllegalArgumentException("At least one of emitStateChanges or emitSlotUsages must be true");
+        }
+        List<ContractStateChange> allStateChanges = null;
+        if (emitStateChanges) {
+            allStateChanges = new ArrayList<>(storageAccesses.size());
+        }
+        List<ContractSlotUsage> slotUsages = null;
+        if (emitSlotUsages) {
+            slotUsages = new ArrayList<>(storageAccesses.size());
+        }
+        for (final var storageAccess : storageAccesses) {
+            appendConvertedStorageAccessScope(
+                    storageAccess, traceExplicitWrites, emitStateChanges, emitSlotUsages, allStateChanges, slotUsages);
+        }
+        ContractStateChanges stateChanges = null;
+        if (emitStateChanges) {
+            stateChanges = new ContractStateChanges(requireNonNull(allStateChanges));
+        }
+        return new StateChangesAndSlotUsages(stateChanges, slotUsages);
+    }
+
+    private static void appendConvertedStorageAccessScope(
+            @NonNull final StorageAccesses storageAccess,
+            final boolean traceExplicitWrites,
+            final boolean emitStateChanges,
+            final boolean emitSlotUsages,
+            @Nullable final List<ContractStateChange> allStateChanges,
+            @Nullable final List<ContractSlotUsage> slotUsages) {
+        final var accesses = storageAccess.accesses();
+        List<StorageChange> changes = null;
+        if (emitStateChanges) {
+            changes = new ArrayList<>(accesses.size());
+        }
+        List<SlotRead> reads = null;
+        if (emitSlotUsages) {
+            reads = new ArrayList<>(accesses.size());
+        }
+        List<com.hedera.pbj.runtime.io.buffer.Bytes> explicitWriteKeys = null;
+        if (emitSlotUsages && traceExplicitWrites) {
+            explicitWriteKeys = new ArrayList<>(accesses.size());
+        }
+        for (final var access : accesses) {
+            accumulatePbjStorageAccessIntoScope(
+                    access, emitStateChanges, changes, emitSlotUsages, reads, explicitWriteKeys);
+        }
+        if (emitStateChanges) {
+            requireNonNull(allStateChanges)
+                    .add(new ContractStateChange(storageAccess.contractID(), requireNonNull(changes)));
+        }
+        if (emitSlotUsages) {
+            requireNonNull(slotUsages)
+                    .add(pbjContractSlotUsageFrom(
+                            storageAccess.contractID(), requireNonNull(reads), explicitWriteKeys, traceExplicitWrites));
+        }
+    }
+
+    private static void accumulatePbjStorageAccessIntoScope(
+            @NonNull final StorageAccess access,
+            final boolean emitStateChanges,
+            @Nullable final List<StorageChange> changes,
+            final boolean emitSlotUsages,
+            @Nullable final List<SlotRead> reads,
+            @Nullable final List<com.hedera.pbj.runtime.io.buffer.Bytes> explicitWriteKeys) {
+        if (emitStateChanges) {
+            requireNonNull(changes)
+                    .add(new StorageChange(
+                            access.trimmedKeyBytes(), access.trimmedValueBytes(), access.trimmedWrittenValueBytes()));
+        }
+        if (emitSlotUsages) {
+            appendPbjSlotReadForStorageAccess(requireNonNull(reads), explicitWriteKeys, access);
+        }
+    }
+
+    private static void appendPbjSlotReadForStorageAccess(
+            @NonNull final List<SlotRead> reads,
+            @Nullable final List<com.hedera.pbj.runtime.io.buffer.Bytes> explicitWriteKeys,
+            @NonNull final StorageAccess access) {
+        if (access.isReadOnly()) {
+            reads.add(SlotRead.newBuilder()
+                    .key(access.trimmedKeyBytes())
+                    .readValue(access.trimmedValueBytes())
+                    .build());
+            return;
+        }
+        if (explicitWriteKeys != null) {
+            explicitWriteKeys.add(access.trimmedKeyBytes());
+            reads.add(SlotRead.newBuilder()
+                    .index(explicitWriteKeys.size() - 1)
+                    .readValue(access.trimmedValueBytes())
+                    .build());
+            return;
+        }
+        // The block stream builder replaces the key with its index in the writes list once known
+        reads.add(SlotRead.newBuilder()
+                .key(tuweniToPbjBytes(access.key()))
+                .readValue(access.trimmedValueBytes())
+                .build());
+    }
+
+    private static ContractSlotUsage pbjContractSlotUsageFrom(
+            @NonNull final ContractID contractId,
+            @NonNull final List<SlotRead> reads,
+            @Nullable final List<com.hedera.pbj.runtime.io.buffer.Bytes> explicitWriteKeys,
+            final boolean traceExplicitWrites) {
+        return traceExplicitWrites
+                ? ContractSlotUsage.newBuilder()
+                        .contractId(contractId)
+                        .writtenSlotKeys(new WrittenSlotKeys(requireNonNull(explicitWriteKeys)))
+                        .slotReads(reads)
+                        .build()
+                : new ContractSlotUsage(contractId, null, reads);
     }
 
     /**

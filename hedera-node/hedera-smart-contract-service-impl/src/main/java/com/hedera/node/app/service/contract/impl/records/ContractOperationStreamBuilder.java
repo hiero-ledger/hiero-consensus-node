@@ -3,8 +3,10 @@ package com.hedera.node.app.service.contract.impl.records;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjSlotUsages;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChanges;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPbjStateChangesAndSlotUsages;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
@@ -23,10 +25,12 @@ import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
+import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
@@ -104,13 +108,8 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
             final var streamMode = context.configuration()
                     .getConfigData(BlockStreamConfig.class)
                     .streamMode();
-            if (streamMode != BLOCKS && !storageAccesses.isEmpty()) {
-                addContractStateChanges(requireNonNull(asPbjStateChanges(storageAccesses)), false);
-            }
             final boolean traceExplicitWrites = !txStorageUsage.hasChangedKeys();
-            if (streamMode != RECORDS) {
-                addContractSlotUsages(requireNonNull(asPbjSlotUsages(storageAccesses, traceExplicitWrites)));
-            }
+            addContractStorageSidecarsFromAccesses(this, streamMode, storageAccesses, traceExplicitWrites);
             if (!traceExplicitWrites) {
                 final var changedKeys = txStorageUsage.changedKeysOrThrow();
                 testForIdenticalKeys(o -> {
@@ -221,4 +220,28 @@ public interface ContractOperationStreamBuilder extends DeleteCapableTransaction
      */
     @NonNull
     ContractOperationStreamBuilder createdContractIds(@NonNull List<ContractID> contractIds);
+
+    /**
+     * Emits contract storage sidecars for the current {@link StreamMode}. {@link StreamMode#RECORDS} is slated for
+     * deprecation; until then the records-only path uses a single state-changes conversion. {@link StreamMode#BOTH}
+     * with non-empty accesses uses one pass for state changes and slot usages.
+     */
+    private static void addContractStorageSidecarsFromAccesses(
+            @NonNull final ContractOperationStreamBuilder builder,
+            @NonNull final StreamMode streamMode,
+            @NonNull final List<StorageAccesses> storageAccesses,
+            final boolean traceExplicitWrites) {
+        if (streamMode == BOTH && !storageAccesses.isEmpty()) {
+            final var both = requireNonNull(asPbjStateChangesAndSlotUsages(storageAccesses, traceExplicitWrites));
+            builder.addContractStateChanges(requireNonNull(both.stateChanges()), false);
+            builder.addContractSlotUsages(requireNonNull(both.slotUsages()));
+            return;
+        }
+        if (streamMode != BLOCKS && !storageAccesses.isEmpty()) {
+            builder.addContractStateChanges(requireNonNull(asPbjStateChanges(storageAccesses)), false);
+        }
+        if (streamMode != RECORDS) {
+            builder.addContractSlotUsages(requireNonNull(asPbjSlotUsages(storageAccesses, traceExplicitWrites)));
+        }
+    }
 }

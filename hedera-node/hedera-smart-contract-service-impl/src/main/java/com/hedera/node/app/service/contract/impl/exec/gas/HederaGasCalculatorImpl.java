@@ -77,19 +77,22 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
             @Nullable final List<AccessListItem> accessLists,
             @Nullable final List<CodeDelegation> codeDelegations) {
         final int nonZeros = payload.size() - zeros;
+        int accessListStorageKeyCount = 0;
+        if (accessLists != null) {
+            for (final var item : accessLists) {
+                accessListStorageKeyCount += item.storageKeys().size();
+            }
+        }
+        final var accessListCost =
+                accessLists != null ? accessListGasCost(accessLists.size(), accessListStorageKeyCount) : 0;
+        final var delegationCost = codeDelegations != null ? delegateCodeGasCost(codeDelegations.size()) : 0;
         final long cost = TX_BASE_COST
                 + TX_DATA_ZERO_COST * zeros
                 + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros
                 // accessList part of intrinsic gas
-                + accessListGasCost(
-                        accessLists != null ? accessLists.size() : 0,
-                        accessLists != null
-                                ? accessLists.stream()
-                                        .mapToInt(e -> e.storageKeys().size())
-                                        .sum()
-                                : 0)
+                + accessListCost
                 // authorizationList part of intrinsic gas
-                + delegateCodeGasCost(codeDelegations != null ? codeDelegations.size() : 0);
+                + delegationCost;
         return isContractCreate ? (cost + contractCreationCost(payload.size())) : cost;
     }
 
