@@ -36,6 +36,9 @@ public class EventSignatureChecker {
     private static final Logger logger = LogManager.getLogger(EventSignatureChecker.class);
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
 
+    private static final int INITIAL_DATA_BUFFER_SIZE = 48; // SHA-384 hash size
+    private static final int SIGNATURE_BUFFER_SIZE = 64; // Ed25519 signature size
+
     private final ConcurrentHashMap<VerifierKey, Bytes> publicKeyCache = new ConcurrentHashMap<>();
     private final Function<Bytes, BytesSignatureVerifier> verifierFactory;
     private volatile RosterHistory rosterHistory;
@@ -46,6 +49,12 @@ public class EventSignatureChecker {
     private final ConcurrentHashMap<Bytes, BytesSignatureVerifier> sharedVerifierCache = new ConcurrentHashMap<>();
     private final ThreadLocal<HashMap<Bytes, BytesSignatureVerifier>> threadLocalVerifierCache =
             ThreadLocal.withInitial(HashMap::new);
+
+    // Per-thread reusable byte buffers to avoid allocations on every verification call.
+    private final ThreadLocal<byte[]> threadLocalDataBuffer =
+            ThreadLocal.withInitial(() -> new byte[INITIAL_DATA_BUFFER_SIZE]);
+    private final ThreadLocal<byte[]> threadLocalSignatureBuffer =
+            ThreadLocal.withInitial(() -> new byte[SIGNATURE_BUFFER_SIZE]);
 
     private record VerifierKey(NodeId nodeId, long birthRound) {}
 
@@ -79,7 +88,27 @@ public class EventSignatureChecker {
         }
 
         final BytesSignatureVerifier verifier = resolveVerifier(certBytes);
-        return verifier.verify(event.getHash().getBytes(), event.getSignature());
+
+        final Bytes data = event.getHash().getBytes();
+        final Bytes signature = event.getSignature();
+        final int dataLen = Math.toIntExact(data.length());
+        final int sigLen = Math.toIntExact(signature.length());
+
+        byte[] dataBuf = threadLocalDataBuffer.get();
+        if (dataBuf.length < dataLen) {
+            dataBuf = new byte[dataLen];
+            threadLocalDataBuffer.set(dataBuf);
+        }
+        data.writeTo(dataBuf, 0);
+
+        byte[] sigBuf = threadLocalSignatureBuffer.get();
+        if (sigBuf.length < sigLen) {
+            sigBuf = new byte[sigLen];
+            threadLocalSignatureBuffer.set(sigBuf);
+        }
+        signature.writeTo(sigBuf, 0);
+
+        return verifier.verifyRaw(dataBuf, dataLen, sigBuf, sigLen);
     }
 
     /**

@@ -32,6 +32,12 @@ public class SodiumVerifier implements BytesSignatureVerifier {
     }
 
     @Override
+    public boolean verifyRaw(
+            @NonNull final byte[] data, final int dataLen, @NonNull final byte[] signature, final int signatureLen) {
+        return SodiumJni.SODIUM.cryptoSignVerifyDetached(signature, data, dataLen, publicKey);
+    }
+
+    @Override
     public boolean isThreadSafe() {
         return true;
     }
