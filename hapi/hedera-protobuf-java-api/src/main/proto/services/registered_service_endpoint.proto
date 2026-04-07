@@ -116,7 +116,7 @@ message RegisteredServiceEndpoint {
      * <p>
      * This field is REQUIRED.
      */
-    BlockNodeApi endpoint_api = 1;
+    repeated BlockNodeApi endpoint_api = 1;
 
     /**
      * An enumeration of well-known block node endpoint APIs, and a
