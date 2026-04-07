@@ -245,7 +245,8 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                                     recordWith()
                                             .status(ResponseCodeEnum.SUCCESS)
                                             .targetAccountId(PAYER),
-                                    // TODO(Pectra): something is off; figure out why we now have two child records for payer?
+                                    // TODO(Pectra): something is off; figure out why we now have two child records for
+                                    // payer?
                                     recordWith()
                                             .status(ResponseCodeEnum.SUCCESS)
                                             .targetAccountId(PAYER),
@@ -300,7 +301,8 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                                     recordWith()
                                             .status(ResponseCodeEnum.SUCCESS)
                                             .targetAccountId(PAYER),
-                                    // TODO(Pectra): something is off; figure out why we now have two child records for payer?
+                                    // TODO(Pectra): something is off; figure out why we now have two child records for
+                                    // payer?
                                     recordWith()
                                             .status(ResponseCodeEnum.SUCCESS)
                                             .targetAccountId(PAYER),

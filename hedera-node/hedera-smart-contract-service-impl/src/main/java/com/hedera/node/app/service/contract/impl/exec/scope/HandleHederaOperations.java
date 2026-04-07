@@ -577,13 +577,12 @@ public class HandleHederaOperations implements HederaOperations {
         final var body =
                 TransactionBody.newBuilder().cryptoUpdateAccount(cryptoUpdate).build();
 
-        final var streamBuilder =
-                context.dispatch(setupDispatch(
-                        context.payer(),
-                        body,
-                        CryptoUpdateStreamBuilder.class,
-                        DISPATCH_ONLY_NOOP_FEE_CHARGING,
-                        HandleContext.ConsensusThrottling.ON));
+        final var streamBuilder = context.dispatch(setupDispatch(
+                context.payer(),
+                body,
+                CryptoUpdateStreamBuilder.class,
+                DISPATCH_ONLY_NOOP_FEE_CHARGING,
+                HandleContext.ConsensusThrottling.ON));
         return streamBuilder.status() == SUCCESS;
     }
 }

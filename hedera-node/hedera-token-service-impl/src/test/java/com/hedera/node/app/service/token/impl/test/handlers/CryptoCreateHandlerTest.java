@@ -15,7 +15,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SEND_RECORD_THRESHOLD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
@@ -202,10 +201,10 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         txn = new CryptoCreateBuilder()
                 .withDelegationAddress(Bytes.fromHex("cafebabe"))
                 .build();
-//        given(pureChecksContext.body()).willReturn(txn);
-//        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-//        TOOD(Pectra): verify with feature flag off
-//        assertThat(NOT_SUPPORTED).isEqualTo(msg.responseCode());
+        //        given(pureChecksContext.body()).willReturn(txn);
+        //        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        //        TOOD(Pectra): verify with feature flag off
+        //        assertThat(NOT_SUPPORTED).isEqualTo(msg.responseCode());
     }
 
     @Test
