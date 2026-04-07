@@ -107,7 +107,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
         // for a "classic" HapiTest network with 4 nodes so that tests can still
         // submit transactions with different creator accounts; c.f. EmbeddedHedera,
         // which skips ingest and directly submits transactions for other nodes
-        this.network = generateNetworkConfig(nodes(), 1, 1);
+        this.network = generateNetworkConfig(nodes(), 1, 1).network();
     }
 
     /**
