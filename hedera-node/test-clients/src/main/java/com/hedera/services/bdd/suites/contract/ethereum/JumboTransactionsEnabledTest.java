@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -72,6 +73,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@Tag(SERIAL)
 @HapiTestLifecycle
 public class JumboTransactionsEnabledTest implements LifecycleTest {
     private static final String PAYER = "payer";
