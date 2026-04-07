@@ -11,6 +11,7 @@ import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
