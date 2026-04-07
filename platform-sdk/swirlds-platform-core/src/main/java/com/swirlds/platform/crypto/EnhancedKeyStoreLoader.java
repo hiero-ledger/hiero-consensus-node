@@ -713,10 +713,6 @@ public class EnhancedKeyStoreLoader {
         final PrivateKey privateKey = sigPrivateKeys.get(nodeId);
         final Certificate cert = sigCertificates.get(nodeId);
 
-        if (privateKey == null || cert == null) {
-            return;
-        }
-
         if (!(privateKey instanceof final RSAPrivateCrtKey rsaKey)) {
             logger.debug(
                     STARTUP.getMarker(),
