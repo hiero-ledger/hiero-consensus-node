@@ -4,7 +4,6 @@ package com.hedera.statevalidation.validator;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.statevalidation.util.ConfigUtils.NET_NAME;
 import static com.hedera.statevalidation.validator.EntityIdUniquenessValidator.ENTITY_ID_GROUP;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.StateKey;
@@ -109,7 +108,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
         }
 
         final boolean ok;
-        if(!NET_NAME.equals("Mainnet")) {
+        if (!NET_NAME.equals("Mainnet")) {
             ok = entityCounts.numAccounts() == accountCount.get()
                     && entityCounts.numAliases() == aliasesCount.get()
                     && entityCounts.numTokens() == tokenCount.get()
@@ -142,8 +141,6 @@ public class EntityIdCountValidator implements LeafBytesValidator {
                     && entityCounts.numContractBytecodes() == contractBytecodeCount.get()
                     && entityCounts.numHooks() == hookCount.get();
         }
-
-
 
         if (!ok) {
             throw new ValidationException(
