@@ -21,8 +21,12 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.node.app.blocks.impl.streaming.BlockNode.ServiceConnectionFailure;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.AnyCriteria;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.GroupSelectionOutcome;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.MinimumPriorityCriteria;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.NodeCandidate;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.NodeSelectionCriteria;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.RetrieveBlockNodeStatusTask;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
@@ -40,6 +44,7 @@ import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
@@ -135,8 +140,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             getNextPriorityBlockNode.setAccessible(true);
             getNextPriorityBlockNodeHandle = lookup.unreflect(getNextPriorityBlockNode);
 
-            final Method selectNewBlockNode =
-                    cls.getDeclaredMethod("selectNewBlockNode", boolean.class, CloseReason.class);
+            final Method selectNewBlockNode = cls.getDeclaredMethod(
+                    "selectNewBlockNode", boolean.class, NodeSelectionCriteria.class, CloseReason.class);
             selectNewBlockNode.setAccessible(true);
             selectNewBlockNodeHandle = lookup.unreflect(selectNewBlockNode);
 
@@ -759,6 +764,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node2, times(2)).configuration();
         verify(node3, times(2)).configuration();
         verify(node4, times(2)).configuration();
+        verify(node1).applyCoolDown(any(ServiceConnectionFailure.class));
+        verify(node2).applyCoolDown(any(ServiceConnectionFailure.class));
+        verify(node3).applyCoolDown(any(ServiceConnectionFailure.class));
+        verify(node4).applyCoolDown(any(ServiceConnectionFailure.class));
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoMoreInteractions(node1Future, node2Future, node3Future, node4Future);
         verifyNoMoreInteractions(node1, node2, node3, node4);
@@ -784,7 +793,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(blockingIoExecutor).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verify(nodeFuture).state();
         verify(nodeFuture).resultNow();
-        verify(node, times(2)).configuration();
+        verify(node, times(3)).configuration();
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoMoreInteractions(nodeFuture);
         verifyNoMoreInteractions(node);
@@ -813,7 +822,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(blockingIoExecutor).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verify(nodeFuture).state();
         verify(nodeFuture).resultNow();
-        verify(node, times(2)).configuration();
+        verify(node, times(3)).configuration();
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoMoreInteractions(nodeFuture);
         verifyNoMoreInteractions(node);
@@ -850,8 +859,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node1Future).resultNow();
         verify(node2Future).state();
         verify(node2Future).resultNow();
-        verify(node1, times(2)).configuration();
-        verify(node2, times(2)).configuration();
+        verify(node1, times(3)).configuration();
+        verify(node2, times(3)).configuration();
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoMoreInteractions(node1Future, node2Future);
         verifyNoMoreInteractions(node1, node2);
@@ -886,8 +895,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node1Future).resultNow();
         verify(node2Future).state();
         verify(node2Future).resultNow();
-        verify(node1, times(2)).configuration();
-        verify(node2, times(2)).configuration();
+        verify(node1, times(3)).configuration();
+        verify(node2, times(3)).configuration();
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoMoreInteractions(node1Future, node2Future);
         verifyNoMoreInteractions(node1, node2);
@@ -936,7 +945,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(blockingIoExecutor, times(2)).invokeAll(anyCollection(), anyLong(), any(TimeUnit.class));
         verify(node1, times(3)).configuration();
-        verify(node2, times(3)).configuration();
+        verify(node2, times(4)).configuration();
+        verify(node1).applyCoolDown(any(ServiceConnectionFailure.class));
         verify(node1Future).state();
         verify(node1Future).cancel(true);
         verify(node2Future).state();
@@ -975,8 +985,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node1Future).resultNow();
         verify(node2Future).state();
         verify(node2Future).resultNow();
-        verify(node1, times(3)).configuration();
-        verify(node2, times(3)).configuration();
+        verify(node1, times(4)).configuration();
+        verify(node2, times(4)).configuration();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getLastBlockNumberProduced();
         verifyNoMoreInteractions(blockingIoExecutor);
@@ -1011,8 +1021,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node1Future).resultNow();
         verify(node2Future).state();
         verify(node2Future).resultNow();
-        verify(node1, times(3)).configuration();
-        verify(node2, times(3)).configuration();
+        verify(node1, times(4)).configuration();
+        verify(node2, times(4)).configuration();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getLastBlockNumberProduced();
         verifyNoMoreInteractions(blockingIoExecutor);
@@ -1048,8 +1058,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node1Future).resultNow();
         verify(node2Future).state();
         verify(node2Future).resultNow();
-        verify(node1, times(3)).configuration();
-        verify(node2, times(3)).configuration();
+        verify(node1, times(4)).configuration();
+        verify(node2, times(4)).configuration();
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
         verify(bufferService, times(2)).getLastBlockNumberProduced();
         verifyNoMoreInteractions(blockingIoExecutor);
@@ -1089,7 +1099,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         globalCoolDownTimestampRef().set(Instant.now().plusSeconds(10));
         activeConnectionRef().set(null);
 
-        invoke_selectNewBlockNode(false, CloseReason.BUFFER_SATURATION);
+        invoke_selectNewBlockNode(false, new AnyCriteria(), CloseReason.BUFFER_SATURATION);
 
         assertThat(activeConnectionRef()).hasNullValue();
     }
@@ -1118,7 +1128,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
                 mockConstruction(BlockNodeStreamingConnection.class)) {
-            invoke_selectNewBlockNode(true, CloseReason.BUFFER_SATURATION);
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.BUFFER_SATURATION);
 
             // one connection should have been created
             assertThat(mockConnection.constructed()).hasSize(1);
@@ -1144,6 +1154,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Instant existingGlobalCoolDown = Instant.now().minusSeconds(10);
         globalCoolDownTimestampRef().set(existingGlobalCoolDown);
         final BlockNode node1 = mock(BlockNode.class);
+        lenient().when(node1.configuration()).thenReturn(newBlockNodeConfig("localhost", 1234, 1));
         when(node1.isStreamingCandidate()).thenReturn(false);
         final BlockNode node2 = mock(BlockNode.class);
         when(node2.isStreamingCandidate()).thenReturn(false); // not a candidate
@@ -1154,7 +1165,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
                 mockConstruction(BlockNodeStreamingConnection.class)) {
-            invoke_selectNewBlockNode(true, CloseReason.BUFFER_SATURATION);
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.BUFFER_SATURATION);
 
             // no connection should have been created
             assertThat(mockConnection.constructed()).isEmpty();
@@ -1199,7 +1210,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeStreamingConnection newActiveConnection;
         try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
                 mockConstruction(BlockNodeStreamingConnection.class)) {
-            invoke_selectNewBlockNode(true, CloseReason.BUFFER_SATURATION);
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.BUFFER_SATURATION);
 
             // one connection should have been created
             final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
@@ -1226,6 +1237,105 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node2, atLeastOnce()).isStreamingCandidate();
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoMoreInteractions(node1Future);
+    }
+
+    @Test
+    void testSelectNewBockNode_higherPriorityRequiredAndAvailable() throws Throwable {
+        // create multiple block nodes with different priorities (1-3) but have the active connection be priority 2
+        // this should trigger a node reselection where only nodes with higher priorities (i.e. priority 1) are selected
+        final BlockNode node1 = mock(BlockNode.class);
+        lenient().when(node1.configuration()).thenReturn(newBlockNodeConfig("localhost", 1234, 1));
+        when(node1.isStreamingCandidate()).thenReturn(true);
+        final Future<Object> node1Future = mock(Future.class);
+        when(node1Future.state()).thenReturn(State.SUCCESS);
+        when(node1Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 12));
+        final BlockNode node2 = mock(BlockNode.class);
+        final BlockNodeConfiguration node2Config = newBlockNodeConfig("localhost", 2345, 2);
+        lenient().when(node2.configuration()).thenReturn(node2Config);
+        when(node2.isStreamingCandidate()).thenReturn(false); // it is the active connection already
+        final BlockNodeStreamingConnection node2Conn = mock(BlockNodeStreamingConnection.class);
+        final BlockNode node3 = mock(BlockNode.class);
+        lenient().when(node3.configuration()).thenReturn(newBlockNodeConfig("localhost", 3456, 3));
+        when(node3.isStreamingCandidate()).thenReturn(true);
+        when(blockingIoExecutor.invokeAll(anyCollection(), anyLong(), any(TimeUnit.class)))
+                .thenReturn(List.of(node1Future));
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(10L);
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(20L);
+
+        blockNodes().put(new BlockNodeEndpoint("localhost", 1234), node1);
+        blockNodes().put(new BlockNodeEndpoint("localhost", 2345), node2);
+        blockNodes().put(new BlockNodeEndpoint("localhost", 3456), node3);
+        activeConnectionRef().set(node2Conn); // set node 2 as the current active connection
+
+        final BlockNodeStreamingConnection newActiveConnection;
+        final List<Object> newConnectionConstructorArgs = new ArrayList<>();
+        try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection = mockConstruction(
+                BlockNodeStreamingConnection.class,
+                (mock, ctx) -> newConnectionConstructorArgs.addAll(ctx.arguments()))) {
+            invoke_selectNewBlockNode(true, new MinimumPriorityCriteria(1), CloseReason.HIGHER_PRIORITY_FOUND);
+
+            // one connection should have been created
+            final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
+            assertThat(createdConnections).hasSize(1);
+
+            newActiveConnection = createdConnections.getFirst();
+        }
+
+        // the second constructor argument is the BlockNode associated with the connection
+        assertThat(newConnectionConstructorArgs).hasSize(9);
+        final BlockNode newConnectionNode = (BlockNode) newConnectionConstructorArgs.get(1);
+        assertThat(newConnectionNode).isEqualTo(node1);
+
+        assertThat(activeConnectionRef()).doesNotHaveNullValue().hasValue(newActiveConnection);
+
+        verify(newActiveConnection).initialize();
+        verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
+        verify(node2Conn).closeAtBlockBoundary(CloseReason.HIGHER_PRIORITY_FOUND);
+
+        verify(blockingIoExecutor).invokeAll(anyCollection(), anyLong(), any(TimeUnit.class));
+        verify(node1, atLeastOnce()).isStreamingCandidate();
+        verify(node1, atLeast(3)).configuration();
+        verify(node1Future).state();
+        verify(node1Future).resultNow();
+        verify(node2, atLeastOnce()).isStreamingCandidate();
+        verifyNoMoreInteractions(blockingIoExecutor);
+        verifyNoMoreInteractions(node1Future);
+    }
+
+    @Test
+    void testSelectNewBockNode_higherPriorityRequiredAndNotAvailable() throws Throwable {
+        // create multiple block nodes with different priorities (1-3) but have the active connection be priority 2
+        // this should trigger a node reselection where only nodes with higher priorities (i.e. priority 1) are selected
+        // but mark the higher priority node as not streamable (e.g. due to previous failure)
+        final BlockNode node1 = mock(BlockNode.class);
+        lenient().when(node1.configuration()).thenReturn(newBlockNodeConfig("localhost", 1234, 1));
+        when(node1.isStreamingCandidate()).thenReturn(false);
+        final BlockNode node2 = mock(BlockNode.class);
+        final BlockNodeConfiguration node2Config = newBlockNodeConfig("localhost", 2345, 2);
+        lenient().when(node2.configuration()).thenReturn(node2Config);
+        when(node2.isStreamingCandidate()).thenReturn(false); // it is the active connection already
+        final BlockNodeStreamingConnection node2Conn = mock(BlockNodeStreamingConnection.class);
+        final BlockNode node3 = mock(BlockNode.class);
+        lenient().when(node3.configuration()).thenReturn(newBlockNodeConfig("localhost", 3456, 3));
+        when(node3.isStreamingCandidate()).thenReturn(true);
+
+        blockNodes().put(new BlockNodeEndpoint("localhost", 1234), node1);
+        blockNodes().put(new BlockNodeEndpoint("localhost", 2345), node2);
+        blockNodes().put(new BlockNodeEndpoint("localhost", 3456), node3);
+        activeConnectionRef().set(node2Conn); // set node 2 as the current active connection
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
+                mockConstruction(BlockNodeStreamingConnection.class)) {
+            invoke_selectNewBlockNode(true, new MinimumPriorityCriteria(1), CloseReason.HIGHER_PRIORITY_FOUND);
+
+            // no connection should have been created
+            final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
+            assertThat(createdConnections).isEmpty();
+        }
+
+        assertThat(activeConnectionRef()).hasValue(node2Conn); // should be unchanged
+
+        verifyNoInteractions(blockingIoExecutor);
     }
 
     @Test
@@ -1324,6 +1434,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 .thenReturn(Instant.now().plusSeconds(2).toEpochMilli());
         when(activeConnection.autoResetTimestamp()).thenReturn(Instant.now().plusSeconds(90));
         final BlockNode node = mock(BlockNode.class);
+        lenient().when(node.configuration()).thenReturn(newBlockNodeConfig("localhost", 2345, 2));
         when(node.isStreamingCandidate()).thenReturn(false);
         activeConnectionRef().set(activeConnection);
         // set the latest config as the current config
@@ -1415,6 +1526,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(existingActiveConnection.autoResetTimestamp())
                 .thenReturn(Instant.now().plusSeconds(90));
         final BlockNode existingActiveNode = mock(BlockNode.class);
+        lenient().when(existingActiveNode.configuration()).thenReturn(existingActiveNodeConfig);
         when(existingActiveNode.isStreamingCandidate()).thenReturn(false);
         activeConnectionRef().set(existingActiveConnection);
         // mark the buffer as healthy
@@ -1638,8 +1750,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         updateConnectionIfNeededHandle.invoke(connectionManager);
     }
 
-    void invoke_selectNewBlockNode(final boolean force, final CloseReason closeReason) throws Throwable {
-        selectNewBlockNodeHandle.invoke(connectionManager, force, closeReason);
+    void invoke_selectNewBlockNode(
+            final boolean force, final NodeSelectionCriteria criteria, final CloseReason closeReason) throws Throwable {
+        selectNewBlockNodeHandle.invoke(connectionManager, force, criteria, closeReason);
     }
 
     void invoke_pruneNodes() throws Throwable {

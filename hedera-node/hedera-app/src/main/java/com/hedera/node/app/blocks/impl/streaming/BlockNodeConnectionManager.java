@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
+import com.hedera.node.app.blocks.impl.streaming.BlockNode.ServiceConnectionFailure;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -393,7 +394,7 @@ public class BlockNodeConnectionManager {
 
         for (int i = 0; i < nodes.size(); ++i) {
             final BlockNode node = nodes.get(i);
-            final BlockNodeConfiguration nodeConfig = node.configuration();
+            final BlockNodeEndpoint serviceEndpoint = node.configuration().serviceEndpoint();
             final Future<BlockNodeStatus> future = futures.get(i);
             final BlockNodeStatus status =
                     switch (future.state()) {
@@ -402,31 +403,31 @@ public class BlockNodeConnectionManager {
                             if (bns == null) {
                                 logger.warn(
                                         "[{}:{}] Retrieving block node status was successful, but null returned",
-                                        nodeConfig.address(),
-                                        nodeConfig.servicePort());
+                                        serviceEndpoint.host(),
+                                        serviceEndpoint.port());
                                 // we don't have any information so mark it unreachable... hopefully this never happens
                                 yield BlockNodeStatus.notReachable();
                             } else {
                                 logger.debug(
                                         "[{}:{}] Successfully retrieved block node status",
-                                        nodeConfig.address(),
-                                        nodeConfig.servicePort());
+                                        serviceEndpoint.host(),
+                                        serviceEndpoint.port());
                                 yield bns;
                             }
                         }
                         case FAILED -> {
                             logger.warn(
                                     "[{}:{}] Failed to retrieve block node status",
-                                    nodeConfig.address(),
-                                    nodeConfig.servicePort(),
+                                    serviceEndpoint.host(),
+                                    serviceEndpoint.port(),
                                     future.exceptionNow());
                             yield BlockNodeStatus.notReachable();
                         }
                         case CANCELLED, RUNNING -> {
                             logger.warn(
                                     "[{}:{}] Timed out waiting for block node status",
-                                    nodeConfig.address(),
-                                    nodeConfig.servicePort());
+                                    serviceEndpoint.host(),
+                                    serviceEndpoint.port());
                             future.cancel(true);
                             yield BlockNodeStatus.notReachable();
                         }
@@ -435,8 +436,9 @@ public class BlockNodeConnectionManager {
             if (!status.wasReachable()) {
                 logger.info(
                         "[{}:{}] Block node is not a candidate for streaming (reason: unreachable/timeout)",
-                        nodeConfig.address(),
-                        nodeConfig.servicePort());
+                        serviceEndpoint.host(),
+                        serviceEndpoint.port());
+                node.applyCoolDown(new ServiceConnectionFailure());
                 continue;
             }
 
@@ -450,13 +452,14 @@ public class BlockNodeConnectionManager {
             node, then existing reconnect operations will engage to sort things out.
              */
 
+            final BlockNodeEndpoint streamingEndpoint = node.configuration().streamingEndpoint();
             final long wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
             if (latestAvailableBlock != -1) {
                 if (wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
                     logger.info(
                             "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (wantedBlock: {}, blocksAvailable: {}-{}))",
-                            nodeConfig.address(),
-                            nodeConfig.servicePort(),
+                            streamingEndpoint.host(),
+                            streamingEndpoint.port(),
                             wantedBlock,
                             earliestAvailableBlock,
                             latestAvailableBlock);
@@ -466,8 +469,8 @@ public class BlockNodeConnectionManager {
 
             logger.info(
                     "[{}:{}] Block node is available for streaming (wantedBlock: {})",
-                    nodeConfig.address(),
-                    nodeConfig.servicePort(),
+                    streamingEndpoint.host(),
+                    streamingEndpoint.port(),
                     wantedBlock);
             eligibleCandidates.add(new NodeCandidate(node, wantedBlock));
         }
@@ -576,6 +579,23 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Determines what type of criteria should be applied when selecting block nodes to stream to.
+     */
+    sealed interface NodeSelectionCriteria permits AnyCriteria, MinimumPriorityCriteria {}
+
+    /**
+     * No specific criteria exists - any block node that is eligible for streaming is a candidate.
+     */
+    record AnyCriteria() implements NodeSelectionCriteria {}
+
+    /**
+     * Only block nodes that have an equal or higher priority than the specified priority are candidates for streaming.
+     *
+     * @param priority the minimum priority
+     */
+    record MinimumPriorityCriteria(int priority) implements NodeSelectionCriteria {}
+
+    /**
      * Checks if the current state of connectivity is healthy and if not, it will attempt to take corrective actions.
      */
     private void updateConnectionIfNeeded() {
@@ -585,6 +605,7 @@ public class BlockNodeConnectionManager {
         final Instant now = Instant.now();
         final BlockNodeStreamingConnection activeConnection = activeConnectionRef.get();
         CloseReason closeReason = null;
+        NodeSelectionCriteria criteria = new AnyCriteria();
 
         final boolean noActiveConnection = isMissingActiveConnection(activeConnection);
         final boolean updatedConfig = isConfigUpdated();
@@ -597,6 +618,8 @@ public class BlockNodeConnectionManager {
         }
         final boolean higherPriorityConnectionFound = isHigherPriorityNodeAvailable(activeConnection);
         if (higherPriorityConnectionFound) {
+            criteria =
+                    new MinimumPriorityCriteria(activeConnection.configuration().priority() - 1);
             closeReason = CloseReason.HIGHER_PRIORITY_FOUND;
         }
         final boolean stalledActiveConnection = isActiveConnectionStalled(now, activeConnection);
@@ -628,7 +651,7 @@ public class BlockNodeConnectionManager {
                     sb.append(" buffer-unhealthy");
                 }
                 if (higherPriorityConnectionFound) {
-                    sb.append(" high-priority-connection-found");
+                    sb.append(" higher-priority-connection-found");
                 }
                 if (stalledActiveConnection) {
                     sb.append(" stalled-active-connection");
@@ -641,7 +664,7 @@ public class BlockNodeConnectionManager {
                 logger.info("{}", sb);
             }
 
-            selectNewBlockNode(noActiveConnection, closeReason);
+            selectNewBlockNode(noActiveConnection, criteria, closeReason);
         } else {
             logger.trace("Block node connectivity is healthy; no corrective action needed at this time");
         }
@@ -863,7 +886,11 @@ public class BlockNodeConnectionManager {
      * @param closeReason if there is an active connection and a switch is performed, this reason will be applied to
      *                    the active connection for the reason why the switch was required
      */
-    private void selectNewBlockNode(final boolean force, @Nullable final CloseReason closeReason) {
+    private void selectNewBlockNode(
+            final boolean force,
+            @NonNull final NodeSelectionCriteria criteria,
+            @Nullable final CloseReason closeReason) {
+        requireNonNull(criteria, "Selection criteria is required");
         pruneNodes();
 
         final Instant globalCoolDownTimestamp = globalCoolDownTimestampRef.get();
@@ -880,9 +907,19 @@ public class BlockNodeConnectionManager {
             if (nodes.isEmpty()) {
                 sb.append(" <none>");
             } else {
-                for (final BlockNode node : nodes.values()) {
-                    sb.append("\n");
-                    node.writeInformation(sb);
+                final SortedMap<Integer, List<BlockNode>> blockNodesByPriority = new TreeMap<>();
+                nodes.values().forEach(node -> {
+                    final BlockNodeConfiguration cfg = node.configuration();
+                    blockNodesByPriority
+                            .computeIfAbsent(cfg.priority(), _ -> new ArrayList<>())
+                            .add(node);
+                });
+
+                for (final Map.Entry<Integer, List<BlockNode>> entry : blockNodesByPriority.entrySet()) {
+                    for (final BlockNode node : entry.getValue()) {
+                        sb.append("\n");
+                        node.writeInformation(sb);
+                    }
                 }
             }
 
@@ -893,8 +930,20 @@ public class BlockNodeConnectionManager {
         final List<BlockNode> candidates = new ArrayList<>(nodes.size());
         for (final BlockNode node : nodes.values()) {
             if (node.isStreamingCandidate()) {
-                candidates.add(node);
+                switch (criteria) {
+                    case AnyCriteria() -> candidates.add(node);
+                    case MinimumPriorityCriteria(final int minPriority)
+                    when node.configuration().priority() <= minPriority -> candidates.add(node);
+                    default -> {
+                        /* don't add the node as a candidate */
+                    }
+                }
             }
+        }
+
+        if (candidates.isEmpty()) {
+            logger.info("No block node candidates found for selection criteria: {}", criteria);
+            return;
         }
 
         final BlockNode selectedNode = getNextPriorityBlockNode(candidates);

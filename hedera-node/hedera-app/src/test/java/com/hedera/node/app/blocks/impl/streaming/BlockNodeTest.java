@@ -11,6 +11,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.ConnectionHistory;
+import com.hedera.node.app.blocks.impl.streaming.BlockNode.DeviantConnectionClose;
+import com.hedera.node.app.blocks.impl.streaming.BlockNode.ServiceConnectionFailure;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
@@ -476,6 +478,28 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         activeStreamingConnectionRef().set(null);
 
         assertThat(node.isStreamingCandidate()).isTrue();
+    }
+
+    @Test
+    void testApplyCoolDown_serviceConnectionFailure() {
+        assertThat(node.isStreamingCandidate()).isTrue();
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+
+        node.applyCoolDown(new ServiceConnectionFailure());
+
+        assertThat(node.isStreamingCandidate()).isFalse();
+        assertThat(nodeCoolDownTimestampRef()).doesNotHaveNullValue();
+    }
+
+    @Test
+    void testApplyCoolDown_deviantConnectionClose() {
+        assertThat(node.isStreamingCandidate()).isTrue();
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+
+        node.applyCoolDown(new DeviantConnectionClose(CloseReason.BUFFER_SATURATION));
+
+        assertThat(node.isStreamingCandidate()).isFalse();
+        assertThat(nodeCoolDownTimestampRef()).doesNotHaveNullValue();
     }
 
     @SuppressWarnings("unchecked")

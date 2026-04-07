@@ -339,21 +339,49 @@ public class BlockNode {
 
         final CloseReason closeReason = connHistory.closeReason;
         if (closeReason.isCoolDownRequired()) {
-            // the close reason indicates that likely a non-transient issue was encountered, thus mark this node
-            // as being in a cool down period so we don't immediately try to go back to it
-            final int coolDownSeconds = configProvider
-                    .getConfiguration()
-                    .getConfigData(BlockNodeConnectionConfig.class)
-                    .connectCoolDownSeconds();
-            final Instant coolDownTimestamp = Instant.now(clock).plusSeconds(coolDownSeconds);
-            logger.warn(
-                    "[{}:{}] Block node is in cool down until {} due to close reason {}",
-                    endpoint.host(),
-                    endpoint.port(),
-                    coolDownTimestamp,
-                    closeReason);
-            nodeCoolDownTimestampRef.set(coolDownTimestamp);
+            applyCoolDown(new DeviantConnectionClose(closeReason));
         }
+    }
+
+    /**
+     * Reason for why a cool down is being applied.
+     */
+    sealed interface CoolDownReason permits ServiceConnectionFailure, DeviantConnectionClose {}
+
+    /**
+     * Indicates a cool down is required due to a failure with service connections to the block node - e.g. timed out
+     * waiting to get server status.
+     */
+    record ServiceConnectionFailure() implements CoolDownReason {}
+
+    /**
+     * Indicates a cool down is required due to a deviant (i.e. unexpected) streaming connection close - e.g. the
+     * connection experienced a network error.
+     *
+     * @param closeReason
+     */
+    record DeviantConnectionClose(CloseReason closeReason) implements CoolDownReason {}
+
+    /**
+     * Applies a cool down to this block node.
+     *
+     * @param reason the reason for the cool down
+     */
+    void applyCoolDown(@NonNull final CoolDownReason reason) {
+        final int coolDownSeconds = configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .connectCoolDownSeconds();
+        final Instant coolDownTimestamp = Instant.now(clock).plusSeconds(coolDownSeconds);
+        final BlockNodeEndpoint endpoint = configuration().streamingEndpoint();
+
+        logger.warn(
+                "[{}:{}] Block node is in cool down until {} (reason: {})",
+                endpoint.host(),
+                endpoint.port(),
+                coolDownTimestamp,
+                reason);
+        nodeCoolDownTimestampRef.set(coolDownTimestamp);
     }
 
     /**
