@@ -71,7 +71,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.PROCESSING_BYTES_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_BASE_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_CONTRACT_CALL_BASE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_CREATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SCHEDULE_GET_INFO_BASE_FEE_USD;
@@ -2656,7 +2656,7 @@ public class FeesChargingUtils {
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
         final long keyExtras = Math.max(0L, keys - SCHEDULE_CREATE_INCLUDED_KEYS);
         final double serviceFee =
-                SCHEDULE_CREATE_BASE_FEE_USD + keyExtras * KEYS_FEE_USD + SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE_USD;
+                SCHEDULE_CREATE_BASE_FEE_USD + keyExtras * KEYS_FEE_USD + SCHEDULE_CREATE_CONTRACT_CALL_BASE_USD;
         return nodeFee + networkFee + serviceFee;
     }
 
