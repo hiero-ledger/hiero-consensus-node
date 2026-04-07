@@ -710,17 +710,8 @@ public class EnhancedKeyStoreLoader {
      * @param nodeId the {@link NodeId} whose key/cert pair should be checked.
      */
     private void warnIfSigKeyMismatch(@NonNull final NodeId nodeId) {
-        final PrivateKey privateKey = sigPrivateKeys.get(nodeId);
+        final RSAPrivateCrtKey rsaKey = (RSAPrivateCrtKey) sigPrivateKeys.get(nodeId);
         final Certificate cert = sigCertificates.get(nodeId);
-
-        if (!(privateKey instanceof final RSAPrivateCrtKey rsaKey)) {
-            logger.debug(
-                    STARTUP.getMarker(),
-                    "Skipping key/cert mismatch check for nodeId {} — key type {} is not RSA",
-                    nodeId,
-                    privateKey.getAlgorithm());
-            return;
-        }
 
         try {
             // RSAPrivateCrtKey contains the public exponent, allowing us to reconstruct the public key.
