@@ -370,6 +370,7 @@ jobs:
         run: GITHUB_SHA="${{ needs.generate-baseline.outputs.sha-abbrev }}" ${{ env.DOCKER_MANIFEST_GENERATOR }}
 
       - name: Validate Layers (linux/amd64)
+        id: validate-layers-amd64
         run: |
           if ! diff -u "${DOCKER_MANIFEST_PATH}/linux-amd64.layers.json" "${{ steps.regen-manifest.outputs.path }}/linux-amd64.layers.json" >/dev/null 2>&1; then
            echo "::group::Layer Differences"
@@ -379,6 +380,7 @@ jobs:
           fi
 
       - name: Validate Layers (linux/arm64)
+        id: validate-layers-arm64
         run: |
           if ! diff -u "${DOCKER_MANIFEST_PATH}/linux-arm64.layers.json" "${{ steps.regen-manifest.outputs.path }}/linux-arm64.layers.json" >/dev/null 2>&1; then
            echo "::group::Layer Differences"
@@ -388,6 +390,7 @@ jobs:
           fi
 
       - name: Validate Full Manifest (linux/amd64)
+        id: validate-full-manifest-amd64
         run: |
           if ! diff -u "${DOCKER_MANIFEST_PATH}/linux-amd64.comparable.json" "${{ steps.regen-manifest.outputs.path }}/linux-amd64.comparable.json" >/dev/null 2>&1; then
            echo "::group::Layer Differences"
@@ -397,6 +400,7 @@ jobs:
           fi
 
       - name: Validate Full Manifest (linux/arm64)
+        id: validate-full-manifest-arm64
         run: |
           if ! diff -u "${DOCKER_MANIFEST_PATH}/linux-arm64.comparable.json" "${{ steps.regen-manifest.outputs.path }}/linux-arm64.comparable.json" >/dev/null 2>&1; then
            echo "::group::Layer Differences"
@@ -416,9 +420,10 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          # If the job overall succeeded, mark as 'none', otherwise 'workflow'.
           if [[ "${{ job.status }}" == "success" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.validate-layers-amd64.outcome || 'skipped' }}" == "failure" || "${{ steps.validate-layers-arm64.outcome || 'skipped' }}" == "failure" || "${{ steps.validate-full-manifest-amd64.outcome || 'skipped' }}" == "failure" || "${{ steps.validate-full-manifest-arm64.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           fi

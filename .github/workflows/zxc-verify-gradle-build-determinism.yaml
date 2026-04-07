@@ -279,6 +279,7 @@ jobs:
         run: sha256sum -c "${GRADLE_MANIFEST_PATH}/applications.sha256"
 
       - name: Compare Library Manifests
+        id: compare-library-manifests
         run: |
           if ! diff -u "${GRADLE_MANIFEST_PATH}/libraries.sha256" "${{ steps.regen-manifest.outputs.libraries }}" >/dev/null 2>&1; then
             echo "::group::Library Manifest Differences"
@@ -288,6 +289,7 @@ jobs:
           fi
 
       - name: Compare Application Manifests
+        id: compare-application-manifests
         run: |
           if ! diff -u "${GRADLE_MANIFEST_PATH}/applications.sha256" "${{ steps.regen-manifest.outputs.applications }}" >/dev/null 2>&1; then
             echo "::group::Application Manifest Differences"
@@ -307,9 +309,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.regen-manifest.outcome || 'skipped' }}" == "success" ]]; then
+          if [[ "${{ job.status }}" == "success" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.regen-manifest.outcome || 'skipped' }}" == "failure" ]]; then
+          elif [[ "${{ steps.compare-library-manifests.outcome || 'skipped' }}" == "failure" || "${{ steps.compare-application-manifests.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
