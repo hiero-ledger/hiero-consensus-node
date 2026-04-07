@@ -14,6 +14,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -270,22 +272,39 @@ public class BlockNode {
         globalActiveStreamingConnectionCount.incrementAndGet();
         localActiveStreamingConnectionCount.incrementAndGet();
 
-        if (connectionHistories.size() > MAX_HISTORY_ENTRIES) {
-            // prune the oldest entry from the connection history
-            ConnectionHistory oldestEntry =
-                    connectionHistories.values().stream().findAny().get();
-            for (final ConnectionHistory entry : connectionHistories.values()) {
-                if (entry.createTimestamp.isBefore(oldestEntry.createTimestamp)) {
-                    oldestEntry = entry;
-                }
+        pruneOldHistory();
+    }
+
+    /**
+     * Prune the connection history to remove old entries. Entries that indicate the connection has been closed are
+     * eligible for being removed. In some cases, a connection may be delayed in closing (e.g. closing at a block
+     * boundary that takes a bit to process) and as such we should avoid removing those entries prematurely.
+     */
+    private void pruneOldHistory() {
+        if (connectionHistories.size() <= MAX_HISTORY_ENTRIES) {
+            return;
+        }
+
+        // create a copy of the history map
+        final SortedSet<ConnectionId> sortedIds = new TreeSet<>(Comparator.comparing(ConnectionId::sequenceNumber));
+        sortedIds.addAll(connectionHistories.keySet());
+
+        for (final ConnectionId id : sortedIds) {
+            final ConnectionHistory entry = connectionHistories.get(id);
+            if (entry.closeTimestamp != null) {
+                // the connection history indicates closed, so we can safely remove this entry
+                connectionHistories.remove(id, entry);
+                final BlockNodeEndpoint endpoint = configuration().streamingEndpoint();
+                logger.trace(
+                        "[{}:{}] Connection (id: {}) removed from block node history",
+                        endpoint.host(),
+                        endpoint.port(),
+                        id);
             }
 
-            connectionHistories.remove(oldestEntry.connectionId, oldestEntry);
-            logger.trace(
-                    "[{}:{}] Connection (id: {}) removed from block node history",
-                    endpoint.host(),
-                    endpoint.port(),
-                    oldestEntry.connectionId);
+            if (connectionHistories.size() <= MAX_HISTORY_ENTRIES) {
+                break;
+            }
         }
     }
 
@@ -301,21 +320,21 @@ public class BlockNode {
         requireNonNull(connection, "Connection is required");
 
         activeStreamingConnectionRef.compareAndSet(connection, null);
-        globalActiveStreamingConnectionCount.decrementAndGet();
-        localActiveStreamingConnectionCount.decrementAndGet();
 
         final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
         final ConnectionHistory connHistory = connectionHistories.get(connection.connectionId());
 
         if (connHistory == null) {
             logger.warn(
-                    "[{}:{}] Block node does not have a history entry for connection ({}); it may have been pruned",
+                    "[{}:{}] Block node does not have a history entry for connection ({})",
                     endpoint.host(),
                     endpoint.port(),
                     connection.connectionId());
             return;
         }
 
+        globalActiveStreamingConnectionCount.decrementAndGet();
+        localActiveStreamingConnectionCount.decrementAndGet();
         connHistory.onClose(connection);
 
         final CloseReason closeReason = connHistory.closeReason;

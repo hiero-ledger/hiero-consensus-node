@@ -189,6 +189,17 @@ public class BlockNodeConfigService {
             return;
         }
 
+        if (connectionInfo.nodes().isEmpty()) {
+            // there is nothing in the configuration file - treat this as a valid configuration that effectively
+            // disables any and all active block nodes we already know about
+            final int newVersionNumber = configVersionCounter.incrementAndGet();
+            final VersionedBlockNodeConfigurationSet newConfig =
+                    new VersionedBlockNodeConfigurationSet(newVersionNumber, List.of());
+            latestConfigRef.set(newConfig);
+            logger.info("Block node configuration loaded (version: {}) - empty configuration", newVersionNumber);
+            return;
+        }
+
         final long defaultHardLimitBytes = configProvider
                 .getConfiguration()
                 .getConfigData(BlockNodeConnectionConfig.class)

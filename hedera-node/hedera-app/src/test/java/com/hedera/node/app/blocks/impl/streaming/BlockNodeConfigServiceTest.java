@@ -306,6 +306,24 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testLoadConfiguration_emptyConfigs() throws Throwable {
+        // write an empty config file
+        writeConfig("""
+                {
+                    "nodes": [
+                    ]
+                }
+                """);
+
+        invoke_loadConfiguration();
+
+        final VersionedBlockNodeConfigurationSet config = configService.latestConfiguration();
+        assertThat(config).isNotNull();
+        assertThat(config.versionNumber()).isEqualTo(1L);
+        assertThat(config.configs()).isEmpty();
+    }
+
+    @Test
     void testLoadConfiguration_noSuccessfulConfigsFound() throws Throwable {
         // start with a good configuration
         writeConfig("""
@@ -538,7 +556,7 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                 }
                 """);
 
-        final long waitingMillisStart = System.currentTimeMillis();
+        long waitingMillisStart = System.currentTimeMillis();
         VersionedBlockNodeConfigurationSet updatedConfig = configService.latestConfiguration();
 
         // wait for the new configuration to be detected and loaded
@@ -566,6 +584,31 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
                 fail("Unexpected configuration found:" + nodeConfig);
             }
         }
+
+        // update the configuration again to clear out the contents
+        writeConfig("""
+                {
+                    "nodes": [
+                    ]
+                }
+                """);
+
+        waitingMillisStart = System.currentTimeMillis();
+        VersionedBlockNodeConfigurationSet updatedConfig2 = configService.latestConfiguration();
+
+        // wait for the new configuration to be detected and loaded
+        while (updatedConfig2 == null || updatedConfig2.versionNumber() <= updatedConfig.versionNumber()) {
+            if ((System.currentTimeMillis() - waitingMillisStart) >= 10_000) {
+                fail("Waited 10 seconds for configuration update, but it never happened");
+            }
+
+            Thread.sleep(100);
+            updatedConfig2 = configService.latestConfiguration();
+        }
+
+        assertThat(updatedConfig2).isNotNull();
+        assertThat(updatedConfig2.versionNumber()).isGreaterThan(updatedConfig.versionNumber());
+        assertThat(updatedConfig2.configs()).isEmpty();
     }
 
     @Test

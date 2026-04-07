@@ -194,19 +194,19 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         final Instant now = Instant.now();
         final ConnectionId conn1Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
         final ConnectionHistory conn1History =
-                new ConnectionHistory(conn1Id, now.minusSeconds(30), null, null, null, null);
+                new ConnectionHistory(conn1Id, null, null, now.minusSeconds(30), null, null);
         final ConnectionId conn2Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2);
         final ConnectionHistory conn2History =
-                new ConnectionHistory(conn2Id, now.minusSeconds(25), null, null, null, null);
+                new ConnectionHistory(conn2Id, null, null, now.minusSeconds(25), null, null);
         final ConnectionId conn3Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 3);
         final ConnectionHistory conn3History =
-                new ConnectionHistory(conn3Id, now.minusSeconds(20), null, null, null, null);
+                new ConnectionHistory(conn3Id, null, null, now.minusSeconds(20), null, null);
         final ConnectionId conn4Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 4);
         final ConnectionHistory conn4History =
-                new ConnectionHistory(conn4Id, now.minusSeconds(15), null, null, null, null);
+                new ConnectionHistory(conn4Id, null, null, now.minusSeconds(15), null, null);
         final ConnectionId conn5Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 5);
         final ConnectionHistory conn5History =
-                new ConnectionHistory(conn5Id, now.minusSeconds(10), null, null, null, null);
+                new ConnectionHistory(conn5Id, null, null, now.minusSeconds(10), null, null);
 
         connectionHistories().put(conn1Id, conn1History);
         connectionHistories().put(conn2Id, conn2History);
@@ -223,6 +223,70 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         node.onActive(newConnection);
 
         assertThat(connectionHistories()).hasSize(5).containsOnlyKeys(conn2Id, conn3Id, conn4Id, conn5Id, conn6Id);
+    }
+
+    @Test
+    void testOnActive_maxHistoryEntriesWithDelayedClose() {
+        // add 5 entries to the history map but leave the oldest as unclosed, this should cause the second oldest
+        // to be removed on the first iteration
+        final Instant now = Instant.now();
+        final ConnectionId conn1Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
+        final ConnectionHistory conn1History = new ConnectionHistory(conn1Id, null, null, null, null, null);
+        final ConnectionId conn2Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2);
+        final ConnectionHistory conn2History =
+                new ConnectionHistory(conn2Id, null, null, now.minusSeconds(25), null, null);
+        final ConnectionId conn3Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 3);
+        final ConnectionHistory conn3History =
+                new ConnectionHistory(conn3Id, null, null, now.minusSeconds(20), null, null);
+        final ConnectionId conn4Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 4);
+        final ConnectionHistory conn4History =
+                new ConnectionHistory(conn4Id, null, null, now.minusSeconds(15), null, null);
+        final ConnectionId conn5Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 5);
+        final ConnectionHistory conn5History =
+                new ConnectionHistory(conn5Id, null, null, now.minusSeconds(10), null, null);
+
+        connectionHistories().put(conn1Id, conn1History);
+        connectionHistories().put(conn2Id, conn2History);
+        connectionHistories().put(conn3Id, conn3History);
+        connectionHistories().put(conn4Id, conn4History);
+        connectionHistories().put(conn5Id, conn5History);
+
+        // Current History: STR1 - STR2 - STR3 - STR4 - STR5
+
+        final ConnectionId conn6Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 6);
+        final BlockNodeStreamingConnection conn6 = mock(BlockNodeStreamingConnection.class);
+        when(conn6.createTimestamp()).thenReturn(now);
+        when(conn6.configuration()).thenReturn(configuration);
+        when(conn6.connectionId()).thenReturn(conn6Id);
+
+        node.onActive(conn6);
+
+        // since Conn 1 didn't have a close timestamp, it will still exist in the map until it is closed
+        assertThat(connectionHistories()).hasSize(5).containsOnlyKeys(conn1Id, conn3Id, conn4Id, conn5Id, conn6Id);
+
+        // Current History: STR1 - STR3 - STR4 - STR5 - STR6
+        // now close Conn 1 and add a new connection... now Conn 1 should be removed
+
+        final BlockNodeStreamingConnection conn1 = mock(BlockNodeStreamingConnection.class);
+        when(conn1.closeTimestamp()).thenReturn(now.minusSeconds(30));
+        when(conn1.closeReason()).thenReturn(CloseReason.CONNECTION_ERROR);
+        when(conn1.numberOfBlocksSent()).thenReturn(10);
+        when(conn1.configuration()).thenReturn(configuration);
+        when(conn1.connectionId()).thenReturn(conn1Id);
+
+        node.onClose(conn1);
+
+        final ConnectionId conn7Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 7);
+        final BlockNodeStreamingConnection conn7 = mock(BlockNodeStreamingConnection.class);
+        when(conn7.createTimestamp()).thenReturn(now);
+        when(conn7.configuration()).thenReturn(configuration);
+        when(conn7.connectionId()).thenReturn(conn7Id);
+
+        node.onActive(conn7);
+
+        // Current History: STR3 - STR4 - STR5 - STR6 - STR7
+        // now the history map should contain connections connection 3-7
+        assertThat(connectionHistories()).hasSize(5).containsOnlyKeys(conn3Id, conn4Id, conn5Id, conn6Id, conn7Id);
     }
 
     @Test
@@ -243,8 +307,9 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
         node.onClose(connection);
 
-        assertThat(localActiveStreamingConnectionCount()).hasValue(0);
-        assertThat(globalActiveStreamConnectionCount).hasValue(0);
+        // since there is no matching history entry for the connection, the connection counters should not change
+        assertThat(localActiveStreamingConnectionCount()).hasValue(1);
+        assertThat(globalActiveStreamConnectionCount).hasValue(1);
 
         verify(connection).configuration();
         verify(connection, times(2)).connectionId();
