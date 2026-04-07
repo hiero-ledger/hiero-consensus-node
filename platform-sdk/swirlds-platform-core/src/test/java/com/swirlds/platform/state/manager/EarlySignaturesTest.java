@@ -177,8 +177,8 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
                 }
             }
 
-            // With the completed buffer, the latest complete state visible to the nexus
-            // is the highest round that has been drained, not necessarily the highest
+            // With the completeStates buffer, the latest complete state visible to the nexus
+            // is the highest round that has been released, not necessarily the highest
             // round that has completed. Verify that the round never decreases.
             try (final ReservedSignedState lastCompletedState =
                     manager.getLatestSignedState("test get lastCompletedState")) {
@@ -196,7 +196,7 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
         // We don't expect any further callbacks. But wait a little while longer in case there is something unexpected.
         SECONDS.sleep(1);
 
-        // All states must eventually be output — the buffer only reorders, never drops.
+        // All states must eventually be output — completeStates only reorders, never drops.
         validateCallbackCounts(0, count - roundAgeToSign);
     }
 }
