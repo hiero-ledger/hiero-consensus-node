@@ -31,8 +31,9 @@ public class ConsensusNodeMain {
      * The marker file to write when the {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc}
      * is ready to accept requests.
      */
-    public static final Path STARTED_MARKER_FILE =
-            Path.of(CONTAINER_APP_WORKING_DIR).resolve(STARTED_MARKER_FILE_NAME);
+    public static final Path STARTED_MARKER_FILE = Path.of(
+                    System.getProperty("sloth.workdir", CONTAINER_APP_WORKING_DIR))
+            .resolve(STARTED_MARKER_FILE_NAME);
 
     /** Port on which the {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc} listens. */
     private static final int NODE_COMM_SERVICE_PORT = 8081;
@@ -52,13 +53,15 @@ public class ConsensusNodeMain {
         final long id = Long.parseLong(args[0]);
         final NodeId selfId = NodeId.of(id);
 
-        DockerLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR), selfId);
+        final String workDir = System.getProperty("sloth.workdir", CONTAINER_APP_WORKING_DIR);
+        DockerLogConfigBuilder.configure(Path.of(workDir), selfId);
 
         final NodeCommunicationService nodeCommunicationService = new NodeCommunicationService(selfId);
 
         log.info(STARTUP.getMarker(), "Starting ConsensusNodeMain");
         // Start the consensus node manager gRPC server
-        final Server nodeGrpcServer = ServerBuilder.forPort(NODE_COMM_SERVICE_PORT)
+        final int commPort = Integer.getInteger("sloth.comm.port", NODE_COMM_SERVICE_PORT);
+        final Server nodeGrpcServer = ServerBuilder.forPort(commPort)
                 .addService(nodeCommunicationService)
                 .build();
         try {

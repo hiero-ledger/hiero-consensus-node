@@ -16,7 +16,9 @@ import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.Capability;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.container.ContainerTestEnvironment;
+import org.hiero.sloth.fixtures.remote.RemoteTestEnvironment;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
+import org.hiero.sloth.fixtures.specs.RemoteSpecs;
 import org.hiero.sloth.fixtures.specs.SlothSpecs;
 import org.hiero.sloth.fixtures.util.EnvironmentUtils;
 import org.junit.jupiter.api.RepeatedTest;
@@ -56,7 +58,8 @@ public class SlothTestExtension
                 TestWatcher {
 
     private enum Environment {
-        CONTAINER("container");
+        CONTAINER("container"),
+        REMOTE("remote");
 
         private final String propertyValue;
 
@@ -191,7 +194,9 @@ public class SlothTestExtension
         }
 
         final List<Capability> requiredCapabilities = getRequiredCapabilitiesFromTest(extensionContext);
-        final boolean allSupported = ContainerTestEnvironment.supports(requiredCapabilities);
+        final boolean allSupported = environment == Environment.REMOTE
+                ? RemoteTestEnvironment.supports(requiredCapabilities)
+                : ContainerTestEnvironment.supports(requiredCapabilities);
         return allSupported
                 ? ConditionEvaluationResult.enabled(
                         "Environment %s supports all required capabilities".formatted(environment))
@@ -239,7 +244,10 @@ public class SlothTestExtension
      */
     @NonNull
     private TestEnvironment createTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        final TestEnvironment testEnvironment = createContainerTestEnvironment(extensionContext);
+        final Environment environment = readEnvironmentFromSystemProperty();
+        final TestEnvironment testEnvironment = environment == Environment.REMOTE
+                ? createRemoteTestEnvironment(extensionContext)
+                : createContainerTestEnvironment(extensionContext);
         extensionContext.getStore(EXTENSION_NAMESPACE).put(ENVIRONMENT_KEY, testEnvironment);
         return testEnvironment;
     }
@@ -265,6 +273,32 @@ public class SlothTestExtension
 
         final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("container", extensionContext);
         return new ContainerTestEnvironment(randomNodeIds, outputDirectory, gcLoggingEnabled, jvmArgs);
+    }
+
+    /**
+     * Creates a new {@link RemoteTestEnvironment} instance.
+     *
+     * @param extensionContext the extension context of the test
+     * @return a new {@link TestEnvironment} instance for remote tests
+     */
+    @NonNull
+    private TestEnvironment createRemoteTestEnvironment(@NonNull final ExtensionContext extensionContext) {
+
+        final Optional<SlothSpecs> slothSpecs = findAnnotation(extensionContext, SlothSpecs.class);
+        final boolean randomNodeIds = slothSpecs.map(SlothSpecs::randomNodeIds).orElse(true);
+
+        final RemoteSpecs remoteSpecs = findAnnotation(extensionContext, RemoteSpecs.class)
+                .orElseThrow(() ->
+                        new IllegalStateException("Remote environment requires @RemoteSpecs annotation with hosts"));
+
+        final List<String> hosts = List.of(remoteSpecs.hosts().split(","));
+        final String remoteWorkDir = remoteSpecs.remoteWorkDir();
+        final boolean cleanupOnDestroy = remoteSpecs.cleanupOnDestroy();
+        final String remoteJavaPath = remoteSpecs.remoteJavaPath();
+
+        final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("remote", extensionContext);
+        return new RemoteTestEnvironment(
+                randomNodeIds, outputDirectory, hosts, remoteWorkDir, cleanupOnDestroy, remoteJavaPath);
     }
 
     /**

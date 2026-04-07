@@ -58,6 +58,8 @@ module org.hiero.sloth.fixtures {
             com.swirlds.config.impl;
     exports org.hiero.sloth.fixtures.container to
             com.swirlds.config.impl;
+    exports org.hiero.sloth.fixtures.remote to
+            com.swirlds.config.impl;
     exports org.hiero.sloth.fixtures.container.proto to
             org.hiero.sloth.test.performance;
     exports org.hiero.sloth.fixtures.container.utils to

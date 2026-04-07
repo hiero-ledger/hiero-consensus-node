@@ -40,11 +40,14 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     /** Logger */
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
+    /** The working directory resolved from system property or default. */
+    private static final String WORK_DIR = System.getProperty("sloth.workdir", CONTAINER_APP_WORKING_DIR);
+
     /** The string location of the docker application jar */
-    private static final String DOCKER_APP_JAR = CONTAINER_APP_WORKING_DIR + "apps/DockerApp.jar";
+    private static final String DOCKER_APP_JAR = WORK_DIR + "apps/DockerApp.jar";
 
     /** The string location of the docker application libraries */
-    private static final String DOCKER_APP_LIBS = CONTAINER_APP_WORKING_DIR + "lib/*";
+    private static final String DOCKER_APP_LIBS = WORK_DIR + "lib/*";
 
     /**
      * The main class in the docker application jar that starts the
@@ -97,14 +100,19 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
 
         // Set the debug port for the node communication service as JVM arguments
         final int debugPort = getNodeCommunicationDebugPort(selfId);
+        final String javaPath = System.getProperty("sloth.java", "java");
         final List<String> command = new ArrayList<>(List.of(
-                "java",
+                javaPath,
                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + debugPort,
                 "-Djdk.attach.allowAttachSelf=true",
                 "-XX:+StartAttachListener"));
 
+        command.add("-Dsloth.workdir=" + WORK_DIR);
+        final int commPort = Integer.getInteger("sloth.comm.port", 8081);
+        command.add("-Dsloth.comm.port=" + commPort);
+
         if (request.getGcLoggingEnabled()) {
-            command.add("-Xlog:gc*:file=" + CONTAINER_APP_WORKING_DIR + "output/gc.log:time");
+            command.add("-Xlog:gc*:file=" + WORK_DIR + "output/gc.log:time");
         }
         for (final String jvmArg : request.getJvmArgsList()) {
             if (!VALID_JVM_ARG_PATTERN.matcher(jvmArg).matches()) {
@@ -161,7 +169,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     private boolean waitForStartedMarkerFile() throws IOException, InterruptedException {
         final Instant deadline = Instant.now().plus(MAX_MARKER_FILE_WAIT_TIME);
         try (final WatchService watchService = FileSystems.getDefault().newWatchService()) {
-            Path.of(CONTAINER_APP_WORKING_DIR).register(watchService, ENTRY_CREATE);
+            Path.of(WORK_DIR).register(watchService, ENTRY_CREATE);
             while (Instant.now().isBefore(deadline)) {
                 final Duration timeLeft = Duration.between(Instant.now(), deadline);
                 final WatchKey watchKey = watchService.poll(timeLeft.toMillis(), TimeUnit.MILLISECONDS);
