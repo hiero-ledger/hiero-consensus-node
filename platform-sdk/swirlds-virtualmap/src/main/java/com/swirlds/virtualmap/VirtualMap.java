@@ -45,8 +45,14 @@ import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
+import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeView;
+import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
+import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
+import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
+import com.swirlds.virtualmap.internal.reconnect.ReconnectNodeRemover;
 import com.swirlds.virtualmap.internal.reconnect.TeacherPullVirtualTreeView;
-import com.swirlds.virtualmap.internal.reconnect.TeacherPushVirtualTreeView;
+import com.swirlds.virtualmap.internal.reconnect.TopToBottomTraversalOrder;
+import com.swirlds.virtualmap.internal.reconnect.TwoPhasePessimisticTraversalOrder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -542,12 +548,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
     }
 
-    @SuppressWarnings("ClassEscapesDefinedScope")
     public VirtualNodeCache getCache() {
         return cache;
     }
 
-    @SuppressWarnings("ClassEscapesDefinedScope")
     public RecordAccessor getRecords() {
         return records;
     }
@@ -1236,7 +1240,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public TeacherTreeView buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PUSH -> new TeacherPushVirtualTreeView(reconnectConfig, this);
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM,
                     VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC,
                     VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> new TeacherPullVirtualTreeView(reconnectConfig, this);

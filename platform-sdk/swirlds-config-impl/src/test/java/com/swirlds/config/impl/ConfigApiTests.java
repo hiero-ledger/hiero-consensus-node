@@ -370,7 +370,7 @@ class ConfigApiTests {
                 .build();
         // then
         assertEquals(
-                6,
+                5,
                 configuration.getPropertyNames().count(),
                 "It must be possible to read config properties from the old file format");
         assertTrue(
@@ -387,9 +387,6 @@ class ConfigApiTests {
                 "It must be possible to read config properties from the old file format");
         assertTrue(
                 configuration.exists("checkSignedStateFromDisk"),
-                "It must be possible to read config properties from the old file format");
-        assertTrue(
-                configuration.exists("loadKeysFromPfxFiles"),
                 "It must be possible to read config properties from the old file format");
 
         assertEquals(
@@ -411,10 +408,6 @@ class ConfigApiTests {
         assertEquals(
                 1,
                 configuration.getValue("checkSignedStateFromDisk", Integer.class),
-                "It must be possible to read config properties from the old file format");
-        assertEquals(
-                0,
-                configuration.getValue("loadKeysFromPfxFiles", Integer.class),
                 "It must be possible to read config properties from the old file format");
     }
 
