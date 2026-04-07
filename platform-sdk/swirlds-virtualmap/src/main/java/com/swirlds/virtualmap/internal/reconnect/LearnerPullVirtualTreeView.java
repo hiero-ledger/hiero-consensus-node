@@ -307,7 +307,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      */
     @Override
     public void close() {
-        vmapLearner.onEnd();
+        vmapLearner.finish();
     }
 
     /**

@@ -47,10 +47,10 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  *     <li>Caller access {@link LearnerTreeView} by {@link #getLearnerView()} to start lessons passing input/output streams.</li>
  *     <li>When synchronization starts, first info that teacher sends is his current leaf path range {@link LearnerTreeView} implementation triggers {@link #init(long, long, Runnable)}</li>
  *     <li>Then on each dirty leaf {@link #onDirtyLeaf(VirtualLeafBytes)} has to be called</li>
- *     <li>After all dirty leaves handled, {@link #onEnd()} has to be called, that finishes synchronization and creates new {@link VirtualMap} instance accessible via {@link #getVirtualMap()}</li>
+ *     <li>After all dirty leaves handled, {@link #finish()} has to be called, that finishes synchronization and creates new {@link VirtualMap} instance accessible via {@link #getVirtualMap()}</li>
  * </ul>
  *
- * <p>No {@link VirtualMap} is created until {@link #onEnd()} is called (which
+ * <p>No {@link VirtualMap} is created until {@link #finish()} is called (which
  * happens internally when the learner tree view is closed), at which point a fresh, fully
  * initialized {@link VirtualMap} is constructed from the reconnected state.
  *
@@ -103,7 +103,7 @@ public final class VirtualMapLearner {
 
     /**
      * The fully initialized {@link VirtualMap} created at the end of the reconnect process.
-     * Null until {@link #onEnd()} has been called.
+     * Null until {@link #finish()} has been called.
      */
     @Nullable
     private VirtualMap virtualMap;
@@ -184,7 +184,7 @@ public final class VirtualMapLearner {
      * paths of the reconnected tree. This initializes the reconnect state and flusher,
      * starts the background hashing thread and registers old leaves that need to be removed.
      *
-     * <p><b>Must</b> be called before any {@link #onDirtyLeaf(VirtualLeafBytes)} and {@link #onEnd()} calls.
+     * <p><b>Must</b> be called before any {@link #onDirtyLeaf(VirtualLeafBytes)} and {@link #finish()} calls.
      *
      * @param firstLeafPath first leaf path in the reconnected tree
      * @param lastLeafPath  last leaf path in the reconnected tree
@@ -299,7 +299,7 @@ public final class VirtualMapLearner {
      *
      * @throws MerkleSynchronizationException if hashing fails or if the calling thread is interrupted
      */
-    public void onEnd() {
+    public void finish() {
         logger.info(RECONNECT.getMarker(), "Ending learner reconnect");
 
         deleteOldLeavesAfterNewLastLeafPath();
@@ -387,7 +387,7 @@ public final class VirtualMapLearner {
 
     /**
      * Waits for hashing to complete, then creates the fully initialized {@link VirtualMap}.
-     * Called by {@link #onEnd()} after all nodes have been signalled as received.
+     * Called by {@link #finish()} after all nodes have been signalled as received.
      */
     private void waitForHashingToComplete() {
         try {
@@ -456,18 +456,12 @@ public final class VirtualMapLearner {
     }
 
     /**
-     * Destroy current reconnect state by closing iterator, hasher and datasource.
+     * Destroy current reconnect state by closing iterator and datasource.
      * Must be called in case of any reconnect exception and suppresses any exception thrown during closing resources
      * to preserve caller exception propagation.
      */
     public void abortOnException() {
-        try {
-            reconnectIterator.close();
-        } catch (final Exception e) {
-            logger.error(EXCEPTION.getMarker(), "Failed to close reconnect iterator during abort", e);
-            // ignore exception to preserve caller exception propagation
-        }
-        hasher.shutdown();
+        reconnectIterator.close();
         try {
             dataSource.close(false);
         } catch (final Exception e) {
