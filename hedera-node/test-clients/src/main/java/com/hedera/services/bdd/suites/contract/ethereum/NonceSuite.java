@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -59,6 +60,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @SuppressWarnings("java:S5960")
+@Tag(SERIAL)
 public class NonceSuite {
     private static final long LOW_GAS_PRICE = 1L;
     private static final long ENOUGH_GAS_PRICE = 75L;
