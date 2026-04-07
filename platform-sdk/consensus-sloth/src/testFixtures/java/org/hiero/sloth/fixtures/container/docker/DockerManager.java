@@ -57,7 +57,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
      * Pattern for validating JVM arguments. Only allows arguments starting with '-' followed by
      * alphanumeric characters, dots, colons, equals, commas, slashes, and other safe characters.
      */
-    private static final Pattern VALID_JVM_ARG_PATTERN = Pattern.compile("-[a-zA-Z][a-zA-Z0-9_.,:=+/\\\\*@\\- ]*");
+    private static final Pattern VALID_JVM_ARG_PATTERN = Pattern.compile("--?[a-zA-Z][a-zA-Z0-9_.,:=+/\\\\*@\\- ]*");
 
     /**
      * The maximum duration to wait for the marker file written by the consensus node main class to indicate it's
@@ -101,7 +101,8 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
                 "java",
                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + debugPort,
                 "-Djdk.attach.allowAttachSelf=true",
-                "-XX:+StartAttachListener"));
+                "-XX:+StartAttachListener",
+                "--enable-native-access=ALL-UNNAMED"));
 
         if (request.getGcLoggingEnabled()) {
             command.add("-Xlog:gc*:file=" + CONTAINER_APP_WORKING_DIR + "output/gc.log:time");

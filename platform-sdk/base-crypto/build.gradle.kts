@@ -8,7 +8,16 @@ plugins {
 
 description = "Base Crypto"
 
-mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+// Panama FFM in LibSodiumEd25519 requires native access for SymbolLookup.libraryLookup
+tasks.withType<Test>().configureEach { jvmArgs("--enable-native-access=org.hiero.base.crypto") }
+
+mainModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+    // lazysodium-java provides bundled libsodium native binaries as classpath resources.
+    // Not required at compile time — only needed at runtime for environments without system
+    // libsodium.
+    runtimeOnly("com.goterl.lazysodium")
+}
 
 testModuleInfo {
     requires("com.swirlds.common")
