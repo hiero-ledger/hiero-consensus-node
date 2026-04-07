@@ -7,7 +7,6 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.independentStepDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static java.util.Objects.requireNonNull;
 
@@ -138,7 +137,8 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
                         .cryptoCreateAccount(synthHollowAccountCreation(evmAddress, unlimitedAutoAssociationsEnabled()))
                         .build(),
                 CryptoCreateStreamBuilder.class,
-                DISPATCH_ONLY_NOOP_FEE_CHARGING);
+                DISPATCH_ONLY_NOOP_FEE_CHARGING,
+                HandleContext.ConsensusThrottling.ON);
         try {
             return context.dispatch(dispatchOpts).status();
         } catch (HandleException e) {
@@ -156,7 +156,7 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
             @NonNull Bytes evmAddress, @NonNull Key key, @NonNull Bytes delegationAddress) {
-        final var dispatchOpts = independentStepDispatch(
+        final var dispatchOpts = setupDispatch(
                 context.payer(),
                 TransactionBody.newBuilder()
                         .cryptoCreateAccount(synthAccountCreationWithKeyAndCodeDelegation(

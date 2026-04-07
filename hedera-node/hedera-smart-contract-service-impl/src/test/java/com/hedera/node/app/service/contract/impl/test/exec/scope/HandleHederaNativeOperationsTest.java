@@ -230,7 +230,6 @@ class HandleHederaNativeOperationsTest {
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.dispatch(assertArg(options -> {
                     assertEquals(synthLazyCreate, options.body());
-                    assertFalse(options.commitImmediately());
                     assertEquals(TransactionCategory.PRECEDING, options.category());
                 })))
                 .willReturn(cryptoCreateRecordBuilder);

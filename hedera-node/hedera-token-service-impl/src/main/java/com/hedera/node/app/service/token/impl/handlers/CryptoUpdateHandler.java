@@ -98,8 +98,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoUpdateAccountOrThrow();
-        // HIP-1340 isn't supported yet
-        validateTruePreCheck(op.delegationAddress().length() == 0, NOT_SUPPORTED);
+//        TODO(Pectra): add feature flag
+//        validateTruePreCheck(op.delegationAddress().length() == 0, NOT_SUPPORTED);
         validateTruePreCheck(op.hasAccountIDToUpdate(), ACCOUNT_ID_DOES_NOT_EXIST);
         validateFalsePreCheck(
                 op.hasProxyAccountID() && !op.proxyAccountID().equals(AccountID.DEFAULT),

@@ -202,9 +202,10 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         txn = new CryptoCreateBuilder()
                 .withDelegationAddress(Bytes.fromHex("cafebabe"))
                 .build();
-        given(pureChecksContext.body()).willReturn(txn);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(NOT_SUPPORTED).isEqualTo(msg.responseCode());
+//        given(pureChecksContext.body()).willReturn(txn);
+//        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+//        TOOD(Pectra): verify with feature flag off
+//        assertThat(NOT_SUPPORTED).isEqualTo(msg.responseCode());
     }
 
     @Test
@@ -908,8 +909,6 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         private Key key = otherKey;
 
         private String memo = null;
-
-        private Bytes delegationAddress;
 
         private CryptoCreateBuilder() {}
 

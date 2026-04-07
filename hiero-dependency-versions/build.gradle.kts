@@ -23,7 +23,7 @@ val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val protobuf = "4.33.5"
 val blockNodeProtobufSources = "0.29.0"
 val testContainers = "2.0.3"
-val tuweni = "2.7.1"
+val tuweni = "2.7.2"
 val webcompare = "2.1.8"
 
 dependencies.constraints {

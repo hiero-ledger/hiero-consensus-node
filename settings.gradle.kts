@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.gradle.kotlin.dsl.all
+import org.gradle.kotlin.dsl.module
+
+// SPDX-License-Identifier: Apache-2.0
 pluginManagement { includeBuild("gradle/besu-native-patch") }
 
 plugins {
     id("org.hiero.gradle.build") version "0.7.6"
     id("com.hedera.pbj.pbj-compiler") version "0.14.4" apply false
+    id("org.hiero.gradle.feature.besu-native-patch")
 }
 
 javaModules {
@@ -51,4 +56,15 @@ javaModules {
     directory("hiero-observability") { group = "com.hedera.hashgraph" }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
+}
+
+gradle.allprojects {
+    configurations.all {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("io.tmio:tuweni-bytes"))
+                .using(module("io.consensys.tuweni:tuweni-bytes:2.7.2"))
+            substitute(module("io.tmio:tuweni-units"))
+                .using(module("io.consensys.tuweni:tuweni-units:2.7.2"))
+        }
+    }
 }

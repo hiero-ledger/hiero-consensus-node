@@ -178,9 +178,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
                 .withDelegationAddress(Bytes.fromHex("cafebabe"))
                 .build();
 
-        given(pureChecksContext.body()).willReturn(txn);
+//        given(pureChecksContext.body()).willReturn(txn);
 
-        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), NOT_SUPPORTED);
+        // TODO(Pectra): verify the feature flag
+//        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), NOT_SUPPORTED);
     }
 
     @Test

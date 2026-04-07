@@ -131,8 +131,9 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoCreateAccountOrThrow();
-        // HIP-1340 isn't supported yet
-        validateTruePreCheck(op.delegationAddress().length() == 0, NOT_SUPPORTED);
+        // TODO(Pectra): add feature flag
+        // validateTruePreCheck(op.delegationAddress().length() == 0, NOT_SUPPORTED);
+
         // Note: validation lives here for now but should take place in handle in the future
         validateTruePreCheck(op.hasAutoRenewPeriod(), INVALID_RENEWAL_PERIOD);
         validateTruePreCheck(op.autoRenewPeriodOrThrow().seconds() >= 0, INVALID_RENEWAL_PERIOD);
