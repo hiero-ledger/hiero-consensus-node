@@ -52,6 +52,7 @@ testModuleInfo {
     requires("org.hiero.consensus.reconnect")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
+    requires("org.apache.logging.log4j.core")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
