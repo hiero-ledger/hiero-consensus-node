@@ -430,10 +430,9 @@ jobs:
       - fetch-xts-candidate
       - xts-execution
       - tag-for-promotion
-    if: ${{ always() && !(
-      needs.fetch-xts-candidate.result == 'success' &&
+    if: ${{ !( needs.fetch-xts-candidate.result == 'success' &&
       needs.xts-execution.result == 'success' &&
-      needs.tag-for-promotion.result == 'success') }}
+      needs.tag-for-promotion.result == 'success') && always() }}
 
     steps:
       - name: Initialize GitHub Job
