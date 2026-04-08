@@ -126,7 +126,7 @@ jobs:
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22.22.1
+          node-version: 20.18.0
 
       - name: Setup PNPM
         run: |
@@ -145,7 +145,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@v0.65.0
+        run: npm install -g @hashgraph/solo@latest
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
