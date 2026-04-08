@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Block Node Explorer Regression"
+name: "ZXC: Block Node Regression"
 on:
   workflow_call:
     inputs:
@@ -42,8 +42,9 @@ env:
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
 
 jobs:
-  # Execute Block Node Explorer Regression Tests using specified version of hiero-consensus-node
+  # Execute Block Node Regression Tests using specified version of hiero-consensus-node
   block-node-regression:
+    timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-bn-regression-lin-lg
     steps:
@@ -105,7 +106,8 @@ jobs:
           fi
 
           echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
-          echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
+          # freeze at MN 0.149.0 as next versions require TSS by default. Swap out for custom tag when available
+          echo "MIRROR_NODE_TAG=v0.149.0" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -139,7 +141,9 @@ jobs:
           git fetch --tags
           LATEST_TAG=$(git describe --tags --abbrev=0)
           echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+          # Pinned to v2.81.0: v2.82.0+ bumped @hiero-ledger/proto to 2.27.0 which was never published to npm
+          # Update this pin once the upstream issue is resolved.
+          git checkout v2.81.0
 
       # Set up Java Environment
       - name: Setup Java
@@ -153,7 +157,7 @@ jobs:
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20.18.0
+          node-version: 22
 
       - name: Setup PNPM
         run: |
@@ -261,7 +265,7 @@ jobs:
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
           solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
 
@@ -343,8 +347,15 @@ jobs:
           echo "FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
 
+      - name: Show running pods and services
+        run: |
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+        continue-on-error: true
+
       # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
+        timeout-minutes: 30
         env:
           OPERATOR_ACCOUNT_ID: "0.0.2"
           OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
@@ -355,8 +366,9 @@ jobs:
         run: |
           solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
-          npm run test:file src/tests/crypto-service/test-transfer-hbar-transaction.ts
-          npm run test:file src/tests/contract-service/test-contract-delete-transaction.ts
+          npm run test 
+          # npm run test:file src/tests/crypto-service/test-transfer-hbar-transaction.ts
+          # npm run test:file src/tests/contract-service/test-contract-delete-transaction.ts
         working-directory: sdk-tck/regression # required
 
       - name: BN Based - SDK TCK Regression Test Report
@@ -400,7 +412,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: cn-log
+          name: cn-logs
           path: ${{ env.CN_LOG_FOLDER }}/*.zip
 
       - name: Add Logs to Summary
