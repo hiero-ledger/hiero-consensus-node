@@ -40,8 +40,8 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     /** Logger */
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
-    /** The working directory resolved from system property or default. */
-    private static final String WORK_DIR = System.getProperty("sloth.workdir", CONTAINER_APP_WORKING_DIR);
+    /** The working directory resolved from system property or default, always ending with '/'. */
+    private static final String WORK_DIR = normalizeDir(System.getProperty("sloth.workdir", CONTAINER_APP_WORKING_DIR));
 
     /** The string location of the docker application jar */
     private static final String DOCKER_APP_JAR = WORK_DIR + "apps/DockerApp.jar";
@@ -194,6 +194,10 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
 
     private boolean attemptingToChangeSelfId(@NonNull final NodeId requestedSelfId) {
         return this.selfId != null && selfId.id() != requestedSelfId.id();
+    }
+
+    private static String normalizeDir(@NonNull final String dir) {
+        return dir.endsWith("/") ? dir : dir + "/";
     }
 
     /**

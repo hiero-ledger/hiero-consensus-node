@@ -16,6 +16,23 @@ import org.junit.jupiter.api.Disabled;
 /**
  * A simple smoke test that verifies the remote SSH execution environment works correctly. Starts two nodes on two
  * remote hosts, waits for them to become active, then shuts down.
+ *
+ * <p>Each host referenced in {@code @RemoteSpecs(hosts = ...)} must be reachable via SSH without interactive
+ * authentication. Configure your {@code ~/.ssh/config} accordingly, for example:
+ *
+ * <pre>{@code
+ * Host perf1
+ *     User <your-user>
+ *     Hostname <ip-address-1>
+ *     PasswordAuthentication no
+ *     IdentityFile ~/.ssh/<your-key>
+ *
+ * Host perf2
+ *     User <your-user>
+ *     Hostname <ip-address-2>
+ *     PasswordAuthentication no
+ *     IdentityFile ~/.ssh/<your-key>
+ * }</pre>
  */
 @Disabled
 @SlothSpecs(randomNodeIds = false)
@@ -35,7 +52,6 @@ public class RemoteSmokeTest {
 
         log.info("Starting network on remote hosts...");
         network.start();
-        log.info("All nodes are ACTIVE");
 
         // Let the network run briefly to verify stability
         timeManager.waitFor(Duration.ofSeconds(10));

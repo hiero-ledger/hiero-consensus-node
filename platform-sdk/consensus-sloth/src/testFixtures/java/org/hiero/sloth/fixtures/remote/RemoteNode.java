@@ -127,7 +127,8 @@ public class RemoteNode extends AbstractNode implements Node, TimeTickReceiver {
         this.remoteJavaPath = requireNonNull(remoteJavaPath, "remoteJavaPath must not be null");
         this.cleanupOnDestroy = cleanupOnDestroy;
 
-        this.remoteNodeDir = remoteWorkDir + "/node-" + selfId.id() + "/";
+        final String normalizedWorkDir = remoteWorkDir.endsWith("/") ? remoteWorkDir : remoteWorkDir + "/";
+        this.remoteNodeDir = normalizedWorkDir + "node-" + selfId.id() + "/";
         this.resultsCollector = new NodeResultsCollector(selfId);
         this.nodeConfiguration =
                 new RemoteNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties(), remoteNodeDir);
@@ -191,15 +192,15 @@ public class RemoteNode extends AbstractNode implements Node, TimeTickReceiver {
                 hostAssignment.commPort());
 
         final String command = String.format(
-                "cd %s && nohup %s"
-                        + " -Dsloth.workdir=%s"
+                "cd '%s' && nohup '%s'"
+                        + " '-Dsloth.workdir=%s'"
                         + " -Dsloth.control.port=%d"
                         + " -Dsloth.comm.port=%d"
-                        + " -Dsloth.java=%s"
+                        + " '-Dsloth.java=%s'"
                         + " -Djdk.attach.allowAttachSelf=true"
                         + " -XX:+StartAttachListener"
-                        + " -jar %sapps/DockerApp.jar"
-                        + " > %soutput/docker-main.log 2>&1 < /dev/null &",
+                        + " -jar '%sapps/DockerApp.jar'"
+                        + " > '%soutput/docker-main.log' 2>&1 < /dev/null &",
                 remoteNodeDir,
                 remoteJavaPath,
                 remoteNodeDir,
