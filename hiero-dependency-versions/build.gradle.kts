@@ -96,16 +96,16 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:secp256k1:1.4.1") {
+    api("org.hyperledger.besu:secp256k1:1.4.2") {
         because("org.hyperledger.besu.nativelib.secp256k1")
     }
-    api("org.hyperledger.besu:gnark:1.4.1")
-    api("org.hyperledger.besu:secp256r1:1.4.1")
-    api("org.hyperledger.besu:arithmetic:1.4.1")
-    api("org.hyperledger.besu:blake2bf:1.4.1") {
+    api("org.hyperledger.besu:gnark:1.4.2")
+    api("org.hyperledger.besu:secp256r1:1.4.2")
+    api("org.hyperledger.besu:arithmetic:1.4.2")
+    api("org.hyperledger.besu:blake2bf:1.4.2") {
         because("org.hyperledger.besu.nativelib.blake2bf")
     }
-    api("org.hyperledger.besu:boringssl:1.4.1") {
+    api("org.hyperledger.besu:boringssl:1.4.2") {
         because("org.hyperledger.besu.nativelib.boringssl")
     }
     api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
