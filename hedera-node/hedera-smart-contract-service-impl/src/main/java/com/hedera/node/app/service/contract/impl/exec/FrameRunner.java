@@ -23,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -68,27 +69,19 @@ public class FrameRunner {
      */
     public HederaEvmTransactionResult runToCompletion(
             final long gasLimit,
-            @NonNull final AccountID senderId,
-            @NonNull final MessageFrame frame,
-            @NonNull final ActionSidecarContentTracer tracer,
-            @NonNull final CustomMessageCallProcessor messageCall,
-            @NonNull final ContractCreationProcessor contractCreation) {
-        requireNonNull(frame);
-        requireNonNull(tracer);
-        requireNonNull(senderId);
-        requireNonNull(messageCall);
-        requireNonNull(contractCreation);
-
-        final var recipientAddress = frame.getRecipientAddress();
+            @NonNull AccountID senderId,
+            @NonNull MessageFrame frame,
+            @NonNull ActionSidecarContentTracer tracer,
+            @NonNull CustomMessageCallProcessor messageCall,
+            @NonNull ContractCreationProcessor contractCreation,
+            @NonNull HEVM hevm) {
+        var recipientAddress = frame.getRecipientAddress();
         // We compute the called contract's Hedera id up front because it could
         // self-destruct, preventing us from looking up its id after the fact
-        final var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
+        var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
         tracer.traceOriginAction(frame);
 
-        // <Soapbox> Pass these golden instances to Bonneville through this
-        // silly back door channel, because the endless wrappers & injectors
-        // stop me from doing it the obvious way - CNC. </soapbox>
-        if (messageCall._evm instanceof BonnevilleEVM bonneville) {
+        if (hevm instanceof BonnevilleEVM bonneville) {
             bonneville.setProcessors(messageCall, (CustomContractCreationProcessor) contractCreation);
             runToCompletion(frame, tracer, messageCall, contractCreation);
         } else {
