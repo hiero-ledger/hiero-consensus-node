@@ -18,6 +18,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyStore;
@@ -271,7 +272,7 @@ public class EnhancedKeyStoreLoader {
      * @throws KeyGeneratingException   if an error occurred while generating the agreement key pair.
      */
     public EnhancedKeyStoreLoader generate()
-            throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException {
+            throws NoSuchAlgorithmException, NoSuchProviderException, KeyGeneratingException, InvalidAlgorithmParameterException {
 
         for (final NodeId nodeId : nodeIds) {
             if (!agrPrivateKeys.containsKey(nodeId)) {
