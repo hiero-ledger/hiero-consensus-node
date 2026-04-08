@@ -200,14 +200,25 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
         }
         // Check all memory is freed after DB is closed, but skip for LongListDisk
         // as LongListDisk use file-based operations (FileChannel#write in LongListDisk#closeChunk)
-        // that don't immediately free memory due to OS-level caching
-        if (!(longList instanceof LongListDisk)) {
+        // that don't immediately free memory due to OS-level caching.
+        // Also skip for LongListSegment — FFM arena allocations are not tracked by the
+        // direct memory BufferPoolMXBean; they are verified separately below.
+        if (!(longList instanceof LongListDisk) && !(longList instanceof LongListSegment)) {
             assertTrue(
                     checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
                     "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
                             + (directMemoryUsedAtStart * BYTES_TO_MEBIBYTES) + "MB and is now "
                             + (getDirectMemoryUsedBytes() * BYTES_TO_MEBIBYTES)
                             + "MB");
+        }
+        // For LongListSegment: Arena.close() is deterministic — no GC dependency. If
+        // AbstractLongList.close() called closeChunk for every chunk (which it does via
+        // getAndSet), all arenas are freed and getOffHeapConsumption() must return 0.
+        if (longList instanceof LongListSegment segmentList) {
+            assertEquals(
+                    0,
+                    segmentList.getOffHeapConsumption(),
+                    "LongListSegment should report zero off-heap consumption after close");
         }
     }
 
@@ -700,6 +711,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     static LongListWriterFactory diskWriterFactory = new LongListWriterFactory(
             LongListDisk.class.getSimpleName(),
             () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION));
+    static LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
+            LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
 
     /**
      * Factories (named BiFunctions) for reconstructing different {@link AbstractLongList}
@@ -730,6 +743,14 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                     throw new RuntimeException(e);
                 }
             });
+    static LongListReaderFactory segmentReaderFactory =
+            new LongListReaderFactory(LongListSegment.class.getSimpleName(), (file, a) -> {
+                try {
+                    return new LongListSegment(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
 
     /**
      * Generates a stream of writer-reader argument pairs for testing cross-compatibility
@@ -747,7 +768,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
         return Stream.of(
                 Arguments.of(writerFactory, heapReaderFactory),
                 Arguments.of(writerFactory, offHeapReaderFactory),
-                Arguments.of(writerFactory, diskReaderFactory));
+                Arguments.of(writerFactory, diskReaderFactory),
+                Arguments.of(writerFactory, segmentReaderFactory));
     }
 
     @ParameterizedTest(name = "[{index}] Writer={0}, Reader={1}")
@@ -1005,7 +1027,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             return Stream.of(
                     Arguments.of(writerFactory, readerFactory, heapReaderFactory),
                     Arguments.of(writerFactory, readerFactory, offHeapReaderFactory),
-                    Arguments.of(writerFactory, readerFactory, diskReaderFactory));
+                    Arguments.of(writerFactory, readerFactory, diskReaderFactory),
+                    Arguments.of(writerFactory, readerFactory, segmentReaderFactory));
         });
     }
 
