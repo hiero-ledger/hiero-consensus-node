@@ -96,6 +96,7 @@ open module com.hedera.node.test.clients {
     requires com.hedera.node.app;
     requires com.hedera.node.config;
     requires com.hedera.node.hapi;
+    requires com.hedera.pbj.grpc.client.helidon;
     requires com.hedera.pbj.grpc.helidon.config;
     requires com.hedera.pbj.grpc.helidon;
     requires com.swirlds.base.test.fixtures;
@@ -113,6 +114,7 @@ open module com.hedera.node.test.clients {
     requires org.hiero.base.utility;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.pces.impl.test.fixtures;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
@@ -127,7 +129,9 @@ open module com.hedera.node.test.clients {
     requires io.grpc.netty;
     requires io.grpc.stub;
     requires io.grpc;
+    requires io.helidon.common.tls;
     requires io.helidon.common;
+    requires io.helidon.webclient.api;
     requires io.helidon.webserver;
     requires io.netty.handler;
     requires java.desktop;

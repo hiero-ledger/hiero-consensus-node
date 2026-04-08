@@ -789,12 +789,14 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> batchContainingFreezeTransactions() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
-                    atomicBatch(freezeOnly()
+                    // Source this transaction so the start time doesn't expire before the batch is submitted
+                    sourcing(() -> atomicBatch(freezeOnly()
                                     .payingWith(GENESIS)
-                                    .startingAt(Instant.now().plusSeconds(20))
+                                    .startingIn(10)
+                                    .seconds()
                                     .batchKey("batchOperator")
                                     .signedByPayerAnd("batchOperator"))
-                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST)));
         }
 
         @HapiTest
@@ -803,14 +805,16 @@ public class AtomicBatchNegativeTest {
         public Stream<DynamicTest> nonBlacklistedAndBlacklistedTransactions() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
-                    atomicBatch(
+                    // Source this transaction so the start time doesn't expire before the batch is submitted
+                    sourcing(() -> atomicBatch(
                                     cryptoCreate("foo").batchKey("batchOperator"),
                                     freezeOnly()
                                             .payingWith(GENESIS)
-                                            .startingAt(Instant.now().plusSeconds(20))
+                                            .startingIn(10)
+                                            .seconds()
                                             .batchKey("batchOperator")
                                             .signedByPayerAnd("batchOperator"))
-                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST)));
         }
 
         @HapiTest

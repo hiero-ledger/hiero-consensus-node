@@ -111,14 +111,14 @@ public class TeachingSynchronizer {
 
         InterruptedException interruptException = null;
         try (view) {
-            view.startTeacherTasks(this, time, workGroup, in, out);
+            view.startTeacherTasks(time, workGroup, in, out);
             workGroup.waitForTermination();
         } catch (final InterruptedException e) { // NOSONAR: Exception is rethrown below after cleanup.
             interruptException = e;
             logger.warn(RECONNECT.getMarker(), "Interrupted while waiting for work group termination");
         } catch (final Throwable t) {
             logger.info(RECONNECT.getMarker(), "Caught exception while sending tree", t);
-            throw t;
+            throw new RuntimeException(t);
         }
 
         if ((interruptException != null) || workGroup.hasExceptions()) {

@@ -4,9 +4,11 @@ package com.hedera.node.app.records;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.List;
 import java.util.stream.Stream;
 
 /**
@@ -141,6 +143,28 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     void markMigrationRecordsStreamed();
 
     /**
+     * Directly updates the in-memory wrapped hash state in the block record manager with the finalized
+     * migration root hash values. This must be called after the vote handler finalizes the migration
+     * root hash values so that subsequent {@code updateBlockInfo} calls (which use {@code lastBlockInfo}
+     * as a base via {@code copyBuilder()}) preserve the correct migration field values.
+     *
+     * @param prevWrappedRecordBlockRootHash the finalized previous wrapped record block root hash
+     * @param intermediateHashes the finalized intermediate hashing state
+     * @param leafCount the finalized leaf count
+     */
+    void syncFinalizedMigrationHashes(
+            @NonNull Bytes prevWrappedRecordBlockRootHash, @NonNull List<Bytes> intermediateHashes, long leafCount);
+
+    /**
+     * Syncs the voting metadata fields into the in-memory BlockInfo cache. Used to ensure
+     * {@code putLastBlockInfo} calls don't write stale cached values.
+     *
+     * @param votingComplete whether voting is complete
+     * @param votingCompletionDeadlineBlockNumber the deadline block number for voting completion
+     */
+    void syncVotingMetadata(boolean votingComplete, long votingCompletionDeadlineBlockNumber);
+
+    /**
      * Hook to compute wrapped record-file block data for the current in-progress record block
      * prior to a freeze. In such an event, this method has one of two possible responsibilities:
      * <ol>
@@ -155,5 +179,23 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      *
      * @param state the state to persist BlockInfo to
      */
-    void writeFreezeBlockWrappedRecordFileBlockHashes(@NonNull State state);
+    void writeFreezeBlockWrappedRecordFileBlockHashesToState(@NonNull final State state);
+
+    /**
+     * Persists wrapped record-file block hash inputs for the current in-progress block to the on-disk wrapped-hashes
+     * file when {@link com.hedera.node.config.data.BlockRecordStreamConfig#writeWrappedRecordFileBlockHashesToDisk()
+     * writeWrappedRecordFileBlockHashesToDisk} is enabled.
+     *
+     * <p>This freeze hook treats the open record block as if it were about to close: it snapshots the block number
+     * ({@code lastBlockNumber + 1}), the block's first consensus time, the record stream running hash at end of the
+     * round, and the in-memory record stream items and sidecars accumulated for that block, then appends that payload
+     * asynchronously for downstream wrapped-hash computation.
+     *
+     * <p>Called from the handle workflow at the end of a freeze round (after user transactions for the round have been
+     * streamed). If the disk feature flag is off, this method returns immediately without I/O.
+     *
+     * @param state the mutable state at the end of the freeze round (mirrors
+     *              {@link #writeFreezeBlockWrappedRecordFileBlockHashesToState(State)}; the implementation may not read it)
+     */
+    void writeFreezeBlockWrappedRecordFileBlockHashesToDisk(@NonNull State state);
 }

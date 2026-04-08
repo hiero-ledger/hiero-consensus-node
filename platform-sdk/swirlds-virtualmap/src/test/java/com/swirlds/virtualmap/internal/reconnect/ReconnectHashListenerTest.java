@@ -8,10 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -49,16 +51,29 @@ class ReconnectHashListenerTest {
     void nullFlusherThrows() {
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashListener(null),
+                () -> new ReconnectHashListener(null, mock(DataSourceHashChunkPreloader.class)),
                 "A null flusher should produce an NPE");
+    }
+
+    @Test
+    @DisplayName("Null hash chunk preloader throws")
+    void nullHashChunkPreloaderThrows() {
+        assertThrows(
+                NullPointerException.class,
+                () -> new ReconnectHashListener(mock(ReconnectHashLeafFlusher.class), null),
+                "A null hash chunk preloader should produce an NPE");
     }
 
     @Test
     @DisplayName("Valid configurations create an instance")
     void goodLeafPaths() {
         final ReconnectHashLeafFlusher flusher = mock(ReconnectHashLeafFlusher.class);
+        final VirtualDataSource dataSource = mock(VirtualDataSource.class);
+        when(dataSource.getHashChunkHeight()).thenReturn(6);
+        final DataSourceHashChunkPreloader preloader = new DataSourceHashChunkPreloader(dataSource);
+
         try {
-            new ReconnectHashListener(flusher);
+            new ReconnectHashListener(flusher, preloader);
         } catch (Exception e) {
             fail("Should have been able to create the instance", e);
         }
@@ -80,7 +95,7 @@ class ReconnectHashListenerTest {
         // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
         final int first = size - 1;
         final int last = 2 * size - 2;
-        final ReconnectHashListener listener = new ReconnectHashListener(flusher);
+        final ReconnectHashListener listener = new ReconnectHashListener(flusher, new DataSourceHashChunkPreloader(ds));
         final VirtualHasher hasher = new VirtualHasher(CONFIGURATION.getConfigData(VirtualMapConfig.class));
         final LongFunction<VirtualHashChunk> chunkPreloader = path -> {
             final long chunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
@@ -128,6 +143,7 @@ class ReconnectHashListenerTest {
             assertEquals(expected, path, "Path did not match expectation. path=" + path + ", expected=" + expected);
             expected++;
         }
+        hasher.shutdown();
     }
 
     private VirtualLeafBytes leaf(long path) {

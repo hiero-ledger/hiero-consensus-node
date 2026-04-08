@@ -75,6 +75,7 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.util.ThrottledLogging;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
@@ -85,6 +86,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -180,6 +182,10 @@ public class HandleWorkflow {
     private final NodeFeeManager nodeFeeManager;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
+    // Flag to indicate whether jumpstart hash voting setup has already been attempted
+    private boolean jumpstartHashVotingSetupDone;
+
+    private final ThrottledLogging tssReconcileFailureLogging = new ThrottledLogging();
 
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
@@ -315,6 +321,25 @@ public class HandleWorkflow {
             }
             logger.info(SYSTEM_ENTITIES_CREATED_MSG);
             requireNonNull(systemEntitiesCreatedFlag).set(true);
+        } else {
+            try {
+                systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
+            } catch (Exception e) {
+                logger.error("Failed to submit startup migration root-hash vote", e);
+            }
+        }
+
+        if (!jumpstartHashVotingSetupDone) {
+            final var deadline = systemTransactions.maybeSetupJumpstartHashVoting(state, this::doStreamingAllChanges);
+            if (deadline.isPresent()) {
+                blockRecordManager.syncVotingMetadata(false, deadline.getAsLong());
+                logger.info(
+                        "Jumpstart hash voting initialized with deadline {}",
+                        deadline.stream().mapToObj(Long::toString));
+            } else {
+                logger.info("Skipping jumpstart hash voting setup");
+            }
+            jumpstartHashVotingSetupDone = true;
         }
 
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
@@ -349,8 +374,9 @@ public class HandleWorkflow {
             configureTssCallbacks(state, setLedgerIdContext);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());
+                resetTssReconcileFailureSuppression();
             } catch (Exception e) {
-                logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+                logTssReconcileFailure(e);
             }
         }
         final var lastUsedConsTime = blockHashSigner.isReady()
@@ -406,8 +432,19 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
-                // Persist live wrapped record block hashes to state before the freeze
-                blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashes(state);
+                // Persist live wrapped record block hashes to state before the freeze.
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .liveWritePrevWrappedRecordHashes()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+                }
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .writeWrappedRecordFileBlockHashesToDisk()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
@@ -860,8 +897,10 @@ public class HandleWorkflow {
                 dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
                 updateWorkflowMetrics(parentTxn);
             }
-            final var handleOutput =
-                    parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
+            final var blockNumber = currentBlockNumber();
+            final var handleOutput = parentTxn
+                    .stack()
+                    .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),
@@ -904,9 +943,10 @@ public class HandleWorkflow {
         stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
             dispatchProcessor.processDispatch(dispatch);
+            final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
                     .stack()
-                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates());
+                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
@@ -918,6 +958,15 @@ public class HandleWorkflow {
             return HandleOutput.failInvalidStreamItems(
                     scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
+    }
+
+    /**
+     * Helper method to get the current block number only when the block stream owns receipt block numbers.
+     *
+     * @return the current block number, or null outside {@link StreamMode#BLOCKS}
+     */
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
     }
 
     /**
@@ -1200,6 +1249,17 @@ public class HandleWorkflow {
             logStartUserTransactionPreHandleResultP2(parentTxn.preHandleResult());
             logStartUserTransactionPreHandleResultP3(parentTxn.preHandleResult());
         }
+    }
+
+    private void logTssReconcileFailure(@NonNull final Exception e) {
+        if (!tssReconcileFailureLogging.shouldLog(e)) {
+            return;
+        }
+        logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+    }
+
+    private void resetTssReconcileFailureSuppression() {
+        tssReconcileFailureLogging.reset();
     }
 
     /**

@@ -15,10 +15,28 @@ package proto;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/timestamp.proto";
+import "platform/state/platform_state.proto";
+import "services/auxiliary/blockrecords/migration_root_hash_vote.proto";
+import "services/state/blockrecords/migration_wrapped_hashes.proto";
 
 option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.blockrecords">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
+
+/**
+ * A node vote for wrapped-record migration root-hash agreement.
+ */
+message NodeMigrationRootHashVote {
+    /**
+     * The node submitting this vote.
+     */
+    com.hedera.hapi.platform.state.NodeId node_id = 1;
+
+    /**
+     * The submitted vote body.
+     */
+    com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody vote = 2;
+}
 
 /**
  * Information for a transaction block.
@@ -129,4 +147,24 @@ message BlockInfo {
      * roots subtree.
      */
     uint64 wrapped_intermediate_block_roots_leaf_count = 12;
+
+    /**
+     * Whether migration root-hash voting has finalized.
+     */
+    bool voting_complete = 13;
+
+    /**
+     * The block number at or after which voting is no longer pending.
+     */
+    uint64 voting_completion_deadline_block_number = 14;
+
+    /**
+     * Collected migration root-hash votes from nodes.
+     */
+    repeated NodeMigrationRootHashVote migration_root_hash_votes = 15;
+
+    /**
+     * Wrapped hashes captured while voting is pending.
+     */
+    repeated com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes migration_wrapped_hashes = 16;
 }

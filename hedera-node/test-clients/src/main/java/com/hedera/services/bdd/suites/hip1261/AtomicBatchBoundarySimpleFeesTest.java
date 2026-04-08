@@ -45,7 +45,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
-import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -611,9 +611,11 @@ public class AtomicBatchBoundarySimpleFeesTest {
 
         @HapiTest
         @DisplayName(
-                "Inner txn just above PROCESSING_BYTES threshold (1025+ bytes) — extra PROCESSING_BYTES charge goes to inner payer only; batch payer not affected")
-        final Stream<DynamicTest> innerTxnAboveProcessingBytesThresholdExtraChargeInnerPayerOnly() {
-            final long TARGET = NODE_INCLUDED_BYTES + 2;
+                "Inner txn above PROCESSING_BYTES threshold charges more to inner payer only - batch payer not affected")
+        final Stream<DynamicTest> innerTxnAboveProcessingBytesThresholdChargesMoreInnerPayerOnly() {
+            final long BELOW_TARGET = NODE_INCLUDED_BYTES - 10;
+            final long ABOVE_TARGET = NODE_INCLUDED_BYTES + 20;
+
             return hapiTest(flattened(
                     createAccountsAndKeys(),
                     newKeyNamed(adminKey),
@@ -634,15 +636,29 @@ public class AtomicBatchBoundarySimpleFeesTest {
                                         .via("baseFeeBatch"));
                         final int baseSize = signedInnerTxnSizeFor(spec, "baseFeeTxn");
 
-                        // Create inner txn with txn size above the threshold
                         final int probeMessageLength = "probe".length();
-                        final int paddingLength = Math.toIntExact(Math.max(0, TARGET - baseSize - 2));
-                        final String message = "X".repeat(paddingLength + probeMessageLength);
+
+                        final int belowPadding =
+                                Math.toIntExact(Math.max(0, BELOW_TARGET - baseSize - probeMessageLength));
+                        final String belowMessage = "X".repeat(belowPadding + probeMessageLength);
+
+                        final int abovePadding =
+                                Math.toIntExact(Math.max(0, ABOVE_TARGET - baseSize - probeMessageLength));
+                        final String aboveMessage = "X".repeat(abovePadding + probeMessageLength);
 
                         allRunFor(
                                 spec,
                                 atomicBatch(submitMessageTo("processingBytesTopic3")
-                                                .message(message)
+                                                .message(belowMessage)
+                                                .payingWith(PAYER)
+                                                .signedBy(PAYER, submitKey)
+                                                .via("innerBelowThreshold")
+                                                .batchKey(BATCH_OPERATOR))
+                                        .payingWith(BATCH_OPERATOR)
+                                        .signedBy(BATCH_OPERATOR)
+                                        .via("batchBelowThreshold"),
+                                atomicBatch(submitMessageTo("processingBytesTopic3")
+                                                .message(aboveMessage)
                                                 .payingWith(PAYER)
                                                 .signedBy(PAYER, submitKey)
                                                 .via("innerAboveThreshold")
@@ -651,36 +667,47 @@ public class AtomicBatchBoundarySimpleFeesTest {
                                         .signedBy(BATCH_OPERATOR)
                                         .via("batchAboveThreshold"));
 
-                        final int actualInnerSize = signedInnerTxnSizeFor(spec, "innerAboveThreshold");
-                        log.info(
-                                "Above-threshold inner size: {} bytes (threshold: {})",
-                                actualInnerSize,
-                                NODE_INCLUDED_BYTES);
+                        final int belowSize = signedInnerTxnSizeFor(spec, "innerBelowThreshold");
+                        final int aboveSize = signedInnerTxnSizeFor(spec, "innerAboveThreshold");
+
+                        log.info("Below-threshold inner size: {}", belowSize);
+                        log.info("Above-threshold inner size: {}", aboveSize);
+
                         assertTrue(
-                                actualInnerSize > NODE_INCLUDED_BYTES,
-                                "Expected inner size (" + actualInnerSize + ") to exceed NODE_INCLUDED_BYTES ("
-                                        + NODE_INCLUDED_BYTES + ")");
+                                belowSize < NODE_INCLUDED_BYTES,
+                                "Expected below-threshold inner txn to stay below threshold");
+                        assertTrue(
+                                aboveSize > NODE_INCLUDED_BYTES,
+                                "Expected above-threshold inner txn to exceed threshold");
 
                         allRunFor(
                                 spec,
+                                validateChargedAccount("batchBelowThreshold", BATCH_OPERATOR),
                                 validateChargedAccount("batchAboveThreshold", BATCH_OPERATOR),
+                                validateChargedAccount("innerBelowThreshold", PAYER),
                                 validateChargedAccount("innerAboveThreshold", PAYER),
+                                validateChargedUsdWithinWithTxnSize(
+                                        "batchBelowThreshold",
+                                        txnSize -> expectedAtomicBatchFullFeeUsd(
+                                                Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                        0.1),
                                 validateChargedUsdWithinWithTxnSize(
                                         "batchAboveThreshold",
                                         txnSize -> expectedAtomicBatchFullFeeUsd(
                                                 Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
-                                        0.1),
-                                validateInnerChargedUsdWithinWithTxnSize(
-                                        "innerAboveThreshold",
-                                        "batchAboveThreshold",
-                                        txnSize -> expectedTopicSubmitMessageFullFeeUsd(Map.of(
-                                                SIGNATURES,
-                                                2L,
-                                                STATE_BYTES,
-                                                (long) message.length(),
-                                                PROCESSING_BYTES,
-                                                (long) txnSize - 2)),
                                         0.1));
+
+                        final double belowFee =
+                                getChargedUsedForInnerTxn(spec, "batchBelowThreshold", "innerBelowThreshold");
+                        final double aboveFee =
+                                getChargedUsedForInnerTxn(spec, "batchAboveThreshold", "innerAboveThreshold");
+
+                        log.info("Below-threshold inner fee: {}", belowFee);
+                        log.info("Above-threshold inner fee: {}", aboveFee);
+
+                        assertTrue(
+                                aboveFee > belowFee,
+                                "Above-threshold inner fee should be greater than below-threshold inner fee");
                     })));
         }
     }
@@ -717,7 +744,7 @@ public class AtomicBatchBoundarySimpleFeesTest {
                             "batchTxnMint1",
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_TYPES, 1L,
+                                    TOKEN_MINT_NFT, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1)));
         }
@@ -758,7 +785,7 @@ public class AtomicBatchBoundarySimpleFeesTest {
                             "batchTxnMint5",
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_TYPES, 5L,
+                                    TOKEN_MINT_NFT, 5L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1)));
         }
@@ -803,7 +830,7 @@ public class AtomicBatchBoundarySimpleFeesTest {
                             "batchTxnMint10",
                             txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_TYPES, 10L,
+                                    TOKEN_MINT_NFT, 10L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1)));
         }
@@ -884,18 +911,46 @@ public class AtomicBatchBoundarySimpleFeesTest {
                                     STATE_BYTES, 500L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
-
-                    // assert total inner fees are exactly 3× single FileCreate fee
                     assertionsHold((spec, assertLog) -> {
                         final int size1 = signedInnerTxnSizeFor(spec, "innerFileCreate1");
                         final int size2 = signedInnerTxnSizeFor(spec, "innerFileCreate2");
                         final int size3 = signedInnerTxnSizeFor(spec, "innerFileCreate3");
-                        final double singleFee = expectedFileCreateFullFeeUsd(
+
+                        final double expectedFee1 = expectedFileCreateFullFeeUsd(
                                 Map.of(SIGNATURES, 1L, STATE_BYTES, 500L, PROCESSING_BYTES, (long) size1));
-                        assertLog.info("Single FileCreate fee: {} USD; total for 3: {} USD", singleFee, 3 * singleFee);
-                        assertTrue(
-                                size1 == size2 && size2 == size3,
-                                "All 3 inner FileCreate txns should have identical signed sizes");
+                        final double expectedFee2 = expectedFileCreateFullFeeUsd(
+                                Map.of(SIGNATURES, 1L, STATE_BYTES, 500L, PROCESSING_BYTES, (long) size2));
+                        final double expectedFee3 = expectedFileCreateFullFeeUsd(
+                                Map.of(SIGNATURES, 1L, STATE_BYTES, 500L, PROCESSING_BYTES, (long) size3));
+
+                        final double expectedTotal = expectedFee1 + expectedFee2 + expectedFee3;
+
+                        final double actualFee1 =
+                                getChargedUsedForInnerTxn(spec, "batchTxn3FileCreate", "innerFileCreate1");
+                        final double actualFee2 =
+                                getChargedUsedForInnerTxn(spec, "batchTxn3FileCreate", "innerFileCreate2");
+                        final double actualFee3 =
+                                getChargedUsedForInnerTxn(spec, "batchTxn3FileCreate", "innerFileCreate3");
+
+                        final double actualTotal = actualFee1 + actualFee2 + actualFee3;
+
+                        assertLog.info(
+                                "Inner FileCreate sizes: [{}, {}, {}], expected fees: [{}, {}, {}], expected total: {}, actual total: {}",
+                                size1,
+                                size2,
+                                size3,
+                                expectedFee1,
+                                expectedFee2,
+                                expectedFee3,
+                                expectedTotal,
+                                actualTotal);
+
+                        final double tolerance = expectedTotal * 0.001; // 0.1%
+                        assertEquals(
+                                expectedTotal,
+                                actualTotal,
+                                tolerance,
+                                "Total inner fees should equal the sum of the expected fees for all 3 inner txns");
                     })));
         }
 

@@ -4,6 +4,7 @@ package org.hiero.sloth.fixtures.app.services.roster;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,6 +34,7 @@ public class RosterService implements SlothService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
             @NonNull final VirtualMapState state) {
         log.info(STARTUP.getMarker(), "RosterService initialized");
     }
