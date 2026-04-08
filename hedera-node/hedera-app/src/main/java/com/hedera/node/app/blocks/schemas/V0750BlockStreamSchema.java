@@ -30,15 +30,15 @@ import org.apache.logging.log4j.Logger;
  * {@code V0560BlockRecordSchema}), reshapes them into the block stream format, and overwrites
  * the {@link BlockStreamInfo} singleton in state.
  */
-public class V0730BlockStreamSchema extends Schema<SemanticVersion> {
+public class V0750BlockStreamSchema extends Schema<SemanticVersion> {
 
-    private static final Logger log = LogManager.getLogger(V0730BlockStreamSchema.class);
+    private static final Logger log = LogManager.getLogger(V0750BlockStreamSchema.class);
 
     private static final String SHARED_BLOCK_RECORD_INFO = "SHARED_BLOCK_RECORD_INFO";
     private static final String SHARED_RUNNING_HASHES = "SHARED_RUNNING_HASHES";
 
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(73).patch(0).build();
+            SemanticVersion.newBuilder().major(0).minor(75).patch(0).build();
 
     private final Runnable cutoverExecutedMarker;
 
@@ -46,7 +46,7 @@ public class V0730BlockStreamSchema extends Schema<SemanticVersion> {
      * @param cutoverExecutedMarker called when cutover is executed, so the caller can
      *                              mark {@code BlockInfo.cutoverExecuted}
      */
-    public V0730BlockStreamSchema(@NonNull final Runnable cutoverExecutedMarker) {
+    public V0750BlockStreamSchema(@NonNull final Runnable cutoverExecutedMarker) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.cutoverExecutedMarker = requireNonNull(cutoverExecutedMarker);
     }

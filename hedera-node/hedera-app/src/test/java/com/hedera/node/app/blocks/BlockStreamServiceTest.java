@@ -6,7 +6,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
-import com.hedera.node.app.blocks.schemas.V0730BlockStreamSchema;
+import com.hedera.node.app.blocks.schemas.V0750BlockStreamSchema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,7 +30,7 @@ final class BlockStreamServiceTest {
         subject.registerSchemas(schemaRegistry);
 
         verify(schemaRegistry).register(argThat(s -> s instanceof V0560BlockStreamSchema));
-        verify(schemaRegistry).register(argThat(s -> s instanceof V0730BlockStreamSchema));
+        verify(schemaRegistry).register(argThat(s -> s instanceof V0750BlockStreamSchema));
     }
 
     @Test

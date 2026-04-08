@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
-import com.hedera.node.app.blocks.schemas.V0730BlockStreamSchema;
+import com.hedera.node.app.blocks.schemas.V0750BlockStreamSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -49,7 +49,7 @@ public class BlockStreamService implements Service {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V0560BlockStreamSchema(this::setMigratedLastBlockHash));
-        registry.register(new V0730BlockStreamSchema(this::markCutoverExecuted));
+        registry.register(new V0750BlockStreamSchema(this::markCutoverExecuted));
     }
 
     @Override
