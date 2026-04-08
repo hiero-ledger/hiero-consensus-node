@@ -1,4 +1,4 @@
-{{- $tests := getenv "FLAKY_TESTS_JSON" | data.JSON -}}
+{{- $tests := getenv "FLAKY_TESTS_JSON" | default "[]" | data.JSONArray -}}
 {{- $lines := coll.Slice -}}
 {{- range $test := $tests -}}
   {{- $status := "" -}}
@@ -32,7 +32,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": {{ strings.Join $lines "\n" | data.ToJSON }}
+            "text": {{ conv.Join $lines "\n" | data.ToJSON }}
           }
         },
         {

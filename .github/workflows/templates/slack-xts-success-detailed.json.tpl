@@ -1,4 +1,4 @@
-{{- $tests := getenv "FLAKY_TESTS_JSON" | default "[]" | data.JSON -}}
+{{- $tests := getenv "FLAKY_TESTS_JSON" | default "[]" | data.JSONArray -}}
 {{- $flaky_lines := coll.Slice -}}
 {{- range $test := $tests -}}
   {{- $status := "" -}}
@@ -85,7 +85,7 @@
               "text": {{ printf "<%s>" (getenv "WORKFLOW_RUN_URL" | required "WORKFLOW_RUN_URL must be set") | data.ToJSON }}
             }
           ]
-        },
+        }
 {{- if gt (len $tests) 0 }},
         {
           "type": "divider"
@@ -94,7 +94,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": {{ strings.Join $flaky_lines "\n" | data.ToJSON }}
+            "text": {{ conv.Join $flaky_lines "\n" | data.ToJSON }}
           }
         }
 {{- end }},
