@@ -21,7 +21,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
-import com.hederahashgraph.api.proto.java.SemanticVersion;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -46,8 +45,6 @@ class JumpstartFileSuite implements LifecycleTest {
     @LeakyHapiTest(
             overrides = {
                 "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
-                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
                 "blockStream.jumpstart.blockNum",
                 "blockStream.jumpstart.previousWrappedRecordBlockHash",
                 "blockStream.jumpstart.streamingHasherLeafCount",
@@ -64,26 +61,19 @@ class JumpstartFileSuite implements LifecycleTest {
 
         // Mutable map so buildDynamicJumpstartConfig can add jumpstart config properties
         // before the restart reads them
-        final var envOverrides = new HashMap<>(Map.of(
-                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
-                "true",
-                "hedera.recordStream.computeHashesFromWrappedRecordBlocks",
-                "true",
-                "hedera.recordStream.liveWritePrevWrappedRecordHashes",
-                "true"));
+        final var envOverrides =
+                new HashMap<>(Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"));
 
         return hapiTest(
                 // Any nodes added after genesis will not have a complete wrapped hashes file on disk, so shut them down
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(envOverrides),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 2: Restarting with jumpstart config"),
-                upgradeToVersion("0.74.0", envOverrides, buildDynamicJumpstartConfig(jumpstartConfig, envOverrides)),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(envOverrides, buildDynamicJumpstartConfig(jumpstartConfig, envOverrides)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
-                assertGetVersionInfoMatches(() -> SemanticVersion.newBuilder()
-                        .setMajor(0)
-                        .setMinor(74)
-                        .setPatch(0)
-                        .build()),
                 logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
                 cryptoCreate("shouldWork").payingWith(GENESIS),
                 assertHgcaaLogContainsPattern(
@@ -111,11 +101,6 @@ class JumpstartFileSuite implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(envOverrides),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
-                assertGetVersionInfoMatches(() -> SemanticVersion.newBuilder()
-                        .setMajor(0)
-                        .setMinor(74)
-                        .setPatch(0)
-                        .build()),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                         "Jumpstart migration already applied \\(votingComplete=true\\), skipping",

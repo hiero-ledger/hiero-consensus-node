@@ -63,7 +63,6 @@ import com.hederahashgraph.api.proto.java.SemanticVersion;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -82,12 +81,6 @@ public interface LifecycleTest {
     Duration EXEC_IMMEDIATE_MF_TIMEOUT = Duration.ofSeconds(10);
     Duration RESTART_TO_ACTIVE_TIMEOUT = Duration.ofSeconds(210);
     Duration PORT_UNBINDING_WAIT_PERIOD = Duration.ofSeconds(180);
-    String SERVICES_VERSION_OVERRIDE_PROPERTY = "hapi.spec.override.services.version";
-    String HAPI_PROTO_VERSION_OVERRIDE_PROPERTY = "hapi.spec.override.hapi.proto.version";
-    String SERVICES_VERSION_OVERRIDE_KEY = "hapi.spec.override.services.version";
-    String HAPI_PROTO_VERSION_OVERRIDE_KEY = "hapi.spec.override.hapi.proto.version";
-    String HEDERA_SERVICES_VERSION_KEY = "hedera.services.version";
-    String HAPI_PROTO_VERSION_KEY = "hapi.proto.version";
     AtomicInteger CURRENT_CONFIG_VERSION = new AtomicInteger(0);
 
     /**
@@ -152,36 +145,8 @@ public interface LifecycleTest {
      * @return the operation
      */
     default HapiSpecOperation prepareFakeUpgrade() {
-        clearSemanticVersionOverrides();
         return blockingOrder(
                 buildUpgradeZipFrom(FAKE_ASSETS_LOC),
-                // Upload it to file 0.0.150; need sourcing() here because the operation reads contents eagerly
-                sourcing(() -> updateSpecialFile(
-                        GENESIS,
-                        DEFAULT_UPGRADE_FILE_ID,
-                        FAKE_UPGRADE_ZIP_LOC,
-                        TxnUtils.BYTES_4K,
-                        upgradeFileAppendsPerBurst())),
-                purgeUpgradeArtifacts(),
-                // Issue PREPARE_UPGRADE; need sourcing() here because we want to hash only after creating the ZIP
-                sourcing(() -> prepareUpgrade()
-                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
-                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
-                // Wait for the immediate execution marker file (written only after 0.0.150 is unzipped)
-                waitForMf(EXEC_IMMEDIATE_MF, LifecycleTest.EXEC_IMMEDIATE_MF_TIMEOUT));
-    }
-
-    /**
-     * Returns an operation that builds a fake upgrade ZIP with a target services version, uploads it to file
-     * {@code 0.0.150}, issues a {@code PREPARE_UPGRADE}, and awaits writing of the <i>execute_immediate.mf</i>.
-     *
-     * @param targetServicesVersion the services semantic version to place in semantic-version.properties
-     * @return the operation
-     */
-    default HapiSpecOperation prepareFakeUpgrade(@NonNull final String targetServicesVersion) {
-        requireNonNull(targetServicesVersion);
-        return blockingOrder(
-                buildUpgradeZipFrom(FAKE_ASSETS_LOC, targetServicesVersion),
                 // Upload it to file 0.0.150; need sourcing() here because the operation reads contents eagerly
                 sourcing(() -> updateSpecialFile(
                         GENESIS,
@@ -271,44 +236,6 @@ public interface LifecycleTest {
     }
 
     /**
-     * Returns an operation that upgrades the network to the given services semantic version without incrementing
-     * configuration version, while still running the given operation before the network is restarted.
-     *
-     * @param targetServicesVersion the target services semantic version
-     * @param envOverrides the environment overrides to use
-     * @param preRestartOps operations to run before the network is restarted
-     * @return the operation
-     */
-    default SpecOperation upgradeToVersion(
-            @NonNull final String targetServicesVersion,
-            @NonNull final Map<String, String> envOverrides,
-            @NonNull final SpecOperation... preRestartOps) {
-        requireNonNull(targetServicesVersion);
-        requireNonNull(envOverrides);
-        requireNonNull(preRestartOps);
-        return sourcing(() -> {
-            System.setProperty(SERVICES_VERSION_OVERRIDE_PROPERTY, targetServicesVersion);
-            System.setProperty(HAPI_PROTO_VERSION_OVERRIDE_PROPERTY, targetServicesVersion);
-            Map<String, String> versionAwareOverrides = envOverrides;
-            try {
-                envOverrides.put(HEDERA_SERVICES_VERSION_KEY, targetServicesVersion);
-                envOverrides.put(HAPI_PROTO_VERSION_KEY, targetServicesVersion);
-                // Keep a single mutable map so preRestartOps can populate dynamic values
-                // (e.g. jumpstart config) that are then consumed by restartNetwork.
-            } catch (UnsupportedOperationException ignore) {
-                // Fall back to a mutable copy for immutable input maps.
-                final var mutableOverrides = new HashMap<>(envOverrides);
-                mutableOverrides.put(HEDERA_SERVICES_VERSION_KEY, targetServicesVersion);
-                mutableOverrides.put(HAPI_PROTO_VERSION_KEY, targetServicesVersion);
-                versionAwareOverrides = mutableOverrides;
-            }
-            return blockingOrder(
-                    prepareFakeUpgrade(targetServicesVersion),
-                    upgradeToConfigVersion(CURRENT_CONFIG_VERSION.get(), versionAwareOverrides, preRestartOps));
-        });
-    }
-
-    /**
      * Returns an operation that upgrades the network to the given configuration version using a fake upgrade ZIP,
      * running the given operation before the network is restarted.
      *
@@ -339,11 +266,6 @@ public interface LifecycleTest {
                 // Ensure we have a post-upgrade transaction in a new period to trigger
                 // system file exports while still streaming records
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
-    }
-
-    private static void clearSemanticVersionOverrides() {
-        System.clearProperty(SERVICES_VERSION_OVERRIDE_PROPERTY);
-        System.clearProperty(HAPI_PROTO_VERSION_OVERRIDE_PROPERTY);
     }
 
     /**

@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -28,7 +29,7 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
     }
 
     @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
+    public void restart(@NonNull final MigrationContext ctx) {
         if (!ctx.isGenesis()
                 && ctx.appConfig().getConfigData(BlockRecordStreamConfig.class).liveWritePrevWrappedRecordHashes()) {
             final var blockInfoSingleton = ctx.newStates().<BlockInfo>getSingleton(BLOCKS_STATE_ID);
@@ -39,7 +40,10 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
                         "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
                         existingBlockInfo.votingCompletionDeadlineBlockNumber(),
                         existingBlockInfo.votingComplete());
-            } else {
+            } else if (ctx.appConfig()
+                            .getConfigData(BlockStreamJumpstartConfig.class)
+                            .blockNum()
+                    > 0) {
                 final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
                 blockInfoSingleton.put(existingBlockInfo
                         .copyBuilder()
