@@ -1,0 +1,180 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZZZ Test Workflow - Template Only"
+on:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+
+jobs:
+  report-success:
+    name: Test all Slack message templates
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        with:
+          checkout: "true"
+          checkout-ref: ${{ github.ref }}
+          checkout-fetch-depth: "0"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Install gomplate
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
+            -o /tmp/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
+          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+
+      - name: Build Success Slack Payload
+        env:
+          XTS_INFO: "v0.55.0-alpha.1-XTS-PASS"
+          FETCH_XTS_CANDIDATE_RESULT: "success"
+          XTS_EXECUTION_RESULT: "success"
+          TAG_FOR_PROMOTION_RESULT: "success"
+          FLAKY_TESTS_JSON: '[{"class":"com.hedera.services.bdd.suites.crypto.CryptoTransferSuite","method":"transferWithMemo","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/999","issue_number":999,"is_new":true},{"class":"com.hedera.services.bdd.suites.token.TokenAssociationSpecs","method":"associateWithMissingToken","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/888","issue_number":888,"is_new":false}]'
+          COMMIT_URL: "https://github.com/hiero-ledger/hiero-consensus-node/commit/abc1234"
+          COMMIT_AUTHOR: "Jane Dev"
+          WORKFLOW_RUN_ID: "12345678"
+          WORKFLOW_RUN_URL: "https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/12345678"
+          COMMIT_LIST: "abc1234 - fix: something\ndef5678 - feat: another thing"
+        run: gomplate -f .github/workflows/templates/slack-xts-success-detailed.json.tpl -o slack_payload_xts_pass.json
+
+      - name: Build Test Failure Slack Payload
+        env:
+          XTS_INFO: "xts-candidate-20260407-XTS-DETAILED-FAILURE"
+          FETCH_XTS_CANDIDATE_RESULT: "success"
+          XTS_EXECUTION_RESULT: "failure"
+          TAG_FOR_PROMOTION_RESULT: "skipped"
+          FAILED_TESTS: "com.hedera.services.bdd.suites.crypto.CryptoTransferSuite#transferWithMemo, com.hedera.services.bdd.suites.token.TokenAssociationSpecs#associateWithMissingToken"
+          FLAKY_TESTS_JSON: '[{"class":"com.hedera.services.bdd.suites.crypto.CryptoTransferSuite","method":"transferWithMemo","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/999","issue_number":999,"is_new":true},{"class":"com.hedera.services.bdd.suites.token.TokenAssociationSpecs","method":"associateWithMissingToken","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/888","issue_number":888,"is_new":false}]'
+          COMMIT_URL: "https://github.com/hiero-ledger/hiero-consensus-node/commit/a3f8c21d94b0e76f2b1d4c8e5a9b3d7f0c2e1a4b"
+          COMMIT_AUTHOR: "Jane Dev"
+          SLACK_USER_ID: "<@U0123456789>"
+          WORKFLOW_RUN_ID: "14823901234"
+          WORKFLOW_RUN_URL: "https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/14823901234"
+          COMMIT_LIST: "a3f8c21 - fix: resolve state migration issue in token service\nb7d2e09 - feat: add new crypto transfer validation\nc1a4f83 - chore: update protobuf definitions for account state"
+        run: gomplate -f .github/workflows/templates/slack-xts-test-failure-detailed.json.tpl -o slack_payload_xts_detailed_failure.json
+
+      - name: Build Infrastructure Failure Slack Payload
+        env:
+          XTS_INFO: "xts-candidate-20260407-XTS-INFRA-DETAILED-FAILURE"
+          FETCH_XTS_CANDIDATE_RESULT: "success"
+          XTS_EXECUTION_RESULT: "failure"
+          TAG_FOR_PROMOTION_RESULT: "skipped"
+          FLAKY_TESTS_JSON: '[{"class":"com.hedera.services.bdd.suites.crypto.CryptoTransferSuite","method":"transferWithMemo","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/999","issue_number":999,"is_new":true}]'
+          WORKFLOW_RUN_URL: "https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/14823901234"
+        run: gomplate -f .github/workflows/templates/slack-xts-infra-failure-detailed.json.tpl -o slack_payload_xts_infra_detailed_failure.json
+
+      - name: Build Infrastructure Failure Summary Payload
+        env:
+          SLACK_SUMMARY_TEXT: ":warning: XTS infrastructure failure (xts-candidate-20260407-XTS-INFRA-SUMMARY-FAILURE) — <https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/14823901234|View Run>"
+        run: gomplate -f .github/workflows/templates/slack-infra-failure-summary.json.tpl -o slack_payload_xts_summary_failure.json
+
+      - name: Build Cancelled Summary Payload
+        env:
+          SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS run cancelled (xts-candidate-20260407-XTS-CANCELLED-SUMMARY-FAILURE) — <https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/14823901234|View Run>"
+        run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_xts_summary_cancelled.json
+
+      - name: Build MATS Test Failure Slack Payload
+        env:
+          MATS_TESTS_RESULT: "failure - SLACK_MATS_TEST_FAILURE_DETAILED"
+          DEPLOY_CI_TRIGGER_RESULT: "success"
+          FAILED_TESTS: "com.hedera.services.bdd.suites.crypto.CryptoTransferSuite#transferWithMemo, com.hedera.services.bdd.suites.token.TokenAssociationSpecs#associateWithMissingToken"
+          FLAKY_TESTS_JSON: '[{"class":"com.hedera.services.bdd.suites.crypto.CryptoTransferSuite","method":"transferWithMemo","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/999","issue_number":999,"is_new":true},{"class":"com.hedera.services.bdd.suites.token.TokenAssociationSpecs","method":"associateWithMissingToken","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/888","issue_number":888,"is_new":false}]'
+          COMMIT_URL: "https://github.com/hiero-ledger/hiero-consensus-node/commit/a3f8c21d94b0e76f2b1d4c8e5a9b3d7f0c2e1a4b"
+          COMMIT_AUTHOR: "Jane Dev"
+          SLACK_USER_ID: "<@U0123456789>"
+          WORKFLOW_RUN_ID: "14823901234"
+          WORKFLOW_RUN_URL: "https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/14823901234"
+        run: gomplate -f .github/workflows/templates/slack-mats-test-failure-detailed.json.tpl -o slack_payload_mats_test_detailed.json
+
+      - name: Build MATS Infrastructure Failure Slack Payload
+        env:
+          MATS_TESTS_RESULT: "failure - SLACK_MATS_INFRA_FAILURE_DETAILED"
+          DEPLOY_CI_TRIGGER_RESULT: "success"
+          FLAKY_TESTS_JSON: '[{"class":"com.hedera.services.bdd.suites.crypto.CryptoTransferSuite","method":"transferWithMemo","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/999","issue_number":999,"is_new":true}]'
+          WORKFLOW_RUN_URL: "https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/14823901234"
+        run: gomplate -f .github/workflows/templates/slack-mats-infra-failure-detailed.json.tpl -o slack_payload_mats_infra_detailed.json
+
+      - name: Build MATS Flaky Test Report Slack Payload
+        env:
+          FLAKY_TESTS_JSON: '[{"class":"com.hedera.services.bdd.suites.crypto.CryptoTransferSuite","method":"transferWithMemo","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/999","issue_number":999,"is_new":true},{"class":"com.hedera.services.bdd.suites.token.TokenAssociationSpecs","method":"associateWithMissingToken","issue_url":"https://github.com/hiero-ledger/hiero-consensus-node/issues/888","issue_number":888,"is_new":false}]'
+          COMMIT_URL: "https://github.com/hiero-ledger/hiero-consensus-node/commit/a3f8c21d94b0e76f2b1d4c8e5a9b3d7f0c2e1a4b"
+          COMMIT_AUTHOR: "Jane Dev"
+          SLACK_USER_ID: "<@U0123456789>"
+          WORKFLOW_RUN_ID: "14823901234"
+          WORKFLOW_RUN_URL: "https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/14823901234"
+        run: gomplate -f .github/workflows/templates/slack-mats-flaky-test-report.json.tpl -o slack_payload_mats_flaky_report.json
+
+      - name: XTS Pass
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_xts_pass.json
+
+      - name: XTS Test Detailed Failure
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_xts_detailed_failure.json
+
+      - name: XTS Infra Detailed Failure
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_xts_infra_detailed_failure.json
+
+      - name: XTS Summary Failure
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_xts_summary_failure.json
+
+      - name: XTS Summary Cancelled
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_xts_summary_cancelled.json
+
+      - name: MATS Test Detailed Failure
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_mats_test_detailed.json
+
+      - name: MATS Infra Detailed Failure
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_mats_infra_detailed.json
+
+      - name: MATS Flaky Test Report
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_TEST_MESSAGES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_mats_flaky_report.json
