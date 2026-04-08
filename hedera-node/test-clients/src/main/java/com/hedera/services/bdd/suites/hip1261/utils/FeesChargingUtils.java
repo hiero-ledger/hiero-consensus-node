@@ -2839,25 +2839,6 @@ public class FeesChargingUtils {
     }
 
     /**
-     * Network-only fee for ContractCreate failures in pre-handle.
-     */
-    private static double expectedNetworkOnlyFeeUsd(long sigs, int txnSize) {
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-        return nodeFee * NETWORK_MULTIPLIER;
-    }
-
-    /**
-     * Overload when extras are provided in a map.
-     */
-    public static double expectedNetworkOnlyFeeUsd(final Map<Extra, Long> extras) {
-        return expectedNetworkOnlyFeeUsd(
-                extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
-    }
-
-    /**
      * Gets the charged gas for a ContractCreate inner transaction, using the parent transaction's exchange rate to convert to USD.
      */
     public static double getChargedGasForContractCreateInnerTxn(
