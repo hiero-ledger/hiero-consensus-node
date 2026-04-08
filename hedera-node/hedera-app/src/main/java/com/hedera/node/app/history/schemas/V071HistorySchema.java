@@ -2,7 +2,6 @@
 package com.hedera.node.app.history.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
@@ -107,10 +106,10 @@ public class V071HistorySchema extends Schema<SemanticVersion> {
     @Override
     public void restart(@NonNull final MigrationContext ctx) {
         if (!ctx.isGenesis() && ctx.appConfig().getConfigData(TssConfig.class).historyEnabled()) {
-            final var activeConstruction = requireNonNull(ctx.newStates()
+            final var activeConstruction = ctx.newStates()
                     .<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
-                    .get());
-            if (activeConstruction.hasTargetProof()) {
+                    .get();
+            if (activeConstruction != null && activeConstruction.hasTargetProof()) {
                 historyService.setLatestHistoryProof(activeConstruction.targetProofOrThrow());
             }
         }

@@ -136,7 +136,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
 
     /** {@inheritDoc} */
     @Override
-    protected boolean putIfEqual(ByteBuffer chunk, int subIndex, long oldValue, long newValue) {
+    protected boolean putIfEqual(@NonNull ByteBuffer chunk, int subIndex, long oldValue, long newValue) {
         /* Below would be equivalent to a compareAndSet(subIndex, oldValue, newValue)
         call on a heap byte buffer, if such a method existed. Since we have instead a
         direct buffer, we need to, first, get its native memory address from the
@@ -214,7 +214,7 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
 
     protected ByteBuffer createChunk() {
         final ByteBuffer directBuffer = ByteBuffer.allocateDirect(memoryChunkSize);
-        directBuffer.order(ByteOrder.nativeOrder());
+        directBuffer.order(ByteOrder.LITTLE_ENDIAN);
         return directBuffer;
     }
 
