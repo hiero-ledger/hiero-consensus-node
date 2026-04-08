@@ -130,7 +130,7 @@ jobs:
   hapi-tests-misc:
     name: "HAPI Tests (Misc)"
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
-    runs-on: hl-cn-hapi-lin-md
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -365,7 +365,7 @@ jobs:
   hapi-tests-simple-fees:
     name: "HAPI Tests (Simple Fees)"
     if: ${{ inputs.enable-hapi-tests-simplefees == 'true' }}
-    runs-on: hl-cn-hapi-lin-md
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -1065,7 +1065,7 @@ jobs:
   hapi-tests-state-throttling:
     name: "HAPI Tests (State Throttling)"
     if: ${{ inputs.enable-hapi-tests-state-throttling == 'true' }}
-    runs-on: hl-cn-hapi-lin-md
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
