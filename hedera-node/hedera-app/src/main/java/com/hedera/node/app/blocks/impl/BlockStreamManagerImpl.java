@@ -408,8 +408,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockDirPath, blockNumber, maxReadDepth(config), maxReadBytesSize(config));
             if (onDiskPendingBlocks.isEmpty()) {
                 log.info("No contiguous pending blocks found for block #{}", blockNumber);
-                final var pendingWriter = writerSupplier.get();
-                pendingWriter.jumpToBlockAfterFreeze(blockNumber);
                 return;
             }
 
@@ -417,10 +415,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 var block = onDiskPendingBlocks.get(i);
                 try {
                     final var pendingWriter = writerSupplier.get();
-                    if (i == 0) { // jump to the first pending block
-                        pendingWriter.jumpToBlockAfterFreeze(
-                                onDiskPendingBlocks.getFirst().number());
-                    }
 
                     pendingWriter.openBlock(block.number());
                     block.items()
@@ -701,7 +695,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             eventIndex = 0;
         }
         if (fatalShutdownFuture != null) {
-            pendingBlocks.forEach(block -> log.fatal("Skipping incomplete block proof for block {}", block.number()));
+            // Flush all pending blocks to local disk for triage (e.g. ISS diagnosis)
+            // before abandoning their incomplete proofs
+            pendingBlocks.forEach(block -> {
+                log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
+                try {
+                    block.writer().flushPendingBlock(block.asPendingProof());
+                } catch (final Exception e) {
+                    log.fatal("Failed to flush pending block #{}", block.number(), e);
+                }
+            });
             if (writer != null) {
                 log.fatal("Prematurely closing block {}", blockNumber);
                 writer.closeCompleteBlock();

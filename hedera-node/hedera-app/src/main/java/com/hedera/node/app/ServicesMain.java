@@ -19,14 +19,18 @@ import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -37,6 +41,7 @@ import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
@@ -214,6 +219,19 @@ public class ServicesMain {
                 ? eventStreamLocOrThrow(hedera.startupNetworks().genesisNetworkOrThrow(platformConfig), selfId.id())
                 // Otherwise derive it from the node's id in state
                 : canonicalEventStreamLoc(selfId.id(), state);
+
+        // Run the wrapped record block hash migration before platform.build() so the result is available when
+        // BlockRecordManagerImpl is constructed during DI initialization.
+        // The migration itself is gated by the appropriate feature flags, so this is safe to invoke.
+        // If migration voting has already completed in state, skip the migration entirely.
+        final var migrationAlreadyApplied = isMigrationVotingComplete(state);
+        hedera.wrappedRecordBlockHashMigration()
+                .execute(
+                        platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
+                        platformConfig.getConfigData(BlockRecordStreamConfig.class),
+                        platformConfig.getConfigData(BlockStreamJumpstartConfig.class),
+                        migrationAlreadyApplied);
+
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
@@ -231,12 +249,6 @@ public class ServicesMain {
                 .withExecutionLayer(hedera)
                 .withStaleEventCallback(hedera);
         final var platform = platformBuilder.build();
-
-        // The migration itself is gated by appropriate feature flags
-        hedera.wrappedRecordBlockHashMigration()
-                .execute(
-                        platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
-                        platformConfig.getConfigData(BlockRecordStreamConfig.class));
 
         platform.start();
         hedera.run();
@@ -345,5 +357,24 @@ public class ServicesMain {
 
     private static @NonNull Hedera hederaOrThrow() {
         return requireNonNull(hedera);
+    }
+
+    /**
+     * Checks if migration root hash voting has already completed in state.
+     */
+    @VisibleForTesting
+    static boolean isMigrationVotingComplete(@NonNull final State state) {
+        final var blockRecordStates = state.getReadableStates(BlockRecordService.NAME);
+        final var blockInfo = blockRecordStates
+                .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                .get();
+        if (blockInfo == null) {
+            return false;
+        }
+        if (blockInfo.votingComplete()) {
+            return true;
+        }
+        return blockInfo.votingCompletionDeadlineBlockNumber() > 0
+                && blockInfo.lastBlockNumber() > blockInfo.votingCompletionDeadlineBlockNumber();
     }
 }

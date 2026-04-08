@@ -19,7 +19,6 @@ import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Transaction;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.worldstate.WorldView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,9 +36,6 @@ class AddOnEvmActionTracerTest {
 
     @Mock
     private MessageFrame messageFrame;
-
-    @Mock
-    private Operation.OperationResult result;
 
     @Mock
     private WorldView worldView;
@@ -80,13 +76,6 @@ class AddOnEvmActionTracerTest {
         final var actions = List.of(ContractAction.DEFAULT);
         given(evmActionTracer.contractActions()).willReturn(actions);
         assertSame(actions, subject.contractActions());
-    }
-
-    @Test
-    void delegatesTracePostExecution() {
-        subject.tracePostExecution(messageFrame, result);
-        verify(evmActionTracer).tracePostExecution(messageFrame, result);
-        verify(addOnTracer).tracePostExecution(messageFrame, result);
     }
 
     @Test

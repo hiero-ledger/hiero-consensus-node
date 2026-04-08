@@ -3,7 +3,7 @@
     "baseFee": 100000,
     "extras": [
       {
-        "name": "PROCESSING_BYTES", "includedCount": 1024
+        "name": "PROCESSING_BYTES", "includedCount": 1350
       },
       {
         "name": "SIGNATURES", "includedCount": 1
@@ -38,7 +38,9 @@
     { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
     { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
-    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 492000000},
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 498300000},
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES", "fee": 1000000},
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES", "fee": 6800},
     { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
     { "name":  "HOOK_EXECUTION",                            "fee": 50000000 },
     { "name":  "HOOK_SLOT_UPDATE",                          "fee": 50000000 }
@@ -187,10 +189,11 @@
         },
         {
           "name": "ConsensusSubmitMessage",
-          "baseFee": 7000000,
+          "baseFee": 700000,
           "extras": [
-            { "name": "STATE_BYTES",      "includedCount": 1024 },
-            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", "includedCount": 0 }
+            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES",  "includedCount": 100 },
+            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES",     "includedCount": 1024 },
+            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",           "includedCount": 0 }
           ]
         },
         {
@@ -285,7 +288,7 @@
           "name": "FileGetContents",
           "baseFee": 84,
           "extras": [
-            { "name": "STATE_BYTES", "includedCount": 1000}
+            { "name": "PROCESSING_BYTES", "includedCount": 1000}
           ]
         },
         {
@@ -415,9 +418,9 @@
         },
         {
           "name": "TokenAirdrop",
-          "baseFee": 1000000000,
+          "baseFee": 0,
           "extras": [
-            { "name": "AIRDROPS", "includedCount": 1 }
+            { "name": "AIRDROPS", "includedCount": 0 }
           ],
           "highVolumeRates": {
             "maxMultiplier": 100000,
@@ -635,7 +638,8 @@
         {
           "name": "ContractCall",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "nodeNetworkFeeExempt": true
         },
         {
           "name": "ContractUpdate",
@@ -727,9 +731,11 @@
         },
         {
           "name": "ContractCallLocal",
-          "baseFee": 41600000,
+          "baseFee": 9000000,
           "extras": [
-            { "name": "GAS", "includedCount": 50000 }
+            {
+              "name": "GAS", "includedCount": 0
+            }
           ]
         },
         {
@@ -737,7 +743,7 @@
           "baseFee": 499000000,
           "extras": [
             {
-              "name": "STATE_BYTES", "includedCount": 1000
+              "name": "PROCESSING_BYTES", "includedCount": 20000
             }
           ]
         },
@@ -763,6 +769,21 @@
         },
         {
           "name": "NodeDelete",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeCreate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeUpdate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeDelete",
           "baseFee": 9000000,
           "extras": []
         }

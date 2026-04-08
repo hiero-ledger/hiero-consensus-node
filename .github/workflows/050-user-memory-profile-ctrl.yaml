@@ -111,7 +111,7 @@ jobs:
 
       - name: Install Solo
         run: |
-          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
 
           # verify the installation
           solo --version
@@ -120,7 +120,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 21.0.6
+          java-version: 25
 
       - name: Install tools
         run: |

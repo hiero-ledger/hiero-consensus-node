@@ -14,6 +14,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
@@ -36,6 +37,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;
@@ -52,6 +54,8 @@ import org.junit.platform.launcher.TestPlan;
 public class SharedNetworkLauncherSessionListener implements LauncherSessionListener {
     private static final Logger log = LogManager.getLogger(SharedNetworkLauncherSessionListener.class);
     private static final List<Consumer<HederaNetwork>> onSubProcessReady = new ArrayList<>();
+    private static final String TEST_CLIENT_LOG_FILE = "hapi.test.clients.log.file";
+    private static final String TEST_CLIENT_LOG_FILE_PATTERN = "hapi.test.clients.log.filePattern";
 
     public static final int CLASSIC_HAPI_TEST_NETWORK_SIZE = 4;
 
@@ -143,6 +147,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 network.start();
                 SHARED_NETWORK.set(network);
                 if (network instanceof SubProcessNetwork subProcessNetwork) {
+                    reconfigureSharedSubProcessLogging(subProcessNetwork);
                     onSubProcessReady.forEach(subProcessNetwork::onReady);
                     onSubProcessReady.clear();
                 }
@@ -177,7 +182,21 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             if (embedding == Embedding.NA) {
                 HapiClients.tearDown();
             }
-            Optional.ofNullable(SHARED_NETWORK.get()).ifPresent(HederaNetwork::terminate);
+            final var network = SHARED_NETWORK.get();
+            if (network != null) {
+                // Dump block node container logs before termination so they are
+                // available in CI failure artifacts
+                final var blockNodeNetwork = SHARED_BLOCK_NODE_NETWORK.get();
+                if (blockNodeNetwork != null) {
+                    final var scopeRoot = network.nodes()
+                            .getFirst()
+                            .getExternalPath(ExternalPath.WORKING_DIR)
+                            .getParent();
+                    blockNodeNetwork.terminate(scopeRoot);
+                    SHARED_BLOCK_NODE_NETWORK.set(null);
+                }
+                network.terminate();
+            }
         }
 
         /**
@@ -250,6 +269,23 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             SHARED_NETWORK.get().start();
         }
 
+        private static void reconfigureSharedSubProcessLogging(@NonNull final SubProcessNetwork network) {
+            final var outputDir = network.nodes()
+                    .getFirst()
+                    .getExternalPath(ExternalPath.APPLICATION_LOG)
+                    .getParent()
+                    .toAbsolutePath()
+                    .normalize();
+            System.setProperty(
+                    TEST_CLIENT_LOG_FILE, outputDir.resolve("test-clients.log").toString());
+            System.setProperty(
+                    TEST_CLIENT_LOG_FILE_PATTERN,
+                    outputDir.resolve("test-clients-%d{yyyy-MM-dd}-%i.log").toString());
+            // Reconfigure in place using log4j2-test-client.xml with subprocess-specific output paths.
+            Configurator.reconfigure();
+            log.info("Configured shared subprocess test-client logging under {}", outputDir);
+        }
+
         /**
          * Counts the number of test class containers in the plan that are NOT the
          * {@link ConcurrentSubprocessValidationTest}. Used to arm the validation latch.
@@ -284,13 +320,19 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
     private static void checkPrOverridesForBlockNodeStreaming(HederaNetwork network) {
         if (network instanceof SubProcessNetwork) {
             Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
-            if (prCheckOverrides.containsKey("blockStream.writerMode")
-                    && prCheckOverrides.get("blockStream.writerMode").equals("FILE_AND_GRPC")) {
+            final String writerMode = prCheckOverrides.get("blockStream.writerMode");
+            if ("FILE_AND_GRPC".equals(writerMode) || "GRPC".equals(writerMode)) {
+                // Determine block node mode from system property, default to REAL
+                final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
+                        .map(BlockNodeMode::valueOf)
+                        .orElse(BlockNodeMode.REAL);
                 log.info(
-                        "PR Check Override: blockStream.writerMode=FILE_AND_GRPC is set, configuring a Block Node network");
+                        "PR Check Override: blockStream.writerMode={} is set, configuring a Block Node network with mode {}",
+                        writerMode,
+                        blockNodeMode);
                 BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
                 network.nodes().forEach(node -> {
-                    blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), BlockNodeMode.SIMULATOR);
+                    blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), blockNodeMode);
                     blockNodeNetwork
                             .getBlockNodeIdsBySubProcessNodeId()
                             .put(node.getNodeId(), new long[] {node.getNodeId()});
@@ -299,7 +341,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 blockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
                 SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
-                subProcessNetwork.setBlockNodeMode(BlockNodeMode.SIMULATOR);
+                subProcessNetwork.setBlockNodeMode(blockNodeMode);
                 subProcessNetwork
                         .getPostInitWorkingDirActions()
                         .add(blockNodeNetwork::configureBlockNodeConnectionInformation);

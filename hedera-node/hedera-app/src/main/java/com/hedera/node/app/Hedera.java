@@ -28,6 +28,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTim
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
 
+import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -58,6 +59,8 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.HttpWrapsProvingKeyDownloader;
+import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
@@ -322,6 +325,12 @@ public final class Hedera
             new WrappedRecordBlockHashMigration();
 
     /**
+     * The WRAPS proving key verification instance. Verification and state persistence
+     * both happen during {@link #onStateInitialized}.
+     */
+    private final WrapsProvingKeyVerification wrapsProvingKeyVerification = new WrapsProvingKeyVerification();
+
+    /**
      * The Hashgraph Platform. This is set during state initialization.
      */
     private Platform platform;
@@ -527,8 +536,8 @@ public final class Hedera
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
-        final var rosterServiceImpl = new RosterServiceImpl(
-                this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState), this::startupNetworks);
+        final var rosterServiceImpl =
+                new RosterServiceImpl(this::canAdoptRoster, this::onAdoptRoster, this::startupNetworks);
         final var platformStateService = new PlatformStateService();
         blockStreamService = new BlockStreamService();
         transactionLimits = new TransactionLimits(
@@ -651,9 +660,6 @@ public final class Hedera
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
-                if (daggerApp != null) {
-                    daggerApp.blockRecordManager().writeFreezeBlockWrappedRecordFileBlockHashes();
-                }
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
@@ -762,6 +768,11 @@ public final class Hedera
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
 
+        // Verify the WRAPS proving key hash (if configured)
+        if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
+            ensureWrapsProvingKey();
+        }
+
         // Perform any service initialization that has to be postponed until Dagger is available
         // (simple boolean is usable since we're still single-threaded when `onStateInitialized` is called)
         if (!onceOnlyServiceInitializationPostDaggerHasHappened) {
@@ -785,6 +796,19 @@ public final class Hedera
         logger.info("Initializing Hedera app with HederaNode#{}", selfId);
         Locale.setDefault(Locale.US);
         logger.info("Locale to set to US en");
+
+        // It is possible a network interrupt could make a node reconnect in a window where
+        // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
+        HintsLibraryBridge.getInstance().resetCache();
+    }
+
+    /**
+     * Ensures the WRAPS proving key is set up — persists the hash to state,
+     * verifies the on-disk file, and downloads if needed.
+     */
+    private void ensureWrapsProvingKey() {
+        wrapsProvingKeyVerification.ensureProvingKey(
+                configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
     }
 
     /**
@@ -1395,16 +1419,27 @@ public final class Hedera
         final var rosterHash = RosterUtils.hash(roster).getBytes();
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var entityCounters = new ReadableEntityIdStoreImpl(initState.getWritableStates(EntityIdService.NAME));
+        final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
+        if (readableHistoryStore.getLedgerId() == null) {
+            // If the ledger id is not set, we should not put any TSS preconditions on adopting a roster,
+            // **even if** the hinTS or history feature flags are enabled (at a cutover upgrade)
+            return true;
+        }
         return (!tssConfig.hintsEnabled()
                         || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters)
                                 .isReadyToAdopt(rosterHash))
                 && (!tssConfig.historyEnabled()
-                        || new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME))
-                                .isReadyToAdopt(rosterHash));
+                        || readableHistoryStore.isReadyToAdopt(rosterHash, tssConfig.wrapsEnabled()));
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
         requireNonNull(initState);
+        final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
+        if (readableHistoryStore.getLedgerId() == null) {
+            // If the ledger id is not set, this is the cutover upgrade, and TSS machinery won't have prepared
+            // the "normal" preconditions for roster adoption during the previous release; so skip everything
+            return;
+        }
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.historyEnabled()) {
             final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();

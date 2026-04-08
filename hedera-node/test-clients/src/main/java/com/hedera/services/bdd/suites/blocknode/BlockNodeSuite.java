@@ -95,7 +95,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
@@ -110,7 +110,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(2)),
@@ -124,7 +124,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(3)),
@@ -138,7 +138,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(1)),
@@ -164,7 +164,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(3)),
@@ -254,6 +254,7 @@ public class BlockNodeSuite {
                             "blockStream.buffer.isBufferPersistenceEnabled", "true",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockNode.streamResetPeriod", "20s",
+                            "blockNode.streamResetPeriodJitter", "0s",
                         })
             })
     @Order(4)
@@ -383,8 +384,6 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         "Closing and rescheduling connection for reconnect attempt",
                         Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "No available block nodes found for streaming", Duration.ofSeconds(0)),
 
                 // EndOfStream error assertions
                 assertBlockNodeCommsLogDoesNotContainText(
@@ -406,7 +405,7 @@ public class BlockNodeSuite {
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Received EndOfStream response", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Sending EndStream (code=", Duration.ofSeconds(0)),
+                        byNodeId(0), "Attempting to send EndStream (code=", Duration.ofSeconds(0)),
 
                 // Connection state transition error assertions
                 assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "Handling failed stream", Duration.ofSeconds(0)),

@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -22,6 +26,9 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class KeyValueStoreBench extends BaseBench {
 
+    private static final Logger logger = LogManager.getLogger(KeyValueStoreBench.class);
+
+    @Override
     String benchmarkName() {
         return "KeyValueStoreBench";
     }
@@ -29,15 +36,17 @@ public class KeyValueStoreBench extends BaseBench {
     @Benchmark
     public void merge() throws Exception {
         String storeName = "mergeBench";
-        beforeTest(storeName);
+        setTestDir(storeName);
+
+        logger.info(RUN_DELIMITER);
 
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
-        LongListOffHeap keyToDiskLocationIndex = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
+        LongListSegment keyToDiskLocationIndex = new LongListSegment(1024 * 1024, maxKey, 256 * 1024);
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final var store = new MemoryIndexDiskKeyValueStore(
                 dbConfig, getTestDir(), storeName, null, (dataLocation, dataValue) -> {}, keyToDiskLocationIndex);
         final DataFileCompactor compactor = new DataFileCompactor(
-                dbConfig, storeName, store.getFileCollection(), keyToDiskLocationIndex, null, null, null, null);
+                storeName, store.getFileCollection(), keyToDiskLocationIndex, null, null, null, null);
 
         // Write files
         long start = System.currentTimeMillis();
@@ -53,12 +62,12 @@ public class KeyValueStoreBench extends BaseBench {
             }
             store.endWriting();
         }
-        System.out.println("Created " + numFiles + " files in " + (System.currentTimeMillis() - start) + "ms");
+        logger.info("Created {} files in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Merge files
         start = System.currentTimeMillis();
-        compactor.compact();
-        System.out.println("Compacted files in " + (System.currentTimeMillis() - start) + "ms");
+        compactor.compactSingleLevel(compactor.getDataFileCollection().getAllCompletedFiles(), 1);
+        logger.info("Compacted files in {} ms", System.currentTimeMillis() - start);
 
         // Verify merged content
         if (verify) {
@@ -77,9 +86,9 @@ public class KeyValueStoreBench extends BaseBench {
                     }
                 }
             }
-            System.out.println("Verified key-value store in " + (System.currentTimeMillis() - start) + "ms");
+            logger.info("Verified key-value store in {} ms", System.currentTimeMillis() - start);
         }
 
-        afterTest(store::close);
+        store.close();
     }
 }
