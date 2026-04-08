@@ -1,4 +1,4 @@
-{{- $tests := getenv "FLAKY_TESTS_JSON" | default "[]" | data.JSON -}}
+{{- $tests := getenv "FLAKY_TESTS_JSON" | default "[]" | data.JSONArray -}}
 {{- $flaky_lines := coll.Slice -}}
 {{- range $test := $tests -}}
   {{- $status := "" -}}
@@ -37,7 +37,7 @@
               "text": {{ printf "*Deploy CI Triggers*: %s" (getenv "DEPLOY_CI_TRIGGER_RESULT") | data.ToJSON }}
             }
           ]
-        },
+        }
 {{- if gt (len $tests) 0 }},
         {
           "type": "divider"
@@ -46,7 +46,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": {{ strings.Join $flaky_lines "\n" | data.ToJSON }}
+            "text": {{ conv.Join $flaky_lines "\n" | data.ToJSON }}
           }
         }
 {{- end }},
