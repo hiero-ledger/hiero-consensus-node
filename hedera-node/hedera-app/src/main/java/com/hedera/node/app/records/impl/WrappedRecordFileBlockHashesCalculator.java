@@ -61,9 +61,6 @@ public final class WrappedRecordFileBlockHashesCalculator {
                 .blockTimestamp(in.blockCreationTime())
                 .hashAlgorithm(BlockHashAlgorithm.SHA2_384);
 
-        // GrpcBlockItemWriter -> writePbjItem... BlockHeader, RecordFileItem, create BlockFooter
-        // -- seperate process that finalizes a BlockProof and also write those items
-
         final var headerItem = BlockItem.newBuilder().blockHeader(header).build();
         final var recordFileBlockItem =
                 BlockItem.newBuilder().recordFile(recordFileItem).build();

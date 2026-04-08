@@ -13,24 +13,18 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
-import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URI;
-import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -41,7 +35,6 @@ import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.zip.ZipFile;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -56,12 +49,6 @@ public class ProcessUtils {
     public static final String SAVED_STATES_DIR = "saved";
     public static final String RECORD_STREAMS_DIR = "recordStreams";
     public static final String BLOCK_STREAMS_DIR = "blockStreams";
-    private static final String SEMANTIC_VERSION_RESOURCE = "semantic-version.properties";
-    private static final String SERVICES_VERSION_PROPERTY = "hedera.services.version";
-    private static final String HAPI_PROTO_VERSION_PROPERTY = "hapi.proto.version";
-    private static final String SERVICES_VERSION_OVERRIDE_PROPERTY = "hapi.spec.override.services.version";
-    private static final String HAPI_PROTO_VERSION_OVERRIDE_PROPERTY = "hapi.spec.override.hapi.proto.version";
-    private static final String NETWORK_ADMIN_IMPL_MODULE = "com.hedera.node.app.service.network.admin.impl";
     private static final long WAIT_SLEEP_MILLIS = 100L;
 
     public static final Executor EXECUTOR = Executors.newCachedThreadPool();
@@ -149,19 +136,6 @@ public class ProcessUtils {
             @NonNull final Map<String, String> envOverrides) {
         final var builder = new ProcessBuilder();
         final var environment = builder.environment();
-        final var effectiveEnvOverrides = new HashMap<>(envOverrides);
-        final var servicesVersionOverride = Optional.ofNullable(
-                        effectiveEnvOverrides.get(LifecycleTest.SERVICES_VERSION_OVERRIDE_KEY))
-                .orElse(System.getProperty(LifecycleTest.SERVICES_VERSION_OVERRIDE_PROPERTY));
-        final var hapiVersionOverride = Optional.ofNullable(
-                        effectiveEnvOverrides.get(LifecycleTest.HAPI_PROTO_VERSION_OVERRIDE_KEY))
-                .orElse(System.getProperty(
-                        LifecycleTest.HAPI_PROTO_VERSION_OVERRIDE_PROPERTY, servicesVersionOverride));
-        final var effectiveModulePath = currentNonTestClientModulePath();
-        final var semanticVersionOverridePatchPath =
-                withSemanticVersionOverridePatchPath(metadata, effectiveEnvOverrides);
-        effectiveEnvOverrides.remove(LifecycleTest.SERVICES_VERSION_OVERRIDE_KEY);
-        effectiveEnvOverrides.remove(LifecycleTest.HAPI_PROTO_VERSION_OVERRIDE_KEY);
         environment.put("LC_ALL", "en.UTF-8");
         environment.put("LANG", "en_US.UTF-8");
         environment.put("grpc.port", Integer.toString(metadata.grpcPort()));
@@ -177,17 +151,12 @@ public class ProcessUtils {
         // Include an PR check overrides from build.gradle.kts
         environment.putAll(prCheckOverrides());
         // Give any overrides set by the test author the highest priority
-        environment.putAll(effectiveEnvOverrides);
+        environment.putAll(envOverrides);
         try {
             final var redirectFile = guaranteedExtantFile(
                     metadata.workingDirOrThrow().resolve(OUTPUT_DIR).resolve(ERROR_REDIRECT_FILE));
-            final var commandLine = javaCommandLineFor(
-                    metadata,
-                    effectiveModulePath,
-                    semanticVersionOverridePatchPath,
-                    servicesVersionOverride,
-                    hapiVersionOverride);
-            builder.command(commandLine).directory(metadata.workingDirOrThrow().toFile());
+            builder.command(javaCommandLineFor(metadata))
+                    .directory(metadata.workingDirOrThrow().toFile());
             // When in CI redirect errors to a log for debugging; when running locally inherit IO
             if (System.getenv("CI") != null) {
                 builder.redirectError(redirectFile).redirectOutput(DISCARD);
@@ -200,12 +169,7 @@ public class ProcessUtils {
         }
     }
 
-    private static List<String> javaCommandLineFor(
-            @NonNull final NodeMetadata metadata,
-            @NonNull final String modulePath,
-            final String semanticVersionOverridePatchPath,
-            final String servicesVersionOverride,
-            final String hapiVersionOverride) {
+    private static List<String> javaCommandLineFor(@NonNull final NodeMetadata metadata) {
         final List<String> commandLine = new ArrayList<>();
         commandLine.add(ProcessHandle.current().info().command().orElseThrow());
         // Only activate JDWP if not in CI
@@ -214,19 +178,10 @@ public class ProcessUtils {
                     + (metadata.nodeId() == NODE_ID_TO_SUSPEND ? "y" : "n") + ",address=*:"
                     + (FIRST_AGENT_PORT + metadata.nodeId()));
         }
-        if (semanticVersionOverridePatchPath != null) {
-            commandLine.add("--patch-module");
-            commandLine.add(NETWORK_ADMIN_IMPL_MODULE + "=" + semanticVersionOverridePatchPath);
-        }
-        if (servicesVersionOverride != null && !servicesVersionOverride.isBlank()) {
-            commandLine.add("-D" + SERVICES_VERSION_OVERRIDE_PROPERTY + "=" + servicesVersionOverride);
-        }
-        if (hapiVersionOverride != null && !hapiVersionOverride.isBlank()) {
-            commandLine.add("-D" + HAPI_PROTO_VERSION_OVERRIDE_PROPERTY + "=" + hapiVersionOverride);
-        }
         commandLine.addAll(List.of(
                 "--module-path",
-                modulePath,
+                // Use the same module path that started this process, excluding test-clients
+                currentNonTestClientModulePath(),
                 // JVM system
                 "-Dfile.encoding=UTF-8",
                 "-Dprometheus.endpointPortNumber=" + metadata.prometheusPort(),
@@ -238,191 +193,6 @@ public class ProcessUtils {
                 "-local",
                 Long.toString(metadata.nodeId())));
         return commandLine;
-    }
-
-    private static String withSemanticVersionOverrideModulePath(
-            @NonNull final NodeMetadata metadata, @NonNull final Map<String, String> envOverrides) {
-        final var targetServicesVersion = Optional.ofNullable(
-                        envOverrides.get(LifecycleTest.SERVICES_VERSION_OVERRIDE_KEY))
-                .orElse(System.getProperty(LifecycleTest.SERVICES_VERSION_OVERRIDE_PROPERTY));
-        if (targetServicesVersion == null || targetServicesVersion.isBlank()) {
-            return currentNonTestClientModulePath();
-        }
-        final var targetHapiVersion = Optional.ofNullable(
-                        envOverrides.get(LifecycleTest.HAPI_PROTO_VERSION_OVERRIDE_KEY))
-                .orElse(System.getProperty(LifecycleTest.HAPI_PROTO_VERSION_OVERRIDE_PROPERTY, targetServicesVersion));
-        final var modulePathEntries = currentNonTestClientModulePath().split(File.pathSeparator);
-        final var rewrittenEntries = new ArrayList<String>(modulePathEntries.length);
-        final var overrideDir = metadata.workingDirOrThrow().resolve(DATA_DIR).resolve("semanticVersionOverrideJars");
-        var rewrittenJarCount = 0;
-        var rewrittenDirCount = 0;
-        try {
-            Files.createDirectories(overrideDir);
-            for (final var entry : modulePathEntries) {
-                final var entryPath = Path.of(entry);
-                if (Files.exists(entryPath)) {
-                    if (entry.endsWith(".jar")) {
-                        final var rewrittenJar = rewriteJarWithSemanticVersionOverride(
-                                entryPath, overrideDir, targetServicesVersion, targetHapiVersion);
-                        if (rewrittenJar == null) {
-                            rewrittenEntries.add(entry);
-                        } else {
-                            rewrittenEntries.add(rewrittenJar.toString());
-                            rewrittenJarCount++;
-                        }
-                    } else if (Files.isDirectory(entryPath)) {
-                        final var rewrittenDir = rewriteDirectoryWithSemanticVersionOverride(
-                                entryPath, overrideDir, targetServicesVersion, targetHapiVersion);
-                        if (rewrittenDir == null) {
-                            rewrittenEntries.add(entry);
-                        } else {
-                            rewrittenEntries.add(rewrittenDir.toString());
-                            rewrittenDirCount++;
-                        }
-                    } else {
-                        rewrittenEntries.add(entry);
-                    }
-                } else {
-                    rewrittenEntries.add(entry);
-                }
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed preparing semantic-version override jars", e);
-        }
-        log.warn(
-                "Node {} semantic-version override using services={}, hapi={} (rewrote {} jars, {} directories)",
-                metadata.nodeId(),
-                targetServicesVersion,
-                targetHapiVersion,
-                rewrittenJarCount,
-                rewrittenDirCount);
-        return String.join(File.pathSeparator, rewrittenEntries);
-    }
-
-    private static String withSemanticVersionOverridePatchPath(
-            @NonNull final NodeMetadata metadata, @NonNull final Map<String, String> envOverrides) {
-        final var targetServicesVersion = Optional.ofNullable(
-                        envOverrides.get(LifecycleTest.SERVICES_VERSION_OVERRIDE_KEY))
-                .orElse(System.getProperty(LifecycleTest.SERVICES_VERSION_OVERRIDE_PROPERTY));
-        if (targetServicesVersion == null || targetServicesVersion.isBlank()) {
-            return null;
-        }
-        final var targetHapiVersion = Optional.ofNullable(
-                        envOverrides.get(LifecycleTest.HAPI_PROTO_VERSION_OVERRIDE_KEY))
-                .orElse(System.getProperty(LifecycleTest.HAPI_PROTO_VERSION_OVERRIDE_PROPERTY, targetServicesVersion));
-        final var classPathDir =
-                metadata.workingDirOrThrow().resolve(DATA_DIR).resolve("semanticVersionOverrideClasspath");
-        final var classPathFile = classPathDir.resolve(SEMANTIC_VERSION_RESOURCE);
-        try {
-            Files.createDirectories(classPathDir);
-            final var properties = new Properties();
-            properties.setProperty(SERVICES_VERSION_PROPERTY, targetServicesVersion);
-            properties.setProperty(HAPI_PROTO_VERSION_PROPERTY, targetHapiVersion);
-            try (final var out = Files.newOutputStream(classPathFile)) {
-                properties.store(out, "Generated by ProcessUtils");
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed preparing semantic-version override patch path", e);
-        }
-        log.warn(
-                "Node {} semantic-version patch using services={}, hapi={} at {}",
-                metadata.nodeId(),
-                targetServicesVersion,
-                targetHapiVersion,
-                classPathDir);
-        return classPathDir.toString();
-    }
-
-    private static Path rewriteJarWithSemanticVersionOverride(
-            @NonNull final Path sourceJar,
-            @NonNull final Path overrideDir,
-            @NonNull final String servicesVersion,
-            @NonNull final String hapiVersion)
-            throws IOException {
-        // Avoid mounting a zip filesystem for the shared source JAR, which can race across nodes.
-        try (final var zipFile = new ZipFile(sourceJar.toFile())) {
-            if (zipFile.getEntry(SEMANTIC_VERSION_RESOURCE) == null) {
-                return null;
-            }
-        }
-        final var uniqueSuffix = Integer.toHexString(
-                sourceJar.toAbsolutePath().normalize().toString().hashCode());
-        final var sourceName = sourceJar.getFileName().toString();
-        final var targetName = sourceName.endsWith(".jar")
-                ? sourceName.substring(0, sourceName.length() - 4) + "-" + uniqueSuffix + ".jar"
-                : sourceName + "-" + uniqueSuffix;
-        final var targetJar = overrideDir.resolve(targetName);
-        Files.copy(sourceJar, targetJar, StandardCopyOption.REPLACE_EXISTING);
-        final var targetUri = URI.create("jar:" + targetJar.toUri());
-        try (final FileSystem zipFs = java.nio.file.FileSystems.newFileSystem(targetUri, Map.of())) {
-            final var semverEntry = zipFs.getPath("/" + SEMANTIC_VERSION_RESOURCE);
-            if (!Files.exists(semverEntry)) {
-                return null;
-            }
-            final var properties = new Properties();
-            try (final var in = Files.newInputStream(semverEntry)) {
-                properties.load(in);
-            }
-            properties.setProperty(SERVICES_VERSION_PROPERTY, servicesVersion);
-            properties.setProperty(HAPI_PROTO_VERSION_PROPERTY, hapiVersion);
-            try (final var out = Files.newOutputStream(semverEntry)) {
-                properties.store(out, "Generated by ProcessUtils");
-            }
-        }
-        return targetJar;
-    }
-
-    private static Path rewriteDirectoryWithSemanticVersionOverride(
-            @NonNull final Path sourceDir,
-            @NonNull final Path overrideDir,
-            @NonNull final String servicesVersion,
-            @NonNull final String hapiVersion)
-            throws IOException {
-        final var semverEntry = sourceDir.resolve(SEMANTIC_VERSION_RESOURCE);
-        if (!Files.exists(semverEntry)) {
-            return null;
-        }
-        final var uniqueSuffix = Integer.toHexString(
-                sourceDir.toAbsolutePath().normalize().toString().hashCode());
-        final var targetDir =
-                overrideDir.resolve(sourceDir.getFileName().toString() + "-" + uniqueSuffix + "-semver-override");
-        if (Files.exists(targetDir)) {
-            try (final var files = Files.walk(targetDir)) {
-                files.sorted((a, b) -> b.getNameCount() - a.getNameCount()).forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-            }
-        }
-        try (final var files = Files.walk(sourceDir)) {
-            files.forEach(path -> {
-                final var relative = sourceDir.relativize(path);
-                final var targetPath = targetDir.resolve(relative.toString());
-                try {
-                    if (Files.isDirectory(path)) {
-                        Files.createDirectories(targetPath);
-                    } else {
-                        Files.copy(path, targetPath, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
-        }
-        final var overrideSemverEntry = targetDir.resolve(SEMANTIC_VERSION_RESOURCE);
-        final var properties = new Properties();
-        try (final var in = Files.newInputStream(overrideSemverEntry)) {
-            properties.load(in);
-        }
-        properties.setProperty(SERVICES_VERSION_PROPERTY, servicesVersion);
-        properties.setProperty(HAPI_PROTO_VERSION_PROPERTY, hapiVersion);
-        try (final var out = Files.newOutputStream(overrideSemverEntry)) {
-            properties.store(out, "Generated by ProcessUtils");
-        }
-        return targetDir;
     }
 
     /**
