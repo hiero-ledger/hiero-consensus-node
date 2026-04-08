@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.List;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
@@ -83,6 +84,9 @@ public class TlsFactory implements SocketFactory {
         serverSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
         serverSocket.setWantClientAuth(true);
         serverSocket.setNeedClientAuth(true);
+        SSLParameters params = serverSocket.getSSLParameters();
+        params.setNamedGroups(new String[] {"x25519"});
+        serverSocket.setSSLParameters(params);
         final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
         final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
         SocketFactory.configureAndBind(selfId, serverSocket, socketConfig, gossipConfig, port);
@@ -101,6 +105,9 @@ public class TlsFactory implements SocketFactory {
             clientSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
             clientSocket.setWantClientAuth(true);
             clientSocket.setNeedClientAuth(true);
+            SSLParameters params = clientSocket.getSSLParameters();
+            params.setNamedGroups(new String[] {"x25519"});
+            clientSocket.setSSLParameters(params);
             final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
             SocketFactory.configureAndConnect(clientSocket, socketConfig, hostname, port);
             clientSocket.startHandshake();

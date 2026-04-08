@@ -23,14 +23,14 @@ public final class CryptoConstants {
     public static final String SIG_PROVIDER = getBCProviderName();
     public static final String SIG_TYPE2 = "SHA384withRSA"; // or RSA
     /** this is the only TLS protocol we will allow */
-    public static final String TLS_SUITE = "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384";
+    public static final String TLS_SUITE = "TLS_AES_256_GCM_SHA384";
     // certificate settings
     public static final Instant DEFAULT_VALID_FROM = Instant.parse("2000-01-01T00:00:00Z");
     public static final Instant DEFAULT_VALID_TO = Instant.parse("2100-01-01T00:00:00Z");
     // SSL settings
     public static final String KEY_MANAGER_FACTORY_TYPE = "SunX509"; // recommended by FIPS
     public static final String TRUST_MANAGER_FACTORY_TYPE = "SunX509"; // recommended by FIPS
-    public static final String SSL_VERSION = "TLSv1.2";
+    public static final String SSL_VERSION = "TLSv1.3";
     // keystore settings
     public static final String KEYSTORE_TYPE = "pkcs12";
 
