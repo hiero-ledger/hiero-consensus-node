@@ -32,7 +32,7 @@ public final class DoubleAccumulatorGauge extends SettableMetric<DoubleSupplier,
 
     /**
      * Create a metric key for a {@link DoubleAccumulatorGauge} with the given name. <br>
-     * Name must match {@value MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
