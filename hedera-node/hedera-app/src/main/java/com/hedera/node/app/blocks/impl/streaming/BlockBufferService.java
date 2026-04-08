@@ -152,9 +152,12 @@ public class BlockBufferService {
     }
 
     private boolean isBackpressureEnabled() {
-        return bsConfig().streamMode() == StreamMode.BLOCKS & isGrpcStreamingEnabled();
+        return bsConfig().streamMode() == StreamMode.BLOCKS && isGrpcStreamingEnabled();
     }
 
+    /**
+     * @return the most recent block buffer check result, else null if a check hasn't been performed yet
+     */
     public @Nullable BlockBufferStatus latestBufferStatus() {
         final PruneResult latestResult = lastPruningResult;
 

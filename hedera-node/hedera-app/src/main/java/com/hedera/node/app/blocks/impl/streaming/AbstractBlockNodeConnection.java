@@ -271,11 +271,20 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
         return closeTimestampRef.get();
     }
 
+    /**
+     * Sets the close reason for this connection.
+     *
+     * @param closeReason the close reason
+     */
     final void setCloseReason(@NonNull final CloseReason closeReason) {
         requireNonNull(closeReason, "Close reason is required");
         closeReasonRef.set(closeReason);
     }
 
+    /**
+     * @return the reason why this connection was closed, else null if a reason wasn't specified or the connection is
+     * not closed
+     */
     final @Nullable CloseReason closeReason() {
         return closeReasonRef.get();
     }

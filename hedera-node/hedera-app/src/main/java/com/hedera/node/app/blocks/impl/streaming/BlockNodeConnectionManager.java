@@ -930,14 +930,13 @@ public class BlockNodeConnectionManager {
         final List<BlockNode> candidates = new ArrayList<>(nodes.size());
         for (final BlockNode node : nodes.values()) {
             if (node.isStreamingCandidate()) {
+                // spotless:off
                 switch (criteria) {
                     case AnyCriteria() -> candidates.add(node);
-                    case MinimumPriorityCriteria(final int minPriority)
-                    when node.configuration().priority() <= minPriority -> candidates.add(node);
-                    default -> {
-                        /* don't add the node as a candidate */
-                    }
+                    case MinimumPriorityCriteria(final int minPriority) when node.configuration().priority() <= minPriority -> candidates.add(node);
+                    default -> { /* don't add the node as a candidate */ }
                 }
+                // spotless:on
             }
         }
 
