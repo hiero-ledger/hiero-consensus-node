@@ -1353,7 +1353,11 @@ public class AtomicBatchNegativeSimpleFeesTest {
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 1),
                         // validate inner txn payer (RELAYER) charged — WRONG_NONCE fails before EVM execution
-                        validateInnerTxnChargedUsd("innerTxnEthCall", "batchTxn", 0.0001 + 0.0045 /* TODO(Pectra): not sure why the fee increased */, 10)));
+                        validateInnerTxnChargedUsd(
+                                "innerTxnEthCall",
+                                "batchTxn",
+                                0.0001 + 0.0045 /* TODO(Pectra): not sure why the fee increased */,
+                                10)));
             }
         }
     }

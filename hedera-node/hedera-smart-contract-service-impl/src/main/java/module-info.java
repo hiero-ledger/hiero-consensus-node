@@ -35,9 +35,9 @@ module com.hedera.node.app.service.contract.impl {
     requires org.apache.commons.lang3;
     requires org.bouncycastle.provider;
     requires org.hyperledger.besu.internal.crypto;
+    requires org.slf4j;
     requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;
-    requires org.slf4j;
 
     exports com.hedera.node.app.service.contract.impl;
     exports com.hedera.node.app.service.contract.impl.exec.scope;
