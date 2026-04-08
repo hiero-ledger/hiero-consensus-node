@@ -967,7 +967,6 @@ public class FeesChargingUtils {
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
         final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
-        ;
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
