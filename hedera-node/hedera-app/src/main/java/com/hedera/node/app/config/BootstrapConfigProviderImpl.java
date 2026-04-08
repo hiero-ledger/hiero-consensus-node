@@ -37,7 +37,6 @@ import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -45,12 +44,6 @@ import java.util.Map;
  * the bootstrapping phase.
  */
 public class BootstrapConfigProviderImpl extends ConfigProviderBase {
-    private static final String SERVICES_VERSION_OVERRIDE_PROPERTY = "hapi.spec.override.services.version";
-    private static final String HAPI_PROTO_VERSION_OVERRIDE_PROPERTY = "hapi.spec.override.hapi.proto.version";
-    private static final String HEDERA_SERVICES_VERSION_KEY = "hedera.services.version";
-    private static final String HAPI_PROTO_VERSION_KEY = "hapi.proto.version";
-    private static final int SEMANTIC_VERSION_OVERRIDE_ORDINAL = 600;
-
     /** The bootstrap configuration. */
     private final Configuration bootstrapConfig;
 
@@ -92,7 +85,6 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
                 .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
                 .withConverter(PermissionedAccountsRange.class, new PermissionedAccountsRangeConverter())
                 .withConverter(LongPair.class, new LongPairConverter());
-        applySemanticVersionOverrides(builder);
 
         try {
             addFileSource(builder, APPLICATION_PROPERTIES_PATH_ENV, APPLICATION_PROPERTIES_DEFAULT_PATH, 100);
@@ -103,24 +95,6 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
             overrideValues.forEach(builder::withValue);
         }
         this.bootstrapConfig = builder.build();
-    }
-
-    private static void applySemanticVersionOverrides(@NonNull final ConfigurationBuilder builder) {
-        final var servicesOverride = System.getProperty(SERVICES_VERSION_OVERRIDE_PROPERTY);
-        if (servicesOverride == null || servicesOverride.isBlank()) {
-            return;
-        }
-        final var hapiOverride = System.getProperty(HAPI_PROTO_VERSION_OVERRIDE_PROPERTY, servicesOverride);
-        final var props = new HashMap<String, String>();
-        props.put(HEDERA_SERVICES_VERSION_KEY, servicesOverride);
-        props.put(HAPI_PROTO_VERSION_KEY, hapiOverride);
-        builder.withSource(new PropertyConfigSource(propsAsProperties(props), SEMANTIC_VERSION_OVERRIDE_ORDINAL));
-    }
-
-    private static java.util.Properties propsAsProperties(@NonNull final Map<String, String> entries) {
-        final var properties = new java.util.Properties();
-        entries.forEach(properties::setProperty);
-        return properties;
     }
 
     /**
