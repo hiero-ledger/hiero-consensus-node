@@ -57,8 +57,8 @@ class FutureUtilsTest {
 
         assertThatThrownBy(() -> FutureUtils.awaitAll(futures))
                 .isInstanceOf(Exception.class)
-                .satisfies(e -> assertThat(e).isInstanceOfAny(
-                        InterruptedException.class, java.util.concurrent.CancellationException.class));
+                .satisfies(e -> assertThat(e)
+                        .isInstanceOfAny(InterruptedException.class, java.util.concurrent.CancellationException.class));
 
         // Clear interrupt flag if still set
         final boolean ignored = Thread.interrupted();
