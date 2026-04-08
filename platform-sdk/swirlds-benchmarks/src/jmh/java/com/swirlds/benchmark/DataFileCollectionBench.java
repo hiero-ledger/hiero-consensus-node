@@ -5,7 +5,7 @@ import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCompactor;
@@ -44,7 +44,7 @@ public class DataFileCollectionBench extends BaseBench {
 
         logger.info(RUN_DELIMITER);
 
-        final LongListOffHeap index = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
+        final LongListSegment index = new LongListSegment(1024 * 1024, maxKey, 256 * 1024);
         index.updateValidRange(0, maxKey - 1);
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
@@ -62,7 +62,7 @@ public class DataFileCollectionBench extends BaseBench {
                     }
                 };
 
-        final var compactor = new DataFileCompactor(dbConfig, storeName, store, index, null, null, null, null);
+        final var compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
 
         // Write files
         long start = System.currentTimeMillis();
@@ -83,7 +83,7 @@ public class DataFileCollectionBench extends BaseBench {
         // Merge files
         start = System.currentTimeMillis();
         final List<DataFileReader> filesToMerge = store.getAllCompletedFiles();
-        compactor.compact();
+        compactor.compactSingleLevel(compactor.getDataFileCollection().getAllCompletedFiles(), 1);
         logger.info("Merged {} files in {} ms", filesToMerge.size(), System.currentTimeMillis() - start);
 
         // Verify merged content

@@ -1673,6 +1673,40 @@ class BlockStreamManagerImplTest {
                 .thenReturn(new Arrays.Iterator<>(new ConsensusTransaction[] {txn}));
     }
 
+    @Test
+    void fatalShutdownClosesCurrentWriter() {
+        // Given a subject with a block that has been opened
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        lenient().when(blockHashSigner.isReady()).thenReturn(true);
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // Trigger fatal shutdown (simulating ISS detection)
+        subject.notifyFatalEvent();
+
+        // End the round — the fatalShutdownFuture check should close the current writer
+        subject.endRound(state, ROUND_NO);
+
+        // Verify the current writer was prematurely closed during fatal shutdown
+        verify(aWriter).closeCompleteBlock();
+    }
+
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {
         return BlockItem.newBuilder()
                 .transactionResult(TransactionResult.newBuilder().consensusTimestamp(asTimestamp(consensusTimestamp)))

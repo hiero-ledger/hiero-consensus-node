@@ -15,11 +15,14 @@ import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import java.util.SplittableRandom;
+import java.util.StringJoiner;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
+    private static final int SCHNORR_PUBLIC_KEY_LENGTH = (int) HistoryLibrary.MISSING_SCHNORR_KEY.length();
+
     public static final SplittableRandom RANDOM = new SplittableRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
 
@@ -38,7 +41,11 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     @Override
     public byte[] hashAddressBook(@NonNull final AddressBook addressBook) {
         requireNonNull(addressBook);
-        return WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds());
+        final var hash = WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds());
+        if (hash == null) {
+            throw new IllegalArgumentException(hashAddressBookFailureDetails(addressBook));
+        }
+        return hash;
     }
 
     @Override
@@ -229,4 +236,105 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public boolean wrapsProverReady() {
         return WRAPSLibraryBridge.isProofSupported();
     }
+
+    private static String hashAddressBookFailureDetails(@NonNull final AddressBook addressBook) {
+        final var publicKeys = addressBook.publicKeys();
+        final var weights = addressBook.weights();
+        final var nodeIds = addressBook.nodeIds();
+        final var publicKeyCount = publicKeys.length;
+        final var weightCount = weights.length;
+        final var nodeIdCount = nodeIds.length;
+        final boolean publicKeyCountWithinMax = publicKeyCount <= WRAPSLibraryBridge.MAX_AB_SIZE;
+        final boolean publicKeyCountMatchesWeights = publicKeyCount == weightCount;
+        final boolean publicKeyCountMatchesNodeIds = publicKeyCount == nodeIdCount;
+        final var weightValidation = describeWeightValidation(weights);
+        final var publicKeyValidation = describePublicKeyValidation(publicKeys);
+        final boolean bridgePrechecksPassed = publicKeyCountWithinMax
+                && publicKeyCountMatchesWeights
+                && publicKeyCountMatchesNodeIds
+                && weightValidation.valid()
+                && publicKeyValidation.valid();
+        return "WRAPS.hashAddressBook() returned null. Validation details: "
+                + "schnorrPublicKeys.length=" + publicKeyCount
+                + ", weights.length=" + weightCount
+                + ", nodeIds.length=" + nodeIdCount
+                + ", schnorrPublicKeys.length<=" + WRAPSLibraryBridge.MAX_AB_SIZE + "=" + publicKeyCountWithinMax
+                + ", schnorrPublicKeys.length==weights.length=" + publicKeyCountMatchesWeights
+                + ", schnorrPublicKeys.length==nodeIds.length=" + publicKeyCountMatchesNodeIds
+                + ", validateWeightsSum=" + weightValidation.valid()
+                + " (" + weightValidation.details() + ")"
+                + ", validateSchnorrPublicKeys=" + publicKeyValidation.valid()
+                + " (" + publicKeyValidation.details() + ")"
+                + ", bridgePrechecksPassed=" + bridgePrechecksPassed;
+    }
+
+    private static ValidationResult describeWeightValidation(@NonNull final long[] weights) {
+        boolean allNonNegative = true;
+        boolean overflowed = false;
+        long sum = 0;
+        final var negativeWeights = new StringJoiner(", ", "[", "]");
+        for (int i = 0; i < weights.length; i++) {
+            final var weight = weights[i];
+            if (weight < 0) {
+                allNonNegative = false;
+                negativeWeights.add("#" + i + "=" + weight);
+            }
+            if (!overflowed) {
+                try {
+                    sum = Math.addExact(sum, weight);
+                } catch (final ArithmeticException e) {
+                    overflowed = true;
+                }
+            }
+        }
+        final boolean valid = allNonNegative && !overflowed;
+        return new ValidationResult(
+                valid,
+                "allWeightsNonNegative="
+                        + allNonNegative
+                        + ", negativeWeights="
+                        + negativeWeights
+                        + ", sumOverflowed="
+                        + overflowed
+                        + ", sum="
+                        + (overflowed ? "overflow" : sum));
+    }
+
+    private static ValidationResult describePublicKeyValidation(@NonNull final byte[][] publicKeys) {
+        boolean allNonNull = true;
+        boolean allExpectedLength = true;
+        final var details = new StringJoiner(", ", "[", "]");
+        for (int i = 0; i < publicKeys.length; i++) {
+            final var publicKey = publicKeys[i];
+            final boolean nonNull = publicKey != null;
+            final var length = nonNull ? Integer.toString(publicKey.length) : "null";
+            final boolean expectedLength = nonNull && publicKey.length == SCHNORR_PUBLIC_KEY_LENGTH;
+            allNonNull &= nonNull;
+            allExpectedLength &= expectedLength;
+            details.add("#"
+                    + i
+                    + "(nonNull="
+                    + nonNull
+                    + ", length="
+                    + length
+                    + ", length=="
+                    + SCHNORR_PUBLIC_KEY_LENGTH
+                    + "="
+                    + expectedLength
+                    + ")");
+        }
+        final boolean valid = allNonNull && allExpectedLength;
+        return new ValidationResult(
+                valid,
+                "allPublicKeysNonNull="
+                        + allNonNull
+                        + ", allPublicKeysLength=="
+                        + SCHNORR_PUBLIC_KEY_LENGTH
+                        + "="
+                        + allExpectedLength
+                        + ", publicKeyDetails="
+                        + details);
+    }
+
+    private record ValidationResult(boolean valid, @NonNull String details) {}
 }

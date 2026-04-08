@@ -100,10 +100,9 @@ public class FrameUtils {
      *
      * @param frame a frame in the transaction of interest
      */
-    public static @NonNull HevmPropagatedCallFailure getAndClearPropagatedCallFailure(
-            @NonNull final MessageFrame frame) {
-        requireNonNull(frame);
-        return propagatedCallFailureReference(frame).getAndClear();
+    public static HevmPropagatedCallFailure getAndClearPropagatedCallFailure(@NonNull final MessageFrame frame) {
+        var ref = propagatedCallFailureReference(frame);
+        return ref == null ? null : ref.getAndClear();
     }
 
     /**
@@ -415,5 +414,16 @@ public class FrameUtils {
      */
     public static OpsDurationCounter opsDurationCounter(@NonNull final MessageFrame frame) {
         return initialFrameOf(frame).getContextVariable(OPS_DURATION_COUNTER);
+    }
+
+    public static void exceptionalHalt(MessageFrame frame) {
+        // Clear any pending changes.
+        frame.getWorldUpdater().revert();
+        frame.clearLogs();
+        frame.clearGasRefund();
+        frame.rollback();
+        frame.clearGasRemaining();
+        frame.clearOutputData();
+        frame.setState(MessageFrame.State.COMPLETED_FAILED);
     }
 }

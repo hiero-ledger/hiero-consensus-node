@@ -20,7 +20,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class DataFileMetadataTest {
 
     private static final DataFileMetadata BASE =
-            new DataFileMetadata(4, Instant.ofEpochSecond(1_234_567L), INITIAL_COMPACTION_LEVEL);
+            new DataFileMetadata(4, Instant.ofEpochSecond(1_234_567L), INITIAL_COMPACTION_LEVEL, 123);
 
     @Test
     void loadFromEmptyFile() throws IOException {
@@ -43,8 +43,8 @@ class DataFileMetadataTest {
 
     @Test
     void sameObjectsEquality() {
-        DataFileMetadata copy =
-                new DataFileMetadata(BASE.getIndex(), BASE.getCreationDate(), BASE.getCompactionLevel());
+        DataFileMetadata copy = new DataFileMetadata(
+                BASE.getIndex(), BASE.getCreationDate(), BASE.getCompactionLevel(), BASE.getItemsCount());
 
         assertEquals(BASE, copy, "Equivalent metadata are equal");
         assertEquals(BASE.hashCode(), copy.hashCode(), "Equivalent metadata have equal hash code");
@@ -62,14 +62,32 @@ class DataFileMetadataTest {
                 Arguments.arguments(null, "Null is not equal to anything"),
                 Arguments.arguments(new Object(), "Radically different objects are unequal"),
                 Arguments.arguments(
-                        new DataFileMetadata(BASE.getIndex() + 1, BASE.getCreationDate(), BASE.getCompactionLevel()),
+                        new DataFileMetadata(
+                                BASE.getIndex() + 1,
+                                BASE.getCreationDate(),
+                                BASE.getCompactionLevel(),
+                                BASE.getItemsCount()),
                         "Different indexes are unequal"),
                 Arguments.arguments(
                         new DataFileMetadata(
-                                BASE.getIndex(), BASE.getCreationDate().plusSeconds(1), BASE.getCompactionLevel()),
+                                BASE.getIndex(),
+                                BASE.getCreationDate().plusSeconds(1),
+                                BASE.getCompactionLevel(),
+                                BASE.getItemsCount()),
                         "Different creation dates are unequal"),
                 Arguments.arguments(
-                        new DataFileMetadata(BASE.getIndex(), BASE.getCreationDate(), BASE.getCompactionLevel() + 1),
-                        "Different compaction level are unequal"));
+                        new DataFileMetadata(
+                                BASE.getIndex(),
+                                BASE.getCreationDate(),
+                                BASE.getCompactionLevel() + 1,
+                                BASE.getItemsCount()),
+                        "Different compaction level are unequal"),
+                Arguments.arguments(
+                        new DataFileMetadata(
+                                BASE.getIndex(),
+                                BASE.getCreationDate(),
+                                BASE.getCompactionLevel(),
+                                BASE.getItemsCount() + 1),
+                        "Different items count are unequal"));
     }
 }

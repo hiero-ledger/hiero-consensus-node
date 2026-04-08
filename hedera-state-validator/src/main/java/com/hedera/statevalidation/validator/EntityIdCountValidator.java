@@ -2,13 +2,14 @@
 package com.hedera.statevalidation.validator;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.statevalidation.util.ConfigUtils.NET_NAME;
 import static com.hedera.statevalidation.validator.EntityIdUniquenessValidator.ENTITY_ID_GROUP;
 
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
+import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -102,70 +103,91 @@ public class EntityIdCountValidator implements LeafBytesValidator {
      */
     @Override
     public void validate() {
-        ValidationAssertions.requireNonNull(entityCounts, getName());
+        if (entityCounts == null) {
+            throw new ValidationException(getName(), "Expected non-null value but was null");
+        }
 
-        final boolean ok = entityCounts.numAccounts() == accountCount.get()
-                && entityCounts.numAliases() == aliasesCount.get()
-                && entityCounts.numTokens() == tokenCount.get()
-                && entityCounts.numTokenRelations() == tokenRelCount.get()
-                && entityCounts.numNfts() == nftsCount.get()
-                && entityCounts.numAirdrops() == airdropsCount.get()
-                && entityCounts.numStakingInfos() == stakingInfoCount.get()
-                && entityCounts.numTopics() == topicCount.get()
-                && entityCounts.numFiles() == fileCount.get()
-                && entityCounts.numNodes() == nodesCount.get()
-                //      To be investigated - https://github.com/hiero-ledger/hiero-consensus-node/issues/20993
-                //      && entityCounts.numSchedules() == scheduleCount.get()
-                //      && entityCounts.numContractStorageSlots() == contractStorageCount.get()
-                && entityCounts.numContractBytecodes() == contractBytecodeCount.get()
-                && entityCounts.numHooks() == hookCount.get()
-                && entityCounts.numEvmHookStorageSlots() == evmHookStorageCount.get();
+        final boolean ok;
+        if (!NET_NAME.equals("Mainnet")) {
+            ok = entityCounts.numAccounts() == accountCount.get()
+                    && entityCounts.numAliases() == aliasesCount.get()
+                    && entityCounts.numTokens() == tokenCount.get()
+                    && entityCounts.numTokenRelations() == tokenRelCount.get()
+                    && entityCounts.numNfts() == nftsCount.get()
+                    && entityCounts.numAirdrops() == airdropsCount.get()
+                    && entityCounts.numStakingInfos() == stakingInfoCount.get()
+                    && entityCounts.numTopics() == topicCount.get()
+                    && entityCounts.numFiles() == fileCount.get()
+                    && entityCounts.numNodes() == nodesCount.get()
+                    //      To be investigated - https://github.com/hiero-ledger/hiero-consensus-node/issues/20993
+                    //      && entityCounts.numSchedules() == scheduleCount.get()
+                    //      && entityCounts.numContractStorageSlots() == contractStorageCount.get()
+                    && entityCounts.numContractBytecodes() == contractBytecodeCount.get()
+                    && entityCounts.numHooks() == hookCount.get()
+                    && entityCounts.numEvmHookStorageSlots() == evmHookStorageCount.get();
+        } else {
+            // PreviewNet and TestNet have numEvmHookStorageSlots count validation disabled
+            // See https://github.com/hiero-ledger/hiero-consensus-node/issues/24802
+            ok = entityCounts.numAccounts() == accountCount.get()
+                    && entityCounts.numAliases() == aliasesCount.get()
+                    && entityCounts.numTokens() == tokenCount.get()
+                    && entityCounts.numTokenRelations() == tokenRelCount.get()
+                    && entityCounts.numNfts() == nftsCount.get()
+                    && entityCounts.numAirdrops() == airdropsCount.get()
+                    && entityCounts.numStakingInfos() == stakingInfoCount.get()
+                    && entityCounts.numTopics() == topicCount.get()
+                    && entityCounts.numFiles() == fileCount.get()
+                    && entityCounts.numNodes() == nodesCount.get()
+                    && entityCounts.numContractBytecodes() == contractBytecodeCount.get()
+                    && entityCounts.numHooks() == hookCount.get();
+        }
 
-        ValidationAssertions.requireTrue(
-                ok,
-                getName(),
-                ("""
-                        %s validation failed.
-                        accounts exp=%d act=%d
-                        aliases exp=%d act=%d
-                        tokens exp=%d act=%d
-                        tokenRels exp=%d act=%d
-                        nfts exp=%d act=%d
-                        airdrops exp=%d act=%d
-                        stakingInfos exp=%d act=%d
-                        topics exp=%d act=%d
-                        files exp=%d act=%d
-                        nodes exp=%d act=%d
-                        contractBytecodes exp=%d act=%d
-                        hooks exp=%d act=%d
-                        lambdaStorageSlots exp=%d act=%d""")
-                        .formatted(
-                                getName(),
-                                entityCounts.numAccounts(),
-                                accountCount.get(),
-                                entityCounts.numAliases(),
-                                aliasesCount.get(),
-                                entityCounts.numTokens(),
-                                tokenCount.get(),
-                                entityCounts.numTokenRelations(),
-                                tokenRelCount.get(),
-                                entityCounts.numNfts(),
-                                nftsCount.get(),
-                                entityCounts.numAirdrops(),
-                                airdropsCount.get(),
-                                entityCounts.numStakingInfos(),
-                                stakingInfoCount.get(),
-                                entityCounts.numTopics(),
-                                topicCount.get(),
-                                entityCounts.numFiles(),
-                                fileCount.get(),
-                                entityCounts.numNodes(),
-                                nodesCount.get(),
-                                entityCounts.numContractBytecodes(),
-                                contractBytecodeCount.get(),
-                                entityCounts.numHooks(),
-                                hookCount.get(),
-                                entityCounts.numEvmHookStorageSlots(),
-                                evmHookStorageCount.get()));
+        if (!ok) {
+            throw new ValidationException(
+                    getName(),
+                    ("""
+                %s validation failed.
+                accounts exp=%d act=%d
+                aliases exp=%d act=%d
+                tokens exp=%d act=%d
+                tokenRels exp=%d act=%d
+                nfts exp=%d act=%d
+                airdrops exp=%d act=%d
+                stakingInfos exp=%d act=%d
+                topics exp=%d act=%d
+                files exp=%d act=%d
+                nodes exp=%d act=%d
+                contractBytecodes exp=%d act=%d
+                hooks exp=%d act=%d
+                lambdaStorageSlots exp=%d act=%d""")
+                            .formatted(
+                                    getName(),
+                                    entityCounts.numAccounts(),
+                                    accountCount.get(),
+                                    entityCounts.numAliases(),
+                                    aliasesCount.get(),
+                                    entityCounts.numTokens(),
+                                    tokenCount.get(),
+                                    entityCounts.numTokenRelations(),
+                                    tokenRelCount.get(),
+                                    entityCounts.numNfts(),
+                                    nftsCount.get(),
+                                    entityCounts.numAirdrops(),
+                                    airdropsCount.get(),
+                                    entityCounts.numStakingInfos(),
+                                    stakingInfoCount.get(),
+                                    entityCounts.numTopics(),
+                                    topicCount.get(),
+                                    entityCounts.numFiles(),
+                                    fileCount.get(),
+                                    entityCounts.numNodes(),
+                                    nodesCount.get(),
+                                    entityCounts.numContractBytecodes(),
+                                    contractBytecodeCount.get(),
+                                    entityCounts.numHooks(),
+                                    hookCount.get(),
+                                    entityCounts.numEvmHookStorageSlots(),
+                                    evmHookStorageCount.get()));
+        }
     }
 }
