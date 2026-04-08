@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "080: [FLOW] Auto Unapprove PR"
+on:
+  pull_request:
+    types:
+      - synchronize
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  auto-unapprove:
+    name: Auto Unapprove PR
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Smart dismiss reviews
+        uses: step-security/auto-unapprove@7665c273e3bef296dbfd162d8f31911d8ffe4281 # v1.0.2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-number: ${{ github.event.number }}
+          dry-run: 'false'
