@@ -4,7 +4,9 @@ package com.hedera.services.bdd.suites.blocknode;
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -15,6 +17,7 @@ import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -137,39 +140,38 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
         // After each upgrade, verify the connection manager started and established a connection.
         // Use "Streaming connection update requested" (INFO level) which appears reliably at
         // startup when the monitor first runs.
+        final AtomicInteger blockNodePort = new AtomicInteger();
         return hapiTest(
-                doingContextual(spec -> timeRef.set(Instant.now())),
-                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofSeconds(30), Duration.ofSeconds(30), "saturation=0.0%")),
+                doingContextual(spec -> {
+                    blockNodePort.set(spec.getBlockNodePortById(0));
+                    timeRef.set(Instant.now());
+                }),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(),
-                doingContextual((spec) -> sleepForSeconds(30)),
                 doingContextual(spec -> timeRef.set(Instant.now())),
+                upgradeToNextConfigVersion(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        "Streaming connection update requested")),
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(),
-                doingContextual((spec) -> sleepForSeconds(30)),
                 doingContextual(spec -> timeRef.set(Instant.now())),
+                upgradeToNextConfigVersion(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        "Streaming connection update requested")),
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(),
-                doingContextual((spec) -> sleepForSeconds(30)),
                 doingContextual(spec -> timeRef.set(Instant.now())),
+                upgradeToNextConfigVersion(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        "Streaming connection update requested")));
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))));
     }
 }
