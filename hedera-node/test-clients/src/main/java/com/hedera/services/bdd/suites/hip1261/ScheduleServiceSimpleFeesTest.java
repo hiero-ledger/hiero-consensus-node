@@ -29,9 +29,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdF
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodePaymentAmountForQuery;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedScheduleCreateContractCallFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedScheduleCreateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedScheduleCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedScheduleDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedScheduleDeleteNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedScheduleGetInfoNodePaymentTinycents;
@@ -371,7 +371,7 @@ public class ScheduleServiceSimpleFeesTest {
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                         validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                txnSize -> expectedScheduleCreateNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(INNER_ID, "4"));

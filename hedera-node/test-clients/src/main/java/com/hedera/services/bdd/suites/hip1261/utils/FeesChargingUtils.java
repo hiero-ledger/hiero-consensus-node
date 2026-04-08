@@ -379,6 +379,20 @@ public class FeesChargingUtils {
         return expectedFee;
     }
 
+    /** SimpleFees formula for node + network fees:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * total   = node + network
+     */
+    public static double expectedNetworkOnlyFeeUsd(final Map<Extra, Long> extras) {
+        final long sigs = extras.getOrDefault(Extra.SIGNATURES, 0L);
+        final int txnSize = Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L));
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
     // -------- CryptoCreate simple fees utils ---------//
 
     /**
