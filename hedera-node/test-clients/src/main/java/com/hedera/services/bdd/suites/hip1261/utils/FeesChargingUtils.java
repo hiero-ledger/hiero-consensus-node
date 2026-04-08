@@ -35,6 +35,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_INCLUDED_HOOK_UPDATES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_INCLUDED_KEYS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_DELETE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_INCLUDED_COUNT;
@@ -2703,6 +2706,25 @@ public class FeesChargingUtils {
     }
 
     /**
+     * Network-only fee for ContractCreate failures in pre-handle.
+     */
+    private static double expectedNetworkOnlyFeeUsd(long sigs, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+        return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedNetworkOnlyFeeUsd(final Map<Extra, Long> extras) {
+        return expectedNetworkOnlyFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    /**
      * Gets the charged gas for a ContractCreate inner transaction, using the parent transaction's exchange rate to convert to USD.
      */
     public static double getChargedGasForContractCreateInnerTxn(
@@ -2720,6 +2742,100 @@ public class FeesChargingUtils {
                 / parentRcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * parentRcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
                 / 100;
+    }
+
+    /**
+     * Gets the charged gas for a ContractCreate transaction, using its exchange rate to convert to USD.
+     */
+    public static double getChargedGasForContractCreate(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var op = getTxnRecord(txn).logged();
+        allRunFor(spec, op);
+        final var rcd = op.getResponseRecord();
+        final var gasUsed = rcd.getContractCreateResult().getGasUsed();
+        return (gasUsed * 71.0)
+                / ONE_HBAR
+                / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    // -------- ContractCall simple fees utils ---------//
+
+    /**
+     * Gets the charged gas for a ContractCall transaction, using its exchange rate to convert to USD.
+     */
+    public static double getChargedGasForContractCall(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var op = getTxnRecord(txn).logged();
+        allRunFor(spec, op);
+        final var rcd = op.getResponseRecord();
+        final var gasUsed = rcd.getContractCallResult().getGasUsed();
+        return (gasUsed * 71.0)
+                / ONE_HBAR
+                / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    // -------- ContractUpdate simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ContractUpdate:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = CONTRACT_UPDATE_BASE_FEE
+     * total   = node + network + service
+     */
+    private static double expectedContractUpdateSimpleFeesUsd(long sigs, long keys, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        final long keysExtrasService = Math.max(0L, keys - CONTRACT_UPDATE_INCLUDED_KEYS);
+        final double serviceKeysExtrasFee = keysExtrasService * KEYS_FEE_USD;
+
+        return nodeFee + networkFee + CONTRACT_UPDATE_BASE_FEE_USD + serviceKeysExtrasFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedContractUpdateSimpleFeesUsd(final Map<Extra, Long> extras) {
+        return expectedContractUpdateSimpleFeesUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.KEYS, 0L),
+                Math.toIntExact(extras.getOrDefault(PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- ContractDelete simple fees utils ---------//
+
+    /**
+     * SimpleFees formula for ContractDelete:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode) + nodeFeeFromBytesUsd(txnSize)
+     * network = node * NETWORK_MULTIPLIER
+     * service = CONTRACT_DELETE_BASE_FEE
+     * total   = node + network + service
+     */
+    private static double expectedContractDeleteSimpleFeesUsd(long sigs, int txnSize) {
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+        return nodeFee + networkFee + CONTRACT_DELETE_BASE_FEE_USD;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     * Supports SIGNATURES and PROCESSING_BYTES extras.
+     */
+    public static double expectedContractDeleteSimpleFeesUsd(final Map<Extra, Long> extras) {
+        return expectedContractDeleteSimpleFeesUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L), Math.toIntExact(extras.getOrDefault(PROCESSING_BYTES, 0L)));
     }
 
     // -------- Dual-mode validation utils ---------//

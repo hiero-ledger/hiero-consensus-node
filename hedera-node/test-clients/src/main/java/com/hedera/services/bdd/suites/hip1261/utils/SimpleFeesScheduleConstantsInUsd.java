@@ -191,13 +191,16 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     /* ---------- Smart Contracts service ---------- */
     public static final double CONTRACT_CREATE_BASE_FEE = 1.0;
+    public static final double CONTRACT_DELETE_BASE_FEE_USD = 0.0069;
     public static final double CONTRACT_DELETE_BASE_FEE = 0.007;
     public static final double CONTRACT_CALL_BASE_FEE = 0;
+    public static final double CONTRACT_UPDATE_BASE_FEE_USD = 0.0259;
     public static final double CONTRACT_UPDATE_BASE_FEE = 0.026;
     public static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
     public static final double HOOK_SLOT_UPDATE_BASE_FEE = 0.005;
     public static final long CONTRACT_CREATE_INCLUDED_HOOK_UPDATES = 0L;
-    public static final long CONTRACT_CREATE_INCLUDED_KEYS = 0L;
+    public static final long CONTRACT_CREATE_INCLUDED_KEYS = 1L;
+    public static final long CONTRACT_UPDATE_INCLUDED_KEYS = 1L;
     public static final double CONTRACT_CREATE_BASE_FEE_USD = 0.9999;
     public static final double CONTRACT_CALL_LOCAL_BASE_FEE = 0.001;
     public static final double CONTRACT_GET_BYTECODE_BASE_FEE = 0.05;
