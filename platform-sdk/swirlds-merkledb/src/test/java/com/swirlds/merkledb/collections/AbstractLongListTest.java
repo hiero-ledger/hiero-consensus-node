@@ -1164,6 +1164,14 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                 final int INDEX_OFFSET = 10;
                 halfEmptyList.put(belowMinValidIndex2 - INDEX_OFFSET, belowMinIndexValue2);
 
+                // Fill the entire expanded range contiguously before writing.
+                // VirtualMap's invariant requires that all indices in
+                // [minValidIndex, maxValidIndex] are populated — no sparse chunks.
+                for (int i = 0; i < newMinValidIndex; i++) {
+                    if (halfEmptyList.get(i, IMPERMISSIBLE_VALUE) == IMPERMISSIBLE_VALUE) {
+                        halfEmptyList.put(i, i + 100);
+                    }
+                }
                 // Write the updated list to a new file and verify its existence
                 final String TEMP_FILE_NAME_2 = String.format(
                         "testUpdateMinToTheLowerEnd_2_write_%s_read_back_%s.ll", readerFactory, secondReaderFactory);
@@ -1173,8 +1181,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
                 try (final LongList zeroMinValidIndexList = secondReaderFactory
                         .createFromFile()
                         .apply(longListFile2, List.of(10L, (long) SAMPLE_SIZE, 5L))) {
-                    // Verify that indices up to the new offset are empty
-                    checkEmptyUpToIndex(zeroMinValidIndexList, belowMinValidIndex2 - INDEX_OFFSET);
 
                     // Validate all data above the midpoint is intact
                     checkData(zeroMinValidIndexList, HALF_SAMPLE_SIZE, SAMPLE_SIZE);
@@ -1211,11 +1217,13 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             Object readerFactory = pair.get()[1];
 
             return Stream.of(
+                    // Ranges start from 0 to ensure contiguous chunk allocation, matching
+                    // VirtualMap's invariant that [firstLeafPath, lastLeafPath] is contiguous.
                     // writerFactory, readerFactory, startIndex, endIndex, numLongsPerChunk, maxLongs
-                    Arguments.of(writerFactory, readerFactory, 1, 1, 100, 1000),
-                    Arguments.of(writerFactory, readerFactory, 1, 5, 100, 1000),
-                    Arguments.of(writerFactory, readerFactory, 150, 150, 100, 1000),
-                    Arguments.of(writerFactory, readerFactory, 150, 155, 100, 1000));
+                    Arguments.of(writerFactory, readerFactory, 0, 1, 100, 1000),
+                    Arguments.of(writerFactory, readerFactory, 0, 5, 100, 1000),
+                    Arguments.of(writerFactory, readerFactory, 0, 150, 100, 1000),
+                    Arguments.of(writerFactory, readerFactory, 0, 155, 100, 1000));
         });
     }
 

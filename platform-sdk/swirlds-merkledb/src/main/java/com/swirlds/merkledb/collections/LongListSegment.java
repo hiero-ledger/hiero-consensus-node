@@ -38,7 +38,7 @@ import java.nio.file.Path;
  * <p>Per the {@link LongList} contract, this class is thread-safe for both concurrent reads
  * and writes.
  */
-public final class LongListSegment extends AbstractLongList<LongListSegment.SegmentChunk> implements OffHeapUser {
+public final class LongListSegment extends AbstractLongList<LongListSegment.SegmentChunk> {
 
     /**
      * A VarHandle for performing volatile long reads, volatile writes, and CAS operations
@@ -192,8 +192,8 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      *
      * <p>Performs a volatile write of the long at the given sub-index within the chunk.
      *
-     * <p>Unlike {@link #lookupInChunk} and {@link #putIfEqual}, this method does
-     * <b>not</b> catch {@link IllegalStateException} from a closed arena. In production,
+     * <p>Unlike {@link #lookupInChunk}, this method does <b>not</b> catch
+     * {@link IllegalStateException} from a closed arena. In production,
      * {@code put()} and {@code updateValidRange()} are always called sequentially on the
      * same thread (e.g. within {@code writeLeavesToPathToKeyValue} or {@code writeHashes}),
      * so the arena cannot be closed between {@code createOrGetChunk} and this call. If an
@@ -202,7 +202,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      * silently swallowed — a lost write is silent data corruption.
      */
     @Override
-    protected void putToChunk(final SegmentChunk chunk, final int subIndex, final long value) {
+    protected void putToChunk(@NonNull final SegmentChunk chunk, final int subIndex, final long value) {
         LONG_HANDLE.setVolatile(chunk.segment(), (long) subIndex * Long.BYTES, value);
     }
 
@@ -211,11 +211,14 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      *
      * <p>Performs a compare-and-set operation at the given sub-index within the chunk.
      *
-     * <p>If the chunk's arena has been closed by a concurrent {@link #closeChunk} call,
-     * the operation returns {@code false}. This is equivalent to the fast-path in
-     * {@link AbstractLongList#putIfEqual(long, long, long)} that returns {@code false}
-     * when the chunk slot is already {@code null} — the chunk no longer participates
-     * in the valid range.
+     * <p>Like {@link #putToChunk}, this method does <b>not</b> catch
+     * {@link IllegalStateException} from a closed arena. In production,
+     * {@code putIfEqual()} is called from compaction, which operates under
+     * pipeline coordination that prevents concurrent {@code updateValidRange()}
+     * from closing chunks that compaction is still iterating over. An
+     * {@code IllegalStateException} here indicates a coordination bug and must
+     * not be silently swallowed — a silently failed CAS could leave a stale
+     * index entry pointing to an old file location.
      */
     @Override
     protected boolean putIfEqual(
@@ -273,7 +276,9 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
             @NonNull final FileChannel fileChannel, final int chunkIndex, final int startIndex, final int endIndex)
             throws IOException {
         final SegmentChunk chunk = createChunk();
-        // Get a ByteBuffer view of the segment — backed by the same native memory, no copy
+        // Get a ByteBuffer view of the segment — backed by the same native memory, no copy.
+        // The view is used only for FileChannel.read(); all subsequent access goes through
+        // VarHandle on the MemorySegment directly, so position/limit state doesn't matter.
         final ByteBuffer buf = chunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
         readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, buf);
         return chunk;
@@ -284,8 +289,14 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      *
      * <p>Writes all chunk data to the file channel. Each chunk's {@link MemorySegment}
      * is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
-     * for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
-     * pre-allocated zero-filled buffer is written instead.
+     * for {@link FileChannel} compatibility.
+     *
+     * <p>This implementation assumes that all chunks within the valid range
+     * [{@code firstChunkWithDataIndex}, {@code totalNumOfChunks}) are allocated.
+     * This invariant holds because {@link LongList} is used exclusively by
+     * {@link com.swirlds.virtualmap.VirtualMap}, which maintains a contiguous
+     * [firstLeafPath, lastLeafPath] range — every index in the range receives a
+     * {@code put()} during flush, which triggers {@code createOrGetChunk()}.
      *
      * <p>This method runs exclusively during snapshot, which is sequenced after flush
      * completion by the virtual pipeline. No concurrent {@link #closeChunk} can
@@ -297,18 +308,13 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         final long currentMinValidIndex = minValidIndex.get();
         final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
 
-        // A zero-filled buffer for null chunk slots. Heap-allocated — no arena needed.
-        final ByteBuffer emptyBuffer = ByteBuffer.allocate(memoryChunkSize);
-
         for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
             final SegmentChunk segChunk = chunkList.get(i);
-            final ByteBuffer buf;
-            if (segChunk != null) {
-                buf = segChunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-            } else {
-                emptyBuffer.clear();
-                buf = emptyBuffer;
-            }
+            assert segChunk != null
+                    : "Chunk " + i + " is null; expected contiguous allocation in range [" + firstChunkWithDataIndex
+                            + ", " + totalNumOfChunks + ")";
+
+            final ByteBuffer buf = segChunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
 
             if (i == firstChunkWithDataIndex) {
                 final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
