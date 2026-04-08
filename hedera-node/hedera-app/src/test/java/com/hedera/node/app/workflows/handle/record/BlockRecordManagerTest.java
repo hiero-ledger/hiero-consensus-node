@@ -802,7 +802,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
                                     .lastIntervalProcessTime(EPOCH)
-                                    .votingComplete(true)
+                                    .votingComplete(false)
                                     .build())
                     .commit();
             liveOnlyApp
@@ -816,11 +816,12 @@ final class BlockRecordManagerTest extends AppTestBase {
                 processBlock(manager, state, 0);
                 processBlock(manager, state, 1);
 
-                // BlockInfo should still have wrapped hash data (live mode is on)
                 final var blockInfo = readBlockInfo(state);
-                assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(Bytes.EMPTY);
+                assertThat(blockInfo.votingComplete())
+                        .as("RESTART with liveWrite should not auto-set votingComplete")
+                        .isFalse();
             }
-            // But disk writer should NOT have been called
+            // Disk writer should NOT have been called
             verify(diskWriter, org.mockito.Mockito.never()).appendAsync(org.mockito.ArgumentMatchers.any());
         }
 
@@ -910,6 +911,40 @@ final class BlockRecordManagerTest extends AppTestBase {
                 assertThat(blockInfo.wrappedIntermediatePreviousBlockRootHashes())
                         .isEmpty();
                 assertThat(blockInfo.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(0);
+                assertThat(blockInfo.votingComplete()).isFalse();
+            }
+        }
+
+        @Test
+        void genesisWithLiveWriteSetsVotingCompleteInMemory() {
+            // Override state with votingComplete=false — the constructor should set it to true
+            // in-memory, and the first putLastBlockInfo call during block processing should
+            // propagate it to state
+            liveApp.stateMutator(BlockRecordService.NAME)
+                    .withSingletonState(
+                            RUNNING_HASHES_STATE_ID,
+                            new RunningHashes(STARTING_RUNNING_HASH_OBJ.hash(), null, null, null))
+                    .withSingletonState(
+                            BLOCKS_STATE_ID,
+                            BlockInfo.newBuilder()
+                                    .lastBlockNumber(-1)
+                                    .firstConsTimeOfLastBlock(EPOCH)
+                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .migrationRecordsStreamed(false)
+                                    .firstConsTimeOfCurrentBlock(EPOCH)
+                                    .lastUsedConsTime(EPOCH)
+                                    .lastIntervalProcessTime(EPOCH)
+                                    .votingComplete(false)
+                                    .build())
+                    .commit();
+
+            final var state = liveApp.workingStateAccessor().getState();
+            try (final var manager = createGenesisManager(liveApp, state)) {
+                processBlock(manager, state, 0);
+                processBlock(manager, state, 1);
+
+                final var blockInfo = readBlockInfo(state);
+                assertThat(blockInfo.votingComplete()).isTrue();
             }
         }
     }

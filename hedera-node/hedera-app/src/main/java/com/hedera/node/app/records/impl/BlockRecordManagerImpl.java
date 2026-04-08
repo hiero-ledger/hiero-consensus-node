@@ -194,6 +194,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
             this.previousWrappedRecordBlockRootHash = HASH_OF_ZERO;
         }
+        // When starting from genesis with live wrapping enabled, mark migration voting as complete (in-memory only) —
+        // there is no prior jumpstart, so no vote is needed.
+        if (initTrigger == InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
+            this.lastBlockInfo =
+                    this.lastBlockInfo.copyBuilder().votingComplete(true).build();
+        }
 
         // Initialize the stream file producer. NOTE, if the producer cannot be initialized, and a random exception is
         // thrown here, then startup of the node will fail. This is the intended behavior. We MUST be able to produce
