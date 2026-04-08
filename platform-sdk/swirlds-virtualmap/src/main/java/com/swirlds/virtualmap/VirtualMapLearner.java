@@ -15,7 +15,6 @@ import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -114,7 +113,7 @@ public final class VirtualMapLearner {
      * <p> The original map is hashed eagerly here so that the teacher can inspect hashes during
      * the synchronization process to determine which nodes need to be transferred.
      *
-     * <p> Some original map fields are remembers so they can be used to construct new {@link VirtualMap} at the end of reconnect process.
+     * <p> Some original map fields are remembered so they can be used to construct new {@link VirtualMap} at the end of reconnect process.
      * The original map's data source is shut down and an independent copy is created for the reconnect process,
      * which will be updated with new leaves and hashes as they are received from the teacher.
      *
@@ -227,7 +226,7 @@ public final class VirtualMapLearner {
 
         // no-op if new first leaf path is less or equal to old first leaf path
         if (originalState.getLastLeafPath() > 0 && oldFirstLeafPath < newFirstLeafPath) {
-            final long limit = Math.min(newFirstLeafPath, originalState.getLastLeafPath() + 1);
+            final long limit = Long.min(newFirstLeafPath, originalState.getLastLeafPath() + 1);
 
             logger.info(
                     RECONNECT.getMarker(),
@@ -300,7 +299,7 @@ public final class VirtualMapLearner {
      * @throws MerkleSynchronizationException if hashing fails or if the calling thread is interrupted
      */
     public void finish() {
-        logger.info(RECONNECT.getMarker(), "Ending learner reconnect");
+        logger.info(RECONNECT.getMarker(), "Finalizing learner reconnect");
 
         deleteOldLeavesAfterNewLastLeafPath();
         waitForHashingToComplete();
@@ -317,35 +316,35 @@ public final class VirtualMapLearner {
      * Check if old leaves after new last leaf path have to be deleted and delete them.
      */
     private void deleteOldLeavesAfterNewLastLeafPath() {
-        final long firstOldStalePath =
-                (reconnectState.getLastLeafPath() == Path.INVALID_PATH) ? 1 : reconnectState.getLastLeafPath() + 1;
         final long oldLastLeafPath = originalState.getLastLeafPath();
+        final long newLastLeafPath = reconnectState.getLastLeafPath();
 
-        // No-op if newLastLeafPath is greater or equal to oldLastLeafPath
-        if (firstOldStalePath > oldLastLeafPath) {
+        // No-op if new last leaf path is greater or equal to old last leaf path
+        if (newLastLeafPath < oldLastLeafPath) {
+            // if new state is empty (newLastLeafPath = -1) or new last leaf path is less than old first leaf path,
+            // we delete all old leaves, otherwise we delete old leaves from new last leaf path + 1 to old last leaf
+            // path.
+            final long firstOldPathToDelete = Long.max(originalState.getFirstLeafPath(), newLastLeafPath + 1);
+
             logger.info(
                     RECONNECT.getMarker(),
-                    "No nodes to delete after newLastLeafPath={}",
-                    reconnectState.getLastLeafPath());
-        } else {
-            logger.info(
-                    RECONNECT.getMarker(),
-                    "Starting deleting {} nodes from firstOldStalePath={} to oldLastLeafPath={} inclusive.",
-                    (oldLastLeafPath - firstOldStalePath + 1),
-                    firstOldStalePath,
+                    "Starting deleting {} nodes from firstOldPathToDelete={} to oldLastLeafPath={} inclusive.",
+                    (oldLastLeafPath - firstOldPathToDelete + 1),
+                    firstOldPathToDelete,
                     oldLastLeafPath);
-            for (long p = firstOldStalePath; p <= oldLastLeafPath; p++) {
+
+            for (long p = firstOldPathToDelete; p <= oldLastLeafPath; p++) {
                 final VirtualLeafBytes<?> oldExtraLeafRecord = originalRecords.findLeafRecord(p);
-                assert oldExtraLeafRecord != null || p < originalState.getFirstLeafPath();
-                if (oldExtraLeafRecord != null) {
-                    reconnectFlusher.deleteLeaf(oldExtraLeafRecord);
-                }
+                assert oldExtraLeafRecord != null;
+                reconnectFlusher.deleteLeaf(oldExtraLeafRecord);
             }
             logger.info(
                     RECONNECT.getMarker(),
                     "Finished deleting nodes from firstOldStalePath={} to oldLastLeafPath={} inclusive",
-                    firstOldStalePath,
+                    firstOldPathToDelete,
                     oldLastLeafPath);
+        } else {
+            logger.info(RECONNECT.getMarker(), "No nodes to delete after newLastLeafPath={}", newLastLeafPath);
         }
     }
 
@@ -420,6 +419,12 @@ public final class VirtualMapLearner {
     @NonNull
     private LearnerTreeView buildLearnerView(
             @NonNull final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
+        logger.info(
+                RECONNECT.getMarker(),
+                "Building learner view for map with path range [{}, {}]",
+                originalState.getFirstLeafPath(),
+                originalState.getLastLeafPath());
+
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
                 new LearnerPullVirtualTreeView(reconnectConfig, this, new TopToBottomTraversalOrder(), mapStats);
@@ -431,7 +436,7 @@ public final class VirtualMapLearner {
             default ->
                 throw new UnsupportedOperationException("Unknown reconnect mode: "
                         + virtualMapConfig.reconnectMode()
-                        + ". Supported modes: PUSH, PULL_TOP_TO_BOTTOM,"
+                        + ". Supported modes: PULL_TOP_TO_BOTTOM,"
                         + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
         };
     }

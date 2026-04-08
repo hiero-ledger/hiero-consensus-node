@@ -22,7 +22,8 @@ import org.apache.logging.log4j.Logger;
 /**
  * This is a mechanism to flush data (dirty hashes, dirty leaves, deleted leaves) to disk
  * during reconnect. This class is used by the learner during reconnect to delete leaves from
- * the old (learner) state tree outside the new leaf path range, update matched leaves and update hashes from virtual hasher.
+ * the old (learner) state tree outside the new leaf path range, update leaves that match
+ * between the teacher and learner, and update hashes computed by the virtual hasher.
  *
  * <p>This flusher is thread safe, its methods like {@link #updateHashChunk(VirtualHashChunk)},
  * {@link #updateLeaf(VirtualLeafBytes)}, and {@link #deleteLeaf(VirtualLeafBytes)} can

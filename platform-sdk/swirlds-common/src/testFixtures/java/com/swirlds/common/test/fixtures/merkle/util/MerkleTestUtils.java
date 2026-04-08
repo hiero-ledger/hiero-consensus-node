@@ -110,7 +110,6 @@ public final class MerkleTestUtils {
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
-    @SuppressWarnings("unchecked")
     public static VirtualMap testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
@@ -288,24 +287,18 @@ public final class MerkleTestUtils {
 
         assertEquals(1, desiredTree.getReservationCount(), "teacher tree should have a reference count of exactly 1");
 
-        if (startingTree != null) {
-            assertTrue(startingTree.isMutable(), "tree should be mutable");
-        }
+        assertTrue(startingTree.isMutable(), "tree should be mutable");
     }
 
     public static VirtualMap hashAndTestSynchronization(
             final VirtualMap startingTree, final VirtualMap desiredTree, final ReconnectConfig reconnectConfig)
             throws Exception {
         System.out.println("------------");
-        System.out.println("starting: " + startingTree);
-        System.out.println("desired: " + desiredTree);
+        System.out.println("starting tree: " + startingTree.getMetadata());
+        System.out.println("desired tree: " + desiredTree.getMetadata());
 
-        if (startingTree != null) {
-            startingTree.getHash(); // calculate hash
-        }
-        if (desiredTree != null) {
-            desiredTree.getHash(); // calculate hash
-        }
+        startingTree.getHash(); // calculate hash
+        desiredTree.getHash(); // calculate hash
         return testSynchronization(startingTree, desiredTree, 0, reconnectConfig);
     }
 
