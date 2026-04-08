@@ -134,7 +134,6 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                         .map(Bytes::toByteArray)
                         .toList(),
                 op.wrappedIntermediateBlockRootsLeafCount());
-        log.info("store wrapped hashes: {}", store.wrappedHashesInOrder());
         for (final var queuedHashes : store.wrappedHashesInOrder()) {
             final var allPrevBlocksRootHash = Bytes.wrap(hasher.computeRootHash());
             final var blockRootHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(

@@ -21,6 +21,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.suites.regression.system.MixedOperations;
+import com.hederahashgraph.api.proto.java.SemanticVersion;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -76,9 +77,13 @@ class JumpstartFileSuite implements LifecycleTest {
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 2: Restarting with jumpstart config"),
-                prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(envOverrides, buildDynamicJumpstartConfig(jumpstartConfig, envOverrides)),
+                upgradeToVersion("0.74.0", envOverrides, buildDynamicJumpstartConfig(jumpstartConfig, envOverrides)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                assertGetVersionInfoMatches(() -> SemanticVersion.newBuilder()
+                        .setMajor(0)
+                        .setMinor(74)
+                        .setPatch(0)
+                        .build()),
                 logIt("Phase 3: Verify node can process transactions after jumpstart migration"),
                 cryptoCreate("shouldWork").payingWith(GENESIS),
                 assertHgcaaLogContainsPattern(
@@ -106,6 +111,11 @@ class JumpstartFileSuite implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(envOverrides),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                assertGetVersionInfoMatches(() -> SemanticVersion.newBuilder()
+                        .setMajor(0)
+                        .setMinor(74)
+                        .setPatch(0)
+                        .build()),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                         "Jumpstart migration already applied \\(votingComplete=true\\), skipping",

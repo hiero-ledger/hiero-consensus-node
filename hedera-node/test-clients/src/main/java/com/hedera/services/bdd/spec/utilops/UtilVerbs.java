@@ -931,6 +931,11 @@ public class UtilVerbs {
         return new BuildUpgradeZipOp(path);
     }
 
+    public static BuildUpgradeZipOp buildUpgradeZipFrom(
+            @NonNull final Path path, @NonNull final String targetServicesVersion) {
+        return new BuildUpgradeZipOp(path, targetServicesVersion);
+    }
+
     public static BuildDynamicJumpstartConfigOp buildDynamicJumpstartConfig(
             @NonNull final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfigRef,
             @NonNull final Map<String, String> envOverrides) {

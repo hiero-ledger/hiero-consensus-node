@@ -40,6 +40,7 @@ import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollow
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.OWNER;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.PAYER;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FAIL_INVALID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -184,6 +185,26 @@ public class Hip1195StreamParityTest {
                 sourcing(() -> attempt.apply(2L)),
                 sourcing(() -> attempt.apply(3L)),
                 sourcing(() -> attempt.apply(4L).hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> malformedHookCallWithoutHookIdFailsInvalid() {
+        return hapiTest(
+                cryptoCreate("party"),
+                cryptoCreate("counterparty"),
+                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("party"))
+                                        .setAmount(-123L)
+                                        .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                        .setGasLimit(5_000_000L)
+                                                        .setData(ByteString.EMPTY))))
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("counterparty"))
+                                        .setAmount(+123L))))
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(FAIL_INVALID));
     }
 
     @HapiTest
