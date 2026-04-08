@@ -278,6 +278,29 @@ ratio descending). Files that would push the group's aggregate ratio below `gcRa
 past `maxCompactedFileSizeInMB` are skipped. Absorbed files are removed from the pool so no other group at the same
 level can claim them. This maximizes file consolidation across all groups at a level.
 
+### Consolidation of Small Files
+
+When workloads are update-heavy (e.g. `ObjectKeyToPath` receiving entity updates rather than inserts), flushes produce
+many small files with little garbage. These files have dead/alive ratios below `gcRateThreshold` and are invisible to
+garbage-based compaction. Over time, hundreds of small files accumulate on disk.
+
+Consolidation addresses this with a size-based second pass that runs after garbage-based compaction in each
+`submitCompactionTasks()` call. The algorithm per level:
+
+1. Collect all files at this level whose size is below `consolidationMaxInputFileSizeMB` (default 50 MB).
+2. Exclude files already assigned to a garbage-based compaction task in the current cycle.
+3. If the count is below `consolidationMinFileCount` (default 10), skip — not enough small files to justify the work.
+4. Group the small files into batches bounded by `maxCompactedFileSizeInMB`, using raw file size (not projected alive
+   bytes — consolidation does not estimate garbage).
+5. Submit each batch as a compaction task (reuses `CompactionTask`).
+   This is self-limiting by design. The output file from consolidation exceeds `consolidationMaxInputFileSizeMB`, so it
+   will never be re-selected as a consolidation candidate. Small files accumulate again from subsequent flushes, and the
+   cycle repeats. Each file participates in at most one consolidation, preventing endless re-copying of live data.
+
+Consolidation tasks use the `"_consolidate_N"` key pattern (where N is the level) and the same counter-based
+deduplication as garbage-based tasks. They share the compaction thread pool, support pause/resume for snapshots,
+and set/reset the `compactionInProgress` flag identically to garbage-based tasks.
+
 ### Compaction Task Submission
 
 After each flush, the flush handler submits two kinds of tasks to the compaction thread pool:
@@ -291,6 +314,9 @@ After each flush, the flush handler submits two kinds of tasks to the compaction
    c. Applies **phase 2** absorption per group: absorbs additional non-eligible files from a shared remaining pool
    for the level, removing absorbed files from the pool so no group can claim the same file.
    d. **Submits** each group as an independent compaction task.
+   e. **Consolidation pass**: after all garbage-based tasks are submitted, runs `submitConsolidationTasks()` as a
+   second pass. Files already assigned to garbage-based tasks are excluded. Small files at each level are grouped
+   by raw file size and submitted as independent consolidation tasks.
 
    Multiple tasks for the same level run concurrently. This is safe because each task operates on a disjoint set of
    input files and writes to its own output file. Levels are discovered from `scanStatsByStore`, so compaction tasks
@@ -419,6 +445,10 @@ The coordinator's `submitCompactionTasks()` method performs:
 3. Per-group phase 2: `absorbIntoGroup()` draws from a shared remaining pool (pre-sorted by dead/alive ratio descending),
 absorbs files that fit both ratio and size limits, and removes them from the pool via `Iterator.remove()`.
 4. Submit each group as a `CompactionTask`.
+5. Consolidation pass: `submitConsolidationTasks()` runs as a second pass after all garbage-based tasks are submitted.
+It collects files below `consolidationMaxInputFileSizeMB`, excludes files already assigned to garbage tasks, and
+groups them by raw file size via `splitByFileSize()`. Unlike `splitIntoGroups()`, `splitByFileSize()` uses raw
+`reader.getSize()` rather than projected alive bytes — consolidation does not estimate garbage.
 
 **`DataFileCompactor`** performs the actual compaction for a given file collection. Each instance is used for a single
 compaction run — the coordinator creates a fresh instance per task because each instance carries its own `snapshotCompactionLock`,
@@ -507,6 +537,17 @@ ratio of 1.0, ensuring they are always eligible for compaction.
 that level produces no phase 1 candidates. Since **phase 2** only runs for groups derived from **phase 1** candidates, no files are
 selected and compaction is not scheduled for such levels.
 
+**Many small files but all below GC threshold.** If no file at a level exceeds `gcRateThreshold`, garbage-based
+compaction produces no tasks. However, if the number of small files (below `consolidationMaxInputFileSizeMB`) meets
+or exceeds `consolidationMinFileCount`, consolidation will merge them regardless of garbage ratio. This is the primary
+scenario consolidation was designed for: update-heavy workloads where files are mostly alive but individually too small.
+
+**Consolidation output re-consolidation.** A consolidation run that merges 100 × 1 MB files produces an output of
+roughly 70–100 MB (depending on garbage). This output exceeds the default `consolidationMaxInputFileSizeMB` (50 MB),
+so it is never selected as a consolidation candidate. If the output happens to be below the threshold (e.g. only a few
+files were merged), it may be re-consolidated in a future cycle — but only once enough additional small files accumulate
+to meet `consolidationMinFileCount`. This makes re-consolidation rare and bounded.
+
 **Stale scan results referencing deleted files.** Between the time a scan completes and a compaction task executes,
 concurrent compaction tasks may have already compacted and deleted some of the candidate files. This can occur when a
 task is submitted but sits in the executor queue: the scan ran before the task started (so the `compactionInProgress`
@@ -545,12 +586,14 @@ underestimated garbage ratio. The next scan will use the post-doubling index siz
 
 The following configuration parameters in `MerkleDbConfig` control compaction behavior:
 
-|         Parameter          | Default |                                                                                                                                                                            Description                                                                                                                                                                            |
-|----------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `compactionThreads`        | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                                                                                                                                                                                                                                                                  |
-| `maxCompactionLevel`       | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                                                                                                                                                                                                                                                                |
-| `gcRateThreshold`          | 0.5     | Minimum dead-to-alive ratio for compaction decisions. In **phase 1**, files whose individual ratio exceeds this value are selected. In **phase 2**, remaining files are considered for absorption as long as adding each one keeps the aggregate ratio above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead item is reclaimed. |
-| `maxCompactedFileSizeInMB` | 10000   | Maximum projected output size (MB) per compaction task. Also the size cap for per-group **phase 2** absorption. Candidates are partitioned into groups bounded by this size. 10 GB by default.                                                                                                                                                                    |
+|             Parameter             | Default |                                                                                                                                                                            Description                                                                                                                                                                            |
+|-----------------------------------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `compactionThreads`               | 4       | Size of the shared thread pool for scanner and compaction tasks.                                                                                                                                                                                                                                                                                                  |
+| `maxCompactionLevel`              | 10      | Maximum compaction level. Output files at this level stay at this level on subsequent compactions.                                                                                                                                                                                                                                                                |
+| `gcRateThreshold`                 | 0.5     | Minimum dead-to-alive ratio for compaction decisions. In **phase 1**, files whose individual ratio exceeds this value are selected. In **phase 2**, remaining files are considered for absorption as long as adding each one keeps the aggregate ratio above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead item is reclaimed. |
+| `maxCompactedFileSizeInMB`        | 10000   | Maximum projected output size (MB) per compaction task. Also the size cap for per-group **phase 2** absorption. Candidates are partitioned into groups bounded by this size. 10 GB by default.                                                                                                                                                                    |
+| `consolidationMaxInputFileSizeMB` | 10      | Maximum file size (MB) for consolidation candidates. Files larger than this are never consolidated — they are the output of previous consolidation runs. Set to 0 to disable consolidation entirely.                                                                                                                                                              |
+| `consolidationMinFileCount`       | 10      | Minimum number of small files at a level before consolidation triggers. Prevents pointless runs when only a few small files exist.                                                                                                                                                                                                                                |
 
 ### Observability
 
