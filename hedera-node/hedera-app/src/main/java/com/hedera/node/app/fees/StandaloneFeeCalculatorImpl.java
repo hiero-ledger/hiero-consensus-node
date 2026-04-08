@@ -113,7 +113,7 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
             try {
                 return functionOf(body);
             } catch (com.hedera.hapi.util.UnknownHederaFunctionality e) {
-                throw new IllegalStateException(e);
+                throw new IllegalArgumentException(e);
             }
         }
 

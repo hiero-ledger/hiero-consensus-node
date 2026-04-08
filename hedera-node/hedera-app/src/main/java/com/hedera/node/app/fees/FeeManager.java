@@ -58,7 +58,7 @@ public final class FeeManager {
     private static final Logger logger = LogManager.getLogger(FeeManager.class);
 
     private org.hiero.hapi.support.fees.FeeSchedule simpleFeesSchedule;
-    private SimpleFeeCalculator simpleFeeCalculator;
+    private volatile SimpleFeeCalculator simpleFeeCalculator;
 
     private final Set<ServiceFeeCalculator> serviceFeeCalculators;
     private final Set<QueryFeeCalculator> queryFeeCalculators;
