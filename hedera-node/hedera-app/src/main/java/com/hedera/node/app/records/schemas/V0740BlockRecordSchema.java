@@ -3,7 +3,6 @@ package com.hedera.node.app.records.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
-import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -33,7 +32,11 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
         if (!ctx.isGenesis()
                 && ctx.appConfig().getConfigData(BlockRecordStreamConfig.class).liveWritePrevWrappedRecordHashes()) {
             final var blockInfoSingleton = ctx.newStates().<BlockInfo>getSingleton(BLOCKS_STATE_ID);
-            final var existingBlockInfo = requireNonNull(blockInfoSingleton.get());
+            final var existingBlockInfo = blockInfoSingleton.get();
+            if (existingBlockInfo == null) {
+                log.info("Skipping wrapped record voting initialization because BlockInfo singleton does not exist");
+                return;
+            }
             if (existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0 || existingBlockInfo.votingComplete()) {
                 // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
                 log.info(
