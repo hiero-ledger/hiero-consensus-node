@@ -395,6 +395,7 @@ jobs:
           MATS_TESTS_RESULT: ${{ needs.mats-tests.result }}
           DEPLOY_CI_TRIGGER_RESULT: ${{ needs.deploy-ci-trigger.result }}
           FAILED_TESTS: ${{ needs.mats-tests.outputs.failed-tests }}
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
           COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
@@ -407,6 +408,7 @@ jobs:
         env:
           MATS_TESTS_RESULT: ${{ needs.mats-tests.result }}
           DEPLOY_CI_TRIGGER_RESULT: ${{ needs.deploy-ci-trigger.result }}
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: gomplate -f .github/workflows/templates/slack-mats-infra-failure-detailed.json.tpl -o slack_payload.json
 

@@ -421,6 +421,7 @@ jobs:
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
           TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
           COMMIT_AUTHOR: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
@@ -617,6 +618,7 @@ jobs:
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
           TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
           FAILED_TESTS: ${{ needs.xts-execution.outputs.failed-tests }}
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
           COMMIT_AUTHOR: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}
           SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
@@ -632,6 +634,7 @@ jobs:
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
           TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: gomplate -f .github/workflows/templates/slack-xts-infra-failure-detailed.json.tpl -o slack_payload.json
 
