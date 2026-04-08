@@ -103,9 +103,6 @@ public class LearningSynchronizer {
         try {
             view.startLearnerTasks(workGroup, in, out);
             workGroup.waitForTermination();
-            if (!workGroup.hasExceptions()) {
-                view.onSuccessfulComplete();
-            }
         } catch (final InterruptedException e) { // NOSONAR: Exception is rethrown below after cleanup.
             interruptException = e;
             logger.warn(RECONNECT.getMarker(), "Interrupted while waiting for work group termination");
@@ -121,6 +118,8 @@ public class LearningSynchronizer {
             }
             throw new MerkleSynchronizationException(
                     "Synchronization failed with exceptions", firstReconnectException.get());
+        } else {
+            view.onSuccessfulComplete();
         }
 
         logger.info(RECONNECT.getMarker(), "Finished receiving tree");

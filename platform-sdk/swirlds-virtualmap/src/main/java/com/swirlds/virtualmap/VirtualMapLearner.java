@@ -51,8 +51,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  *     <li>If reconnect fails before successful completion, the caller/reconnect orchestration code is responsible for aborting the reconnect attempt and cleaning up resources associated with the failed attempt via {@link #abortOnException()}.</li>
  * </ul>
  *
- * <p>No {@link VirtualMap} is created until {@link #finish()} is called (which
- * happens internally when the learner tree view is closed), at which point a fresh, fully
+ * <p>No {@link VirtualMap} is created until {@link #finish()} is called during successful reconnect completion, at which point a fresh, fully
  * initialized {@link VirtualMap} is constructed from the reconnected state.
  *
  * <p>This class also handles leaves deletions For example,
@@ -140,6 +139,9 @@ public final class VirtualMapLearner {
             @NonNull final ReconnectConfig reconnectConfig,
             @NonNull final ReconnectMapStats mapStats) {
         requireNonNull(originalMap, "originalMap must not be null");
+        requireNonNull(reconnectConfig, "reconnectConfig must not be null");
+        requireNonNull(mapStats, "mapStats must not be null");
+
         // Ensure the original map is hashed. Once hashed, all internal nodes are also hashed,
         // which is required for the reconnect process — the teacher uses these hashes to decide
         // whether to send the underlying nodes.
@@ -167,7 +169,6 @@ public final class VirtualMapLearner {
 
     /**
      * @return {@link LearnerTreeView} that should be passed to the {@code LearningSynchronizer} to start the reconnect process.
-     * The view will be closed automatically by the synchronizer when reconnect completes or fails.
      */
     @NonNull
     public LearnerTreeView getLearnerView() {

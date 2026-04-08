@@ -79,7 +79,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
      * Indicates if a response from the teacher has been received already. The very first response
      * must be for path 0 (root virtual node). Used in assertions only.
      */
-    private final AtomicBoolean firstNodeResponse = new AtomicBoolean(false);
+    private final AtomicBoolean rootNodeReceived = new AtomicBoolean(false);
 
     /**
      * Responses from teacher may come in a different order than they are sent by learner. The order
@@ -196,7 +196,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
             logger.info(RECONNECT.getMarker(), "Root response received from the teacher");
             final long firstLeafPath = response.getFirstLeafPath();
             final long lastLeafPath = response.getLastLeafPath();
-            assert firstNodeResponse.compareAndSet(false, true)
+            assert rootNodeReceived.compareAndSet(false, true)
                     : "Root node must be the first node received from the teacher";
             traversalOrder.start(
                     originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
@@ -223,7 +223,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
-        assert firstNodeResponse.get() : "Root node must be the first node received from the teacher";
+        assert rootNodeReceived.get() : "Root node must be the first node received from the teacher";
         final long path = response.getPath();
         if (reconnectState.getLastLeafPath() <= 0) {
             return;
