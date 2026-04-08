@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForAny;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
+import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.RESTART_TO_ACTIVE_TIMEOUT;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -203,6 +204,6 @@ public class BlockNodeBackPressureSuite {
                         spec -> LockSupport.parkNanos(Duration.ofMinutes(1).toNanos())),
                 blockNode(0).startImmediately(),
                 blockNode(1).startImmediately(),
-                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.ACTIVE));
+                waitForAny(allNodes(), RESTART_TO_ACTIVE_TIMEOUT, PlatformStatus.ACTIVE));
     }
 }
