@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.schemas;
 
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_KEY;
 import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -10,7 +13,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -42,7 +47,24 @@ class V0730HistorySchemaTest {
     @Mock
     private WritableSingletonState<ProtoBytes> singletonState;
 
-    private final V0730HistorySchema subject = new V0730HistorySchema();
+    @Mock
+    private WritableSingletonState<ProtoBytes> ledgerIdState;
+
+    @Mock
+    private WritableSingletonState<HistoryProofConstruction> activeConstructionState;
+
+    @Mock
+    private WritableSingletonState<HistoryProofConstruction> nextConstructionState;
+
+    @Mock
+    private HistoryService historyService;
+
+    private V0730HistorySchema subject;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        subject = new V0730HistorySchema(historyService);
+    }
 
     @Test
     void definesExpectedSingleton() {
@@ -87,6 +109,49 @@ class V0730HistorySchemaTest {
         verify(singletonState, never()).put(ProtoBytes.DEFAULT);
         verify(singletonState)
                 .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
+    }
+
+    @Test
+    void migrateInitializesHistorySingletonsOnEnabledNonGenesisRestart() {
+        givenNonGenesisMigrate(null, "");
+        given(tssConfig.historyEnabled()).willReturn(true);
+        given(writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID)).willReturn(ledgerIdState);
+        given(ledgerIdState.get()).willReturn(null);
+        given(writableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(activeConstructionState.get()).willReturn(null);
+        given(writableStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(nextConstructionState.get()).willReturn(null);
+
+        subject.restart(ctx);
+
+        verify(ledgerIdState).put(ProtoBytes.DEFAULT);
+        verify(activeConstructionState).put(HistoryProofConstruction.DEFAULT);
+        verify(nextConstructionState).put(HistoryProofConstruction.DEFAULT);
+        verifyNoInteractions(historyService);
+    }
+
+    @Test
+    void migrateInitializesLatestHistoryProofFromActiveConstruction() {
+        givenNonGenesisMigrate(null, "");
+        given(tssConfig.historyEnabled()).willReturn(true);
+        final var targetProof =
+                com.hedera.hapi.node.state.history.HistoryProof.newBuilder().build();
+        final var activeConstruction =
+                HistoryProofConstruction.newBuilder().targetProof(targetProof).build();
+        given(writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID)).willReturn(ledgerIdState);
+        given(ledgerIdState.get()).willReturn(ProtoBytes.DEFAULT);
+        given(writableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(activeConstructionState);
+        given(activeConstructionState.get()).willReturn(activeConstruction);
+        given(writableStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .willReturn(nextConstructionState);
+        given(nextConstructionState.get()).willReturn(HistoryProofConstruction.DEFAULT);
+
+        subject.restart(ctx);
+
+        verify(historyService).setLatestHistoryProof(targetProof);
     }
 
     @Test
