@@ -14,7 +14,7 @@ import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.crypto.CryptoStatic;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -236,7 +236,7 @@ public class PcesSliceCommand extends AbstractCommand {
         // Generate node IDs and keys
         final List<NodeId> nodeIds =
                 IntStream.range(0, nodeCount).mapToObj(NodeId::of).toList();
-        final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(nodeIds);
+        final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(nodeIds);
 
         System.out.println("Generated keys for " + nodeCount + " nodes.");
 

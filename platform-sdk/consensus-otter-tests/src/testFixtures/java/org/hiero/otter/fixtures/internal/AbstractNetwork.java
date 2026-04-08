@@ -15,7 +15,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
-import com.swirlds.platform.crypto.CryptoStatic;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -263,7 +263,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            return CryptoStatic.generateKeysAndCerts(nodeIds).entrySet().stream()
+            return KeysAndCertsGenerator.generateKeysAndCerts(nodeIds).entrySet().stream()
                     .map(e -> doCreateNode(e.getKey(), e.getValue()))
                     .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
@@ -289,7 +289,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final NodeId nodeId = getNextNodeId();
             final KeysAndCerts keysAndCerts =
-                    CryptoStatic.generateKeysAndCerts(List.of(nodeId)).get(nodeId);
+                    KeysAndCertsGenerator.generateKeysAndCerts(List.of(nodeId)).get(nodeId);
             return doCreateInstrumentedNode(nodeId, keysAndCerts);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);

@@ -8,7 +8,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.platform.crypto.CryptoStatic;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -59,7 +59,7 @@ public class PcesGraphSlicerTest {
         FileUtils.deleteDirectory(pcesOutputLocation);
         final PlatformContext context =
                 PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
-        final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(NODE_IDS);
+        final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
         final Roster roster = PlatformTestUtils.generateRoster(keysAndCertsMap);
         TestEventUtils.generatePreConsensusStream(context, pcesLocation, roster, keysAndCertsMap, 5000);
     }
@@ -71,7 +71,7 @@ public class PcesGraphSlicerTest {
         final PlatformContext newContext =
                 PlatformTestUtils.createPlatformContext(Function.identity(), Function.identity());
 
-        final Map<NodeId, KeysAndCerts> newKeysAndCertsMap = CryptoStatic.generateKeysAndCerts(NODE_IDS);
+        final Map<NodeId, KeysAndCerts> newKeysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(NODE_IDS);
         final PcesGraphSlicer slicer = PcesGraphSlicer.builder()
                 .context(newContext)
                 .keysAndCertsMap(newKeysAndCertsMap)

@@ -87,7 +87,7 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ServicesConfigurationList;
 import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
-import com.swirlds.platform.crypto.CryptoStatic;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.security.KeyStoreException;
@@ -627,7 +627,7 @@ public class SystemFileExportsTest {
         final var nodeIds = IntStream.range(0, n).mapToObj(NodeId::of).toList();
 
         try {
-            final var keysAndCerts = CryptoStatic.generateKeysAndCerts(nodeIds);
+            final var keysAndCerts = KeysAndCertsGenerator.generateKeysAndCerts(nodeIds);
             return nodeIds.stream()
                     .collect(
                             toMap(NodeId::id, nodeId -> keysAndCerts.get(nodeId).sigCert()));
