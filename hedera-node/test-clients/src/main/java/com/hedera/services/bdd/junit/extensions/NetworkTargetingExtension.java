@@ -202,12 +202,25 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 } finally {
                     // Ensure network termination even if validation fails
                     final var network = SHARED_NETWORK.get();
-                    final var scopeRoot = network.nodes()
-                            .getFirst()
-                            .getExternalPath(ExternalPath.WORKING_DIR)
-                            .getParent();
-                    network.terminate();
-                    SHARED_BLOCK_NODE_NETWORK.get().terminate(scopeRoot);
+                    final var blockNodeNetwork = SHARED_BLOCK_NODE_NETWORK.get();
+                    try {
+                        if (network != null) {
+                            final var scopeRoot = network.nodes()
+                                    .getFirst()
+                                    .getExternalPath(ExternalPath.WORKING_DIR)
+                                    .getParent();
+                            network.terminate();
+                            if (blockNodeNetwork != null) {
+                                blockNodeNetwork.terminate(scopeRoot);
+                            }
+                        } else if (blockNodeNetwork != null) {
+                            logger.warn("Terminating block node network without log dump;"
+                                    + " consensus network was never started");
+                            blockNodeNetwork.terminateQuietly();
+                        }
+                    } catch (final Exception e) {
+                        logger.warn("Error during network termination in afterEach", e);
+                    }
                     // Clear the static shared network reference as the per-method network is gone
                     SHARED_NETWORK.set(null);
                     SHARED_BLOCK_NODE_NETWORK.set(null);
