@@ -163,28 +163,28 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
 
-  spotless:
-    name: "${{ inputs.custom-job-label }} Spotless"
-    if: ${{ inputs.enable-spotless-check == 'true' }}
-    uses: ./.github/workflows/zxc-spotless-check.yaml
+  build:
+    name: "${{ inputs.custom-job-label }} Compile Code"
+    uses: ./.github/workflows/zxc-compile-application-code.yaml
     needs:
       - commit-info
     with:
+      java-version: "25"
+      java-distribution: "temurin"
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  build:
-    name: "${{ inputs.custom-job-label }} Compile Code"
-    uses: ./.github/workflows/zxc-compile-application-code.yaml
+  spotless:
+    name: "${{ inputs.custom-job-label }} Spotless"
+    if: ${{ inputs.enable-spotless-check == 'true' }}
+    uses: ./.github/workflows/zxc-spotless-check.yaml
     needs:
       - commit-info
-      - spotless
+      - build
     with:
-      java-version: "25"
-      java-distribution: "temurin"
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -198,6 +198,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
@@ -212,6 +213,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -230,6 +232,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -247,6 +250,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -275,6 +279,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -293,6 +298,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -310,6 +316,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -326,6 +333,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
