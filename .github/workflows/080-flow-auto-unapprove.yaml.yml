@@ -28,4 +28,4 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pr-number: ${{ github.event.number }}
-          dry-run: 'false'
+          dry-run: "false"
