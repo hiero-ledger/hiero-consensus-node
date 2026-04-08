@@ -57,7 +57,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
+        subject = new EvmAddressAliasCall(
+                attempt,
+                asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.getBytes().toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
 
@@ -78,7 +80,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(OPERATOR);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
+        subject = new EvmAddressAliasCall(
+                attempt,
+                asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.getBytes().toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
 
@@ -100,7 +104,9 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(account);
         given(account.alias()).willReturn(RECEIVER_ADDRESS);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
+        subject = new EvmAddressAliasCall(
+                attempt,
+                asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.getBytes().toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
 

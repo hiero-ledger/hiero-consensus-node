@@ -16,7 +16,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
  * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a hook.
@@ -33,17 +32,14 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  */
 public class ProxyEvmHook extends AbstractProxyEvmAccount {
     private final EvmHookState hookState;
-    private final CodeFactory codeFactory;
     private final EntityIdFactory entityIdFactory;
 
     public ProxyEvmHook(
             @NonNull final EvmFrameState state,
             @NonNull final EvmHookState hookState,
-            @NonNull final CodeFactory codeFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         super(getOwnerId(hookState.hookIdOrThrow()), state);
         this.hookState = requireNonNull(hookState);
-        this.codeFactory = requireNonNull(codeFactory);
         this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
@@ -65,7 +61,7 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
 
     @Override
     public @NonNull Hash getCodeHash() {
-        return state.getCodeHash(hookState.hookContractIdOrThrow(), codeFactory);
+        return state.getCodeHash(hookState.hookContractIdOrThrow());
     }
 
     @NonNull

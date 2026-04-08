@@ -13,18 +13,18 @@ public record CodeDelegationResult(
         @NonNull Map<EntryIgnoreReason, Integer> numIgnoredEntriesByReason,
         @NonNull List<Address> accessedAddresses) {
     public enum EntryIgnoreReason {
-        ChainIdMismatch,
-        NonceMismatch,
-        AccountAlreadyHasCode,
-        InsufficientGasForLazyCreation,
-        Other
+        CHAIN_ID_MISMATCH,
+        NONCE_MISMATCH,
+        ACCOUNT_ALREADY_HAS_CODE,
+        INSUFFICIENT_GAS_FOR_LAZY_CREATION,
+        OTHER
     }
 
-    public static CodeDelegationResult empty() {
-        return new CodeDelegationResult(0, 0, 0, Map.of(), List.of());
-    }
+    public static final CodeDelegationResult EMPTY = new CodeDelegationResult(0, 0, 0, Map.of(), List.of());
 
     public int ignoredCodeDelegations() {
-        return this.numIgnoredEntriesByReason.values().stream().reduce(0, Integer::sum);
+        return numIgnoredEntriesByReason.isEmpty()
+                ? 0
+                : this.numIgnoredEntriesByReason.values().stream().reduce(0, Integer::sum);
     }
 }

@@ -778,16 +778,25 @@ class AtomicEthereumSuite {
                     final var thirdChildContractId = CommonUtils.hex(asEvmAddress(thirdChildId.getContractNum()));
 
                     final var parentContractInfo = getContractInfo(parentContractId)
-                            .has(contractWith().addressOrAlias(expectedParentContractAddress.toUnprefixedHexString()));
+                            .has(contractWith()
+                                    .addressOrAlias(expectedParentContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var firstChildContractInfo = getContractInfo(firstChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedFirstChildContractAddress.toUnprefixedHexString()));
+                                    .addressOrAlias(expectedFirstChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var secondChildContractInfo = getContractInfo(secondChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedSecondChildContractAddress.toUnprefixedHexString()));
+                                    .addressOrAlias(expectedSecondChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var thirdChildContractInfo = getContractInfo(thirdChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedThirdChildContractAddress.toUnprefixedHexString()))
+                                    .addressOrAlias(expectedThirdChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()))
                             .logged();
 
                     allRunFor(

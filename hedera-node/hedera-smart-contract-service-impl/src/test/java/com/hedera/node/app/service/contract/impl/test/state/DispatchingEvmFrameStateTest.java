@@ -10,7 +10,6 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_ALIAS_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
@@ -70,6 +69,7 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -95,8 +95,7 @@ class DispatchingEvmFrameStateTest {
     private static final Bytes SOME_PRETEND_CODE = Bytes.wrap("<NOT-REALLY-CODE>");
     private static final Bytecode SOME_PRETEND_BYTECODE =
             Bytecode.newBuilder().code(SOME_PRETEND_CODE).build();
-    private static final Hash SOME_PRETEND_CODE_HASH =
-            CODE_FACTORY.createCode(pbjToTuweniBytes(SOME_PRETEND_CODE), false).getCodeHash();
+    private static final Hash SOME_PRETEND_CODE_HASH = new Code(pbjToTuweniBytes(SOME_PRETEND_CODE)).getCodeHash();
 
     private static final Bytes A_STORAGE_KEY = Bytes.wrap(Bytes32.random().toArrayUnsafe());
     private static final Bytes B_STORAGE_KEY = Bytes.wrap(Bytes32.random().toArrayUnsafe());
@@ -136,7 +135,7 @@ class DispatchingEvmFrameStateTest {
 
     @BeforeEach
     void setUp() {
-        subject = new DispatchingEvmFrameState(nativeOperations, contractStateStore, CODE_FACTORY);
+        subject = new DispatchingEvmFrameState(nativeOperations, contractStateStore);
     }
 
     @Test
@@ -157,7 +156,7 @@ class DispatchingEvmFrameStateTest {
     void extFrameScopeesToFinalizeHollowAccount() {
         subject.finalizeHollowAccount(EVM_ADDRESS);
 
-        verify(nativeOperations).finalizeHollowAccountAsContract(tuweniToPbjBytes(EVM_ADDRESS));
+        verify(nativeOperations).finalizeHollowAccountAsContract(tuweniToPbjBytes(EVM_ADDRESS.getBytes()));
     }
 
     @Test
@@ -316,21 +315,23 @@ class DispatchingEvmFrameStateTest {
     void getsExtantCodeHash() {
         givenWellKnownBytecode();
 
-        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID, CODE_FACTORY);
+        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID);
 
         assertEquals(SOME_PRETEND_CODE_HASH, actualCodeHash);
     }
 
     @Test
     void getsEmptyCodeHashForMissing() {
-        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID, CODE_FACTORY);
+        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID);
         assertSame(Hash.EMPTY, actualCodeHash);
     }
 
     @Test
     void throwsOnMissingAddressWhenGettingHederaIdNumber() {
         given(nativeOperations.resolveAlias(
-                        DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), tuweniToPbjBytes(EVM_ADDRESS)))
+                        DEFAULT_HEDERA_CONFIG.shard(),
+                        DEFAULT_HEDERA_CONFIG.realm(),
+                        tuweniToPbjBytes(EVM_ADDRESS.getBytes())))
                 .willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.configuration()).willReturn(configuration);
         assertThrows(IllegalArgumentException.class, () -> subject.getIdNumber(EVM_ADDRESS));
@@ -339,7 +340,9 @@ class DispatchingEvmFrameStateTest {
     @Test
     void returnsResolvedNumberForEvmAddress() {
         given(nativeOperations.resolveAlias(
-                        DEFAULT_HEDERA_CONFIG.shard(), DEFAULT_HEDERA_CONFIG.realm(), tuweniToPbjBytes(EVM_ADDRESS)))
+                        DEFAULT_HEDERA_CONFIG.shard(),
+                        DEFAULT_HEDERA_CONFIG.realm(),
+                        tuweniToPbjBytes(EVM_ADDRESS.getBytes())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
         assertEquals(ACCOUNT_NUM, subject.getIdNumber(EVM_ADDRESS));
@@ -376,7 +379,8 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void returnsAliasIfPresent() {
-        givenWellKnownAccount(accountWith(A_ACCOUNT_ID, Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())));
+        givenWellKnownAccount(
+                accountWith(A_ACCOUNT_ID, Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())));
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         assertEquals(EVM_ADDRESS, subject.getAddress(ACCOUNT_NUM));
     }
@@ -495,7 +499,7 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
 
@@ -507,7 +511,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void noHaltIfLazyCreationOk() {
-        given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS)))
+        given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS.getBytes())))
                 .willReturn(ResponseCodeEnum.SUCCESS);
         given(nativeOperations.configuration()).willReturn(configuration);
         final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
@@ -517,14 +521,14 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void translatesMaxAccountsCreated() {
-        given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS)))
+        given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS.getBytes())))
                 .willReturn(ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         given(nativeOperations.configuration()).willReturn(configuration);
         final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
 
         assertTrue(reasonLazyCreationFailed.isPresent());
         assertEquals(FAILURE_DURING_LAZY_ACCOUNT_CREATION, reasonLazyCreationFailed.get());
-        verify(nativeOperations).createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS));
+        verify(nativeOperations).createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS.getBytes()));
     }
 
     @Test
@@ -538,7 +542,10 @@ class DispatchingEvmFrameStateTest {
     void throwsOnLazyCreateOfNonExpiredAccount() {
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID));
         given(nativeOperations.configuration()).willReturn(configuration);
-        given(nativeOperations.resolveAlias(anyLong(), anyLong(), eq(Bytes.wrap(EVM_ADDRESS.toArrayUnsafe()))))
+        given(nativeOperations.resolveAlias(
+                        anyLong(),
+                        anyLong(),
+                        eq(Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe()))))
                 .willReturn(ACCOUNT_NUM);
 
         assertThrows(IllegalArgumentException.class, () -> subject.tryLazyCreation(EVM_ADDRESS));
@@ -557,7 +564,7 @@ class DispatchingEvmFrameStateTest {
         assertTrue(reasonToHaltDeletion.isEmpty());
         final var strategy = assertInstanceOf(ActiveContractVerificationStrategy.class, captor.getValue());
         assertEquals(A_ACCOUNT_ID.accountNum(), strategy.getActiveContractID().contractNum());
-        assertEquals(tuweniToPbjBytes(LONG_ZERO_ADDRESS), strategy.getActiveAddress());
+        assertEquals(tuweniToPbjBytes(LONG_ZERO_ADDRESS.getBytes()), strategy.getActiveAddress());
         assertFalse(strategy.requiresDelegatePermission());
     }
 
@@ -689,7 +696,7 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
         assertFalse(subject.isHollowAccount(EVM_ADDRESS));
@@ -700,7 +707,7 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID)
@@ -713,7 +720,7 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        Bytes.wrap(EVM_ADDRESS.toArrayUnsafe())))
+                        Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe())))
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID));
@@ -723,7 +730,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void returnsNullForAliasedReferencedByLongZero() {
-        final var alias = Bytes.wrap(EVM_ADDRESS.toArrayUnsafe());
+        final var alias = Bytes.wrap(EVM_ADDRESS.getBytes().toArrayUnsafe());
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID).alias(alias));
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         assertNull(subject.getAccount(LONG_ZERO_ADDRESS));

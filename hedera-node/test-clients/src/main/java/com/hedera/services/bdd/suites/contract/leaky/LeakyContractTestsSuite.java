@@ -719,7 +719,8 @@ public class LeakyContractTestsSuite {
 
                     final var expectedChildContractAddress =
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
-                    expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
+                    expectedChildAddress.set(ByteString.copyFrom(
+                            expectedChildContractAddress.getBytes().toArray()));
 
                     // Extract actual child/grandchild contract IDs from child records
                     // (cannot assume parentNum+1/+2 in concurrent embedded mode)

@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.exec.v038;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
-import static org.hyperledger.besu.evm.MainnetEVMs.registerShanghaiOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
@@ -36,6 +35,7 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v034.Version034FeatureFlags;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -49,7 +49,6 @@ import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
@@ -79,7 +78,6 @@ public interface V038Module {
             @ServicesV038 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV038 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory,
             @NonNull final GasCalculator gasCalculator) {
         return new TransactionProcessor(
                 frameBuilder,
@@ -88,7 +86,6 @@ public interface V038Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                codeFactory,
                 gasCalculator);
     }
 
@@ -123,9 +120,10 @@ public interface V038Module {
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
             @CustomOps @NonNull final Set<Operation> customOps) {
-        // Use Paris EVM with 0.38 custom operations and 0x00 chain id (set at runtime)
+        // Use Shanghai EVM with 0.38 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
-        registerShanghaiOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
+        HederaOperationsRegistry.forVersion(EvmSpecVersion.SHANGHAI)
+                .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
         return new EVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.SHANGHAI);
@@ -208,19 +206,16 @@ public interface V038Module {
     @Provides
     @IntoSet
     @ServicesV038
-    static Operation provideCreateOperation(
-            @NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
-        return new CustomCreateOperation(gasCalculator, codeFactory);
+    static Operation provideCreateOperation(@NonNull final GasCalculator gasCalculator) {
+        return new CustomCreateOperation(gasCalculator);
     }
 
     @Provides
     @IntoSet
     @ServicesV038
     static Operation provideCreate2Operation(
-            @NonNull final GasCalculator gasCalculator,
-            @ServicesV038 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory) {
-        return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
+            @NonNull final GasCalculator gasCalculator, @ServicesV038 @NonNull final FeatureFlags featureFlags) {
+        return new CustomCreate2Operation(gasCalculator, featureFlags);
     }
 
     @Provides

@@ -95,7 +95,7 @@ class FrameRunnerTest {
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(worldUpdater.getHederaContractId(EIP_1014_ADDRESS)).willReturn(CALLED_CONTRACT_ID);
         final var contractId = ContractID.newBuilder()
-                .evmAddress(Bytes.wrap(EIP_1014_ADDRESS.toArray()))
+                .evmAddress(Bytes.wrap(EIP_1014_ADDRESS.getBytes().toArray()))
                 .build();
         given(entityIdFactory.newContractIdWithEvmAddress(any())).willReturn(contractId);
 
@@ -229,7 +229,7 @@ class FrameRunnerTest {
         givenBaseFailureWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frame.getExceptionalHaltReason()).willReturn(Optional.of(INSUFFICIENT_CHILD_RECORDS));
         final var contractId = ContractID.newBuilder()
-                .evmAddress(Bytes.wrap(NON_SYSTEM_LONG_ZERO_ADDRESS.toArray()))
+                .evmAddress(Bytes.wrap(NON_SYSTEM_LONG_ZERO_ADDRESS.getBytes().toArray()))
                 .build();
         given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(contractId);
@@ -345,7 +345,7 @@ class FrameRunnerTest {
         given(frame.getRecipientAddress()).willReturn(receiver);
         given(frame.getMessageFrameStack()).willReturn(messageFrameStack);
         final var contractId = ContractID.newBuilder()
-                .evmAddress(Bytes.wrap(receiver.toArray()))
+                .evmAddress(Bytes.wrap(receiver.getBytes().toArray()))
                 .build();
         given(childFrame.getMessageFrameStack()).willReturn(messageFrameStack);
     }

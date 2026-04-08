@@ -117,8 +117,8 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 validateTrue(hook != null, HOOK_NOT_FOUND);
 
                 // Build the strategy that will produce a HookEvmFrameStateFactory for this transaction
-                final EvmFrameStates evmFrameStates = (ops, nativeOps, codeFactory) ->
-                        new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, hook);
+                final EvmFrameStates evmFrameStates =
+                        (ops, nativeOps) -> new HookEvmFrameStateFactory(ops, nativeOps, hook);
                 // Create the transaction-scoped component. Use ContractCall functionality since
                 // we are just calling a contract (the hook)
                 final var component = getTransactionComponent(context, CONTRACT_CALL, evmFrameStates);

@@ -653,16 +653,22 @@ class AtomicLeakyContractTestsSuite {
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
                     final var expectedGrandChildContractAddress = contractAddress(expectedChildContractAddress, 1L);
                     childNum.set(parentNum.getContractNum() + 1L);
-                    expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
+                    expectedChildAddress.set(ByteString.copyFrom(
+                            expectedChildContractAddress.getBytes().toArray()));
                     grandChildNum.set(parentNum.getContractNum() + 2L);
 
                     final var parentContractInfo =
                             getContractInfo(contract).has(contractWith().addressOrAlias(expectedParentContractAddress));
                     final var childContractInfo = getContractInfo(String.valueOf(childNum.get()))
-                            .has(contractWith().addressOrAlias(expectedChildContractAddress.toUnprefixedHexString()));
+                            .has(contractWith()
+                                    .addressOrAlias(expectedChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var grandChildContractInfo = getContractInfo(String.valueOf(grandChildNum.get()))
                             .has(contractWith()
-                                    .addressOrAlias(expectedGrandChildContractAddress.toUnprefixedHexString()))
+                                    .addressOrAlias(expectedGrandChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()))
                             .logged();
 
                     allRunFor(spec, parentContractInfo, childContractInfo, grandChildContractInfo);

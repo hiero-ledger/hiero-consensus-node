@@ -5,7 +5,6 @@ import com.hedera.hapi.node.base.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
  * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a contract account.
@@ -13,12 +12,8 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  */
 public class ProxyEvmContract extends AbstractProxyEvmAccount {
 
-    private final CodeFactory codeFactory;
-
-    public ProxyEvmContract(
-            final AccountID accountID, @NonNull final EvmFrameState state, @NonNull final CodeFactory codeFactory) {
+    public ProxyEvmContract(final AccountID accountID, @NonNull final EvmFrameState state) {
         super(accountID, state);
-        this.codeFactory = codeFactory;
     }
 
     @Override
@@ -28,6 +23,6 @@ public class ProxyEvmContract extends AbstractProxyEvmAccount {
 
     @Override
     public @NonNull Hash getCodeHash() {
-        return state.getCodeHash(hederaContractId(), codeFactory);
+        return state.getCodeHash(hederaContractId());
     }
 }

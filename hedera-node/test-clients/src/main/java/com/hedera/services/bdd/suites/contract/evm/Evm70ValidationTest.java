@@ -116,7 +116,7 @@ public class Evm70ValidationTest {
                 ethereumCall(
                                 CALL_CONTRACT,
                                 "makeCallWithoutAmount",
-                                asHeadlongAddress(precompile.toArray()),
+                                asHeadlongAddress(precompile.getBytes().toArray()),
                                 ByteString.fromHex(input).toByteArray())
                         .payingWith(RELAYER)
                         .gasLimit(2_000_000L)
