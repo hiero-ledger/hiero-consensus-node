@@ -309,11 +309,9 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
 
         for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
+            createOrGetChunk(
+                    (long) i * longsPerChunk); // Ensure chunk is allocated; if it already exists, this is a no-op
             final SegmentChunk segChunk = chunkList.get(i);
-            assert segChunk != null
-                    : "Chunk " + i + " is null; expected contiguous allocation in range [" + firstChunkWithDataIndex
-                            + ", " + totalNumOfChunks + ")";
-
             final ByteBuffer buf = segChunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
 
             if (i == firstChunkWithDataIndex) {
