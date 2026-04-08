@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
@@ -619,8 +620,8 @@ public class Hip1313EnabledTest {
 
     @HapiTest
     final Stream<DynamicTest> twoIdenticalHvCreatesUnderSameConditionsGetSameMultiplier() {
-        final var firstMultiplier = new java.util.concurrent.atomic.AtomicLong(-1L);
-        final var secondMultiplier = new java.util.concurrent.atomic.AtomicLong(-1L);
+        final var firstMultiplier = new AtomicLong(-1L);
+        final var secondMultiplier = new AtomicLong(-1L);
         return hapiTest(
                 cryptoCreate("hvCreateFirst")
                         .payingWith(CIVILIAN_PAYER)
@@ -672,7 +673,7 @@ public class Hip1313EnabledTest {
                         .signedByPayerAnd(batchOperator)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                // VERIFY — HV inner has failure status; standard inner is rolled back
+                // Verify/Double check high volume and standard txns were in fact submitted & processed as so
                 getTxnRecord(standardInnerTxId)
                         .andAllChildRecords()
                         .exposingAllTo(records -> {
@@ -719,7 +720,7 @@ public class Hip1313EnabledTest {
                         .signedByPayerAnd(batchOperator)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
 
-                // VERIFY — HV inner has failure status; standard inner is rolled back
+                // Verify/Double check high volume and standard txns were in fact submitted & processed as so
                 getTxnRecord(standardInnerTxId).andAllChildRecords().exposingAllTo(records -> {
                     assertNoRecordMatches(
                             records, record -> record.getHighVolumePricingMultiplier() >= ONE_X_MULTIPLIER);
