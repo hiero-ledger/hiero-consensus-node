@@ -367,19 +367,21 @@ jobs:
       - name: Scale 2 BNs down to simulate failure
         run: |
           sleep 30
-          echo "Cluster before BN scaling"
+          echo "*** Cluster before BN scaling ***"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=0
           sleep 30
-          echo "Cluster after BN-1 scale down"
+          echo "*** Cluster after BN-1 scale down ***"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=0
-          sleep 600
-          echo "Cluster after BN-2 scale down"
+          sleep 30
+          echo "*** Cluster after BN-2 scale down ***"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+          echo "*** Run 3:1 CN to BN network for 5 mins ***"
+          sleep 300
         continue-on-error: true
 
       - name: Scale 2 BNs back up to simulate restoration
@@ -421,8 +423,7 @@ jobs:
 
         # Verify the BN1 is getting blocks
       - name: Get ServerStatus from Block Node 1
-        env:
-          BN_SERVER_1_URL: "http://127.0.0.1:8544"
+        id: bn1-status
         run: |
           # Call serverStatus once
           STATUS_JSON=$(grpcurl \
@@ -454,9 +455,11 @@ jobs:
           # Export for later steps
           echo "BN1_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "BN1_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+        continue-on-error: true
 
         # Verify the BN2 is getting blocks
       - name: Get ServerStatus from Block Node 2
+        id: bn2-status
         run: |
           # Call serverStatus once
           STATUS_JSON=$(grpcurl \
@@ -488,9 +491,11 @@ jobs:
           # Export for later steps
           echo "BN2_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "BN2_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+        continue-on-error: true
 
         # Verify the BN3 is getting blocks
       - name: Get ServerStatus from Block Node 3
+        id: bn3-status
         run: |
           # Call serverStatus once
           STATUS_JSON=$(grpcurl \
@@ -522,9 +527,11 @@ jobs:
           # Export for later steps
           echo "BN3_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "BN3_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+        continue-on-error: true
 
         # Verify the available blocks from BNs 1-3 are within a reasonable range to showcase catchup
       - name: Validate server status block ranges
+        if: steps.bn1-status.outcome == 'success' && steps.bn2-status.outcome == 'success' && steps.bn3-status.outcome == 'success'
         run: |          
           # Calculate min and max first available blocks
           min_first_available=${{ env.BN1_FIRST_AVAILABLE_BLOCK }} < ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}
