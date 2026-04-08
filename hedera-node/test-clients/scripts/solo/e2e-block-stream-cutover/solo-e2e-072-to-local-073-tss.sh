@@ -25,6 +25,8 @@ APP_PROPS_073_FILE="${SCRIPT_DIR}/resources/0.73/application.properties"
 APP_ENV_073_FILE="${SCRIPT_DIR}/resources/0.73/application.env"
 LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
 REMEDY_SCRIPT_PATH="${SCRIPT_DIR}/solo-remedy-local-artifact-copy.sh"
+HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
+WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/keys/wraps"
 
 SOLO_HOME_DIR="${HOME}/.solo"
 CLUSTER_CREATED_THIS_RUN="false"
@@ -234,6 +236,58 @@ consensus_pod_implementation_version() {
       | sed -n 's/^Implementation-Version: //p' | tr -d '\r' | head -n 1" 2>/dev/null
 }
 
+configured_wraps_artifacts_container_dir() {
+  local configured=""
+  configured="$(sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' "${APP_ENV_073_FILE}" | head -n 1)"
+  if [[ -n "${configured}" ]]; then
+    printf '%s\n' "${configured}"
+  else
+    printf '%s\n' "${WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT}"
+  fi
+}
+
+consensus_pod_wraps_env() {
+  local pod="$1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    'pid="$(pgrep -f "com.hedera.node.app.ServicesMain" | head -n 1)";
+     if [[ -n "${pid}" && -r "/proc/${pid}/environ" ]]; then
+       tr "\000" "\n" < "/proc/${pid}/environ" | sed -n "s/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p" | head -n 1
+     fi' 2>/dev/null
+}
+
+consensus_pod_wraps_file_count() {
+  local pod="$1"
+  local wraps_dir="$2"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "find ${wraps_dir} -maxdepth 1 -type f 2>/dev/null | wc -l" 2>/dev/null | tr -d ' '
+}
+
+wraps_runtime_needs_remedy() {
+  local wraps_dir=""
+  local expected_wraps=""
+  local node=""
+  local pod=""
+  local found_env=""
+  local found_wraps=""
+  local nodes=()
+
+  wraps_dir="$(configured_wraps_artifacts_container_dir)"
+  expected_wraps="$(find "${WRAPS_KEY_PATH}" -type f | wc -l | tr -d ' ')"
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    found_env="$(consensus_pod_wraps_env "${pod}" || true)"
+    found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
+    log "Verifying WRAPS runtime on ${pod} (expected env ${wraps_dir}, found ${found_env:-unset}; expected ${expected_wraps} files, found ${found_wraps:-0})"
+    if [[ "${found_env}" != "${wraps_dir}" || "${found_wraps}" != "${expected_wraps}" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 verify_local_build_on_consensus_nodes() {
   local local_version=""
   local pod_version=""
@@ -277,6 +331,7 @@ run_local_copy_remedy() {
   NODE_ALIASES="${NODE_ALIASES}" \
   LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH}" \
   WRAPS_KEY_PATH="${WRAPS_KEY_PATH}" \
+  WRAPS_ARTIFACTS_CONTAINER_DIR="$(configured_wraps_artifacts_container_dir)" \
   bash "${REMEDY_SCRIPT_PATH}"
 }
 
@@ -341,6 +396,14 @@ attempt_073_upgrade() {
   wait_for_consensus_pods_ready 600 || return 1
   wait_for_haproxy_ready 600 || return 1
   verify_local_build_on_consensus_nodes || return 1
+  if wraps_runtime_needs_remedy; then
+    log "Detected incomplete WRAPS runtime configuration after upgrade; invoking remedy script"
+    run_local_copy_remedy || return 1
+    wait_for_consensus_pods_ready 600 || return 1
+    wait_for_haproxy_ready 600 || return 1
+    verify_local_build_on_consensus_nodes || return 1
+    wraps_runtime_needs_remedy && return 1
+  fi
 }
 
 log "Validating prerequisites"

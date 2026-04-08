@@ -73,7 +73,6 @@ set -eo pipefail
 set +m
 
 NODE_COUNT_PARAM=""
-ONLY_STEP6="${ONLY_STEP6:-false}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -n|--nodes)
@@ -88,21 +87,15 @@ while [[ $# -gt 0 ]]; do
       NODE_COUNT_PARAM="${1#*=}"
       shift
       ;;
-    --only-step6|--step6-only)
-      ONLY_STEP6="true"
-      shift
-      ;;
     -h|--help)
       cat <<'EOF'
-Usage: solo-e2e-block-stream-cutover.sh [--nodes 3|4] [--only-step6]
+Usage: solo-e2e-block-stream-cutover.sh [--nodes 3|4]
 
 Options:
   -n, --nodes 3|4   Number of consensus nodes to deploy.
                     3 => node1,node2,node3
                     4 => node1,node2,node3,node4
                     If omitted, NODE_ALIASES env var (or default node1,node2,node3,node4) is used.
-  --only-step6      Reuse existing deployment and run only Step 6 (File 121 + 0.73 upgrade path).
-
 Environment:
   BLOCK_NODE_REPO_PATH      Path to hiero-block-node checkout (default: ../hiero-block-node)
   USE_BLOCK_NODE_JUMPSTART  true|false (default: true)
@@ -124,7 +117,6 @@ Environment:
   EXPLORER_ADD_RETRIES           Retry count for explorer chart deployment in baseline setup (default: 3)
   EXPLORER_ADD_RETRY_DELAY_SECS  Delay between explorer deployment retries (default: 20)
   ALLOW_EXPLORER_DEPLOY_FAILURE  true|false, continue baseline when explorer deploy fails after retries (default: true)
-  ONLY_STEP6                true|false (same as --only-step6 flag)
 EOF
       exit 0
       ;;
@@ -169,11 +161,14 @@ UPGRADE_073_VERSION="${UPGRADE_073_VERSION:-v0.73.0-rc.1}"
 WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v0.2.0}"
 REMEDY_SCRIPT_PATH="${SCRIPT_DIR}/solo-remedy-local-artifact-copy.sh"
 SOLO_HOME_DIR="${HOME}/.solo"
+HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
+WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/keys/wraps"
 # After "Update node configuration files", Solo Helm-rolls pods then kubectl-cp's LOCAL_BUILD_PATH in parallel (Solo default 4).
 # On kind, concurrent large copies can hit pods still in Failed/Terminating — serialize copies unless overridden.
 SOLO_073_NODE_COPY_CONCURRENT="${SOLO_073_NODE_COPY_CONCURRENT:-1}"
 SOLO_073_LOCAL_BUILD_COPY_RETRY="${SOLO_073_LOCAL_BUILD_COPY_RETRY:-300}"
 SOLO_073_UPGRADE_TIMEOUT_SECS="${SOLO_073_UPGRADE_TIMEOUT_SECS:-900}"
+WRAPS_PROOF_TIMEOUT_SECS="${WRAPS_PROOF_TIMEOUT_SECS:-120}"
 FILE121_UPDATE_RETRIES="${FILE121_UPDATE_RETRIES:-3}"
 FILE121_UPDATE_RETRY_DELAY_SECS="${FILE121_UPDATE_RETRY_DELAY_SECS:-15}"
 SDK_READY_RETRIES="${SDK_READY_RETRIES:-8}"
@@ -230,14 +225,6 @@ NETWORK_PROBE_SCRIPT="${WORK_DIR}/sdk-network-probe.js"
 FILE_121_JUMPSTART_SCRIPT="${WORK_DIR}/file-121-jumpstart-update.js"
 JUMPSTART_PARSE_SCRIPT="${WORK_DIR}/parse-jumpstart-bin.js"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-cutover-values.yaml"
-BLOCK_NODE_WRAP_LOG="${WORK_DIR}/block-node-wrap.log"
-MIRROR_METADATA_LOG="${WORK_DIR}/mirror-metadata.log"
-WRAP_INPUT_PREP_LOG="${WORK_DIR}/wrap-input-prep.log"
-MINIO_DOWNLOAD_LOG="${WORK_DIR}/minio-download.log"
-EXPLORER_ADD_LOG="${WORK_DIR}/explorer-add.log"
-CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn.log"
-MIRROR_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-mirror.log"
-GRAFANA_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-grafana.log"
 BLOCK_TIMES_FILE="${WORK_DIR}/block_times.bin"
 DAY_BLOCKS_FILE="${WORK_DIR}/day_blocks.json"
 MIRROR_METADATA_SCRIPT="${WORK_DIR}/generate-mirror-metadata.js"
@@ -250,38 +237,17 @@ ZSTD_WRAPPER_BIN="${ZSTD_WRAPPER_DIR}/zstd"
 CN_PORT_FORWARD_PID=""
 MIRROR_PORT_FORWARD_PID=""
 GRAFANA_PORT_FORWARD_PID=""
-TOTAL_STEPS=6
 
-log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
-}
-
-log_banner() {
-  local message="$1"
-  log "===================================================================="
-  log "${message}"
-  log "===================================================================="
-}
-
-announce_step() {
-  local step="$1"
-  local description="$2"
-  log_banner "STEP ${step}/${TOTAL_STEPS}: ${description}"
-}
+log() { :; }
 
 cleanup() {
   local exit_code=$?
 
   if [[ ${exit_code} -ne 0 ]]; then
-    log "Script failed (exit=${exit_code}); preserving port-forwards and cluster for debugging"
     return
   fi
 
   if [[ "${KEEP_NETWORK}" == "true" ]]; then
-    log "KEEP_NETWORK=true, leaving cluster, deployment, and port-forwards running"
-    log "Consensus gRPC: 127.0.0.1:${CN_GRPC_LOCAL_PORT}"
-    log "Mirror REST:    http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
-    log "Grafana:        http://127.0.0.1:${GRAFANA_LOCAL_PORT}"
     return
   fi
 
@@ -290,7 +256,6 @@ cleanup() {
   [[ -n "${MIRROR_PORT_FORWARD_PID}" ]] && kill "${MIRROR_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
   [[ -n "${GRAFANA_PORT_FORWARD_PID}" ]] && kill "${GRAFANA_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
 
-  log "Destroying Solo resources and Kind cluster"
   if command -v solo >/dev/null 2>&1; then
     solo explorer node destroy --deployment "${SOLO_DEPLOYMENT}" >/dev/null 2>&1 || true
     solo relay node destroy --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
@@ -379,7 +344,6 @@ EOF
   export ZSTD_JNI_JAR="${zstd_jar}"
   export ZSTD_WRAPPER_SRC
   export PATH="${ZSTD_WRAPPER_DIR}:${PATH}"
-  log "zstd command not found; using Java zstd wrapper via zstd-jni (${zstd_jar})"
 }
 
 validate_block_node_repo() {
@@ -447,7 +411,6 @@ kill_processes_on_local_port() {
 }
 
 cleanup_stale_port_forwards() {
-  log "Stopping stale port-forwards from previous runs (if any)"
   pkill -f "port-forward svc/haproxy-node1-svc .*${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/${MIRROR_REST_SERVICE} .*${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 || true
   pkill -f "port-forward svc/kube-prometheus-stack-grafana .*${GRAFANA_LOCAL_PORT}:80" >/dev/null 2>&1 || true
@@ -495,31 +458,6 @@ mirror_node_failed_only_on_restjava() {
   return 0
 }
 
-ensure_mirror_rest_service_for_step6() {
-  local attempt=1
-  local max_attempts=60
-
-  if mirror_rest_service_exists; then
-    log "ONLY_STEP6: mirror REST service ${MIRROR_REST_SERVICE} already exists"
-    return 0
-  fi
-
-  log "ONLY_STEP6: mirror REST service ${MIRROR_REST_SERVICE} not found; deploying mirror node"
-  deploy_mirror_node_for_cutover
-
-  while (( attempt <= max_attempts )); do
-    if mirror_rest_service_exists; then
-      log "ONLY_STEP6: mirror REST service ${MIRROR_REST_SERVICE} is available"
-      return 0
-    fi
-    sleep 5
-    ((attempt++))
-  done
-
-  echo "Mirror REST service ${MIRROR_REST_SERVICE} was not created after deploying the mirror node" >&2
-  return 1
-}
-
 cleanup_record_stream_files_only() {
   local removed=0
   mkdir -p "${RECORD_STREAMS_DIR}"
@@ -535,7 +473,6 @@ cleanup_record_stream_files_only() {
       \( -name "*.rcd" -o -name "*.rcd.gz" -o -name "*.rcd_sig" -o -name "*.rcs_sig" \) \
       -delete || true
   fi
-  log "Cleaned ${removed} record file(s) under ${RECORD_STREAMS_DIR}/record0.0.*"
 }
 
 wait_for_consensus_pods_ready() {
@@ -545,7 +482,6 @@ wait_for_consensus_pods_ready() {
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
 
   for pod in "${nodes[@]}"; do
-    log "Waiting for network-${pod}-0 to become Ready"
     kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/network-${pod}-0" --timeout="${timeout_secs}s"
   done
 }
@@ -562,7 +498,6 @@ wait_for_haproxy_ready() {
   done
 
   for proxy in "${proxies[@]}"; do
-    log "Waiting for ${proxy} rollout to become ready"
     kubectl -n "${SOLO_NAMESPACE}" rollout status "deployment/${proxy}" --timeout="${timeout_secs}s"
   done
 }
@@ -571,7 +506,6 @@ wait_for_haproxy_ready() {
 # leaves the old tunnel broken even though localhost still listens. Port numbers (50211 in-cluster)
 # do not change — the forward must be recreated.
 restart_post_upgrade_port_forwards() {
-  log "Starting/restarting consensus and mirror port-forwards"
   if [[ -n "${CN_PORT_FORWARD_PID}" ]]; then
     kill "${CN_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
     CN_PORT_FORWARD_PID=""
@@ -584,23 +518,19 @@ restart_post_upgrade_port_forwards() {
   kill_processes_on_local_port "${CN_GRPC_LOCAL_PORT}"
   kill_processes_on_local_port "${MIRROR_REST_LOCAL_PORT}"
   sleep 1
-  kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >"${CN_PORT_FORWARD_LOG}" 2>&1 &
+  kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" >/dev/null 2>&1 &
   CN_PORT_FORWARD_PID="$!"
   if mirror_rest_service_exists; then
-    kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${MIRROR_REST_SERVICE}" "${MIRROR_REST_LOCAL_PORT}:http" >"${MIRROR_PORT_FORWARD_LOG}" 2>&1 &
+    kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${MIRROR_REST_SERVICE}" "${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 &
     MIRROR_PORT_FORWARD_PID="$!"
-  else
-    log "Mirror REST service ${MIRROR_REST_SERVICE} not found; skipping mirror port-forward"
   fi
   sleep 2
   if ! wait_for_tcp_open "127.0.0.1" "${CN_GRPC_LOCAL_PORT}" 20 1; then
     echo "Consensus gRPC port-forward did not become reachable on localhost:${CN_GRPC_LOCAL_PORT}" >&2
-    tail -n 80 "${CN_PORT_FORWARD_LOG}" >&2 || true
     return 1
   fi
   if [[ -n "${MIRROR_PORT_FORWARD_PID}" ]] && ! wait_for_tcp_open "127.0.0.1" "${MIRROR_REST_LOCAL_PORT}" 20 1; then
     echo "Mirror REST port-forward did not become reachable on localhost:${MIRROR_REST_LOCAL_PORT}" >&2
-    tail -n 80 "${MIRROR_PORT_FORWARD_LOG}" >&2 || true
     return 1
   fi
 }
@@ -708,15 +638,6 @@ download_solo_record_streams_via_pod_mc() {
   local list_ok=0 endpoint_try
   local wanted_count selected_count matched_timestamps
   local found=0 sig_found=0 failed=0
-  local progress_every=200
-
-  : > "${MINIO_DOWNLOAD_LOG}"
-  {
-    echo "# MinIO download log"
-    echo "# started_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-    echo "# bucket=${MINIO_BUCKET}"
-    echo "# namespace=${MINIO_NAMESPACE}"
-  } >> "${MINIO_DOWNLOAD_LOG}"
 
   pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
     .items[].metadata.name
@@ -779,12 +700,9 @@ download_solo_record_streams_via_pod_mc() {
   rm -f "${creds_file}" >/dev/null 2>&1 || true
   if (( list_ok == 0 )); then
     rm -f "${all_objects}"
-    log "in-pod mc list stderr:"
-    sed -n '1,20p' /tmp/inpod-mc-list.err >&2 || true
     echo "Failed to list MinIO objects via in-pod mc" >&2
     return 1
   fi
-  log "Falling back to in-pod MinIO client copy from ${pod} via ${endpoint}"
 
   wanted_timestamps="$(mktemp)"
   selected_objects="$(mktemp)"
@@ -822,24 +740,6 @@ download_solo_record_streams_via_pod_mc() {
       print substr(bn, 1, RSTART);
     }
   }' "${selected_objects}" | sort -u | wc -l | tr -d ' ')"
-  log "Selected ${selected_count} MinIO object(s) across ${matched_timestamps}/${wanted_count} wanted timestamp(s)"
-  {
-    echo "# wanted_timestamps=${wanted_count}"
-    echo "# matched_timestamps=${matched_timestamps}"
-    echo "# selected_objects=${selected_count}"
-    echo "# selected_by_extension"
-    awk '
-      /\.rcd\.gz$/ { c["rcd.gz"]++; next }
-      /\.rcd_sig$/ { c["rcd_sig"]++; next }
-      /\.rcs_sig$/ { c["rcs_sig"]++; next }
-      { c["other"]++ }
-      END {
-        printf("rcd.gz=%d\n", c["rcd.gz"] + 0);
-        printf("rcd_sig=%d\n", c["rcd_sig"] + 0);
-        printf("rcs_sig=%d\n", c["rcs_sig"] + 0);
-        printf("other=%d\n", c["other"] + 0);
-      }' "${selected_objects}"
-  } >> "${MINIO_DOWNLOAD_LOG}"
 
   while IFS= read -r remote; do
     [[ -z "${remote}" ]] && continue
@@ -863,17 +763,12 @@ download_solo_record_streams_via_pod_mc() {
     done
     if (( copied == 1 )); then
       found=$((found + 1))
-      echo "OK ${remote} -> ${dest}" >> "${MINIO_DOWNLOAD_LOG}"
       if [[ "${remote}" == *.rcd_sig || "${remote}" == *.rcs_sig ]]; then
         sig_found=$((sig_found + 1))
-      fi
-      if (( found % progress_every == 0 )); then
-        log "MinIO download progress: ${found}/${selected_count} object(s) copied"
       fi
     else
       rm -f "${dest}" >/dev/null 2>&1 || true
       failed=$((failed + 1))
-      echo "FAIL ${remote} -> ${dest}" >> "${MINIO_DOWNLOAD_LOG}"
     fi
   done < "${selected_objects}"
 
@@ -881,14 +776,6 @@ download_solo_record_streams_via_pod_mc() {
   rm -f "${selected_objects}" >/dev/null 2>&1 || true
   rm -f "${all_objects}" >/dev/null 2>&1 || true
 
-  log "In-pod MinIO fallback finished: copied ${found} file(s), including ${sig_found} signature file(s), failed ${failed}"
-  log "Detailed MinIO download log: ${MINIO_DOWNLOAD_LOG}"
-  {
-    echo "# copied=${found}"
-    echo "# copied_signatures=${sig_found}"
-    echo "# failed=${failed}"
-    echo "# finished_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  } >> "${MINIO_DOWNLOAD_LOG}"
   if (( found == 0 )); then
     return 1
   fi
@@ -1008,6 +895,97 @@ consensus_pod_implementation_version() {
       | sed -n 's/^Implementation-Version: //p' | head -n 1"
 }
 
+configured_wraps_artifacts_container_dir() {
+  local configured=""
+  configured="$(sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' "${APP_ENV_073_FILE}" | head -n 1)"
+  if [[ -n "${configured}" ]]; then
+    printf '%s\n' "${configured}"
+  else
+    printf '%s\n' "${WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT}"
+  fi
+}
+
+consensus_pod_wraps_env() {
+  local pod="$1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "pid=\"\$(pgrep -f \"com.hedera.node.app.ServicesMain\" | head -n 1)\";
+     if [[ -n \"\${pid}\" && -r \"/proc/\${pid}/environ\" ]]; then
+       tr \"\\000\" \"\\n\" < \"/proc/\${pid}/environ\" | sed -n \"s/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p\" | head -n 1
+     fi" 2>/dev/null
+}
+
+consensus_pod_wraps_file_count() {
+  local pod="$1"
+  local wraps_dir="$2"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "find ${wraps_dir} -maxdepth 1 -type f 2>/dev/null | wc -l" 2>/dev/null | tr -d ' '
+}
+
+wraps_runtime_needs_remedy() {
+  local wraps_dir=""
+  local expected_wraps=""
+  local node=""
+  local pod=""
+  local found_env=""
+  local found_wraps=""
+  local nodes=()
+
+  wraps_dir="$(configured_wraps_artifacts_container_dir)"
+  expected_wraps="$(find "${WRAPS_KEY_PATH}" -type f | wc -l | tr -d ' ')"
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    found_env="$(consensus_pod_wraps_env "${pod}" || true)"
+    found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
+    log "Verifying WRAPS runtime on ${pod} (expected env ${wraps_dir}, found ${found_env:-unset}; expected ${expected_wraps} files, found ${found_wraps:-0})"
+    if [[ "${found_env}" != "${wraps_dir}" || "${found_wraps}" != "${expected_wraps}" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+consensus_pod_has_wraps_proof_log() {
+  local pod="$1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "grep -Eq 'Constructing (genesis|incremental) WRAPS proof with:' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
+}
+
+consensus_pod_has_wraps_not_ready_log() {
+  local pod="$1"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "grep -Eq 'WRAPS library is not ready|Skipping publication of POST_AGGREGATION output: WRAPS library is not ready' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
+}
+
+verify_wraps_proof_on_consensus_nodes() {
+  local timeout_secs="${1:-120}"
+  local deadline=$((SECONDS + timeout_secs))
+  local node=""
+  local pod=""
+  local nodes=()
+
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    log "Waiting for WRAPS proof construction in ${pod} hgcaa.log"
+    while (( SECONDS < deadline )); do
+      if consensus_pod_has_wraps_proof_log "${pod}"; then
+        log "Observed WRAPS proof construction in ${pod}"
+        break
+      fi
+      if consensus_pod_has_wraps_not_ready_log "${pod}"; then
+        log "Detected WRAPS runtime not-ready message in ${pod}"
+        return 1
+      fi
+      sleep 5
+    done
+
+    consensus_pod_has_wraps_proof_log "${pod}" || return 1
+  done
+}
+
 verify_local_build_on_consensus_nodes() {
   local node pod
   local nodes=()
@@ -1093,58 +1071,8 @@ run_local_copy_remedy() {
   NODE_ALIASES="${NODE_ALIASES}" \
   LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH}" \
   WRAPS_KEY_PATH="${WRAPS_KEY_PATH}" \
+  WRAPS_ARTIFACTS_CONTAINER_DIR="$(configured_wraps_artifacts_container_dir)" \
   bash "${REMEDY_SCRIPT_PATH}"
-}
-
-collect_consensus_diagnostics() {
-  local node
-  local pattern="FATAL|Critical failure|NullPointerException|Exception|ERROR|is ACTIVE|is STARTING|FAILED"
-  local file_pattern="NoSuchMethodError|EXCEPTION|ERROR|FREEZE_COMPLETE|is ACTIVE|is STARTING|Shutting down gRPC|gRPC server listening|failed to start|FAILED"
-  local no_such_method_seen=0
-
-  log "Collecting consensus diagnostics from namespace ${SOLO_NAMESPACE}"
-  kubectl -n "${SOLO_NAMESPACE}" get pods -o wide || true
-  kubectl -n "${SOLO_NAMESPACE}" get events --sort-by=.lastTimestamp | tail -n 60 || true
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    log "Diagnostic scan for network-${node}-0"
-    if command -v rg >/dev/null 2>&1; then
-      kubectl -n "${SOLO_NAMESPACE}" logs "network-${node}-0" -c root-container --tail=1400 2>/dev/null \
-        | rg -n "${pattern}" | tail -n 40 || true
-    else
-      kubectl -n "${SOLO_NAMESPACE}" logs "network-${node}-0" -c root-container --tail=1400 2>/dev/null \
-        | grep -En "${pattern}" | tail -n 40 || true
-    fi
-    kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- sh -lc \
-      "for f in /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log /opt/hgcapp/services-hedera/HapiApp2.0/output/swirlds.log; do [ -f \"\$f\" ] && { echo \"--- \${f} ---\"; tail -n 1200 \"\$f\"; }; done" 2>/dev/null \
-      | grep -En "${file_pattern}" | tail -n 80 || true
-    if kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- sh -lc \
-      "grep -q 'NoSuchMethodError' /opt/hgcapp/services-hedera/HapiApp2.0/output/swirlds.log" >/dev/null 2>&1; then
-      no_such_method_seen=1
-    fi
-  done
-
-  if (( no_such_method_seen == 1 )); then
-    log "Detected NoSuchMethodError in consensus startup logs after freeze/upgrade."
-    log "This usually means incompatible or mixed local-build jars were copied during upgrade."
-    log "Recommended recovery: run './gradlew clean assemble', recreate baseline network, then rerun Step 6."
-  fi
-}
-
-run_with_consensus_diagnostics() {
-  local label="$1"
-  local ec
-  shift
-  if "$@"; then
-    return 0
-  else
-    ec=$?
-  fi
-
-  log "FAILED: ${label} (exit=${ec})"
-  collect_consensus_diagnostics || true
-  return "${ec}"
 }
 
 run_073_upgrade_once() {
@@ -1159,6 +1087,7 @@ run_073_upgrade_once() {
     --quiet-mode
     --force
   )
+  local upgrade_ec=0
 
   [[ -d "${WRAPS_KEY_PATH}" ]] || {
     echo "Missing WRAPS_KEY_PATH directory: ${WRAPS_KEY_PATH}" >&2
@@ -1171,26 +1100,38 @@ run_073_upgrade_once() {
     env NODE_COPY_CONCURRENT="${SOLO_073_NODE_COPY_CONCURRENT}" \
       LOCAL_BUILD_COPY_RETRY="${SOLO_073_LOCAL_BUILD_COPY_RETRY}" \
       "${upgrade_cmd[@]}"; then
-    return 0
+    upgrade_ec=0
+  else
+    upgrade_ec=$?
   fi
 
-  if upgrade_failed_due_to_copy_error; then
+  if (( upgrade_ec == 0 )); then
+    :
+  elif upgrade_failed_due_to_copy_error; then
     run_local_copy_remedy
-    return $?
-  fi
-
-  if upgrade_stuck_in_copy_loop; then
+  elif upgrade_stuck_in_copy_loop; then
     log "Solo 0.73 upgrade appears stuck in a local-build copy loop; invoking remedy script"
     run_local_copy_remedy
-    return $?
+  else
+    return 1
   fi
 
-  return 1
+  wait_for_consensus_pods_ready 600 || return 1
+  wait_for_haproxy_ready 600 || return 1
+  verify_local_build_on_consensus_nodes || return 1
+  if wraps_runtime_needs_remedy; then
+    log "Detected incomplete WRAPS runtime configuration after 0.73 upgrade; invoking remedy script"
+    run_local_copy_remedy || return 1
+    wait_for_consensus_pods_ready 600 || return 1
+    wait_for_haproxy_ready 600 || return 1
+    verify_local_build_on_consensus_nodes || return 1
+    wraps_runtime_needs_remedy && return 1
+  fi
+  verify_wraps_proof_on_consensus_nodes "${WRAPS_PROOF_TIMEOUT_SECS}" || return 1
 }
 
 run_073_upgrade() {
-  run_with_consensus_diagnostics "solo 0.73 local-build network upgrade" \
-    run_073_upgrade_once
+  run_073_upgrade_once
 }
 
 run_explorer_add_with_retry() {
@@ -1200,23 +1141,18 @@ run_explorer_add_with_retry() {
   local ec=0
 
   while (( attempt <= max_attempts )); do
-    if solo explorer node add --deployment "${SOLO_DEPLOYMENT}" >"${EXPLORER_ADD_LOG}" 2>&1; then
-      log "Explorer deployment succeeded on attempt ${attempt}/${max_attempts}"
+    if solo explorer node add --deployment "${SOLO_DEPLOYMENT}" >/dev/null 2>&1; then
       return 0
     fi
     ec=$?
-    log "Explorer deployment attempt ${attempt}/${max_attempts} failed (exit=${ec})"
-    tail -n 60 "${EXPLORER_ADD_LOG}" >&2 || true
     if (( attempt == max_attempts )); then
       break
     fi
-    log "Retrying explorer deployment in ${delay_secs}s"
     sleep "${delay_secs}"
     ((attempt++))
   done
 
   if [[ "${ALLOW_EXPLORER_DEPLOY_FAILURE}" == "true" ]]; then
-    log "WARNING: Explorer deployment failed after ${max_attempts} attempt(s); continuing because ALLOW_EXPLORER_DEPLOY_FAILURE=true"
     return 0
   fi
 
@@ -1254,8 +1190,6 @@ run_file121_update_with_retry() {
 
   while (( attempt <= max_attempts )); do
     if ! ensure_sdk_network_ready; then
-      log "Step 6: SDK network probe failed before File 121 update; collecting diagnostics"
-      collect_consensus_diagnostics || true
       return 1
     fi
     if node "${FILE_121_JUMPSTART_SCRIPT}"; then
@@ -1298,14 +1232,12 @@ start_grafana_port_forward() {
   local pf_attempt=1
   local pf_max_attempts=6
   while (( pf_attempt <= pf_max_attempts )); do
-    log "Starting early Grafana port-forward on ${GRAFANA_LOCAL_PORT} (attempt ${pf_attempt}/${pf_max_attempts})"
-    kubectl -n "${SOLO_CLUSTER_SETUP_NAMESPACE}" port-forward svc/kube-prometheus-stack-grafana "${GRAFANA_LOCAL_PORT}:80" >"${GRAFANA_PORT_FORWARD_LOG}" 2>&1 &
+    kubectl -n "${SOLO_CLUSTER_SETUP_NAMESPACE}" port-forward svc/kube-prometheus-stack-grafana "${GRAFANA_LOCAL_PORT}:80" >/dev/null 2>&1 &
     GRAFANA_PORT_FORWARD_PID="$!"
 
     sleep 2
     if kill -0 "${GRAFANA_PORT_FORWARD_PID}" >/dev/null 2>&1 \
       && wait_for_http_ok "http://127.0.0.1:${GRAFANA_LOCAL_PORT}/api/health" 10 1; then
-      log "Grafana is reachable at http://127.0.0.1:${GRAFANA_LOCAL_PORT}"
       return 0
     fi
 
@@ -1804,13 +1736,10 @@ generate_block_node_metadata_from_mirror() {
   export DAY_BLOCKS_FILE
   export MIRROR_REST_URL
 
-  log "Generating block_times.bin and day_blocks.json from local mirror REST (blocks <= ${MIRROR_BLOCK_NUMBER})"
-  if ! node "${MIRROR_METADATA_SCRIPT}" >"${MIRROR_METADATA_LOG}" 2>&1; then
-    echo "Mirror metadata generation failed. Log: ${MIRROR_METADATA_LOG}" >&2
-    tail -n 120 "${MIRROR_METADATA_LOG}" >&2 || true
+  if ! node "${MIRROR_METADATA_SCRIPT}" >/dev/null 2>&1; then
+    echo "Mirror metadata generation failed" >&2
     return 1
   fi
-  tail -n 20 "${MIRROR_METADATA_LOG}" || true
 }
 
 prepare_wrap_day_archives_from_record_streams() {
@@ -1884,22 +1813,18 @@ prepare_wrap_day_archives_from_record_streams() {
     return 1
   fi
 
-  log "Prepared wrap day source files: primaryRecords=${primary_records}, otherRecords=${other_records}, signatureFiles=${sig_files}"
   if ! (
     cd "${BLOCK_NODE_REPO_PATH}" && ./gradlew :tools:run --args="days compress -o ${WRAP_COMPRESSED_DAYS_DIR} ${WRAP_DAYS_SRC_DIR}"
-  ) >"${WRAP_INPUT_PREP_LOG}" 2>&1; then
-    echo "Failed to build .tar.zstd wrap input archives. Log: ${WRAP_INPUT_PREP_LOG}" >&2
-    tail -n 120 "${WRAP_INPUT_PREP_LOG}" >&2 || true
+  ) >/dev/null 2>&1; then
+    echo "Failed to build .tar.zstd wrap input archives" >&2
     return 1
   fi
 
   tar_count="$(find "${WRAP_COMPRESSED_DAYS_DIR}" -type f -name '*.tar.zstd' | wc -l | tr -d ' ')"
   if [[ "${tar_count}" == "0" ]]; then
     echo "days compress produced no .tar.zstd files under ${WRAP_COMPRESSED_DAYS_DIR}" >&2
-    echo "days compress log: ${WRAP_INPUT_PREP_LOG}" >&2
     return 1
   fi
-  log "Prepared ${tar_count} day archive(s) for blocks wrap input at ${WRAP_COMPRESSED_DAYS_DIR}"
 }
 
 run_block_node_wrap_tool() {
@@ -1930,15 +1855,10 @@ run_block_node_wrap_tool() {
     wrap_args="${wrap_args} ${BLOCKS_WRAP_EXTRA_ARGS}"
   fi
 
-  log "Running Block Node offline tool to produce wrapped blocks and jumpstart.bin"
-  log "Block Node repo: ${BLOCK_NODE_REPO_PATH}"
-  log "Wrap args: ${wrap_args}"
-
   if ! (
     cd "${BLOCK_NODE_REPO_PATH}" && ./gradlew :tools:run --args="${wrap_args}"
-  ) >"${BLOCK_NODE_WRAP_LOG}" 2>&1; then
-    echo "Block Node wrap command failed. Log: ${BLOCK_NODE_WRAP_LOG}" >&2
-    tail -n 120 "${BLOCK_NODE_WRAP_LOG}" >&2 || true
+  ) >/dev/null 2>&1; then
+    echo "Block Node wrap command failed" >&2
     return 1
   fi
 
@@ -1949,12 +1869,10 @@ run_block_node_wrap_tool() {
   fi
   if [[ -z "${jumpstart_file}" || ! -f "${jumpstart_file}" ]]; then
     echo "jumpstart.bin not found under ${wrapped_dir}. Override with JUMPSTART_BIN_PATH." >&2
-    echo "Block Node log: ${BLOCK_NODE_WRAP_LOG}" >&2
     return 1
   fi
 
   export JUMPSTART_BIN_PATH="${jumpstart_file}"
-  log "Block Node tooling produced jumpstart file: ${JUMPSTART_BIN_PATH}"
 }
 
 load_jumpstart_env_from_bin() {
@@ -1989,11 +1907,9 @@ load_jumpstart_env_from_bin() {
   export JUMPSTART_STREAMING_HASHER_HASH_COUNT
   export JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES
 
-  log "Loaded jumpstart.bin values: blockNum=${JUMPSTART_BLOCK_NUMBER}, leafCount=${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}, hashCount=${JUMPSTART_STREAMING_HASHER_HASH_COUNT}"
 }
 
 prepare_js_sdk_runtime() {
-  log "Preparing JS SDK scenario runner"
   write_sdk_verifier
   write_sdk_network_probe
   write_file121_jumpstart_update
@@ -2039,9 +1955,6 @@ deploy_mirror_node_for_cutover() {
   log "Required mirror services are ready; continuing without REST Java"
 }
 
-log "Validating prerequisites"
-log "Node deployment plan: ${CONSENSUS_NODE_COUNT} consensus node(s) [${NODE_ALIASES}]"
-log "Execution mode: ONLY_STEP6=${ONLY_STEP6}"
 require_cmd kind
 require_cmd kubectl
 require_cmd solo
@@ -2086,98 +1999,55 @@ if [[ ! -x "${REPO_ROOT}/gradlew" ]]; then
   exit 1
 fi
 
-if [[ "${ONLY_STEP6}" == "true" ]]; then
-  log "ONLY_STEP6=true: reusing existing deployment ${SOLO_DEPLOYMENT} in namespace ${SOLO_NAMESPACE}"
-  cleanup_stale_port_forwards
-  wait_for_consensus_pods_ready 300
-  wait_for_haproxy_ready 300
-  ensure_mirror_rest_service_for_step6
-  restart_post_upgrade_port_forwards
-  log "Waiting for mirror REST in ONLY_STEP6 mode"
-  wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
-  prepare_js_sdk_runtime
-  log "ONLY_STEP6: probing SDK transaction/query readiness before Step 6"
-  if ! ensure_sdk_network_ready; then
-    log "ONLY_STEP6: SDK probe failed before Step 6; the network is not serving gRPC requests"
-    collect_consensus_diagnostics || true
+cleanup_stale_port_forwards
+kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+cleanup_record_stream_files_only
+rm -rf "${WRAPPED_BLOCKS_DIR}" >/dev/null 2>&1 || true
+
+kind create cluster -n "${SOLO_CLUSTER_NAME}"
+
+solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
+solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
+solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
+solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
+if ! start_grafana_port_forward; then
+  if [[ "${ALLOW_GRAFANA_PORT_FORWARD_FAILURE}" == "true" ]]; then
+    log "WARNING: Grafana port-forward could not be established; continuing without Grafana tunnel"
+  else
     exit 1
   fi
-else
-  log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
-  cleanup_stale_port_forwards
-  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
-  log "Cleaning local artifacts from previous runs"
-  cleanup_record_stream_files_only
-  rm -rf "${WRAPPED_BLOCKS_DIR}" >/dev/null 2>&1 || true
-
-  log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
-  kind create cluster -n "${SOLO_CLUSTER_NAME}"
-
-  log "Configuring Solo deployment"
-  solo cluster-ref config connect --cluster-ref kind-${SOLO_CLUSTER_NAME} --context kind-${SOLO_CLUSTER_NAME}
-  log "Deleting existing Solo deployment config ${SOLO_DEPLOYMENT} (if any)"
-  solo deployment config delete --deployment "${SOLO_DEPLOYMENT}" --quiet-mode >/dev/null 2>&1 || true
-  solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-  solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref kind-${SOLO_CLUSTER_NAME} --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
-  solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}" --prometheus-stack true
-  if ! start_grafana_port_forward; then
-    if [[ "${ALLOW_GRAFANA_PORT_FORWARD_FAILURE}" == "true" ]]; then
-      log "WARNING: Grafana port-forward could not be established; continuing without Grafana tunnel"
-    else
-      exit 1
-    fi
-  fi
-
-  announce_step "1" "Deploy baseline network and verify pre-upgrade transaction flow"
-  log "Deploying consensus network at ${INITIAL_RELEASE_TAG} with 0.71 application.properties"
-  solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-  solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_071_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor true --pod-log true --pvcs true --release-tag "${INITIAL_RELEASE_TAG}"
-  solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${INITIAL_RELEASE_TAG}"
-  solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
-
-  log "Deploying mirror node and explorer"
-  deploy_mirror_node_for_cutover
-  run_explorer_add_with_retry
-
-  log "Starting port-forwards for consensus node and mirror REST"
-  restart_post_upgrade_port_forwards
-
-  log "Waiting for mirror REST to become available"
-  wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
-  prepare_js_sdk_runtime
-
-  log "Step 1: submit crypto create; expect success and mirror visibility"
-  node "${NODE_SCRIPT}"
-
-  log "Waiting 45s after Step 1"
-  sleep 45
-
-  announce_step "2" "Upgrade consensus network to ${UPGRADE_072_RELEASE_TAG}"
-  log "Step 2: Upgrade CN network to 0.72 (target ${UPGRADE_072_RELEASE_TAG})"
-  run_with_consensus_diagnostics "solo 0.72 network upgrade" \
-    solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_072_RELEASE_TAG}" --quiet-mode --force --application-properties "${APP_PROPS_072_FILE}"
-
-  announce_step "3" "Wait for upgraded nodes and refresh service port-forwards"
-  log "Step 3: apply ${UPGRADE_072_RELEASE_TAG} application.properties overrides for cutover flow"
-
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
-
-  restart_post_upgrade_port_forwards
-  log "Waiting for mirror REST after port-forward restart"
-  wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
-
-  announce_step "4" "Verify post-upgrade transaction flow and mirror visibility"
-  log "Step 4: verify post-upgrade crypto create and mirror visibility"
-  export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-600000}"
-  node "${NODE_SCRIPT}"
 fi
 
-announce_step "5" "Download record files and wrap them into jumpstart artifacts"
-log "Step 5: mirror block query and record/wrap artifact generation"
-log "Step 5: waiting 30s before querying mirror for latest block number"
+solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+solo consensus network deploy --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --application-properties "${APP_PROPS_071_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" --service-monitor true --pod-log true --pvcs true --release-tag "${INITIAL_RELEASE_TAG}"
+solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${INITIAL_RELEASE_TAG}"
+solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
+wait_for_consensus_pods_ready 600
+wait_for_haproxy_ready 600
+
+deploy_mirror_node_for_cutover
+run_explorer_add_with_retry
+
+restart_post_upgrade_port_forwards
+
+wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
+prepare_js_sdk_runtime
+
+node "${NODE_SCRIPT}"
+sleep 45
+
+solo consensus network upgrade --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --upgrade-version "${UPGRADE_072_RELEASE_TAG}" --quiet-mode --force --application-properties "${APP_PROPS_072_FILE}"
+
+wait_for_consensus_pods_ready 600
+wait_for_haproxy_ready 600
+
+restart_post_upgrade_port_forwards
+wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
+
+export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-600000}"
+node "${NODE_SCRIPT}"
+
 sleep 30
 
 MIRROR_BLOCKS_JSON="$(curl -sf "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?order=desc&limit=1")" || {
@@ -2189,64 +2059,27 @@ if [[ -z "${MIRROR_BLOCK_NUMBER}" || "${MIRROR_BLOCK_NUMBER}" == "null" ]]; then
   echo "Could not parse latest block number from mirror response" >&2
   exit 1
 fi
-log "Mirror latest block number: ${MIRROR_BLOCK_NUMBER}"
 export MIRROR_BLOCK_NUMBER
 
-log "Step 5: downloading record stream files from MinIO to ${RECORD_STREAMS_DIR} (blocks <= ${MIRROR_BLOCK_NUMBER})"
 download_solo_minio_record_streams "${MIRROR_BLOCK_NUMBER}" "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
-
-log "Step 5: preparing .tar.zstd day archives from downloaded record streams for blocks wrap input"
 prepare_wrap_day_archives_from_record_streams
-
-log "Step 5: generating block_times.bin and day_blocks.json for local wrap run"
 generate_block_node_metadata_from_mirror "${MIRROR_BLOCK_NUMBER}"
-
-log "Step 5: running Block Node offline wrap tool (records -> wrapped blocks + jumpstart.bin)"
 run_block_node_wrap_tool "${WRAP_COMPRESSED_DAYS_DIR}" "${WRAPPED_BLOCKS_DIR}"
 
-announce_step "6" "Issue File 121 jumpstart update, then upgrade to ${UPGRADE_073_RELEASE_TAG}"
-STEP6_USE_BLOCK_NODE_JUMPSTART="${USE_BLOCK_NODE_JUMPSTART}"
-if [[ "${ONLY_STEP6}" == "true" && "${STEP6_USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
-  if [[ -n "${JUMPSTART_BIN_PATH}" && -f "${JUMPSTART_BIN_PATH}" ]]; then
-    log "ONLY_STEP6: using explicit jumpstart.bin at ${JUMPSTART_BIN_PATH}"
-  else
-    jumpstart_candidate="$(find "${WRAPPED_BLOCKS_DIR}" -type f -name "jumpstart.bin" 2>/dev/null | head -n 1 || true)"
-    if [[ -n "${jumpstart_candidate}" && -f "${jumpstart_candidate}" ]]; then
-      export JUMPSTART_BIN_PATH="${jumpstart_candidate}"
-      log "ONLY_STEP6: auto-discovered jumpstart.bin at ${JUMPSTART_BIN_PATH}"
-    else
-      log "WARNING: ONLY_STEP6 has no jumpstart.bin (JUMPSTART_BIN_PATH/WRAPPED_BLOCKS_DIR). Falling back to mirror block number."
-      log "WARNING: Set USE_BLOCK_NODE_JUMPSTART=false (recommended for Step 6-only) or provide JUMPSTART_BIN_PATH."
-      STEP6_USE_BLOCK_NODE_JUMPSTART="false"
-    fi
-  fi
-fi
-
-if [[ "${STEP6_USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
-  log "Step 6: parsing jumpstart.bin and loading blockStream.jumpstart.* values"
+if [[ "${USE_BLOCK_NODE_JUMPSTART}" == "true" ]]; then
   load_jumpstart_env_from_bin "${JUMPSTART_BIN_PATH}"
 else
   export JUMPSTART_BLOCK_NUMBER="${MIRROR_BLOCK_NUMBER}"
-  log "Step 6: USE_BLOCK_NODE_JUMPSTART=false, using fallback jumpstart values from env (blockNum=${JUMPSTART_BLOCK_NUMBER})"
 fi
 
-log "Step 6: issuing File 0.0.121 update with blockStream.jumpstart.* (blockNum=${JUMPSTART_BLOCK_NUMBER:-${MIRROR_BLOCK_NUMBER}})"
 run_file121_update_with_retry
-
-# Step 6 upgrade path remains WIP; keep disabled until cutover path is validated.
-# log "Step 6: waiting 30s after File 121 update before consensus upgrade"
 sleep 30
-log "Step 6: running solo consensus network upgrade to ${UPGRADE_073_RELEASE_TAG} using local build (${LOCAL_BUILD_PATH})"
 run_073_upgrade
 
 wait_for_consensus_pods_ready 600
 wait_for_haproxy_ready 600
 restart_post_upgrade_port_forwards
 verify_local_build_on_consensus_nodes
-log "Waiting for mirror REST after 0.73 upgrade port-forward restart"
 wait_for_http_ok "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/network/nodes" 60 5
-log "Step 6: verify post-0.73 crypto create and mirror visibility"
 export MIRROR_ACCOUNT_WAIT_MS="${MIRROR_ACCOUNT_WAIT_MS:-600000}"
 node "${NODE_SCRIPT}"
-
-log "Cutover phase complete (through 0.73): PASS"

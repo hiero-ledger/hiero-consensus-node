@@ -12,7 +12,8 @@ WAIT_TIMEOUT_SECS="${WAIT_TIMEOUT_SECS:-300}"
 
 HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
 ROOT_CONTAINER="root-container"
-WRAPS_DEST_PATH_DEFAULT="${HAPI_PATH}/wraps-v0.2.0"
+WRAPS_ARTIFACTS_CONTAINER_DIR="${WRAPS_ARTIFACTS_CONTAINER_DIR:-${HAPI_PATH}/keys/wraps}"
+WRAPS_DEST_PATH_DEFAULT="${WRAPS_ARTIFACTS_CONTAINER_DIR}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -85,15 +86,28 @@ local_wraps_file_count() {
 }
 
 pod_wraps_dest_path() {
+  printf '%s\n' "${WRAPS_DEST_PATH_DEFAULT}"
+}
+
+ensure_pod_entrypoint_sources_application_env() {
   local pod="$1"
-  local pod_path=""
-  pod_path="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c "${ROOT_CONTAINER}" -- sh -lc \
-    'printf "%s" "${TSS_LIB_WRAPS_ARTIFACTS_PATH:-}"' 2>/dev/null || true)"
-  if [[ -n "${pod_path}" ]]; then
-    printf '%s\n' "${pod_path}"
-  else
-    printf '%s\n' "${WRAPS_DEST_PATH_DEFAULT}"
-  fi
+
+  log "Ensuring ${pod} entrypoint sources /etc/network-node/env/application.env"
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c "${ROOT_CONTAINER}" -- sh -lc "
+    if [ ! -f '${HAPI_PATH}/entrypoint.sh.orig' ]; then
+      cp '${HAPI_PATH}/entrypoint.sh' '${HAPI_PATH}/entrypoint.sh.orig'
+    fi
+    cat > '${HAPI_PATH}/entrypoint.sh' <<'EOF'
+#!/usr/bin/env bash
+set -a
+if [ -f /etc/network-node/env/application.env ]; then
+  . /etc/network-node/env/application.env
+fi
+set +a
+exec /opt/hgcapp/services-hedera/HapiApp2.0/entrypoint.sh.orig \"\$@\"
+EOF
+    chmod +x '${HAPI_PATH}/entrypoint.sh'
+  " >/dev/null
 }
 
 pod_wraps_file_count() {
@@ -175,7 +189,7 @@ restage_pod_wraps_artifacts() {
 delete_pod_for_restart() {
   local pod="$1"
   log "Deleting ${pod} so it restarts with the restaged local build"
-  kubectl -n "${SOLO_NAMESPACE}" delete pod "${pod}" >/dev/null
+  kubectl -n "${SOLO_NAMESPACE}" delete pod "${pod}" >/dev/null 2>&1 || true
 }
 
 start_nodes() {
@@ -231,6 +245,7 @@ main() {
   for node in "${nodes[@]}"; do
     pod="$(pod_name_for_alias "${node}")"
     wait_for_pod_ready "${pod}"
+    ensure_pod_entrypoint_sources_application_env "${pod}"
     restage_pod_wraps_artifacts "${pod}"
   done
 
