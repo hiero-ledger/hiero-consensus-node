@@ -3,11 +3,13 @@ package com.hedera.services.bdd.suites.contract.ethereum;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
@@ -28,6 +30,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
@@ -35,6 +38,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
+import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -44,9 +48,14 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class AccessListTest {
 
-    private static final String SLOT_0 = "0x0000000000000000000000000000000000000000000000000000000000000000";
-    private static final String SLOT_1 = "0x0000000000000000000000000000000000000000000000000000000000000001";
-    private static final String SLOT_2 = "0x0000000000000000000000000000000000000000000000000000000000000002";
+    private static final Bytes32 SLOT_0 =
+            Bytes32.fromHexString("0x0000000000000000000000000000000000000000000000000000000000000000");
+    private static final Bytes32 SLOT_1 =
+            Bytes32.fromHexString("0x0000000000000000000000000000000000000000000000000000000000000001");
+    private static final Bytes32 SLOT_2 =
+            Bytes32.fromHexString("0x0000000000000000000000000000000000000000000000000000000000000002");
+    private static final Bytes32 SLOT_3 =
+            Bytes32.fromHexString("0x0000000000000000000000000000000000000000000000000000000000000003");
 
     @Contract(contract = "AccessListCallerContract", creationGas = 1_000_000)
     static SpecContract callerContract;
@@ -156,23 +165,17 @@ public class AccessListTest {
                                 ethereumCallWithAccessList(
                                         type,
                                         List.of(new AccessListItem(
-                                                TARGET_CONTRACT_ADDRESS_BYTES.get(),
-                                                List.of(Bytes32.fromHexString(SLOT_0)))),
+                                                TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of(SLOT_0))),
                                         () -> legacyGas.get() - 200), // -100 for CALL, -100 for SLOAD
                                 ethereumCallWithAccessList(
                                         type,
                                         List.of(new AccessListItem(
-                                                TARGET_CONTRACT_ADDRESS_BYTES.get(),
-                                                List.of(Bytes32.fromHexString(SLOT_0), Bytes32.fromHexString(SLOT_1)))),
+                                                TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of(SLOT_0, SLOT_1))),
                                         () -> legacyGas.get() - 300), // -100 for CALL, -100 x 2 for SLOAD x 2
                                 ethereumCallWithAccessList(
                                         type,
                                         List.of(new AccessListItem(
-                                                TARGET_CONTRACT_ADDRESS_BYTES.get(),
-                                                List.of(
-                                                        Bytes32.fromHexString(SLOT_0),
-                                                        Bytes32.fromHexString(SLOT_1),
-                                                        Bytes32.fromHexString(SLOT_2)))),
+                                                TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of(SLOT_0, SLOT_1, SLOT_2))),
                                         () -> legacyGas.get()
                                                 - 500) // -100 for CALL, -100 x 3 for SLOAD x 3, -100 for SSTORE
                                 ))
@@ -181,11 +184,15 @@ public class AccessListTest {
 
     @HapiTest
     final Stream<DynamicTest> accessListDiscountForDelegationCallTest() {
+        final AtomicReference<Bytes> signerAddress = new AtomicReference<>();
         final var originalGas = new AtomicLong();
         return hapiTest(flattened(
                 // prepare sender
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY)
+                        .exposingContractAccountIdTo(evmAddress ->
+                                signerAddress.set(Bytes.wrap(Objects.requireNonNull(CommonUtils.unhex(evmAddress))))),
                 // set code delegation
                 ethereumCall(callerContract.name(), "callDelegation")
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -196,13 +203,29 @@ public class AccessListTest {
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.EIP2930)
                         .exposingGasTo((status, gas) -> originalGas.set(gas)),
+                // -100 for CALL
                 ethereumCall(callerContract.name(), "callDelegation")
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.EIP2930)
                         .withAccessList(List.of(new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of())))
-                        .exposingGasTo((status, gas) -> Assertions.assertEquals(originalGas.get() - 100, gas))
-                // We cant test access list storage keys for code delegation because the address is 23 bytes
-                // (Prefixed with delegation indicator 0xef0100...)
-                ));
+                        .exposingGasTo((status, gas) -> Assertions.assertEquals(originalGas.get() - 100, gas)),
+                // -100 for CALL, +2400 for Address. Using sourcing() because of 'signerAddress.get()'
+                sourcing(() -> ethereumCall(callerContract.name(), "callDelegation")
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .type(EthTxData.EthTransactionType.EIP2930)
+                        .withAccessList(List.of(
+                                new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of()),
+                                new AccessListItem(signerAddress.get(), List.of())))
+                        .exposingGasTo((status, gas) -> Assertions.assertEquals(originalGas.get() - 100 + 2400, gas))),
+                // -100 for CALL, +2400 for Address, -100 for SLOAD, -100 for SSTORE. Using sourcing() because of
+                // 'signerAddress.get()'
+                sourcing(() -> ethereumCall(callerContract.name(), "callDelegation")
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .type(EthTxData.EthTransactionType.EIP2930)
+                        .withAccessList(List.of(
+                                new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of()),
+                                new AccessListItem(signerAddress.get(), List.of(SLOT_3))))
+                        .exposingGasTo((status, gas) ->
+                                Assertions.assertEquals(originalGas.get() - 100 + 2400 - 100 - 100, gas)))));
     }
 }
