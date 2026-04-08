@@ -171,7 +171,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         if (simpleFeeContext.feeContext() == null || congestionMultipliers == null) {
             return;
         }
-        if(simpleFeeContext.getHighVolumeThrottleUtilization(functionality) < 1) {
+        if (simpleFeeContext.getHighVolumeThrottleUtilization(functionality) < 1) {
             return;
         }
         final var feeContext = simpleFeeContext.feeContext();
