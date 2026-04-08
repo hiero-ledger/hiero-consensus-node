@@ -76,7 +76,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     private final CountDownLatch rootResponseReceived = new CountDownLatch(1);
 
     /**
-     * Indicates if a response from the teacher have been received already. The very first response
+     * Indicates if a response from the teacher has been received already. The very first response
      * must be for path 0 (root virtual node). Used in assertions only.
      */
     private final AtomicBoolean firstNodeResponse = new AtomicBoolean(false);
@@ -144,6 +144,11 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                     tasksDone);
             learnerSendTask.exec();
         }
+    }
+
+    @Override
+    public void onSuccessfulComplete() {
+        vmapLearner.finish();
     }
 
     /**
@@ -251,33 +256,28 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     }
 
     /**
-     * {@inheritDoc}
+     * Get the hash of a node. If this view represents a tree that has null nodes within it, those nodes should cause
+     * this method to return a {@link Cryptography#NULL_HASH null hash}.
+     *
+     * @param originalNodePath the original node path
+     * @return the hash of the node
      */
-    @Override
-    public Hash getNodeHash(final Long originalChild) {
-        // The path given is the _ORIGINAL_ child. Each call to this
+    public Hash getNodeHash(final Long originalNodePath) {
+        // The path given is the _ORIGINAL_ node. Each call to this
         // method will be made only for the original state from the original tree.
 
         // Make sure the path is valid for the original state
-        if (originalChild > originalState.getLastLeafPath()) {
+        if (originalNodePath > originalState.getLastLeafPath()) {
             return Cryptography.NULL_HASH;
         }
 
-        final Hash hash = vmapLearner.findHash(originalChild);
+        final Hash hash = vmapLearner.findHash(originalNodePath);
         // The hash must have been specified by this point. The original tree was hashed before
         // we started running on the learner, so either the hash is in cache or on disk, but it
         // definitely exists at this point. If it is null, something bad happened elsewhere.
         if (hash == null) {
-            throw new MerkleSynchronizationException("Node found, but hash was null. path=" + originalChild);
+            throw new MerkleSynchronizationException("Node found, but hash was null. path=" + originalNodePath);
         }
         return hash;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void close() {
-        vmapLearner.finish();
     }
 }

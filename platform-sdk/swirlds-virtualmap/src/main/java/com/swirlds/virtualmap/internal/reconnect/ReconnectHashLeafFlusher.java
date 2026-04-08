@@ -100,19 +100,19 @@ public class ReconnectHashLeafFlusher {
 
     void updateHashChunk(@NonNull final VirtualHashChunk chunk) {
         assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
-                : "updateHash called without start";
+                : "updateHash called without init";
         actionAndCheckFlush(() -> updatedHashChunks.add(chunk));
     }
 
     public void updateLeaf(final VirtualLeafBytes<?> leaf) {
         assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
-                : "updateLeaf called without start";
+                : "updateLeaf called without init";
         actionAndCheckFlush(() -> updatedLeaves.add(leaf));
     }
 
     public void deleteLeaf(final VirtualLeafBytes<?> leaf) {
         assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
-                : "deleteLeaf called without start";
+                : "deleteLeaf called without init";
         actionAndCheckFlush(() -> deletedLeaves.add(leaf));
     }
 
@@ -149,7 +149,7 @@ public class ReconnectHashLeafFlusher {
 
     public synchronized void finish() {
         assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
-                : "finish called without start";
+                : "finish called without init";
         final List<VirtualHashChunk> dirtyHashChunksToFlush = updatedHashChunks;
         final List<VirtualLeafBytes> dirtyLeavesToFlush = updatedLeaves;
         final List<VirtualLeafBytes> deletedLeavesToFlush = deletedLeaves;

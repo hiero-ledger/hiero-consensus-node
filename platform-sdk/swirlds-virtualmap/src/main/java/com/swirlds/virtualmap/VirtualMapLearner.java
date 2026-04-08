@@ -31,6 +31,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -94,6 +95,8 @@ public final class VirtualMapLearner {
     private final CompletableFuture<Hash> reconnectHashingFuture = new CompletableFuture<>();
     private final AtomicBoolean reconnectHashingStarted = new AtomicBoolean(false);
 
+    private final AtomicReference<State> state = new AtomicReference<>(State.NEW);
+
     // ---- Set after reconnect completes ----
 
     /** The final hash produced by the reconnect hashing process. Null for empty trees. */
@@ -106,6 +109,14 @@ public final class VirtualMapLearner {
      */
     @Nullable
     private VirtualMap virtualMap;
+
+    private enum State {
+        NEW,
+        INITIALIZING,
+        INITIALIZED,
+        FINISHING,
+        FINISHED,
+    }
 
     /**
      * Creates a new {@link VirtualMapLearner} from the learner's current (outdated) {@link VirtualMap}.
@@ -178,6 +189,13 @@ public final class VirtualMapLearner {
 
     // ---- Reconnect operations (called by LearnerTreeView implementations) ----
 
+    private void changeState(State expectedState, State newState) {
+        if (!state.compareAndSet(expectedState, newState)) {
+            throw new IllegalStateException("Reconnect state is correct state. expected=" + expectedState + ", actual="
+                    + state.get() + ", desired=" + newState);
+        }
+    }
+
     /**
      * Called when the teacher has sent the root response, establishing the first and last leaf
      * paths of the reconnected tree. This initializes the reconnect state and flusher,
@@ -190,6 +208,8 @@ public final class VirtualMapLearner {
      * @param beforeCleaningLeavesAction an action to run after the reconnect state is initialized but before any old leaves are marked for deletion. Can be {@code null}.
      */
     public void init(final long firstLeafPath, final long lastLeafPath, @Nullable Runnable beforeCleaningLeavesAction) {
+        changeState(State.NEW, State.INITIALIZING);
+
         logger.info(
                 RECONNECT.getMarker(),
                 "Init reconnect state: firstLeafPath: {} -> {}, lastLeafPath: {} -> {}",
@@ -211,6 +231,7 @@ public final class VirtualMapLearner {
         }
 
         deleteOldLeavesBeforeNewFirstLeafPath();
+        changeState(State.INITIALIZING, State.INITIALIZED);
     }
 
     /**
@@ -299,16 +320,18 @@ public final class VirtualMapLearner {
      * @throws MerkleSynchronizationException if hashing fails or if the calling thread is interrupted
      */
     public void finish() {
+        changeState(State.INITIALIZED, State.FINISHING);
+
         logger.info(RECONNECT.getMarker(), "Finalizing learner reconnect");
 
         deleteOldLeavesAfterNewLastLeafPath();
         waitForHashingToComplete();
         reconnectFlusher.finish();
 
-        final VirtualMapMetadata metadata = new VirtualMapMetadata(reconnectState.getSize());
         virtualMap = new VirtualMap(
-                virtualMapConfig, dataSourceBuilder, dataSource, metadata, statistics, hasher, finalHash);
+                virtualMapConfig, dataSourceBuilder, dataSource, reconnectState.copy(), statistics, hasher, finalHash);
 
+        changeState(State.FINISHING, State.FINISHED);
         logger.info(RECONNECT.getMarker(), "Learner reconnect complete");
     }
 
@@ -466,6 +489,8 @@ public final class VirtualMapLearner {
      * to preserve caller exception propagation.
      */
     public void abortOnException() {
+        logger.info(RECONNECT.getMarker(), "Aborting reconnect and cleaning up resources");
+
         reconnectIterator.close();
         try {
             dataSource.close(false);

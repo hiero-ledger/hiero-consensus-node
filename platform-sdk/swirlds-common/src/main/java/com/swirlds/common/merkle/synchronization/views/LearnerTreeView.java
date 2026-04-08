@@ -3,8 +3,6 @@ package com.swirlds.common.merkle.synchronization.views;
 
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
@@ -12,7 +10,7 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * the tree by the learner.
  *
  */
-public interface LearnerTreeView extends AutoCloseable {
+public interface LearnerTreeView {
 
     /**
      * For this tree view, start all required reconnect tasks in the given work group. Learning synchronizer
@@ -27,12 +25,8 @@ public interface LearnerTreeView extends AutoCloseable {
     void startLearnerTasks(final StandardWorkGroup workGroup, final AsyncInputStream in, final AsyncOutputStream out);
 
     /**
-     * Get the hash of a node. If this view represents a tree that has null nodes within it, those nodes should cause
-     * this method to return a {@link Cryptography#NULL_HASH null hash}.
-     *
-     * @param path
-     * 		the node path
-     * @return the hash of the node
+     * Called when all tasks for this tree view have completed successfully. This is used to trigger any necessary
+     * finalization steps, such as committing a new state or updating the tree view to reflect changes that were made during the reconnect process.
      */
-    Hash getNodeHash(Long path);
+    void onSuccessfulComplete();
 }
