@@ -44,10 +44,11 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <p>Lifecycle:
  * <ul>
  *     <li>Constructor {@link #VirtualMapLearner(VirtualMap, ReconnectConfig, ReconnectMapStats)}</li>
- *     <li>Caller access {@link LearnerTreeView} by {@link #getLearnerView()} to start lessons passing input/output streams.</li>
- *     <li>When synchronization starts, first info that teacher sends is his current leaf path range {@link LearnerTreeView} implementation triggers {@link #init(long, long, Runnable)}</li>
+ *     <li>Caller accesses {@link LearnerTreeView} via {@link #getLearnerView()} to start lessons using reconnect input/output streams.</li>
+ *     <li>When synchronization starts, the teacher first sends its current leaf path range, and the {@link LearnerTreeView} implementation triggers {@link #init(long, long, Runnable)}.</li>
  *     <li>Then on each dirty leaf {@link #onDirtyLeaf(VirtualLeafBytes)} has to be called</li>
- *     <li>After all dirty leaves handled, {@link #finish()} has to be called, that finishes synchronization and creates new {@link VirtualMap} instance accessible via {@link #getVirtualMap()}</li>
+ *     <li>On successful reconnect completion, the reconnect framework calls {@link #finish()} to finalize synchronization and create the new {@link VirtualMap} instance accessible via {@link #getVirtualMap()}.</li>
+ *     <li>If reconnect fails before successful completion, the caller/reconnect orchestration code is responsible for aborting the reconnect attempt and cleaning up resources associated with the failed attempt via {@link #abortOnException()}.</li>
  * </ul>
  *
  * <p>No {@link VirtualMap} is created until {@link #finish()} is called (which
@@ -191,7 +192,7 @@ public final class VirtualMapLearner {
 
     private void changeState(State expectedState, State newState) {
         if (!state.compareAndSet(expectedState, newState)) {
-            throw new IllegalStateException("Reconnect state is correct state. expected=" + expectedState + ", actual="
+            throw new IllegalStateException("Reconnect state is incorrect. expected=" + expectedState + ", actual="
                     + state.get() + ", desired=" + newState);
         }
     }

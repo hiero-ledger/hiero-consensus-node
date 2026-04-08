@@ -239,6 +239,7 @@ public final class MerkleTestUtils {
             }
 
             if (workGroup.hasExceptions()) {
+                vmapLearner.abortOnException();
                 throw new MerkleSynchronizationException(
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }

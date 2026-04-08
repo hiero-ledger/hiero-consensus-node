@@ -73,7 +73,6 @@ public class MerkleBenchmarkUtils {
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
-    @SuppressWarnings("unchecked")
     private static VirtualMap testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
@@ -185,6 +184,7 @@ public class MerkleBenchmarkUtils {
             }
 
             if (workGroup.hasExceptions()) {
+                vmapLearner.abortOnException();
                 throw new MerkleSynchronizationException(
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }

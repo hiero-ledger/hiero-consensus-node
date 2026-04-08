@@ -103,7 +103,9 @@ public class LearningSynchronizer {
         try {
             view.startLearnerTasks(workGroup, in, out);
             workGroup.waitForTermination();
-            view.onSuccessfulComplete();
+            if (!workGroup.hasExceptions()) {
+                view.onSuccessfulComplete();
+            }
         } catch (final InterruptedException e) { // NOSONAR: Exception is rethrown below after cleanup.
             interruptException = e;
             logger.warn(RECONNECT.getMarker(), "Interrupted while waiting for work group termination");

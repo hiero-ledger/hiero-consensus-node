@@ -207,7 +207,6 @@ public class ReconnectStateLearner {
 
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         final VirtualMapLearner vmapLearner = new VirtualMapLearner(currentState.getRoot(), reconnectConfig, mapStats);
-        // The learner view will be closed by LearningSynchronizer
         final LearnerTreeView learnerView = vmapLearner.getLearnerView();
         final LearningSynchronizer synchronizer =
                 new LearningSynchronizer(threadManager, in, out, learnerView, connection::disconnect, reconnectConfig);
