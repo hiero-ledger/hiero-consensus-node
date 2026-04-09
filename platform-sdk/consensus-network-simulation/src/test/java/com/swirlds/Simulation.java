@@ -1,18 +1,18 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds;
 
-import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
-import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
-import com.swirlds.platform.test.fixtures.event.EventCreatorNetwork;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
+import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
+import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.network.simulation.EventCreatorNetwork;
 import org.junit.jupiter.api.Test;
 
 public class Simulation {
@@ -41,7 +41,9 @@ public class Simulation {
     private void runSimulation(final Integer delay, final int nodes, final int maxOtherParents) {
         final EventCreatorNetwork creatorNetwork = new EventCreatorNetwork(0, nodes, maxOtherParents);
         final DefaultConsensusEngine consensusEngine = new DefaultConsensusEngine(
-                creatorNetwork.getPlatformContext(),
+                creatorNetwork.getPlatformContext().getConfiguration(),
+                creatorNetwork.getPlatformContext().getMetrics(),
+                creatorNetwork.getPlatformContext().getTime(),
                 creatorNetwork.getRoster(),
                 NodeId.of(creatorNetwork.getRoster().rosterEntries().getFirst().nodeId()),
                 t -> false
@@ -71,7 +73,6 @@ public class Simulation {
         final double averageC2C = c2cs.stream().mapToLong(Duration::toNanos).average().orElse(0);
         final Duration max = c2cs.stream().max(Comparator.naturalOrder()).orElse(Duration.ZERO);
         final Duration timePassed = Duration.between(start, creatorNetwork.getPlatformContext().getTime().now());
-        //System.out.println("Delay(μs)  Nodes  MaxOP avgC2C(μs) maxC2C(μs) ev/sec");
         System.out.printf("%,9d %6d %6d %,10d %,10d %,7d %n",
                 delay,
                 nodes,
@@ -79,11 +80,6 @@ public class Simulation {
                 (long)averageC2C/1000,
                 toMicros(max),
                 (long)(numEvents/((double)timePassed.toMillis()/1000)));
-//        System.out.println("Average C2C: " + Duration.ofNanos((long)averageC2C));
-//        System.out.println("Max C2C:     " + max);
-//        System.out.println("Time passed: " + timePassed);
-//        System.out.println("Num events:  " + numEvents);
-//        System.out.println("ev/sec:      " + numEvents/((double)timePassed.toMillis()/1000));
     }
 
     public static long toMicros(final Duration d) {

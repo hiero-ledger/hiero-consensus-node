@@ -6,7 +6,8 @@ module org.hiero.consensus.hashgraph.impl {
     exports org.hiero.consensus.hashgraph.impl to
             com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.gossip.impl.test.fixtures,
-            org.hiero.consensus.hashgraph.impl.test.fixtures;
+            org.hiero.consensus.hashgraph.impl.test.fixtures,
+            org.hiero.consensus.network.simulation;
     exports org.hiero.consensus.hashgraph.impl.consensus to
             com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.hashgraph.impl.test.fixtures,

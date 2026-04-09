@@ -1,42 +1,26 @@
-package com.swirlds.platform.test.fixtures.event;
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.network.simulation;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.ServiceLoader;
-import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.crypto.SigningImplementation;
 import org.hiero.consensus.crypto.SigningSchema;
-import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
@@ -44,12 +28,13 @@ import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
-import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 public class EventCreatorNetwork {
     final List<DefaultEventCreationManager> eventCreators;
@@ -102,7 +87,6 @@ public class EventCreatorNetwork {
 
             // Set platform status to ACTIVE so events can be created
             eventCreationManager.updatePlatformStatus(PlatformStatus.ACTIVE);
-            //eventCreationManager.setEventWindow(eventWindow);
 
             eventCreators.add(eventCreationManager);
         }
