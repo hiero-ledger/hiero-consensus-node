@@ -97,42 +97,65 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
         final Random random = new Random(randomSeed);
 
-        teacherMap = createEmptyMap();
-        learnerMap = createEmptyMap();
+        if (getBenchmarkConfig().saveDataDirectory()) {
+            teacherMap = restoreMap(TEACHER_MAP_NAME);
+            learnerMap = restoreMap(LEARNER_MAP_NAME);
 
-        final AtomicReference<VirtualMap> teacherRef = new AtomicReference<>(teacherMap);
-        final AtomicReference<VirtualMap> learnerRef = new AtomicReference<>(learnerMap);
+            // Both maps should be restored - otherwise, something went wrong
+            if (teacherMap == null || learnerMap == null) {
+                if (teacherMap != null) {
+                    releaseAndCloseMap(teacherMap);
+                    teacherMap = null;
+                }
+                if (learnerMap != null) {
+                    releaseAndCloseMap(learnerMap);
+                    learnerMap = null;
+                }
+            }
+        }
 
-        new StateBuilder(BenchmarkKeyUtils::longToKey, BenchmarkValue::new)
-                .buildState(
-                        random,
-                        (long) numRecords * numFiles,
-                        teacherAddProbability,
-                        teacherRemoveProbability,
-                        teacherModifyProbability,
-                        StateBuilder.buildVMPopulator(teacherRef),
-                        StateBuilder.buildVMPopulator(learnerRef),
-                        i -> {
-                            if (i % numRecords == 0) {
-                                logger.info("Copying files for i={}", i);
-                                teacherRef.set(teacherMap = copyMap(teacherMap));
-                                learnerRef.set(learnerMap = copyMap(learnerMap));
-                            }
-                        });
+        if (teacherMap == null || learnerMap == null) {
+            teacherMap = createEmptyMap();
+            learnerMap = createEmptyMap();
 
-        // Save learner to disk (it will be restored fresh each invocation)
-        learnerMap = flushMap(learnerMap);
-        learnerMap = saveMap(learnerMap, LEARNER_MAP_NAME);
-        releaseAndCloseMap(learnerMap);
+            final AtomicReference<VirtualMap> teacherRef = new AtomicReference<>(teacherMap);
+            final AtomicReference<VirtualMap> learnerRef = new AtomicReference<>(learnerMap);
 
-        // Save teacher to disk (as a backup), but keep it alive in memory
-        teacherMap = flushMap(teacherMap);
-        teacherMap = saveMap(teacherMap, TEACHER_MAP_NAME);
-        BenchmarkMetrics.register(teacherMap::registerMetrics);
+            new StateBuilder(BenchmarkKeyUtils::longToKey, BenchmarkValue::new)
+                    .buildState(
+                            random,
+                            (long) numRecords * numFiles,
+                            teacherAddProbability,
+                            teacherRemoveProbability,
+                            teacherModifyProbability,
+                            StateBuilder.buildVMPopulator(teacherRef),
+                            StateBuilder.buildVMPopulator(learnerRef),
+                            i -> {
+                                if (i % numRecords == 0) {
+                                    logger.info("Copying files for i={}", i);
+                                    teacherRef.set(teacherMap = copyMap(teacherMap));
+                                    learnerRef.set(learnerMap = copyMap(learnerMap));
+                                }
+                            });
+
+            // Save learner map to disk
+            learnerMap = flushMap(learnerMap);
+            learnerMap = saveMap(learnerMap, LEARNER_MAP_NAME);
+
+            // Save teacher map to disk
+            teacherMap = flushMap(teacherMap);
+            teacherMap = saveMap(teacherMap, TEACHER_MAP_NAME);
+        }
+
         // Make teacher immutable by creating a copy; keep the copy as the mutable head
         teacherMapCopy = teacherMap.copy();
+
         // Pre-hash the teacher map once — it's never modified
         teacherMap.getHash();
+
+        BenchmarkMetrics.register(learnerMap::registerMetrics);
+        BenchmarkMetrics.register(teacherMap::registerMetrics);
+
         // Build the verification array once from the teacher map
         if (verify) {
             teacherData = new long[numRecords * numFiles * 2];
@@ -144,43 +167,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
      * {@inheritDoc}
      */
     @Override
-    protected void onInvocationSetup() {
-        super.onInvocationSetup();
-
-        learnerMap = restoreMap(LEARNER_MAP_NAME);
-        if (learnerMap == null) {
-            throw new RuntimeException("Failed to restore the 'learner' map");
-        }
-        BenchmarkMetrics.register(learnerMap::registerMetrics);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     protected void onInvocationTearDown() throws Exception {
-        try {
-            if (!learnerMap.isHashed()) {
-                throw new IllegalStateException("Learner root node must be hashed");
-            }
-        } finally {
-            reconnectedMap.release();
-            learnerMap.release();
-        }
-
-        // Close all data sources
-        learnerMap.getDataSource().close();
-
-        // release()/close() would delete the DB files eventually but not right away.
-        // Add a short sleep to help prevent irrelevant warning messages from being printed
-        // when the Tear Down deletes test files recursively right after
-        // this current runnable finishes executing.
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException ignore) {
-        }
-
-        learnerMap = null;
+        reconnectedMap.release();
 
         super.onInvocationTearDown();
     }
@@ -190,10 +178,12 @@ public class ReconnectBench extends VirtualMapBaseBench {
      */
     @Override
     protected void onTrialTearDown() throws Exception {
+        learnerMap.release();
         teacherMap.release();
         teacherMapCopy.release();
 
         // Close all data sources
+        learnerMap.getDataSource().close();
         teacherMap.getDataSource().close();
 
         // release()/close() would delete the DB files eventually but not right away.
@@ -205,6 +195,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
         } catch (InterruptedException ignore) {
         }
 
+        learnerMap = null;
         teacherMap = null;
         teacherData = null;
 
