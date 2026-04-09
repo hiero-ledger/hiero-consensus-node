@@ -81,7 +81,7 @@ detection threshold (managed by `blockNode.connectionStallThresholdMillis`) then
 
 If any of these are true, then the monitor will begin the process of selecting a new block node to stream to after closing
 the existing primary connection, if one exists. However, to avoid too frequent of connection switching, a global cool down
-period is used. This cool down, in the simplest terms, is just a time in the future (managed by `blockNode.connectCoolDownSeconds`)
+period is used. This cool down, in the simplest terms, is just a time in the future (managed by `blockNode.globalCoolDownSeconds`)
 tha is the earliest we can switch connections again. For example, if this time is 30 seconds then it means at most we
 can switch connection once per every 30 seconds. Note: This global cool down period will be overruled when there is no
 active primary connection.
@@ -94,7 +94,9 @@ in the `block-node.json` file, past connection history can influence whether a b
 When a connection is closed, a close reason is associated with the event. Some close reasons, such as those related to
 connection errors or a block node being too far behind, will cause the associated block node to itself enter a cool down
 period. This cool down period is similar to the previously mentioned global cool down that prevents reconnecting too
-frequently, but it is scoped to just a specific block node.
+frequently, but it is scoped to just a specific block node. Depending on the close reason, a basic or an extended cool
+down period may be used. These periods are configured by `blockNode.basicNodeCoolDownSeconds` and
+`blockNode.extendedNodeCoolDownSeconds`, respectively.
 
 Thus, for selecting which block node to connect to, we first read which block nodes are configured in the `block-nodes.json`
 file and then filter out block nodes that are in a cool down. Once a set of candidates nodes is chosen, these nodes are
