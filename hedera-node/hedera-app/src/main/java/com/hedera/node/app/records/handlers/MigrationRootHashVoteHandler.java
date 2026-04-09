@@ -164,8 +164,9 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         }
         log.info("Migration root hash voting finalized after node{} vote, >1/3 threshold reached", nodeId);
         log.info(
-                "Finalized migration root hash vote values: previousWrappedRecordBlockRootHash={},"
+                "Finalized migration root hash vote values: Block {} previousWrappedRecordBlockRootHash={},"
                         + " wrappedIntermediatePreviousBlockRootHashes=[{}], wrappedIntermediateBlockRootsLeafCount={}",
+                blockRecordManager != null ? blockRecordManager.blockNo() : "Unknown",
                 previousWrappedRecordBlockRootHash.toHex(),
                 finalizedIntermediateState.stream().map(Bytes::toHex).collect(Collectors.joining(", ")),
                 finalizedLeafCount);
