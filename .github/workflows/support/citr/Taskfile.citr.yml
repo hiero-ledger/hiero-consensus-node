@@ -47,7 +47,6 @@ tasks:
       - task: "solo:deployment:create"
       - task: "solo:deployment:add-cluster"
 
-
   installCNs:
     desc: solo init, solo cluster-ref create, solo node keys, solo network deploy
     cmds:

@@ -416,6 +416,7 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        if: false
         run: |
           npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
@@ -423,7 +424,6 @@ jobs:
           solo --version
 
       - name: Build Solo
-        if: false
         run: |
           set +x
           set +e
@@ -440,13 +440,13 @@ jobs:
 
           #solo script
           echo '#!/usr/bin/sh -f' > "${HOME}"/solo
-          echo "node "${curdir}"/solo/dist/solo.js \$*" >> "${HOME}"/solo
+          echo "node "${curdir}"/solo/dist/solo.js \$@" >> "${HOME}"/solo
           chmod a+rx "${HOME}"/solo
           sudo mv "${HOME}"/solo /usr/bin/solo
 
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          git checkout fix-tss-readiness-check
+          git checkout 03919-D-loss-java-opts
           task build:compile
           #npm run build
 
@@ -575,6 +575,7 @@ jobs:
            done
            sleep 10
            sed -e "s@%NODE_ID%@${i}@g" block-node-values.yaml.orig > block-node-values.yaml
+           export BN_MAPPING="node${i}=1"
            task solo:block:add
           done
           sleep 30
@@ -584,11 +585,10 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
-          #FIXME:
-          rm -rf ~/.solo/cache/block-nodes*.json
           task installCNs
 
       - name: Update CNs with BNs
+        if: false
         run: |
           set +x
           set +e
