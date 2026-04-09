@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -58,6 +59,7 @@ class MerkleDbCompactionCoordinatorTest {
                 defaultConfig.longListReservedBufferSize(),
                 defaultConfig.compactionThreads(),
                 defaultConfig.gcRateThreshold(),
+                defaultConfig.gcRateLowerThreshold(),
                 defaultConfig.maxCompactedFileSizeInMB(),
                 defaultConfig.maxCompactionLevel(),
                 defaultConfig.iteratorInputBufferBytes(),
@@ -285,13 +287,22 @@ class MerkleDbCompactionCoordinatorTest {
         publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
 
         final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
             taskStarted.countDown();
-            Thread.sleep(10_000);
+            releaseTask.await(5, TimeUnit.SECONDS);
             return true;
         });
         when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        // Make interruptCompaction() release the latch
+        doAnswer(_ -> {
+                    releaseTask.countDown();
+                    return null;
+                })
+                .when(compactor)
+                .interruptCompaction();
 
         coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
         assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
@@ -385,120 +396,273 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     // ========================================================================
-    // absorbIntoGroup tests
+    // Lower threshold tests
     // ========================================================================
 
     @Test
-    void testAbsorbIntoGroupAbsorbsEligibleFiles() {
-        final DataFileReader dirty = mockFileReader(1, 0, 100, 1000);
-        final DataFileReader clean = mockFileReader(2, 0, 100, 500);
+    void testLowerThresholdFilesIncludedWhenCompactionTriggered() throws InterruptedException, IOException {
+        // triggerFile: 20 alive, 80 dead → d/a = 4.0 > 0.5 (trigger threshold) → triggers compaction
+        // lowerFile: 70 alive, 30 dead → d/a = 0.43 > 0.3 (lower threshold) → included
+        // cleanFile: 90 alive, 10 dead → d/a = 0.11 < 0.3 (lower threshold) → excluded
+        final DataFileReader triggerFile = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader lowerFile = mockFileReader(2, 0, 100, 500);
+        final DataFileReader cleanFile = mockFileReader(3, 0, 100, 500);
 
-        // dirty: 10 alive, 90 dead → d/a = 9.0
-        // clean: 90 alive, 10 dead → d/a = 0.11
-        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(dirty, 10), new StatsEntry(clean, 90));
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(triggerFile, lowerFile, cleanFile));
 
-        final List<DataFileReader> group = new ArrayList<>(List.of(dirty));
-        final List<DataFileReader> pool = new ArrayList<>(List.of(clean));
+        publishScanStats(
+                ID_TO_HASH_CHUNK,
+                buildStats(
+                        new StatsEntry(triggerFile, 20), new StatsEntry(lowerFile, 70), new StatsEntry(cleanFile, 90)));
 
-        // aggregate after absorbing clean: (90+10)/(10+90) = 100/100 = 1.0 > 0.5 → absorbed
-        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group, pool, stats, 0.5, Long.MAX_VALUE);
+        final CountDownLatch compactionDone = new CountDownLatch(1);
+        final List<DataFileReader> compactedFiles = new ArrayList<>();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final List<DataFileReader> files = invocation.getArgument(0);
+            synchronized (compactedFiles) {
+                compactedFiles.addAll(files);
+            }
+            compactionDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
 
-        assertEquals(2, group.size());
-        assertTrue(group.contains(dirty));
-        assertTrue(group.contains(clean));
-        assertTrue(pool.isEmpty(), "Absorbed file should be removed from pool");
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+
+        assertTrue(compactionDone.await(2, TimeUnit.SECONDS), "Compaction task was not submitted");
+        synchronized (compactedFiles) {
+            assertTrue(compactedFiles.contains(triggerFile), "Trigger file must be compacted");
+            assertTrue(compactedFiles.contains(lowerFile), "Lower-threshold file must be compacted");
+            assertFalse(compactedFiles.contains(cleanFile), "Clean file must NOT be compacted");
+        }
     }
 
     @Test
-    void testAbsorbIntoGroupSkipsFileThatWouldBreachRatio() {
-        final DataFileReader dirty = mockFileReader(1, 0, 100, 1000);
-        final DataFileReader clean = mockFileReader(2, 0, 100, 500);
+    void testNoCompactionWhenNoFileExceedsTriggerThreshold() throws InterruptedException, IOException {
+        // lowerFile1: 70 alive, 30 dead → d/a = 0.43 > 0.3 (lower threshold) but < 0.5 (trigger)
+        // lowerFile2: 75 alive, 25 dead → d/a = 0.33 > 0.3 (lower threshold) but < 0.5 (trigger)
+        // No file exceeds trigger threshold → no compaction
+        final DataFileReader lowerFile1 = mockFileReader(1, 0, 100, 500);
+        final DataFileReader lowerFile2 = mockFileReader(2, 0, 100, 500);
 
-        // dirty: 40 alive, 60 dead → d/a = 1.5
-        // clean: 95 alive, 5 dead → d/a = 0.053
-        // absorb clean: (60+5)/(40+95) = 65/135 = 0.48 → not > 0.5 → skip
-        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(dirty, 40), new StatsEntry(clean, 95));
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(lowerFile1, 70), new StatsEntry(lowerFile2, 75)));
 
-        final List<DataFileReader> group = new ArrayList<>(List.of(dirty));
-        final List<DataFileReader> pool = new ArrayList<>(List.of(clean));
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
 
-        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group, pool, stats, 0.5, Long.MAX_VALUE);
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
 
-        assertEquals(1, group.size(), "Clean file should not be absorbed");
-        assertEquals(1, pool.size(), "Pool should be unchanged");
+        verify(compactor, never()).compactSingleLevel(anyList(), anyInt());
     }
 
     @Test
-    void testAbsorbIntoGroupRemovesFromSharedPool() {
-        final DataFileReader dirty = mockFileReader(1, 0, 100, 1000);
-        final DataFileReader small1 = mockFileReader(2, 0, 20, 100);
-        final DataFileReader small2 = mockFileReader(3, 0, 20, 100);
+    void testLowerThresholdFilesRespectSizeCap() throws InterruptedException, IOException {
+        // Use a config with a small size cap to force splitting
+        final MerkleDbConfig smallCapConfig = new MerkleDbConfig(
+                config.initialCapacity(),
+                config.maxNumOfKeys(),
+                config.hashesRamToDiskThreshold(),
+                config.hashStoreRamBufferSize(),
+                config.hashChunkCacheThreshold(),
+                config.hashStoreRamOffHeapBuffers(),
+                config.longListChunkSize(),
+                config.longListReservedBufferSize(),
+                config.compactionThreads(),
+                config.gcRateThreshold(),
+                config.gcRateLowerThreshold(),
+                1, // 1 MB cap — forces splitting
+                config.maxCompactionLevel(),
+                config.iteratorInputBufferBytes(),
+                config.reconnectKeyLeakMitigationEnabled(),
+                config.indexRebuildingEnforced(),
+                config.goodAverageBucketEntryCount(),
+                config.tablesToRepairHdhm(),
+                config.percentHalfDiskHashMapFlushThreads(),
+                config.numHalfDiskHashMapFlushThreads(),
+                config.leafRecordCacheSize(),
+                config.maxFileChannelsPerFileReader(),
+                config.maxThreadsPerFileChannel(),
+                config.useDiskIndices());
 
-        // dirty: 10 alive, 90 dead → huge budget
-        // small1: 15 alive, 5 dead → d/a = 0.33
-        // small2: 18 alive, 2 dead → d/a = 0.11
-        final IndexedGarbageFileStats stats =
-                buildStats(new StatsEntry(dirty, 10), new StatsEntry(small1, 15), new StatsEntry(small2, 18));
+        // triggerFile: 20 alive, 80 dead, size 2MB → projected alive ~400KB → triggers compaction
+        // lowerFile1: 60 alive, 40 dead, size 2MB → d/a=0.67 > 0.3, projected alive ~1.2MB
+        // lowerFile2: 70 alive, 30 dead, size 2MB → d/a=0.43 > 0.3, projected alive ~1.4MB
+        // With 1MB cap, these should be split into multiple groups
+        final DataFileReader triggerFile = mockFileReader(1, 0, 100, 2_000_000);
+        final DataFileReader lowerFile1 = mockFileReader(2, 0, 100, 2_000_000);
+        final DataFileReader lowerFile2 = mockFileReader(3, 0, 100, 2_000_000);
 
-        final List<DataFileReader> group1 = new ArrayList<>(List.of(dirty));
-        final List<DataFileReader> pool = new ArrayList<>(List.of(small1, small2));
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(triggerFile, lowerFile1, lowerFile2));
 
-        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group1, pool, stats, 0.5, Long.MAX_VALUE);
+        publishScanStats(
+                ID_TO_HASH_CHUNK,
+                buildStats(
+                        new StatsEntry(triggerFile, 20),
+                        new StatsEntry(lowerFile1, 60),
+                        new StatsEntry(lowerFile2, 70)));
 
-        // Both should be absorbed into group1
-        assertEquals(3, group1.size());
-        assertTrue(pool.isEmpty(), "All files absorbed from pool");
+        final CountDownLatch compactionsDone = new CountDownLatch(2);
+        final AtomicInteger taskCount = new AtomicInteger();
+        final DataFileCompactor compactor1 = mock(DataFileCompactor.class);
+        when(compactor1.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            compactionsDone.countDown();
+            return true;
+        });
+        when(compactor1.getDataFileCollection()).thenReturn(fileCollection);
+
+        final DataFileCompactor compactor2 = mock(DataFileCompactor.class);
+        when(compactor2.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            compactionsDone.countDown();
+            return true;
+        });
+        when(compactor2.getDataFileCollection()).thenReturn(fileCollection);
+
+        final Supplier<DataFileCompactor> factory = () -> {
+            final int call = taskCount.getAndIncrement();
+            return (call == 0) ? compactor1 : compactor2;
+        };
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, factory, smallCapConfig);
+
+        assertTrue(compactionsDone.await(2, TimeUnit.SECONDS), "Expected at least 2 compaction tasks due to size cap");
+        assertTrue(taskCount.get() >= 2, "Should have created multiple groups due to size cap");
     }
 
     @Test
-    void testAbsorbIntoGroupSkipsFileThatWouldBreachSizeCap() {
-        // dirty: 10 alive, 90 dead, size=200 → projected alive = 20
-        // clean1: 80 alive, 20 dead, size=500 → projected alive = 400
-        // clean2: 90 alive, 10 dead, size=100 → projected alive = 90
-        //
-        // Size cap = 200
-        // Group starts with dirty: projectedSize = 20, headroom = 180
-        // clean1: projected alive = 400 > headroom → SKIP (size cap)
-        // clean2: projected alive = 90 < headroom → check ratio:
-        //   aggregate: (90+10)/(10+90) = 100/100 = 1.0 > 0.01 → absorb
-        final DataFileReader dirty = mockFileReader(1, 0, 100, 200);
-        final DataFileReader clean1 = mockFileReader(2, 0, 100, 500);
-        final DataFileReader clean2 = mockFileReader(3, 0, 100, 100);
+    void testLowerThresholdOnlyAppliesAtTriggeredLevel() throws InterruptedException, IOException {
+        // Level 0: triggerFile with d/a > 0.5 → triggers compaction at level 0
+        // Level 1: lowerFile with d/a = 0.43 > 0.3 but < 0.5 → should NOT be compacted
+        //          because level 1 was not triggered (no file at level 1 exceeds trigger threshold)
+        final DataFileReader level0Trigger = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader level1Lower = mockFileReader(2, 1, 100, 500);
 
-        final IndexedGarbageFileStats stats =
-                buildStats(new StatsEntry(dirty, 10), new StatsEntry(clean1, 80), new StatsEntry(clean2, 90));
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0Trigger, level1Lower));
 
-        final List<DataFileReader> group = new ArrayList<>(List.of(dirty));
-        // Pool sorted by d/a descending: clean1 (d/a=0.25) before clean2 (d/a=0.11)
-        final List<DataFileReader> pool = new ArrayList<>(List.of(clean1, clean2));
+        publishScanStats(
+                ID_TO_HASH_CHUNK,
+                buildStats(
+                        new StatsEntry(level0Trigger, 20), // d/a = 4.0 → triggers level 0
+                        new StatsEntry(level1Lower, 70))); // d/a = 0.43 → above lower but not trigger
 
-        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group, pool, stats, 0.01, 200);
+        final CountDownLatch compactionDone = new CountDownLatch(1);
+        final List<Integer> compactedLevels = new ArrayList<>();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            synchronized (compactedLevels) {
+                compactedLevels.add(invocation.getArgument(1));
+            }
+            compactionDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
 
-        assertEquals(2, group.size(), "Only clean2 should be absorbed (clean1 exceeds size cap)");
-        assertTrue(group.contains(dirty));
-        assertTrue(group.contains(clean2));
-        assertFalse(group.contains(clean1));
-        assertEquals(1, pool.size(), "clean1 should remain in pool");
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+
+        assertTrue(compactionDone.await(2, TimeUnit.SECONDS), "Compaction task was not submitted");
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+        synchronized (compactedLevels) {
+            // Only level 0 → target level 1 should be compacted
+            assertEquals(
+                    List.of(1),
+                    compactedLevels,
+                    "Only level 0 (target 1) should be compacted; level 1 was not triggered");
+        }
     }
 
     @Test
-    void testAbsorbIntoGroupNoAbsorptionWhenProjectedSizeAlreadyAtCap() {
-        // dirty: 50 alive, 50 dead, size=1000 → projected alive = 500
-        // clean: 90 alive, 10 dead, size=100 → projected alive = 90
-        // Size cap = 500 → group's projected size already at cap → no absorption
-        final DataFileReader dirty = mockFileReader(1, 0, 100, 1000);
-        final DataFileReader clean = mockFileReader(2, 0, 100, 100);
+    void testFilesAtExactlyLowerThresholdAreExcluded() throws InterruptedException, IOException {
+        // triggerFile: 20 alive, 80 dead → d/a = 4.0 → triggers
+        // borderlineFile: 77 alive, 23 dead → d/a = 23/77 ≈ 0.2987 → at or just below 0.3 → excluded
+        final DataFileReader triggerFile = mockFileReader(1, 0, 100, 1000);
+        final DataFileReader borderlineFile = mockFileReader(2, 0, 100, 500);
 
-        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(dirty, 50), new StatsEntry(clean, 90));
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(triggerFile, borderlineFile));
 
-        final List<DataFileReader> group = new ArrayList<>(List.of(dirty));
-        final List<DataFileReader> pool = new ArrayList<>(List.of(clean));
+        publishScanStats(
+                ID_TO_HASH_CHUNK, buildStats(new StatsEntry(triggerFile, 20), new StatsEntry(borderlineFile, 77)));
 
-        MerkleDbCompactionCoordinator.absorbIntoGroup("test", group, pool, stats, 0.01, 500);
+        final CountDownLatch compactionDone = new CountDownLatch(1);
+        final List<DataFileReader> compactedFiles = new ArrayList<>();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final List<DataFileReader> files = invocation.getArgument(0);
+            synchronized (compactedFiles) {
+                compactedFiles.addAll(files);
+            }
+            compactionDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
 
-        assertEquals(1, group.size(), "No absorption when already at size cap");
-        assertEquals(1, pool.size(), "Pool unchanged");
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+
+        assertTrue(compactionDone.await(2, TimeUnit.SECONDS), "Compaction task was not submitted");
+        synchronized (compactedFiles) {
+            assertTrue(compactedFiles.contains(triggerFile), "Trigger file must be compacted");
+            assertFalse(
+                    compactedFiles.contains(borderlineFile),
+                    "File at exactly the lower threshold boundary should be excluded (strict >)");
+        }
     }
+
+    @Test
+    void testMultipleTriggerAndLowerFilesAtSameLevel() throws InterruptedException, IOException {
+        // Two trigger files and two lower-eligible files at same level
+        final DataFileReader trigger1 = mockFileReader(1, 0, 100, 500);
+        final DataFileReader trigger2 = mockFileReader(2, 0, 100, 500);
+        final DataFileReader lower1 = mockFileReader(3, 0, 100, 500);
+        final DataFileReader lower2 = mockFileReader(4, 0, 100, 500);
+        final DataFileReader clean = mockFileReader(5, 0, 100, 500);
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(trigger1, trigger2, lower1, lower2, clean));
+
+        publishScanStats(
+                ID_TO_HASH_CHUNK,
+                buildStats(
+                        new StatsEntry(trigger1, 20), // d/a = 4.0 → trigger
+                        new StatsEntry(trigger2, 30), // d/a = 2.33 → trigger
+                        new StatsEntry(lower1, 70), // d/a = 0.43 → lower eligible
+                        new StatsEntry(lower2, 75), // d/a = 0.33 → lower eligible (just above 0.3)
+                        new StatsEntry(clean, 95))); // d/a = 0.053 → below lower threshold
+
+        final CountDownLatch compactionDone = new CountDownLatch(1);
+        final List<DataFileReader> compactedFiles = new ArrayList<>();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final List<DataFileReader> files = invocation.getArgument(0);
+            synchronized (compactedFiles) {
+                compactedFiles.addAll(files);
+            }
+            compactionDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+
+        assertTrue(compactionDone.await(2, TimeUnit.SECONDS), "Compaction task was not submitted");
+        synchronized (compactedFiles) {
+            assertEquals(4, compactedFiles.size(), "Should include 2 trigger + 2 lower-eligible files");
+            assertTrue(compactedFiles.contains(trigger1));
+            assertTrue(compactedFiles.contains(trigger2));
+            assertTrue(compactedFiles.contains(lower1));
+            assertTrue(compactedFiles.contains(lower2));
+            assertFalse(compactedFiles.contains(clean), "Clean file must be excluded");
+        }
+    }
+
+    // ========================================================================
+    // Compaction task edge case tests
+    // ========================================================================
 
     @Test
     void testCompactionTaskResetsCompactionInProgressFlagOnFailure() throws InterruptedException, IOException {
@@ -509,7 +673,6 @@ class MerkleDbCompactionCoordinatorTest {
 
         publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(file, 20)));
 
-        final CountDownLatch taskDone = new CountDownLatch(1);
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
             throw new IOException("simulated failure");

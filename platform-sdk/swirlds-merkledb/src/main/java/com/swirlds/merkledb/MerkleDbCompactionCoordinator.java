@@ -20,7 +20,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -241,18 +240,19 @@ class MerkleDbCompactionCoordinator {
     }
 
     /**
-     * Filters files from the latest scan results, partitions eligible files into groups,
-     * runs phase 2 absorption on each group, and submits each group as an independent
-     * compaction task.
+     * Filters files from the latest scan results, partitions candidates into groups,
+     * and submits each group as an independent compaction task.
      *
      * <p>The algorithm proceeds per level:
      * <ol>
-     *   <li><b>Phase 1:</b> select files whose {@code deadToAliveRatio > gcRateThreshold}.</li>
-     *   <li><b>Split:</b> partition eligible files into groups bounded by
+     *   <li><b>Trigger check:</b> if any file at this level has
+     *       {@code deadToAliveRatio > gcRateThreshold}, compaction is triggered.</li>
+     *   <li><b>Candidate collection:</b> all files at the triggered level whose
+     *       {@code deadToAliveRatio > gcRateLowerThreshold} are collected as candidates.
+     *       This includes both the trigger-eligible files and additional files with moderate
+     *       garbage that would not individually justify compaction.</li>
+     *   <li><b>Split:</b> partition candidates into groups bounded by
      *       {@code maxCompactedFileSizeInMB}.</li>
-     *   <li><b>Phase 2:</b> for each group, absorb additional non-eligible files from a shared
-     *       remaining pool. Absorbed files are removed from the pool so no other group at the
-     *       same level can claim them.</li>
      *   <li><b>Submit:</b> submit each group as a compaction task.</li>
      * </ol>
      *
@@ -282,23 +282,31 @@ class MerkleDbCompactionCoordinator {
         }
 
         final double gcRateThreshold = config.gcRateThreshold();
+        final double gcRateLowerThreshold = config.gcRateLowerThreshold();
         final long maxCompactedFileSize = config.maxCompactedFileSizeInMB() * MEBIBYTES_TO_BYTES;
         final long maxProjectedBytes = maxCompactedFileSize == 0 ? Long.MAX_VALUE : maxCompactedFileSize;
         final ExecutorService executor = getCompactionExecutor(merkleDbConfig);
 
-        // Phase 1: separate eligible from remaining, grouped by level
-        final Map<Integer, List<DataFileReader>> eligibleByLevel = new HashMap<>();
-        final Map<Integer, List<DataFileReader>> remainingByLevel = new HashMap<>();
+        // Classify files into three buckets per level:
+        // - triggered: files above the trigger threshold (gcRateThreshold) — at least one
+        //   must exist at a level for compaction to proceed
+        // - lowerEligible: files above the lower threshold but at or below the trigger
+        //   threshold — included opportunistically when compaction is triggered
+        // - (implicit) ignored: files at or below the lower threshold — not compacted
+        final Map<Integer, List<DataFileReader>> triggeredByLevel = new HashMap<>();
+        final Map<Integer, List<DataFileReader>> lowerEligibleByLevel = new HashMap<>();
         for (final GarbageFileStats fs : fileStats) {
             final int level = fs.compactionLevel();
             if (fs.deadToAliveRatio() > gcRateThreshold) {
-                eligibleByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(fs.fileReader);
-            } else {
-                remainingByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(fs.fileReader);
+                triggeredByLevel.computeIfAbsent(level, _ -> new ArrayList<>()).add(fs.fileReader);
+            } else if (fs.deadToAliveRatio() > gcRateLowerThreshold) {
+                lowerEligibleByLevel
+                        .computeIfAbsent(level, _ -> new ArrayList<>())
+                        .add(fs.fileReader);
             }
         }
 
-        for (final var entry : eligibleByLevel.entrySet()) {
+        for (final var entry : triggeredByLevel.entrySet()) {
             final int level = entry.getKey();
             final String levelKey = compactionTaskKey(storeName, level);
 
@@ -307,29 +315,28 @@ class MerkleDbCompactionCoordinator {
                 continue;
             }
 
-            final List<DataFileReader> eligible = entry.getValue();
-            if (eligible.isEmpty()) {
+            final List<DataFileReader> triggered = entry.getValue();
+            if (triggered.isEmpty()) {
                 continue;
             }
 
-            // Split eligible files into groups bounded by projected output size
-            final List<List<DataFileReader>> groups = splitIntoGroups(eligible, maxProjectedBytes, stats);
+            // Merge triggered files with lower-eligible files into a single candidate list
+            final List<DataFileReader> candidates = new ArrayList<>(triggered);
+            final List<DataFileReader> lowerEligible = lowerEligibleByLevel.getOrDefault(level, List.of());
+            candidates.addAll(lowerEligible);
 
-            // Phase 2: for each group, absorb additional files from the shared remaining pool
-            final List<DataFileReader> remainingPool = remainingByLevel.getOrDefault(level, List.of());
-            if (!remainingPool.isEmpty()) {
-                // Sort once by dead/alive descending — files that least worsen the aggregate first
-                final List<DataFileReader> sortedPool = new ArrayList<>(remainingPool);
-                sortedPool.sort(Comparator.<DataFileReader>comparingDouble(r -> {
-                            final GarbageFileStats fs = stats.lookupStats(r);
-                            return fs.deadToAliveRatio();
-                        })
-                        .reversed());
-
-                for (final List<DataFileReader> group : groups) {
-                    absorbIntoGroup(storeName, group, sortedPool, stats, gcRateThreshold, maxProjectedBytes);
-                }
+            if (!lowerEligible.isEmpty()) {
+                logger.info(
+                        MERKLE_DB.getMarker(),
+                        "[{}] Level {}: {} files above trigger threshold, {} additional files above lower threshold",
+                        storeName,
+                        level,
+                        triggered.size(),
+                        lowerEligible.size());
             }
+
+            // Split all candidates into groups bounded by projected output size
+            final List<List<DataFileReader>> groups = splitIntoGroups(candidates, maxProjectedBytes, stats);
 
             compactionTaskCounts.put(levelKey, groups.size());
             for (int i = 0; i < groups.size(); i++) {
@@ -341,11 +348,11 @@ class MerkleDbCompactionCoordinator {
             if (groups.size() > 1) {
                 logger.info(
                         MERKLE_DB.getMarker(),
-                        "[{}] Submitted {} compaction tasks for level {} ({} eligible files)",
+                        "[{}] Submitted {} compaction tasks for level {} ({} candidate files)",
                         storeName,
                         groups.size(),
                         level,
-                        eligible.size());
+                        candidates.size());
             }
         }
     }

@@ -30,15 +30,19 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
  * @param gcRateThreshold
- *      Minimum dead-to-alive ratio for compaction decisions. In phase 1, files whose individual
- *      {@code dead / alive > gcRateThreshold} are selected for compaction. In phase 2, remaining
- *      files are considered for absorption as long as adding each one keeps the aggregate ratio
- *      above this value. A value of 0.5 means: for every 2 alive items copied, at least 1 dead
- *      item must be reclaimed.
+ *      Compaction trigger threshold. In phase 1, files whose individual
+ *      {@code dead / alive > gcRateThreshold} are selected for compaction. At least one file
+ *      at a given level must exceed this threshold for compaction to be triggered at that level.
+ *      A value of 0.5 means: for every 2 alive items copied, at least 1 dead item must be reclaimed.
+ * @param gcRateLowerThreshold
+ *      Lower dead-to-alive ratio threshold for opportunistic file inclusion. Once compaction is
+ *      triggered at a level (at least one file exceeds {@code gcRateThreshold}), all files at that
+ *      level whose {@code dead / alive > gcRateLowerThreshold} are included as compaction candidates,
+ *      subject to the output size cap. This enables consolidation of files with moderate garbage that
+ *      would not individually justify compaction. Must be less than or equal to {@code gcRateThreshold}.
  * @param maxCompactedFileSizeInMB
  *      Maximum projected output size (MB) per compaction task. Candidates are partitioned into
- *      groups bounded by this size. Also used as the size cap when absorbing files in phase 2.
- *      A zero value disables this limit.
+ *      groups bounded by this size. A zero value disables this limit.
  * @param maxCompactionLevel max number of compaction levels, once this level is reached compactors stop increasing levels.
  *      That is, the result of compaction at level N will be a file at level N.
  * @param iteratorInputBufferBytes
@@ -88,6 +92,7 @@ public record MerkleDbConfig(
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "4") int compactionThreads,
         @ConfigProperty(defaultValue = "0.5") double gcRateThreshold,
+        @ConfigProperty(defaultValue = "0.3") double gcRateLowerThreshold,
         /*Default is 10GB*/
         @Min(0) @ConfigProperty(defaultValue = "10000") long maxCompactedFileSizeInMB,
         @Min(3) @ConfigProperty(defaultValue = "10") int maxCompactionLevel,

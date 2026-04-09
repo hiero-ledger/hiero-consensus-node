@@ -176,7 +176,7 @@ class GarbageScannerTest {
         return index;
     }
 
-    private static DataFileReader mockFileReader(final int fileIndex, final int level, final long totalItems) {
+    static DataFileReader mockFileReader(final int fileIndex, final int level, final long totalItems) {
         final DataFileMetadata metadata = mock(DataFileMetadata.class);
         when(metadata.getCompactionLevel()).thenReturn(level);
         when(metadata.getItemsCount()).thenReturn(totalItems);
