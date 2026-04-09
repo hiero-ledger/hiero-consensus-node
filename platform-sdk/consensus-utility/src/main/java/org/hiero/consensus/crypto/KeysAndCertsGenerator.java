@@ -5,7 +5,6 @@ import static org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT;
 import static org.hiero.consensus.crypto.KeyCertPurpose.SIGNING;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStoreException;
@@ -13,7 +12,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
-import java.security.spec.NamedParameterSpec;
 import org.hiero.base.crypto.DetRandomProvider;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -128,14 +126,13 @@ public class KeysAndCertsGenerator {
      * @return the generated agreement key pair
      */
     @NonNull
-    public static KeyPair generateAgreementKeyPair()
-            throws NoSuchAlgorithmException, InvalidAlgorithmParameterException {
+    public static KeyPair generateAgreementKeyPair() throws NoSuchAlgorithmException, NoSuchProviderException {
         // getInstanceStrong() is no longer blocking - https://blogs.oracle.com/linux/post/rngd1
         final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
         // generate the agreement key pair
         final KeyPairGenerator keyPairGenerator =
-                KeyPairGenerator.getInstance("ML-KEM");
-        keyPairGenerator.initialize(NamedParameterSpec.ML_KEM_768,  secureRandom);
+                KeyPairGenerator.getInstance(CryptoConstants.AGR_TYPE, CryptoConstants.AGR_PROVIDER);
+        keyPairGenerator.initialize(CryptoConstants.AGR_KEY_SIZE_BITS, secureRandom);
         return keyPairGenerator.generateKeyPair();
     }
 

@@ -17,7 +17,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -190,7 +189,6 @@ public final class CryptoStatic {
                 | NoSuchAlgorithmException
                 | IOException
                 | KeyGeneratingException
-                       |InvalidAlgorithmParameterException
                 | NoSuchProviderException e) {
             logger.error(EXCEPTION.getMarker(), "Exception while loading/generating keys", e);
             if (ThrowableUtilities.isRootCauseSuppliedType(e, NoSuchAlgorithmException.class)
