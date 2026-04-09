@@ -536,10 +536,10 @@ jobs:
         if: steps.bn1-status.outcome == 'success' && steps.bn2-status.outcome == 'success' && steps.bn3-status.outcome == 'success'
         run: |          
           # Calculate min and max first available blocks
-          min_first_available=$(${{ env.BN1_FIRST_AVAILABLE_BLOCK }} < ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }})
-          min_first_available=$(min_first_available < ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? min_first_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }})
-          max_first_available=$(${{ env.BN1_FIRST_AVAILABLE_BLOCK }} > ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }})
-          max_first_available=$(max_first_available > ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? max_first_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }})
+          min_first_available=$((${{ env.BN1_FIRST_AVAILABLE_BLOCK }} < ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}))
+          min_first_available=$((min_first_available < ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? min_first_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}))
+          max_first_available=$((${{ env.BN1_FIRST_AVAILABLE_BLOCK }} > ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}))
+          max_first_available=$((max_first_available > ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? max_first_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}))
           
           echo "Minimum first available block among BNs: $min_first_available"
           echo "Maximum first available block among BNs: $max_first_available"
@@ -551,10 +551,10 @@ jobs:
           fi
           
           # Calculate min and max last available blocks
-          min_last_available=$(${{ env.BN1_LAST_AVAILABLE_BLOCK }} < ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }})
-          min_last_available=$(min_available < ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }})
-          max_last_available=$(${{ env.BN1_LAST_AVAILABLE_BLOCK }} > ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }})
-          max_last_available=$(min_available > ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }})
+          min_last_available=$((${{ env.BN1_LAST_AVAILABLE_BLOCK }} < ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }}))
+          min_last_available=$((min_available < ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}))
+          max_last_available=$((${{ env.BN1_LAST_AVAILABLE_BLOCK }} > ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }}))
+          max_last_available=$((min_available > ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}))
           
           echo "Minimum last available block among BNs: $min_last_available"
           echo "Maximum last available block among BNs: $max_last_available"
