@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.toList;
+
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.logging.legacy.LogMarker;
@@ -9,14 +12,15 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Queue;
-import java.util.TreeMap;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
@@ -45,14 +49,6 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     private long lastStateRound = ConsensusConstants.ROUND_UNDEFINED;
     /** Signed states awaiting signatures */
     private final Map<Long, ReservedSignedState> incompleteStates = new HashMap<>();
-    /**
-     * Completed states awaiting release in ascending round order.
-     * A state is held here until all lower rounds have completed or been purged,
-     * ensuring that downstream consumers (specifically {@code saveStateTask}) always
-     * receive states in ascending round order. This prevents the deadlock in
-     * {@code VirtualPipeline}, which enforces strict oldest-first flushing.
-     */
-    private final TreeMap<Long, ReservedSignedState> completeStates = new TreeMap<>();
     /** State config */
     private final StateConfig stateConfig;
     /** Signatures for rounds in the future */
@@ -102,9 +98,8 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         lastStateRound = Math.max(lastStateRound, signedState.getRound());
         adjustSavedSignaturesWindow(signedState.getRound());
 
-        // Step 1: route incoming state into the right structure.
-        // Incomplete non-freeze states wait in incompleteStates until they gather enough signatures
-        // or are purged as too old. Complete and freeze states go directly to the buffer.
+        // complete states and freeze states will be written immediately to disk
+        // incomplete non-freeze states will be kept until they are complete or too old
         if (!signedState.isComplete() && !signedState.isFreezeState()) {
             final ReservedSignedState previousState = incompleteStates.put(signedState.getRound(), reservedSignedState);
             if (previousState != null) {
@@ -114,34 +109,12 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
                         "Two states with the same round ({}) have been added to the signature collector",
                         signedState.getRound());
             }
-        } else {
-            completeStates.put(signedState.getRound(), reservedSignedState);
+            return Optional.of(purgeOldStates()).filter(l -> !l.isEmpty()).orElse(null);
         }
-
-        // Step 2: purge states that are too old to ever gather enough signatures and route
-        // them into the buffer so they are output in ascending round order.
-        purgeOldStates().forEach(rss -> completeStates.put(rss.get().getRound(), rss));
-
-        // Step 3: drain the buffer in ascending round order.
-        // Freeze state is a special case: it is the last state the node will ever process before
-        // shutdown, so no further addReservedState calls will come. Any rounds still in
-        // incompleteStates will never complete, meaning completeStates() would permanently block
-        // states already in the buffer above the threshold. We therefore extract the freeze state
-        // first, drain whatever is safely ordered below the threshold, then append the freeze state
-        // last. The freeze state itself is safe to release out of order because it uses a
-        // synchronous snapshot path and is not subject to the VirtualPipeline ordering constraint.
-        if (signedState.isFreezeState()) {
-            final List<ReservedSignedState> returnStates = new ArrayList<>();
-            final ReservedSignedState freezeState =
-                    completeStates.pollLastEntry().getValue();
-            final List<ReservedSignedState> completeStatesOrdered = completeStates();
-            if (completeStatesOrdered != null) {
-                returnStates.addAll(completeStatesOrdered);
-            }
-            returnStates.add(freezeState);
-            return returnStates;
-        }
-        return completeStates();
+        return Stream.concat(purgeOldStates(signedState.getRound()).stream(), Stream.of(reservedSignedState))
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparingLong(rss -> rss.get().getRound()))
+                .collect(collectingAndThen(toList(), l -> l.isEmpty() ? null : l));
     }
 
     /**
@@ -151,11 +124,16 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     public @Nullable List<ReservedSignedState> handlePreconsensusSignatures(
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         Objects.requireNonNull(transactions, "transactions");
-        transactions.forEach(this::handlePreconsensusSignature);
-        return completeStates();
+        return transactions.stream()
+                .map(this::handlePreconsensusSignature)
+                .filter(Objects::nonNull)
+                .flatMap(completed ->
+                        Stream.concat(purgeOldStates(completed.get().getRound()).stream(), Stream.of(completed)))
+                .sorted(Comparator.comparingLong(rss -> rss.get().getRound()))
+                .collect(collectingAndThen(toList(), l -> l.isEmpty() ? null : l));
     }
 
-    private void handlePreconsensusSignature(
+    private @Nullable ReservedSignedState handlePreconsensusSignature(
             @NonNull final ScopedSystemTransaction<StateSignatureTransaction> scopedTransaction) {
 
         final long round = scopedTransaction.transaction().round();
@@ -173,12 +151,9 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         if (reservedState == null) {
             // This round has already been completed, or it is really old or in the future
             savedSignatures.add(new SavedSignature(round, scopedTransaction.submitterId(), signature));
-            return;
+            return null;
         }
-        final ReservedSignedState completed = addSignature(reservedState, scopedTransaction.submitterId(), signature);
-        if (completed != null) {
-            completeStates.put(completed.get().getRound(), completed);
-        }
+        return addSignature(reservedState, scopedTransaction.submitterId(), signature);
     }
 
     /**
@@ -188,11 +163,16 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     public @Nullable List<ReservedSignedState> handlePostconsensusSignatures(
             @NonNull final Queue<ScopedSystemTransaction<StateSignatureTransaction>> transactions) {
         Objects.requireNonNull(transactions, "transactions");
-        transactions.forEach(this::handlePostconsensusSignature);
-        return completeStates();
+        return transactions.stream()
+                .map(this::handlePostconsensusSignature)
+                .filter(Objects::nonNull)
+                .flatMap(completed ->
+                        Stream.concat(purgeOldStates(completed.get().getRound()).stream(), Stream.of(completed)))
+                .sorted(Comparator.comparingLong(rss -> rss.get().getRound()))
+                .collect(collectingAndThen(toList(), l -> l.isEmpty() ? null : l));
     }
 
-    private void handlePostconsensusSignature(
+    private @Nullable ReservedSignedState handlePostconsensusSignature(
             @NonNull final ScopedSystemTransaction<StateSignatureTransaction> scopedTransaction) {
         final long round = scopedTransaction.transaction().round();
 
@@ -201,18 +181,15 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         // and if we don't have the state for an old round, we never will.
         // in both cases, the signature can be ignored
         if (reservedState == null) {
-            return;
+            return null;
         }
 
-        final ReservedSignedState completed = addSignature(
+        return addSignature(
                 reservedState,
                 scopedTransaction.submitterId(),
                 new Signature(
                         SignatureType.RSA,
                         scopedTransaction.transaction().signature().toByteArray()));
-        if (completed != null) {
-            completeStates.put(completed.get().getRound(), completed);
-        }
     }
 
     /**
@@ -252,21 +229,22 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     }
 
     /**
-     * Get rid of old states.
+     * Get rid of old states which rounds strictly less than the given round.
      *
+     * @param round the round before which to release states
      * @return a list of states that were purged
      */
-    private @NonNull List<ReservedSignedState> purgeOldStates() {
+    @NonNull
+    private List<ReservedSignedState> purgeOldStates(final long round) {
         final List<ReservedSignedState> purgedStates = new ArrayList<>();
 
         // Any state older than this is unconditionally removed.
-        final long earliestPermittedRound = getEarliestPermittedRound();
         for (final Iterator<ReservedSignedState> iterator =
                         incompleteStates.values().iterator();
                 iterator.hasNext(); ) {
             final ReservedSignedState reservedSignedState = iterator.next();
             final SignedState signedState = reservedSignedState.get();
-            if (signedState.getRound() < earliestPermittedRound) {
+            if (signedState.getRound() < round) {
                 signedStateMetrics.getTotalUnsignedStatesMetric().increment();
                 purgedStates.add(reservedSignedState);
                 iterator.remove();
@@ -275,6 +253,15 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
 
         signedStateMetrics.getUnsignedStatesMetric().update(incompleteStates.size());
         return purgedStates;
+    }
+
+    /**
+     * Get rid of old states.
+     *
+     * @return a list of states that were purged
+     */
+    private @NonNull List<ReservedSignedState> purgeOldStates() {
+        return purgeOldStates(getEarliestPermittedRound());
     }
 
     /**
@@ -303,13 +290,6 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
             state.close();
             iterator.remove();
         }
-        for (final Iterator<ReservedSignedState> iterator =
-                        completeStates.values().iterator();
-                iterator.hasNext(); ) {
-            final ReservedSignedState state = iterator.next();
-            state.close();
-            iterator.remove();
-        }
         savedSignatures.clear();
         lastStateRound = ConsensusConstants.ROUND_UNDEFINED;
     }
@@ -319,40 +299,4 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
      */
     private record SavedSignature(
             long round, @NonNull NodeId memberId, @NonNull Signature signature) {}
-
-    /**
-     * Returns the lowest round still awaiting signatures in {@link #incompleteStates}.
-     * A completed state is only safe to release if its round is strictly below this value,
-     * because a lower round could still complete and must be output first.
-     *
-     * @return the lowest incomplete round, or {@link Long#MAX_VALUE} if there are no incomplete states
-     */
-    private long lowestIncompleteStateRound() {
-        if (incompleteStates.isEmpty()) {
-            return Long.MAX_VALUE;
-        }
-        return Collections.min(incompleteStates.keySet());
-    }
-
-    /**
-     * Releases completed states from {@link #completeStates} whose round is strictly below
-     * the current {@link #lowestIncompleteStateRound()}. Returns them in ascending round order.
-     *
-     * @return a list of states in ascending round order, or {@code null} if nothing to release
-     */
-    @Nullable
-    private List<ReservedSignedState> completeStates() {
-        if (completeStates.isEmpty()) {
-            return null;
-        }
-
-        final long threshold = lowestIncompleteStateRound();
-        final List<ReservedSignedState> result = new ArrayList<>();
-
-        while (!completeStates.isEmpty() && completeStates.firstKey() < threshold) {
-            result.add(completeStates.pollFirstEntry().getValue());
-        }
-
-        return result.isEmpty() ? null : result;
-    }
 }
