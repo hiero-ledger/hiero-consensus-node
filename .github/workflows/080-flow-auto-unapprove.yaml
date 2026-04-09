@@ -3,8 +3,9 @@ name: "080: [FLOW] Auto Unapprove PR"
 on:
   pull_request:
     types:
+      - opened
       - synchronize
-  workflow_dispatch:
+      - reopened
 
 defaults:
   run:
@@ -27,11 +28,11 @@ jobs:
           setup-node: "true"
           node-version: "20"
 
-      - name: Smart dismiss reviews
+      - name: Dismiss Reviews from Code Owners and Teams
         uses: step-security/auto-unapprove@7665c273e3bef296dbfd162d8f31911d8ffe4281 # v1.0.2
         with:
           github-token: ${{ secrets.GH_AUTO_UNAPPROVE_TOKEN }}
-          pr-number: "24874"
+          pr-number: ${{ github.event.pull_request.number }}
           dry-run: "false"
           code-owners-file: ".github/CODEOWNERS"
           team-start-with: "@hiero-ledger/"
