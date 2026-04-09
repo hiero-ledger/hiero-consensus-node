@@ -63,12 +63,11 @@ jobs:
       enable-unit-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-misc-records-and-crypto: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-token-and-time-consuming: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-misc-records-crypto-and-serial: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-token-fees-tc-and-nd-reconnect: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-atomic-batch: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-smart-contract-and-iss: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-state-throttling: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-simplefees: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-atomic-batch-and-iss: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-hapi-tests-smart-contract: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
       java-version: "25"

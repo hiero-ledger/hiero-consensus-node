@@ -33,33 +33,28 @@ on:
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-misc-records-and-crypto:
-        description: "HAPI Testing (Misc Records & Crypto) Enabled"
+      enable-hapi-tests-misc-records-crypto-and-serial:
+        description: "HAPI Testing (Misc Records, Crypto & Misc Serial) Enabled"
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-token-and-time-consuming:
-        description: "HAPI Testing (Token & Time Consuming) Enabled"
+      enable-hapi-tests-token-fees-tc-and-nd-reconnect:
+        description: "HAPI Testing (Token, Simple Fees, Time Consuming & ND Reconnect) Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests-atomic-batch:
+        description: "HAPI Testing (Atomic Batch) Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-hapi-tests-smart-contract-and-iss:
+        description: "HAPI Testing (Smart Contracts & ISS) Enabled"
         type: string
         required: false
         default: "false"
       enable-hapi-tests-state-throttling:
         description: "HAPI Testing (State Throttling) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-simplefees:
-        description: "HAPI Testing (Simple Fees) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-atomic-batch-and-iss:
-        description: "HAPI Testing (Atomic Batch & ISS) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-smart-contract:
-        description: "HAPI Testing (Smart Contract) Enabled"
         type: string
         required: false
         default: "false"
@@ -246,13 +241,12 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      enable-hapi-tests-misc-and-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-misc-records-and-crypto: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-misc-records-and-crypto == 'true' }}"
-      enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests-simplefees == 'true' }}"
-      enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}"
-      enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests-smart-contract == 'true' }}"
+      enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
+      enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}"
+      enable-hapi-tests-token-fees-tc-and-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-token-fees-tc-and-nd-reconnect == 'true' }}"
+      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-atomic-batch == 'true' }}"
+      enable-hapi-tests-smart-contract-and-iss: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}"
       enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-atomic-batch-and-iss: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-atomic-batch-and-iss == 'true' }}"
       enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests-state-throttling == 'true' }}"
       enable-network-log-capture: "true"
     secrets:

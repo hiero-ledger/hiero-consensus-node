@@ -28,33 +28,28 @@ on:
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-misc-and-nd-reconnect:
-        description: "HAPI Testing (Misc & ND Reconnect) Enabled"
+      enable-hapi-tests-misc:
+        description: "HAPI Testing (Misc) Enabled"
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-misc-records-and-crypto:
-        description: "HAPI Testing (Misc Records & Crypto) Enabled"
+      enable-hapi-tests-misc-records-crypto-and-serial:
+        description: "HAPI Testing (Misc Records, Crypto & Misc Serial) Enabled"
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-token-and-time-consuming:
-        description: "HAPI Testing (Token & Time Consuming) Enabled"
+      enable-hapi-tests-token-fees-tc-and-nd-reconnect:
+        description: "HAPI Testing (Token, Simple Fees, Time Consuming & ND Reconnect) Enabled"
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-atomic-batch-and-iss:
-        description: "HAPI Testing (Atomic Batch & ISS) Enabled"
+      enable-hapi-tests-atomic-batch:
+        description: "HAPI Testing (Atomic Batch) Enabled"
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-simplefees:
-        description: "HAPI Testing (simplefees) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-smart-contract:
-        description: "HAPI Testing (smart contract) Enabled"
+      enable-hapi-tests-smart-contract-and-iss-and-iss:
+        description: "HAPI Testing (Smart Contracts & ISS) Enabled"
         type: string
         required: false
         default: "false"
@@ -107,9 +102,9 @@ env:
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
-  hapi-tests-misc-and-nd-reconnect:
-    name: "HAPI Tests (Misc & ND Reconnect)"
-    if: ${{ inputs.enable-hapi-tests-misc-and-nd-reconnect == 'true' }}
+  hapi-tests-misc:
+    name: "HAPI Tests (Misc)"
+    if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
@@ -127,31 +122,31 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Misc & ND Reconnect)
-        id: gradle-hapi-misc-and-nd-reconnect
+      - name: HAPI Testing (Misc)
+        id: gradle-hapi-misc
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon && ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon && ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon && ${GRADLE_EXEC} hapiTestNDReconnect --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon && ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon
 
-      - name: Publish HAPI Test (Misc & ND Reconnect) Report
+      - name: Publish HAPI Test (Misc) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
-          check_name: "Node: HAPI Test (Misc & ND Reconnect) Results"
+          check_name: "Node: HAPI Test (Misc) Results"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload HAPI Test (Misc & ND Reconnect) Report Artifacts
+      - name: Upload HAPI Test (Misc) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Misc & ND Reconnect) Reports
+          name: HAPI Test (Misc) Reports
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Detect Flaky Tests (Misc & ND Reconnect)
-        id: detect-flaky-hapi-misc-and-nd-reconnect
+      - name: Detect Flaky Tests (Misc)
+        id: detect-flaky-hapi-misc
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
@@ -160,22 +155,22 @@ jobs:
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload HAPI Test (Misc & ND Reconnect) Network Logs
+      - name: Upload HAPI Test (Misc) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc-and-nd-reconnect.conclusion == 'failure' || steps.detect-flaky-hapi-misc-and-nd-reconnect.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.detect-flaky-hapi-misc.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Misc & ND Reconnect) Network Logs
+          name: HAPI Test (Misc) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: Upload HAPI Test (Misc & ND Reconnect) Failure Artifacts
+      - name: Upload HAPI Test (Misc) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-misc-and-nd-reconnect.conclusion == 'failure' || steps.detect-flaky-hapi-misc-and-nd-reconnect.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.detect-flaky-hapi-misc.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Misc & ND Reconnect) Failure Artifacts
+          name: HAPI Test (Misc) Failure Artifacts
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
@@ -186,9 +181,9 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
-  hapi-tests-misc-records-and-crypto:
-    name: "HAPI Tests (Misc Records & Crypto)"
-    if: ${{ inputs.enable-hapi-tests-misc-records-and-crypto == 'true' }}
+  hapi-tests-misc-records-crypto-and-serial:
+    name: "HAPI Tests (Misc Records, Crypto & Misc Serial)"
+    if: ${{ inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
@@ -206,30 +201,30 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Misc Records & Crypto)
-        id: gradle-hapi-misc-records-and-crypto
+      - name: HAPI Testing (Misc Records, Crypto & Misc Serial)
+        id: gradle-hapi-misc-records-crypto-and-serial
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon && ${GRADLE_EXEC} hapiTestMiscRecordsSerial --no-daemon && ${GRADLE_EXEC} hapiTestCrypto --no-daemon && ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon
+        run: ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon && ${GRADLE_EXEC} hapiTestMiscRecordsSerial --no-daemon && ${GRADLE_EXEC} hapiTestCrypto --no-daemon && ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon && ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon
 
-      - name: Publish HAPI Test (Misc Records & Crypto) Report
+      - name: Publish HAPI Test (Misc Records, Crypto & Misc Serial) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
-          check_name: "Node: HAPI Test (Misc Records & Crypto) Results"
+          check_name: "Node: HAPI Test (Misc Records, Crypto & Misc Serial) Results"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload HAPI Test (Misc Records & Crypto) Report Artifacts
+      - name: Upload HAPI Test (Misc Records, Crypto & Misc Serial) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Misc Records & Crypto) Reports
+          name: HAPI Test (Misc Records, Crypto & Misc Serial) Reports
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Detect Flaky Tests (Misc Records & Crypto)
-        id: detect-flaky-hapi-misc-records-and-crypto
+      - name: Detect Flaky Tests (Misc Records, Crypto & Misc Serial)
+        id: detect-flaky-hapi-misc-records-crypto-and-serial
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
@@ -238,22 +233,22 @@ jobs:
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload HAPI Test (Misc Records & Crypto) Network Logs
+      - name: Upload HAPI Test (Misc Records, Crypto & Misc Serial) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc-records-and-crypto.conclusion == 'failure' || steps.detect-flaky-hapi-misc-records-and-crypto.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc-records-crypto-and-serial.conclusion == 'failure' || steps.detect-flaky-hapi-misc-records-crypto-and-serial.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Misc Records & Crypto) Network Logs
+          name: HAPI Test (Misc Records, Crypto & Misc Serial) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: Upload HAPI Test (Misc Records & Crypto) Failure Artifacts
+      - name: Upload HAPI Test (Misc Records, Crypto & Misc Serial) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-misc-records-and-crypto.conclusion == 'failure' || steps.detect-flaky-hapi-misc-records-and-crypto.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-misc-records-crypto-and-serial.conclusion == 'failure' || steps.detect-flaky-hapi-misc-records-crypto-and-serial.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Misc Records & Crypto) Failure Artifacts
+          name: HAPI Test (Misc Records, Crypto & Misc Serial) Failure Artifacts
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
@@ -264,9 +259,9 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
-  hapi-tests-simple-fees:
-    name: "HAPI Tests (Simple Fees)"
-    if: ${{ inputs.enable-hapi-tests-simplefees == 'true' }}
+  hapi-tests-token-fees-tc-and-nd-reconnect:
+    name: "HAPI Tests (Token, Simple Fees, Time Consuming & ND Reconnect)"
+    if: ${{ inputs.enable-hapi-tests-token-fees-tc-and-nd-reconnect == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
@@ -284,30 +279,30 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Simple Fees)
-        id: gradle-hapi-simplefees
+      - name: HAPI Testing (Token, Simple Fees, Time Consuming & ND Reconnect)
+        id: gradle-hapi-token-fees-tc-and-nd-reconnect
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
+        run: ${GRADLE_EXEC} hapiTestToken --no-daemon && ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon && ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon && ${GRADLE_EXEC} hapiTestTimeConsumingSerial --no-daemon && ${GRADLE_EXEC} hapiTestNDReconnect --no-daemon
 
-      - name: Publish HAPI Test (Simple Fees) Report
+      - name: Publish HAPI Test (Token, Simple Fees, Time Consuming & ND Reconnect) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
-          check_name: "Node: HAPI Test (Simple Fees) Results"
+          check_name: "Node: HAPI Test (Token, Simple Fees, Time Consuming & ND Reconnect) Results"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload HAPI Test (Simple Fees) Report Artifacts
+      - name: Upload HAPI Test (Token, Simple Fees, Time Consuming & ND Reconnect) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Simple Fees) Report
+          name: HAPI Test (Token, Simple Fees, Time Consuming & ND Reconnect) Reports
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Detect Flaky Tests (Simple Fees)
-        id: detect-flaky-hapi-simplefees
+      - name: Detect Flaky Tests (Token, Simple Fees, Time Consuming & ND Reconnect)
+        id: detect-flaky-hapi-token-fees-tc-and-nd-reconnect
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
@@ -316,22 +311,22 @@ jobs:
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload HAPI Test (Simple Fees) Network Logs
+      - name: Upload HAPI Test (Token, Simple Fees, Time Consuming & ND Reconnect) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-simplefees.conclusion == 'failure' || steps.detect-flaky-hapi-simplefees.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-token-fees-tc-and-nd-reconnect.conclusion == 'failure' || steps.detect-flaky-hapi-token-fees-tc-and-nd-reconnect.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Simple Fees) Network Logs
+          name: HAPI Test (Token, Simple Fees, Time Consuming & ND Reconnect) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: Upload HAPI Test (Simple Fees) Failure Artifacts
+      - name: Upload HAPI Test (Token, Simple Fees, Time Consuming & ND Reconnect) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-simplefees.conclusion == 'failure' || steps.detect-flaky-hapi-simplefees.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-token-fees-tc-and-nd-reconnect.conclusion == 'failure' || steps.detect-flaky-hapi-token-fees-tc-and-nd-reconnect.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Simple Fees) Failure Artifacts
+          name: HAPI Test (Token, Simple Fees, Time Consuming & ND Reconnect) Failure Artifacts
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
@@ -342,9 +337,9 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
-  hapi-tests-token-and-time-consuming:
-    name: "HAPI Tests (Token & Time Consuming)"
-    if: ${{ inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}
+  hapi-tests-smart-contracts-and-iss:
+    name: "HAPI Tests (Smart Contracts & ISS)"
+    if: ${{ inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
@@ -362,30 +357,30 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Token & Time Consuming)
-        id: gradle-hapi-token-and-time-consuming
+      - name: HAPI Testing (Smart Contracts & ISS)
+        id: gradle-hapi-smart-contract-and-iss
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestToken --no-daemon && ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon && ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon && ${GRADLE_EXEC} hapiTestTimeConsumingSerial --no-daemon
+        run: ${GRADLE_EXEC} hapiTestSmartContract --no-daemon && ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon && ${GRADLE_EXEC} hapiTestIss --no-daemon
 
-      - name: Publish HAPI Test (Token & Time Consuming) Report
+      - name: Publish HAPI Test (Smart Contracts & ISS) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
-          check_name: "Node: HAPI Test (Token & Time Consuming) Results"
+          check_name: "Node: HAPI Test (Smart Contracts & ISS) Results"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload HAPI Test (Token & Time Consuming) Report Artifacts
+      - name: Upload HAPI Test (Smart Contracts & ISS) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Token & Time Consuming) Reports
+          name: HAPI Test (Smart Contracts & ISS) Report
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Detect Flaky Tests (Token & Time Consuming)
-        id: detect-flaky-hapi-token-and-time-consuming
+      - name: Detect Flaky Tests (Smart Contracts & ISS)
+        id: detect-flaky-hapi-smart-contract-and-iss
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
@@ -394,100 +389,22 @@ jobs:
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload HAPI Test (Token & Time Consuming) Network Logs
+      - name: Upload HAPI Test (Smart Contracts & ISS) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' || steps.detect-flaky-hapi-token-and-time-consuming.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-smart-contract-and-iss.conclusion == 'failure' || steps.detect-flaky-hapi-smart-contract-and-iss.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Token & Time Consuming) Network Logs
+          name: HAPI Test (Smart Contracts & ISS) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: Upload HAPI Test (Token & Time Consuming) Failure Artifacts
+      - name: Upload HAPI Test (Smart Contracts & ISS) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' || steps.detect-flaky-hapi-token-and-time-consuming.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-smart-contract-and-iss.conclusion == 'failure' || steps.detect-flaky-hapi-smart-contract-and-iss.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Token & Time Consuming) Failure Artifacts
-          path: |
-            hedera-node/test-clients/build/**/*.blk.gz
-            hedera-node/test-clients/build/**/*.rcd.gz
-            hedera-node/test-clients/build/**/*.pb
-            hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/**/*.log
-            hedera-node/test-clients/output/**
-          retention-days: 7
-
-  hapi-tests-smart-contracts:
-    name: "HAPI Tests (Smart Contracts)"
-    if: ${{ inputs.enable-hapi-tests-smart-contract == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
-    steps:
-      - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
-          checkout-token: "${{ secrets.access-token }}"
-          setup-java: "true"
-          java-version: "${{ inputs.java-version }}"
-          java-distribution: "${{ inputs.java-distribution }}"
-          setup-gradle: "true"
-          gradle-cache-read-only: "false"
-          setup-node: "true"
-          node-version: "${{ inputs.node-version }}"
-
-      - name: HAPI Testing (Smart Contract)
-        id: gradle-hapi-smart-contract
-        env:
-          LC_ALL: en.UTF-8
-          LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSmartContract --no-daemon && ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon
-
-      - name: Publish HAPI Test (Smart Contract) Report
-        uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
-        with:
-          check_name: "Node: HAPI Test (Smart Contract) Results"
-          json_thousands_separator: ","
-          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload HAPI Test (Smart Contract) Report Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: HAPI Test (Smart Contract) Report
-          path: "**/test-clients/build/test-results/**/TEST-*.xml"
-          retention-days: 7
-
-      - name: Detect Flaky Tests (Smart Contract)
-        id: detect-flaky-hapi-smart-contract
-        if: ${{ !cancelled() }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
-      - name: Upload HAPI Test (Smart Contract) Network Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-smart-contract.conclusion == 'failure' || steps.detect-flaky-hapi-smart-contract.outputs.has-flaky == 'true') }}
-        with:
-          name: HAPI Test (Smart Contract) Network Logs
-          path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
-            hedera-node/test-clients/output/**
-          retention-days: 7
-
-      - name: Upload HAPI Test (Smart Contract) Failure Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-smart-contract.conclusion == 'failure' || steps.detect-flaky-hapi-smart-contract.outputs.has-flaky == 'true') }}
-        with:
-          name: HAPI Test (Smart Contract) Failure Artifacts
+          name: HAPI Test (Smart Contracts & ISS) Failure Artifacts
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
@@ -652,9 +569,9 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
-  hapi-tests-atomic-batch-and-iss:
-    name: "HAPI Tests (Atomic Batch & ISS)"
-    if: ${{ inputs.enable-hapi-tests-atomic-batch-and-iss == 'true' }}
+  hapi-tests-atomic-batch:
+    name: "HAPI Tests (Atomic Batch)"
+    if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
@@ -672,30 +589,30 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Atomic Batch & ISS)
-        id: gradle-hapi-atomic-batch-and-iss
+      - name: HAPI Testing (Atomic Batch)
+        id: gradle-hapi-atomic-batch
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestIss --no-daemon
+        run: ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon
 
-      - name: Publish HAPI Test (Atomic Batch & ISS) Report
+      - name: Publish HAPI Test (Atomic Batch) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
-          check_name: "Node: HAPI Test (Atomic Batch & ISS) Results"
+          check_name: "Node: HAPI Test (Atomic Batch) Results"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload HAPI Test (Atomic Batch & ISS) Report Artifacts
+      - name: Upload HAPI Test (Atomic Batch) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Atomic Batch & ISS) Reports
+          name: HAPI Test (Atomic Batch) Reports
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Detect Flaky Tests (Atomic Batch & ISS)
-        id: detect-flaky-hapi-atomic-batch-and-iss
+      - name: Detect Flaky Tests (Atomic Batch)
+        id: detect-flaky-hapi-atomic-batch
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
@@ -704,22 +621,22 @@ jobs:
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload HAPI Test (Atomic Batch & ISS) Network Logs
+      - name: Upload HAPI Test (Atomic Batch) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-atomic-batch-and-iss.conclusion == 'failure' || steps.detect-flaky-hapi-atomic-batch-and-iss.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-atomic-batch.conclusion == 'failure' || steps.detect-flaky-hapi-atomic-batch.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Atomic Batch & ISS) Network Logs
+          name: HAPI Test (Atomic Batch) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: Upload HAPI Test (Atomic Batch & ISS) Failure Artifacts
+      - name: Upload HAPI Test (Atomic Batch) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-atomic-batch-and-iss.conclusion == 'failure' || steps.detect-flaky-hapi-atomic-batch-and-iss.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-atomic-batch.conclusion == 'failure' || steps.detect-flaky-hapi-atomic-batch.outputs.has-flaky == 'true') }}
         with:
-          name: HAPI Test (Atomic Batch & ISS) Failure Artifacts
+          name: HAPI Test (Atomic Batch) Failure Artifacts
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
@@ -812,14 +729,13 @@ jobs:
     name: "Set Failure Mode"
     runs-on: hl-cn-default-lin-sm
     needs:
-      - hapi-tests-misc-and-nd-reconnect
-      - hapi-tests-misc-records-and-crypto
-      - hapi-tests-simple-fees
-      - hapi-tests-token-and-time-consuming
-      - hapi-tests-smart-contracts
+      - hapi-tests-misc
+      - hapi-tests-misc-records-crypto-and-serial
+      - hapi-tests-token-fees-tc-and-nd-reconnect
+      - hapi-tests-atomic-batch
+      - hapi-tests-smart-contracts-and-iss
       - hapi-tests-restart
       - hapi-tests-bn-comms
-      - hapi-tests-atomic-batch-and-iss
       - hapi-tests-state-throttling
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     outputs:
@@ -837,7 +753,7 @@ jobs:
             "${{ needs.hapi-tests-crypto.result || 'skipped' }}"
             "${{ needs.hapi-tests-simple-fees.result || 'skipped' }}"
             "${{ needs.hapi-tests-token.result || 'skipped' }}"
-            "${{ needs.hapi-tests-smart-contracts.result || 'skipped' }}"
+            "${{ needs.hapi-tests-smart-contracts-and-iss.result || 'skipped' }}"
             "${{ needs.hapi-tests-time-consuming.result || 'skipped' }}"
             "${{ needs.hapi-tests-restart.result || 'skipped' }}"
             "${{ needs.hapi-tests-nd-reconnect.result || 'skipped' }}"
