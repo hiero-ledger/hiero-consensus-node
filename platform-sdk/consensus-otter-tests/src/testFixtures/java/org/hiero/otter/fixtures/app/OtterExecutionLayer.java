@@ -38,7 +38,12 @@ public class OtterExecutionLayer implements ExecutionLayer {
      */
     public OtterExecutionLayer(@NonNull final Random random, @NonNull final Metrics metrics, @NonNull final Time time) {
         this.random = requireNonNull(random);
-        transactionPool = new TransactionPoolNexus(getTransactionLimits(), TX_QUEUE_SIZE, metrics, time);
+        transactionPool = new TransactionPoolNexus(
+                getTransactionLimits(),
+                TX_QUEUE_SIZE,
+                TransactionPoolNexus.DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION,
+                metrics,
+                time);
     }
 
     /**

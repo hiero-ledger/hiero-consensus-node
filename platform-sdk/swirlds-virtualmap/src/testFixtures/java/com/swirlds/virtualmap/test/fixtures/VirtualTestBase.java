@@ -1,34 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.test.fixtures;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
-
-import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.MerkleLeaf;
-import com.swirlds.common.merkle.impl.PartialBinaryMerkleInternal;
-import com.swirlds.common.merkle.impl.PartialMerkleLeaf;
-import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
-import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.List;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.CryptographyProvider;
-import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 
 @SuppressWarnings("jol")
 public class VirtualTestBase {
@@ -97,17 +76,8 @@ public class VirtualTestBase {
     protected static final long LEFT_LEFT_PATH = 3;
     protected static final long LEFT_RIGHT_PATH = 4;
     protected static final long RIGHT_LEFT_PATH = 5;
+    protected static final long RIGHT_RIGHT_PATH = 6;
 
-    protected List<VirtualNodeCache> rounds;
-    protected VirtualNodeCache cache;
-    private VirtualNodeCache lastCache;
-
-    private VirtualHashRecord rootInternal;
-    private VirtualHashRecord leftInternal;
-    private VirtualHashRecord rightInternal;
-    private VirtualHashRecord leftLeftInternal;
-    private VirtualHashRecord leftRightInternal;
-    private VirtualHashRecord rightLeftInternal;
     private VirtualLeafBytes<TestValue> lastALeaf;
     private VirtualLeafBytes<TestValue> lastBLeaf;
     private VirtualLeafBytes<TestValue> lastCLeaf;
@@ -117,66 +87,10 @@ public class VirtualTestBase {
     private VirtualLeafBytes<TestValue> lastGLeaf;
 
     @BeforeAll
-    static void globalSetup() throws Exception {
+    static void globalSetup() throws ConstructableRegistryException {
         // Ensure VirtualNodeCache.release() returns clean
         System.setProperty("syncCleaningPool", "true");
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructables("com.swirlds.virtualmap.test.fixtures");
-        registry.registerConstructable(new ClassConstructorPair(TestInternal.class, TestInternal::new));
-        registry.registerConstructable(new ClassConstructorPair(TestLeaf.class, TestLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(
-                VirtualNodeCache.class,
-                () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
-    }
-
-    @BeforeEach
-    public void setup() {
-        rounds = new ArrayList<>();
-        cache = new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class));
-        rounds.add(cache);
-        lastCache = null;
-    }
-
-    // NOTE: If nextRound automatically causes hashing, some tests in VirtualNodeCacheTest will fail or be invalid.
-    protected void nextRound() {
-        lastCache = cache;
-        cache = cache.copy();
-        rounds.add(cache);
-    }
-
-    protected VirtualHashRecord rootInternal() {
-        rootInternal = rootInternal == null ? new VirtualHashRecord(ROOT_PATH) : copy(rootInternal);
-        return rootInternal;
-    }
-
-    protected VirtualHashRecord leftInternal() {
-        leftInternal = leftInternal == null ? new VirtualHashRecord(LEFT_PATH) : copy(leftInternal);
-        return leftInternal;
-    }
-
-    protected VirtualHashRecord rightInternal() {
-        rightInternal = rightInternal == null ? new VirtualHashRecord(RIGHT_PATH) : copy(rightInternal);
-        return rightInternal;
-    }
-
-    protected VirtualHashRecord leftLeftInternal() {
-        leftLeftInternal = leftLeftInternal == null ? new VirtualHashRecord(LEFT_LEFT_PATH) : copy(leftLeftInternal);
-        return leftLeftInternal;
-    }
-
-    protected VirtualHashRecord leftRightInternal() {
-        leftRightInternal =
-                leftRightInternal == null ? new VirtualHashRecord(LEFT_RIGHT_PATH) : copy(leftRightInternal);
-        return leftRightInternal;
-    }
-
-    protected VirtualHashRecord rightLeftInternal() {
-        rightLeftInternal =
-                rightLeftInternal == null ? new VirtualHashRecord(RIGHT_LEFT_PATH) : copy(rightLeftInternal);
-        return rightLeftInternal;
+        ConstructableRegistration.registerCoreConstructables();
     }
 
     protected VirtualLeafBytes<TestValue> leaf(long path, long key, long value) {
@@ -281,109 +195,7 @@ public class VirtualTestBase {
         return lastGLeaf;
     }
 
-    protected static Hash hash(VirtualLeafBytes<TestValue> rec) {
-        try {
-            final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
-            final WritableMessageDigest wmd = new WritableMessageDigest(md);
-            rec.writeToForHashing(wmd);
-            return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
-        } catch (final NoSuchAlgorithmException e) {
-            throw new CryptographyException(e);
-        }
-    }
-
-    protected VirtualHashRecord hashRecord(VirtualLeafBytes<TestValue> rec) {
-        return new VirtualHashRecord(rec.path(), hash(rec));
-    }
-
     private VirtualLeafBytes<TestValue> copyWithPath(VirtualLeafBytes<TestValue> leaf, TestValue value, long path) {
         return new VirtualLeafBytes<>(path, leaf.keyBytes(), value, TestValueCodec.INSTANCE);
-    }
-
-    private VirtualHashRecord copy(VirtualHashRecord rec) {
-        return new VirtualHashRecord(rec.path(), rec.hash());
-    }
-
-    public static final class TestInternal extends PartialBinaryMerkleInternal implements MerkleInternal {
-        private String label;
-
-        public TestInternal() {
-            // For serialization
-        }
-
-        public TestInternal(String label) {
-            this.label = label;
-        }
-
-        private TestInternal(TestInternal other) {
-            super(other);
-            this.label = other.label;
-        }
-
-        @Override
-        public long getClassId() {
-            return 1234;
-        }
-
-        @Override
-        public int getVersion() {
-            return 1;
-        }
-
-        @Override
-        public TestInternal copy() {
-            return new TestInternal(this);
-        }
-
-        @Override
-        public String toString() {
-            return "TestInternal{" + "label='" + label + '\'' + '}';
-        }
-    }
-
-    public static final class TestLeaf extends PartialMerkleLeaf implements MerkleLeaf {
-        private String value;
-
-        // For serialization engine
-        public TestLeaf() {}
-
-        public TestLeaf(String value) {
-            this.value = value;
-        }
-
-        private TestLeaf(TestLeaf other) {
-            super(other);
-            this.value = other.value;
-        }
-
-        @Override
-        public long getClassId() {
-            return 2345;
-        }
-
-        @Override
-        public int getVersion() {
-            return 1;
-        }
-
-        @Override
-        public void serialize(SerializableDataOutputStream out) throws IOException {
-            out.writeUTF(value);
-        }
-
-        @Override
-        public void deserialize(SerializableDataInputStream in, int version) throws IOException {
-            this.value = in.readUTF();
-        }
-
-        @Override
-        public TestLeaf copy() {
-            return new TestLeaf(this);
-        }
-
-        @Override
-        public String toString() {
-            return "TestLeaf{" + "value='" + value + '\'' + '}';
-        }
     }
 }

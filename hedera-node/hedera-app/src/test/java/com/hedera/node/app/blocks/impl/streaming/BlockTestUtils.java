@@ -234,7 +234,8 @@ public class BlockTestUtils {
     public static BlockItem newBlockProof(final long blockNumber) {
         final BlockProof proof = BlockProof.newBuilder()
                 .block(blockNumber)
-                .verificationKey(VERIFICATION_KEY)
+                // (FUTURE: GH issue #22676) Re-enable with chain of trust verification
+                //                .verificationKey(VERIFICATION_KEY)
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
     }

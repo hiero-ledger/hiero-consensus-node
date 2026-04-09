@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of ExchangeRateControlSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@Tag(ATOMIC_BATCH)
 @OrderedInIsolation
 class AtomicExchangeRateControlSuite {
 
@@ -64,7 +65,6 @@ class AtomicExchangeRateControlSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> midnightRateChangesWhenAcct50UpdatesFile112() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

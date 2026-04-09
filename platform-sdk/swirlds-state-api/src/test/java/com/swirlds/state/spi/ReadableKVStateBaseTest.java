@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.spi;
 
-// SPDX-License-Identifier: Apache-2.0
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -128,13 +127,5 @@ public class ReadableKVStateBaseTest extends StateTestBase {
         assertThat(state.get(A_KEY)).isNotNull();
         assertThat(state.contains(B_KEY)).isTrue();
         assertThat(state.readKeys()).hasSize(2);
-    }
-
-    @Test
-    @DisplayName("Can iterate over all fruit")
-    void testIteration() {
-        assertThat(state.keys())
-                .toIterable()
-                .containsExactlyInAnyOrder(backingMap.keySet().toArray(new ProtoBytes[0]));
     }
 }

@@ -49,6 +49,9 @@ class ProofControllersTest {
     private HistorySubmissions submissions;
 
     @Mock
+    private HistoryProofMetrics historyProofMetrics;
+
+    @Mock
     private WrapsMpcStateMachine machine;
 
     @Mock
@@ -61,6 +64,9 @@ class ProofControllersTest {
     private RosterTransitionWeights weights;
 
     @Mock
+    private TssConfig tssConfig;
+
+    @Mock
     private ReadableHistoryStore historyStore;
 
     private ProofControllers subject;
@@ -68,7 +74,14 @@ class ProofControllersTest {
     @BeforeEach
     void setUp() {
         subject = new ProofControllers(
-                executor, keyAccessor, library, submissions, selfNodeInfoSupplier, historyService, machine);
+                executor,
+                keyAccessor,
+                library,
+                submissions,
+                selfNodeInfoSupplier,
+                historyService,
+                historyProofMetrics,
+                machine);
     }
 
     @Test
@@ -78,7 +91,7 @@ class ProofControllersTest {
         final var twoConstruction =
                 HistoryProofConstruction.newBuilder().constructionId(2L).build();
 
-        assertTrue(subject.getAnyInProgress().isEmpty());
+        assertTrue(subject.getAnyInProgress(tssConfig).isEmpty());
         final var firstController = subject.getOrCreateFor(
                 activeRosters,
                 ONE_CONSTRUCTION,
@@ -86,9 +99,9 @@ class ProofControllersTest {
                 HintsConstruction.DEFAULT,
                 HistoryProofConstruction.DEFAULT,
                 DEFAULT_CONFIG.getConfigData(TssConfig.class));
-        assertTrue(subject.getAnyInProgress().isEmpty());
-        assertTrue(subject.getInProgressById(1L).isEmpty());
-        assertTrue(subject.getInProgressById(2L).isEmpty());
+        assertTrue(subject.getAnyInProgress(tssConfig).isEmpty());
+        assertTrue(subject.getInProgressById(1L, tssConfig).isEmpty());
+        assertTrue(subject.getInProgressById(2L, tssConfig).isEmpty());
         assertInstanceOf(InertProofController.class, firstController);
         final var secondController = subject.getOrCreateFor(
                 activeRosters,

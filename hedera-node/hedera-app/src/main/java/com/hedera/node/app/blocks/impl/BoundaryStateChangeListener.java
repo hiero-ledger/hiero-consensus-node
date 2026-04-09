@@ -25,6 +25,7 @@ import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.data.AccountsConfig;
@@ -39,11 +40,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.function.Supplier;
 
 /**
@@ -55,7 +56,10 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(SINGLETON);
 
-    private final SortedMap<Integer, StateChange> singletonUpdates = new TreeMap<>();
+    /**
+     * Maintains insertion order so we externalize changes in the same order they were applied during genesis.
+     */
+    private final Map<Integer, StateChange> singletonUpdates = new LinkedHashMap<>();
 
     @NonNull
     private final StoreMetricsService storeMetricsService;
@@ -107,7 +111,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Returns all the state changes that have been accumulated.
+     * Returns all the state changes that have been accumulated, preserving insertion order.
      * @return the state changes
      */
     public List<StateChange> allStateChanges() {
@@ -126,7 +130,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     @Override
     public <V> void singletonUpdateChange(final int stateId, @NonNull final V value) {
         requireNonNull(value, "value must not be null");
-
         final var stateChange = StateChange.newBuilder()
                 .stateId(stateId)
                 .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
@@ -258,6 +261,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             }
             case CRSState crsState -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CRS_STATE_VALUE, crsState);
+            }
+            case NodeId highestNodeId -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_ID_VALUE, highestNodeId);
             }
             default ->
                 throw new IllegalArgumentException(

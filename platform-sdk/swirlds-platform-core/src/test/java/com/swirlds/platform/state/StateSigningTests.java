@@ -20,11 +20,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.test.fixtures.WeightGenerators;
-import com.swirlds.platform.state.signed.SigSet;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.signed.SignedStateInvalidException;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
@@ -41,6 +36,11 @@ import java.util.stream.IntStream;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.state.signed.SignedStateInvalidException;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -416,8 +416,7 @@ class StateSigningTests {
         final List<RosterEntry> newRosterEntries = new ArrayList<>(nodeCount);
 
         for (final RosterEntry originalNode : roster.rosterEntries()) {
-            final X509Certificate certificate =
-                    PreGeneratedX509Certs.getSigCert(50 + originalNode.nodeId()).getCertificate();
+            final X509Certificate certificate = PreGeneratedX509Certs.getSigCert(50 + originalNode.nodeId());
             final RosterEntry newNode = originalNode
                     .copyBuilder()
                     .gossipCaCertificate(Bytes.wrap(certificate.getEncoded()))

@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.node.app.hapi.utils.EntityType.CONTRACT_BYTECODE;
 import static com.hedera.node.app.hapi.utils.EntityType.CONTRACT_STORAGE;
-import static com.hedera.node.app.hapi.utils.EntityType.LAMBDA_STORAGE;
+import static com.hedera.node.app.hapi.utils.EntityType.EVM_HOOK_STORAGE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -113,7 +113,7 @@ public class ReadableContractStateStore implements ContractStateStore {
      */
     @Override
     public long getNumSlots() {
-        return entityCounters.getCounterFor(CONTRACT_STORAGE) + entityCounters.getCounterFor(LAMBDA_STORAGE);
+        return entityCounters.getCounterFor(CONTRACT_STORAGE) + entityCounters.getCounterFor(EVM_HOOK_STORAGE);
     }
 
     @Override

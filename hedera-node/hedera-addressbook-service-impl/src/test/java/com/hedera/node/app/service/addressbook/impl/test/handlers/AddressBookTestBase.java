@@ -10,6 +10,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -44,7 +46,6 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
@@ -55,11 +56,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Random;
-import java.util.Spliterators;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
-import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -204,6 +203,12 @@ public class AddressBookTestBase {
                         ENTITY_ID_STATE_LABEL,
                         () -> EntityNumber.newBuilder().build(),
                         c -> {}));
+        given(writableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
+                .willReturn(new FunctionWritableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        () -> NodeId.newBuilder().id(num).build(),
+                        c -> {}));
         given(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID,
@@ -214,6 +219,11 @@ public class AddressBookTestBase {
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()));
+        given(readableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
+                .willReturn(new FunctionReadableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        () -> NodeId.newBuilder().id(num).build()));
         given(readableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID,
@@ -287,9 +297,11 @@ public class AddressBookTestBase {
         final var builder =
                 MapReadableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL);
         if (nodeCount >= 1) {
-            // add current node
-            builder.value(
-                    node.accountId(), NodeId.newBuilder().id(node.nodeId()).build());
+            // add current node if the node is not deleted
+            if (node != null) {
+                builder.value(
+                        node.accountId(), NodeId.newBuilder().id(node.nodeId()).build());
+            }
             // fill the rest nodes
             for (int i = 1; i < nodeCount; i++) {
                 builder.value(
@@ -307,9 +319,11 @@ public class AddressBookTestBase {
         final var builder =
                 MapWritableKVState.<AccountID, NodeId>builder(ACCOUNT_NODE_REL_STATE_ID, ACCOUNT_NODE_REL_STATE_LABEL);
         if (nodeCount >= 1) {
-            // add current node
-            builder.value(
-                    node.accountId(), NodeId.newBuilder().id(node.nodeId()).build());
+            // add current node if the node is not deleted
+            if (node != null) {
+                builder.value(
+                        node.accountId(), NodeId.newBuilder().id(node.nodeId()).build());
+            }
             // fill the rest nodes
             for (int i = 1; i < nodeCount; i++) {
                 builder.value(
@@ -323,7 +337,7 @@ public class AddressBookTestBase {
     }
 
     protected void givenValidNode() {
-        givenValidNode(false);
+        this.givenValidNode(false);
     }
 
     protected void givenValidNode(boolean deleted) {
@@ -339,7 +353,8 @@ public class AddressBookTestBase {
                 deleted,
                 key,
                 false,
-                null);
+                null,
+                List.of());
     }
 
     protected void givenValidNodeWithAdminKey(Key adminKey) {
@@ -355,7 +370,8 @@ public class AddressBookTestBase {
                 false,
                 adminKey,
                 false,
-                null);
+                null,
+                List.of());
     }
 
     protected Node createNode() {
@@ -385,12 +401,13 @@ public class AddressBookTestBase {
     }
 
     public static List<X509Certificate> generateX509Certificates(final int n) {
-        final var randomAddressBook = RandomAddressBookBuilder.create(new Random())
-                .withSize(n)
+        final var roster = RandomRosterBuilder.create(new Random())
                 .withRealKeysEnabled(true)
+                .withSize(n)
                 .build();
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(randomAddressBook.iterator(), 0), false)
-                .map(Address::getSigCert)
-                .collect(Collectors.toList());
+
+        return roster.rosterEntries().stream()
+                .map(RosterUtils::fetchGossipCaCertificate)
+                .toList();
     }
 }

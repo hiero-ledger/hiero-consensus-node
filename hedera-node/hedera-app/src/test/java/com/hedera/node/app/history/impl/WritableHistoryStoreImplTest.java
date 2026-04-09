@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
@@ -19,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 
-import com.hedera.hapi.block.stream.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -28,6 +30,7 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.ProofKeySet;
+import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
@@ -38,7 +41,8 @@ import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.schemas.V059HistorySchema;
+import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
+import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -51,6 +55,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -129,6 +134,16 @@ class WritableHistoryStoreImplTest {
         subject.setLedgerId(LEDGER_ID);
 
         assertEquals(LEDGER_ID, subject.getLedgerId());
+    }
+
+    @Test
+    void expectedWrapsProvingKeyHashIsNullUntilSet() {
+        assertNull(subject.getWrapsProvingKeyHash());
+
+        final var hash = Bytes.wrap("proving-key-hash");
+        subject.setWrapsProvingKeyHash(hash);
+
+        assertEquals(hash, subject.getWrapsProvingKeyHash());
     }
 
     @Test
@@ -229,7 +244,7 @@ class WritableHistoryStoreImplTest {
         assertSame(construction, getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
 
         final var updatedKeySet = state.getWritableStates(HistoryService.NAME)
-                .<NodeId, ProofKeySet>get(V059HistorySchema.PROOF_KEY_SETS_STATE_ID)
+                .<NodeId, ProofKeySet>get(V071HistorySchema.PROOF_KEY_SETS_STATE_ID)
                 .get(new NodeId(rotatingKeyNodeId));
         requireNonNull(updatedKeySet);
         assertEquals(nextKey, updatedKeySet.key());
@@ -237,7 +252,7 @@ class WritableHistoryStoreImplTest {
         assertEquals(Bytes.EMPTY, updatedKeySet.nextKey());
 
         final var newKeySet = state.getWritableStates(HistoryService.NAME)
-                .<NodeId, ProofKeySet>get(V059HistorySchema.PROOF_KEY_SETS_STATE_ID)
+                .<NodeId, ProofKeySet>get(V071HistorySchema.PROOF_KEY_SETS_STATE_ID)
                 .get(new NodeId(newKeyNodeId));
         requireNonNull(newKeySet);
         assertEquals(newKey, newKeySet.key());
@@ -287,6 +302,37 @@ class WritableHistoryStoreImplTest {
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         assertEquals(List.of(proofKey), construction.targetProofOrThrow().targetProofKeys());
+    }
+
+    @Test
+    void restartWrapsSigningPurgesMessagesAndIncrementsRetryCount() {
+        final var failedConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .failureReason("Still missing messages from R1 nodes [2] after end of grace period for phase R2")
+                .wrapsRetryCount(1)
+                .build();
+        setConstructions(failedConstruction, HistoryProofConstruction.DEFAULT);
+        subject.addWrapsMessage(
+                123L, new WrapsMessagePublication(1L, Bytes.wrap("r1-node1"), R1, CONSENSUS_NOW.minusSeconds(1)));
+        subject.addWrapsMessage(123L, new WrapsMessagePublication(2L, Bytes.wrap("r1-node2"), R1, CONSENSUS_NOW));
+        assertEquals(
+                2L,
+                state.getWritableStates(HistoryService.NAME)
+                        .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
+                        .size());
+
+        final var updated = subject.restartWrapsSigning(123L, Set.of(1L, 2L));
+
+        assertEquals(2, updated.wrapsRetryCount());
+        assertFalse(updated.hasFailureReason());
+        assertTrue(updated.hasWrapsSigningState());
+        assertEquals(
+                R1, updated.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).phase());
+        assertEquals(
+                0L,
+                state.getWritableStates(HistoryService.NAME)
+                        .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
+                        .size());
     }
 
     @Test
@@ -372,11 +418,9 @@ class WritableHistoryStoreImplTest {
     private State emptyState() {
         final var state = new FakeState();
         final var servicesRegistry = new FakeServicesRegistry();
-        Set.of(
-                        new EntityIdServiceImpl(),
-                        new HistoryServiceImpl(
-                                NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library, WITH_ENABLED_HISTORY))
-                .forEach(servicesRegistry::register);
+        final var historyService =
+                new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, library);
+        Set.of(new EntityIdServiceImpl(), historyService).forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
         migrator.doMigrations(
@@ -388,7 +432,11 @@ class WritableHistoryStoreImplTest {
                 DEFAULT_CONFIG,
                 startupNetworks,
                 storeMetricsService,
-                configProvider);
+                configProvider,
+                InitTrigger.GENESIS);
+        final var writableStates = state.getWritableStates(HistoryService.NAME);
+        historyService.doGenesisSetup(writableStates, DEFAULT_CONFIG);
+        ((CommittableWritableStates) writableStates).commit();
         return state;
     }
 }

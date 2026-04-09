@@ -150,7 +150,7 @@ public class NetworkAdminHandlerTestBase {
     protected RecordCacheImpl cache;
 
     @Mock
-    private DeduplicationCache dedupeCache;
+    protected DeduplicationCache dedupeCache;
 
     @Mock
     protected SavepointStackImpl stack;
@@ -460,7 +460,8 @@ public class NetworkAdminHandlerTestBase {
                 0,
                 0L,
                 0L,
-                0L);
+                0L,
+                Bytes.EMPTY);
     }
 
     protected void givenFungibleTokenRelation() {

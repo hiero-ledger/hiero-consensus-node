@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asBesuLog;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
@@ -58,12 +59,14 @@ public class BlockItemsTranslator {
      *
      * @param context the context of the transaction
      * @param result the result of the transaction
+     * @param blockNumber the block number, if known
      * @param outputs the outputs of the transaction
      * @return the translated receipt
      */
     public TransactionReceipt translateReceipt(
             @NonNull final TranslationContext context,
             @NonNull final TransactionResult result,
+            @Nullable final Long blockNumber,
             @NonNull final TransactionOutput... outputs) {
         requireNonNull(context);
         requireNonNull(result);
@@ -78,6 +81,7 @@ public class BlockItemsTranslator {
             case CRYPTO_CREATE, CRYPTO_UPDATE -> receiptBuilder.accountID(((CryptoOpContext) context).accountId());
             case FILE_CREATE -> receiptBuilder.fileID(((FileOpContext) context).fileId());
             case NODE_CREATE -> receiptBuilder.nodeId(((NodeOpContext) context).nodeId());
+            case REGISTERED_NODE_CREATE -> receiptBuilder.registeredNodeId(((NodeOpContext) context).nodeId());
             case SCHEDULE_CREATE -> {
                 final var scheduleOutput = outputValueIfPresent(
                         TransactionOutput::hasCreateSchedule, TransactionOutput::createScheduleOrThrow, outputs);
@@ -109,6 +113,9 @@ public class BlockItemsTranslator {
             case TOKEN_CREATE -> receiptBuilder.tokenID(((TokenOpContext) context).tokenId());
             case CONSENSUS_CREATE_TOPIC -> receiptBuilder.topicID(((TopicOpContext) context).topicId());
         }
+        if (blockNumber != null) {
+            receiptBuilder.blockNumber(blockNumber);
+        }
         return receiptBuilder.build();
     }
 
@@ -119,6 +126,7 @@ public class BlockItemsTranslator {
      * @param context the context of the transaction
      * @param result the result of the transaction
      * @param logs the EVM logs of the transaction, if any
+     * @param blockNumber the block number, if known
      * @param outputs the outputs of the transaction
      * @return the translated record
      */
@@ -126,6 +134,7 @@ public class BlockItemsTranslator {
             @NonNull final TranslationContext context,
             @NonNull final TransactionResult result,
             @Nullable final List<EvmTransactionLog> logs,
+            @Nullable final Long blockNumber,
             @NonNull final TransactionOutput... outputs) {
         requireNonNull(context);
         requireNonNull(result);
@@ -143,10 +152,18 @@ public class BlockItemsTranslator {
                 .automaticTokenAssociations(result.automaticTokenAssociations())
                 .assessedCustomFees(result.assessedCustomFees())
                 .paidStakingRewards(result.paidStakingRewards());
+        if (result.highVolumePricingMultiplier() != 0) {
+            recordBuilder.highVolumePricingMultiplier(result.highVolumePricingMultiplier());
+        }
         final var function = context.functionality();
         switch (function) {
-            case CONTRACT_CALL, CONTRACT_CREATE, CONTRACT_DELETE, CONTRACT_UPDATE, ETHEREUM_TRANSACTION -> {
-                if (function == CONTRACT_CALL) {
+            case HOOK_DISPATCH,
+                    CONTRACT_CALL,
+                    CONTRACT_CREATE,
+                    CONTRACT_DELETE,
+                    CONTRACT_UPDATE,
+                    ETHEREUM_TRANSACTION -> {
+                if (function == CONTRACT_CALL || function == HOOK_DISPATCH) {
                     recordBuilder.contractCallResult(outputValueIfPresent(
                             TransactionOutput::hasContractCall,
                             translatingExtractor(CONTRACT_CALL_EXTRACTOR, context, logs),
@@ -198,7 +215,9 @@ public class BlockItemsTranslator {
                 }
             }
         }
-        return recordBuilder.receipt(translateReceipt(context, result, outputs)).build();
+        return recordBuilder
+                .receipt(translateReceipt(context, result, blockNumber, outputs))
+                .build();
     }
 
     private Function<TransactionOutput, ContractFunctionResult> translatingExtractor(
@@ -264,7 +283,7 @@ public class BlockItemsTranslator {
         }
     }
 
-    private static <T> @Nullable T outputValueIfPresent(
+    private static <T> T outputValueIfPresent(
             @NonNull final Predicate<TransactionOutput> filter,
             @NonNull final Function<TransactionOutput, T> extractor,
             @NonNull final TransactionOutput... outputs) {

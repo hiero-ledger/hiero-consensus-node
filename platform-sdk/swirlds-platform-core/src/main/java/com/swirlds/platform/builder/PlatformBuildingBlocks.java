@@ -8,15 +8,16 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
-import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.nexus.SignedStateNexus;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
+import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
@@ -26,12 +27,14 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesFileTracker;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
@@ -62,7 +65,6 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               debugging). Return value may be null (implementation detail of
  *                                               underlying data source), this indirection can be removed once states
  *                                               are passed within the wiring framework
- * @param initialPcesFiles                       the initial set of PCES files present when the node starts
  * @param consensusEventStreamName               a part of the name of the directory where the consensus event stream is
  *                                               written
  * @param issScratchpad                          scratchpad storage for ISS recovery
@@ -81,6 +83,8 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor which tracks if the node has fallen behind
  * @param reservedSignedStateResultPromise             a shared data structure that Gossip and the ReconnectController will use provide
  *                                               and obtain a reference to a ReservedSignedState
+ * @param platformCoordinator                    the platform coordinator, which allows components to trigger platform status changes
+ * @param latestImmutableStateNexus              a nexus for accessing the latest immutable state
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformComponents platformComponents,
@@ -100,18 +104,19 @@ public record PlatformBuildingBlocks(
         @NonNull Supplier<SecureRandom> secureRandomSupplier,
         @NonNull FreezePeriodChecker freezeChecker,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
-        @NonNull PcesFileTracker initialPcesFiles,
         @NonNull String consensusEventStreamName,
         @NonNull Scratchpad<IssScratchpad> issScratchpad,
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
-        @NonNull StateLifecycleManager stateLifecycleManager,
+        @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
         @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull ExecutionLayer execution,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
-        @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise) {
+        @NonNull BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
+        @NonNull PlatformCoordinator platformCoordinator,
+        @NonNull SignedStateNexus latestImmutableStateNexus) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);
@@ -128,7 +133,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(secureRandomSupplier);
         requireNonNull(freezeChecker);
         requireNonNull(latestImmutableStateProviderReference);
-        requireNonNull(initialPcesFiles);
         requireNonNull(consensusEventStreamName);
         requireNonNull(issScratchpad);
         requireNonNull(notificationEngine);
@@ -139,5 +143,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(execution);
         requireNonNull(fallenBehindMonitor);
         requireNonNull(reservedSignedStateResultPromise);
+        requireNonNull(platformCoordinator);
+        requireNonNull(latestImmutableStateNexus);
     }
 }

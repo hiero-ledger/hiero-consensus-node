@@ -17,7 +17,7 @@ permissions:
 jobs:
   collect-logs:
     name: Collect Workflow Run Logs
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0

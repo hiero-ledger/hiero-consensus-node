@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
@@ -59,6 +59,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicBatchInvalidSignaturesTests {
 
@@ -154,7 +155,6 @@ class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with multiple contracts and complex association patterns")
-        @Tag(MATS)
         Stream<DynamicTest> complexContractAssociationPatterns() {
             final var batchOperator = "batchOperator";
             final var adminKey1 = "adminKey1";
@@ -398,7 +398,6 @@ class AtomicBatchInvalidSignaturesTests {
 
         @HapiTest
         @DisplayName("Batch with fee collector signing requirements")
-        @Tag(MATS)
         Stream<DynamicTest> batchFeeCollectorSigningRequirements() {
             final var batchOperator = "batchOperator";
             final var customFeesKey = "customFeesKey";

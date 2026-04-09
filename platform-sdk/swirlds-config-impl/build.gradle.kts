@@ -5,8 +5,6 @@ plugins {
     id("org.hiero.gradle.feature.benchmark")
 }
 
-mainModuleInfo { annotationProcessor("com.google.auto.service.processor") }
-
 testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

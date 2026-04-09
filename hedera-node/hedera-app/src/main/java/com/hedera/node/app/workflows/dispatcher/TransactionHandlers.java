@@ -8,9 +8,13 @@ import com.hedera.node.app.hints.handlers.HintsPreprocessingVoteHandler;
 import com.hedera.node.app.history.handlers.HistoryProofKeyPublicationHandler;
 import com.hedera.node.app.history.handlers.HistoryProofSignatureHandler;
 import com.hedera.node.app.history.handlers.HistoryProofVoteHandler;
+import com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeUpdateHandler;
+import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreateHandler;
+import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeDeleteHandler;
+import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeUpdateHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusCreateTopicHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusDeleteTopicHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusSubmitMessageHandler;
@@ -23,7 +27,7 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractSystemUndelete
 import com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
-import com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler;
+import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileAppendHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileCreateHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileDeleteHandler;
@@ -83,7 +87,7 @@ public record TransactionHandlers(
         @NonNull ContractSystemDeleteHandler contractSystemDeleteHandler,
         @NonNull ContractSystemUndeleteHandler contractSystemUndeleteHandler,
         @NonNull EthereumTransactionHandler ethereumTransactionHandler,
-        @NonNull LambdaSStoreHandler lambdaSStoreHandler,
+        @NonNull HookStoreHandler hookStoreHandler,
         @NonNull HookDispatchHandler hookDispatchHandler,
         @NonNull CryptoCreateHandler cryptoCreateHandler,
         @NonNull CryptoUpdateHandler cryptoUpdateHandler,
@@ -126,6 +130,9 @@ public record TransactionHandlers(
         @NonNull NodeCreateHandler nodeCreateHandler,
         @NonNull NodeUpdateHandler nodeUpdateHandler,
         @NonNull NodeDeleteHandler nodeDeleteHandler,
+        @NonNull RegisteredNodeCreateHandler registeredNodeCreateHandler,
+        @NonNull RegisteredNodeUpdateHandler registeredNodeUpdateHandler,
+        @NonNull RegisteredNodeDeleteHandler registeredNodeDeleteHandler,
         @NonNull TokenClaimAirdropHandler tokenClaimAirdropHandler,
         @NonNull HintsKeyPublicationHandler hintsKeyPublicationHandler,
         @NonNull HintsPreprocessingVoteHandler hintsPreprocessingVoteHandler,
@@ -135,4 +142,5 @@ public record TransactionHandlers(
         @NonNull HistoryProofKeyPublicationHandler historyProofKeyPublicationHandler,
         @NonNull HistoryProofSignatureHandler historyProofSignatureHandler,
         @NonNull HistoryProofVoteHandler historyProofVoteHandler,
-        @NonNull CrsPublicationHandler crsPublicationHandler) {}
+        @NonNull CrsPublicationHandler crsPublicationHandler,
+        @NonNull MigrationRootHashVoteHandler migrationRootHashVoteHandler) {}

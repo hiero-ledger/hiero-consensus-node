@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
 
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -24,11 +25,10 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchFee;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -52,9 +52,10 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 
+@Tag(ATOMIC_BATCH)
 public class AtomicBatchEndToEndTokensWithCustomFeesTests {
-    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final long HBAR_FEE = 1L;
     private static final long HTS_FEE = 1L;
     private static final String FT_WITH_HBAR_FIXED_FEE = "ftWithHbarFixedFee";
@@ -83,6 +84,8 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
     private static final String adminKey = "adminKey";
     private static final String feeScheduleKey = "feeScheduleKey";
     private static final String supplyKey = "supplyKey";
+
+    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
 
     @Nested
     @DisplayName("Atomic Batch End-to-End Test Cases for Tokens with Custom Fees - Positive Cases")
@@ -144,7 +147,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 1L),
@@ -202,7 +205,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 0L),
@@ -267,7 +270,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 0L),
@@ -345,7 +348,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 1L),
@@ -413,7 +416,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 5L),
@@ -480,7 +483,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 5L),
@@ -547,7 +550,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_HBAR_FIXED_FEE, 5L),
@@ -612,7 +615,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 1L),
@@ -671,7 +674,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 3L),
@@ -748,7 +751,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 4L),
@@ -818,7 +821,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 4L),
@@ -883,7 +886,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 4L),
@@ -936,7 +939,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 1995L),
@@ -998,7 +1001,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FIXED_AND_FRACTIONAL_FEE, 1L),
@@ -1071,7 +1074,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FIXED_AND_FRACTIONAL_FEE, 4L),
@@ -1141,7 +1144,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_FIXED_AND_FRACTIONAL_FEE, 4L),
@@ -1215,7 +1218,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_WITH_HTS_FEE, 1L),
@@ -1288,7 +1291,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1356,7 +1359,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1432,7 +1435,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_WITH_ROYALTY_FEE_NO_FALLBACK, 1L),
@@ -1493,7 +1496,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(NFT_WITH_ROYALTY_FEE_NO_FALLBACK, 0L),
@@ -1563,7 +1566,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1639,7 +1642,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1698,7 +1701,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1763,7 +1766,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 4L),
@@ -1830,7 +1833,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(SUCCESS),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -1898,7 +1901,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -1956,7 +1959,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2009,7 +2012,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2078,7 +2081,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2136,7 +2139,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST)
@@ -2190,7 +2193,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2243,7 +2246,7 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
                             .payingWith(BATCH_OPERATOR)
                             .via("batchTxn")
                             .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                    validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION),
+                    validateBatchFee("batchTxn", BASE_FEE_BATCH_TRANSACTION),
 
                     // validate account balances and token info
                     getAccountBalance(RECEIVER_ASSOCIATED_FIRST).hasTokenBalance(FT_WITH_FRACTIONAL_FEE, 0L),
@@ -2380,10 +2383,10 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
 
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_HBAR),
-                cryptoCreate(OWNER).balance(ONE_BILLION_HBARS),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
-                        .balance(ONE_MILLION_HBARS)
+                        .balance(ONE_HUNDRED_HBARS)
                         .maxAutomaticTokenAssociations(-1),
                 cryptoCreate(RECEIVER_ASSOCIATED_FIRST).balance(ONE_HBAR),
                 cryptoCreate(RECEIVER_ASSOCIATED_SECOND).balance(ONE_HBAR),

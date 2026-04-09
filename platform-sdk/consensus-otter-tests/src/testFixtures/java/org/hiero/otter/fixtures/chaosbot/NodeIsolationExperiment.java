@@ -3,13 +3,13 @@ package org.hiero.otter.fixtures.chaosbot;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 
@@ -19,8 +19,8 @@ import org.hiero.otter.fixtures.Node;
  * @param minDuration the minimum duration of the node isolation period
  * @param maxDuration the maximum duration of the node isolation period
  */
-public record NodeIsolationExperiment(@NonNull Duration minDuration, @NonNull Duration maxDuration)
-        implements Experiment {
+public record NodeIsolationExperiment(
+        @NonNull Duration minDuration, @NonNull Duration maxDuration) implements Experiment {
 
     private static final Logger log = LogManager.getLogger();
 

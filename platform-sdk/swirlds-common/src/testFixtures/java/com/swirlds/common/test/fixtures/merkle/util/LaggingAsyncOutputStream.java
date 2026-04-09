@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.merkle.util;
 
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * This variant of the async output stream introduces extra latency.
  */
-public class LaggingAsyncOutputStream<T extends SelfSerializable> extends AsyncOutputStream<T> {
+public class LaggingAsyncOutputStream extends AsyncOutputStream {
 
     private final BlockingQueue<Long> messageTimes;
 
@@ -34,19 +34,18 @@ public class LaggingAsyncOutputStream<T extends SelfSerializable> extends AsyncO
      * {@inheritDoc}
      */
     @Override
-    public void sendAsync(final T message) throws InterruptedException {
-        if (!isAlive()) {
-            throw new MerkleSynchronizationException("Messages can not be sent after close has been called.");
-        }
+    public void sendAsync(@NonNull final SelfSerializable message) throws InterruptedException {
         messageTimes.put(System.currentTimeMillis());
-        getOutgoingMessages().put(message);
+        super.sendAsync(message);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    protected void serializeMessage(final T message) throws IOException {
+    protected void serializeMessage(
+            @NonNull final SelfSerializable message, @NonNull final SerializableDataOutputStream out)
+            throws IOException {
         long messageTime = messageTimes.remove();
         long now = System.currentTimeMillis();
         long waitTime = (messageTime + latencyMilliseconds) - now;
@@ -57,6 +56,6 @@ public class LaggingAsyncOutputStream<T extends SelfSerializable> extends AsyncO
                 Thread.currentThread().interrupt();
             }
         }
-        message.serialize(getOutputStream());
+        super.serializeMessage(message, out);
     }
 }

@@ -3,7 +3,6 @@ plugins { id("org.hiero.gradle.module.application") }
 
 mainModuleInfo {
     annotationProcessor("com.swirlds.config.processor")
-    annotationProcessor("com.google.auto.service.processor")
     runtimeOnly("com.swirlds.config.impl")
 }
 

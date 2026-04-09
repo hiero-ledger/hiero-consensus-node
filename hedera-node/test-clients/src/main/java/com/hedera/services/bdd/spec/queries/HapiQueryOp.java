@@ -19,6 +19,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.exceptions.HapiQueryCheckStateException;
 import com.hedera.services.bdd.spec.exceptions.HapiQueryPrecheckStateException;
+import com.hedera.services.bdd.spec.infrastructure.TransientPlatformErrorRetry;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
@@ -177,6 +178,7 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
 
         Transaction payment = Transaction.getDefaultInstance();
         int retryCount = 1;
+        long platformNotActiveRetryStart = 0;
         while (true) {
             /* Note that HapiQueryOp#fittedPayment makes a COST_ANSWER query if necessary. */
             if (needsPayment()) {
@@ -211,12 +213,32 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
                 break;
             }
 
-            if (answerOnlyRetryPrechecks.isPresent()
+            // If the caller explicitly listed acceptable precheck statuses via
+            // hasAnswerOnlyPrecheckFrom(), and the actual precheck is one of them,
+            // stop immediately – do not let the retry mechanism convert an acceptable
+            // result into an unwanted one (e.g. retrying RECORD_NOT_FOUND until the
+            // record appears and returning OK).
+            if (permissibleAnswerOnlyPrechecks.isPresent()
+                    && permissibleAnswerOnlyPrechecks.get().contains(actualPrecheck)) {
+                break;
+            }
+
+            final var transientDecision = TransientPlatformErrorRetry.evaluate(
+                    actualPrecheck, retryCount, platformNotActiveRetryStart, System.currentTimeMillis());
+            platformNotActiveRetryStart = transientDecision.firstSeenMs();
+
+            final boolean shouldRetryExplicit = answerOnlyRetryPrechecks.isPresent()
                     && answerOnlyRetryPrechecks.get().contains(actualPrecheck)
-                    && isWithInRetryLimit(retryCount)) {
+                    && isWithInRetryLimit(retryCount);
+            if (transientDecision.shouldRetry() || shouldRetryExplicit) {
                 retryCount++;
                 log.trace("{}retry count: {}", spec.logPrefix(), retryCount);
-                sleep(10);
+                try {
+                    sleep(transientDecision.shouldRetry() ? transientDecision.sleepMs() : 10);
+                } catch (InterruptedException e) {
+                    log.error("Interrupted while sleeping before retry");
+                    throw new RuntimeException(e);
+                }
             } else {
                 break;
             }
@@ -288,7 +310,7 @@ public abstract class HapiQueryOp<T extends HapiQueryOp<T>> extends HapiSpecOper
             }
             query = maybeModified(queryFor(spec, payment, ResponseType.COST_ANSWER), spec);
             response = spec.targetNetworkOrThrow().send(query, type(), targetNodeFor(spec), asNodeOperator);
-            final var realNodePayment = costFrom(response);
+            var realNodePayment = costFrom(response);
             Optional.ofNullable(nodePaymentObserver).ifPresent(observer -> observer.accept(realNodePayment));
             if (expectedCostAnswerPrecheck() != OK) {
                 return Transaction.getDefaultInstance();

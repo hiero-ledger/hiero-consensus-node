@@ -3,25 +3,74 @@ package com.swirlds.benchmark.reconnect;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.benchmark.BenchmarkValue;
+import com.swirlds.benchmark.BenchmarkValueCodec;
+import com.swirlds.virtualmap.VirtualMap;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.LongStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
- * A utility class to help build random states.
+ * A utility class to help build and populate virtual map states for benchmarks.
  */
 public record StateBuilder(
-        /** Build a key for index 1..size. */
+        // Build a key for a given index.
         Function<Long, Bytes> keyBuilder,
-        /** Build a value for key index 1..size. */
+        // Build a value for a given index.
         Function<Long, BenchmarkValue> valueBuilder) {
+
+    private static final Logger logger = LogManager.getLogger(StateBuilder.class);
+
+    /**
+     * Builds a VirtualMap populator that is able to add/update, as well as remove nodes (when the value is null).
+     * Note that it doesn't support explicitly adding null values under a key.
+     *
+     * @param mapRef a reference to a VirtualMap instance (allows swapping the map during population, e.g. via copyMap)
+     * @return a populator for the map
+     */
+    public static BiConsumer<Bytes, BenchmarkValue> buildVMPopulator(final AtomicReference<VirtualMap> mapRef) {
+        return (k, v) -> {
+            if (v == null) {
+                mapRef.get().remove(k, BenchmarkValueCodec.INSTANCE);
+            } else {
+                mapRef.get().put(k, v, BenchmarkValueCodec.INSTANCE);
+            }
+        };
+    }
 
     /** Return {@code true} with the given probability. */
     private static boolean isRandomOutcome(final Random random, final double probability) {
         return random.nextDouble(1.) < probability;
+    }
+
+    /**
+     * Populate state(s) by iterating over the key range [fromIndex, toIndex) and passing each
+     * generated key/value pair to all provided populators, with periodic storage optimization.
+     *
+     * @param fromIndex the first index for key generation (inclusive)
+     * @param toIndex the end index for key generation (exclusive)
+     * @param storageOptimizer called with each index to allow periodic map copies, flushes, etc.
+     * @param populators one or more consumers that receive (key, value) pairs
+     */
+    @SafeVarargs
+    public final void populateState(
+            final long fromIndex,
+            final long toIndex,
+            final Consumer<Long> storageOptimizer,
+            final BiConsumer<Bytes, BenchmarkValue>... populators) {
+        LongStream.range(fromIndex, toIndex).forEach(i -> {
+            storageOptimizer.accept(i);
+            final Bytes key = keyBuilder.apply(i);
+            final BenchmarkValue value = valueBuilder.apply(i);
+            for (final BiConsumer<Bytes, BenchmarkValue> populator : populators) {
+                populator.accept(key, value);
+            }
+        });
     }
 
     /**
@@ -60,19 +109,12 @@ public record StateBuilder(
             final BiConsumer<Bytes, BenchmarkValue> teacherPopulator,
             final BiConsumer<Bytes, BenchmarkValue> learnerPopulator,
             final Consumer<Long> storageOptimizer) {
-        System.err.printf("Building a state of size %,d\n", size);
+        logger.info("Building a state of size {}", size);
 
-        LongStream.range(1, size).forEach(i -> {
-            storageOptimizer.accept(i);
+        // Phase 1: populate both teacher and learner identically with keys 1..size-1
+        populateState(1, size, storageOptimizer, teacherPopulator, learnerPopulator);
 
-            final Bytes key = keyBuilder.apply(i);
-            // Original values indexes 1..size-1
-            final BenchmarkValue value = valueBuilder.apply(i);
-            teacherPopulator.accept(key, value);
-            learnerPopulator.accept(key, value);
-        });
-
-        // Current size of the teacher state.
+        // Phase 2: apply teacher-specific mutations
         final AtomicLong curSize = new AtomicLong(size - 1);
 
         LongStream.range(1, size).forEach(i -> {

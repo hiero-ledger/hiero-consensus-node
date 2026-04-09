@@ -11,7 +11,8 @@ import com.hedera.node.app.services.ServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
@@ -21,7 +22,7 @@ import java.util.Map;
 public class FakeServiceMigrator implements ServiceMigrator {
     @Override
     public List<StateChanges.Builder> doMigrations(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final ServicesRegistry servicesRegistry,
             @Nullable final SemanticVersion previousVersion,
             @NonNull final SemanticVersion currentVersion,
@@ -29,12 +30,17 @@ public class FakeServiceMigrator implements ServiceMigrator {
             @NonNull final Configuration platformConfig,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StoreMetricsServiceImpl storeMetricsService,
-            @NonNull final ConfigProviderImpl configProvider) {
+            @NonNull final ConfigProviderImpl configProvider,
+            @NonNull final InitTrigger trigger) {
         requireNonNull(state);
         requireNonNull(servicesRegistry);
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
         requireNonNull(platformConfig);
+        requireNonNull(startupNetworks);
+        requireNonNull(storeMetricsService);
+        requireNonNull(configProvider);
+        requireNonNull(trigger);
 
         if (!(state instanceof FakeState fakeState)) {
             throw new IllegalArgumentException("Can only be used with FakeState instances");

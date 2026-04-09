@@ -8,11 +8,15 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -36,7 +40,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustInc
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
@@ -47,15 +50,24 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.TRANSFERRING_CONTRACT;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_CREATE_TOTAL_FEE;
 import static com.hedera.services.bdd.suites.hip423.ScheduleLongTermSignTest.THIRTY_MINUTES;
-import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.*;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.feeDistributionValidator;
+import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.hasFeeDistribution;
+import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.isNodeRewardOrFeeDistribution;
+import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.nodeRewardsWithFeeCollectionValidator;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordContains;
+import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordNotContains;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
@@ -182,6 +194,7 @@ public class Hip1259EnabledTests {
                 cryptoCreate("testAccount")
                         .balance(ONE_HBAR)
                         .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
                         .via("feeTxn"),
                 // verify fee collection account balance increased by transaction fee
                 getTxnRecord("feeTxn").exposingTo(record -> txnFee.set(record.getTransactionFee())),
@@ -203,8 +216,8 @@ public class Hip1259EnabledTests {
                 validateRecordContains("feeTxn", FEE_COLLECTOR_ACCOUNT),
                 validateRecordNotContains("feeTxn", UNEXPECTED_FEE_ACCOUNTS),
 
-                // fee charged for transaction should never change
-                validateChargedUsd("feeTxn", 0.05, 1),
+                // Validate fee across both legacy and simple-fee modes.
+                validateFees("feeTxn", 0.053, CRYPTO_CREATE_TOTAL_FEE),
 
                 /*-------------------------------TRIGGER NEXT STAKING PERIOD ---------------------------------*/
                 waitUntilStartOfNextStakingPeriod(1),
@@ -517,8 +530,8 @@ public class Hip1259EnabledTests {
                 EmbeddedVerbs.<NodePayments>viewSingleton(
                         TokenService.NAME,
                         NODE_PAYMENTS_STATE_ID,
-                        nodePayments -> assertTrue(
-                                !nodePayments.payments().isEmpty(),
+                        nodePayments -> assertFalse(
+                                nodePayments.payments().isEmpty(),
                                 "NodePayments should have accumulated fees before distribution")),
                 // Trigger fee distribution at next staking period
                 waitUntilStartOfNextStakingPeriod(1),
@@ -617,10 +630,69 @@ public class Hip1259EnabledTests {
     }
 
     /**
+     * Verifies that when the network is down for multiple days (e.g., 3 days), only ONE fee distribution
+     * is triggered when the network comes back up, not one for each missed day.
+     * <p>
+     * This tests the behavior documented in the code: the system only checks if we're in a "later" period,
+     * not how many periods were skipped. All accumulated fees are distributed in a single transaction.
+     */
+    @Order(16)
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> multiDayOutageOnlyTriggersOneDistribution() {
+        final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
+        final AtomicLong feeCollectionBalanceAfterOutage = new AtomicLong(0);
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
+
+        return hapiTest(
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                // Validate that exactly ONE fee distribution happens after the multi-day outage
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                feeDistributionValidator(1, List.of(3L, 800L, 801L, 98L)),
+                                1, // Expect exactly 1 fee distribution, not 3 (one per day)
+                                (spec, item) -> hasFeeDistribution(item, startConsensusTime)),
+                        Duration.ofSeconds(1)),
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                // Generate some fees before the "outage"
+                fileCreate("testFile1")
+                        .contents("Test content before outage")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("feeTxn1"),
+                validateRecordContains("feeTxn1", FEE_COLLECTOR_ACCOUNT),
+                sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                // Record fee collection balance before the "outage"
+                getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
+                // Simulate a 3-day network outage by advancing virtual time
+                waitUntilStartOfNextStakingPeriod(1),
+                waitUntilStartOfNextStakingPeriod(1),
+                waitUntilStartOfNextStakingPeriod(1),
+                // Network comes back up - first transaction after outage
+                // This should trigger exactly ONE fee distribution, not three
+                cryptoCreate("afterOutage").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                // Verify fee collection account was drained (fees were distributed)
+                getAccountBalance(FEE_COLLECTOR)
+                        .exposingBalanceTo(feeCollectionBalanceAfterOutage::set)
+                        .logged(),
+                doingContextual(spec -> {
+                    // Fee collection account should have been drained by the distribution
+                    assertTrue(
+                            feeCollectionBalanceAfterOutage.get() < initialFeeCollectionBalance.get(),
+                            "Fee collection account should have been drained after distribution. "
+                                    + "Before: " + initialFeeCollectionBalance.get()
+                                    + ", After: " + feeCollectionBalanceAfterOutage.get());
+                }));
+    }
+
+    /**
      * Verifies that fees accumulate correctly across multiple transactions within the same staking period.
      * Per HIP-1259: "Add the node fee to the corresponding entry in the NodePayments map"
      */
-    @Order(16)
+    @Order(17)
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> feesAccumulateAcrossMultipleTransactions() {
         final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
@@ -658,5 +730,194 @@ public class Hip1259EnabledTests {
                             "Fee collection account balance should increase by at least the sum of transaction fees. "
                                     + "Expected at least " + totalFees + " but got " + balanceIncrease);
                 }));
+    }
+
+    /**
+     * Verifies that when a smart contract self-destructs, it cannot send its remaining funds
+     * to the fee collection account (0.0.802).
+     * Per HIP-1259: "Reject any transaction that would send any hbar to the fee account"
+     */
+    @Order(18)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> selfDestructCannotSendFundsToFeeCollectionAccount() {
+        final var SELF_DESTRUCT_CALLABLE_CONTRACT = "SelfDestructCallable";
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                uploadInitCode(SELF_DESTRUCT_CALLABLE_CONTRACT),
+                contractCreate(SELF_DESTRUCT_CALLABLE_CONTRACT)
+                        .balance(ONE_HBAR)
+                        .payingWith(CIVILIAN_PAYER),
+                // Attempt to self-destruct with fee collection account (0.0.802) as beneficiary
+                contractCall(
+                                SELF_DESTRUCT_CALLABLE_CONTRACT,
+                                "destroyExplicitBeneficiary",
+                                asHeadlongAddress(asSolidityAddress(0, 0, 802L)))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
+    }
+
+    /**
+     * Verifies that creating a fungible token with the fee collection account (0.0.802) as treasury is rejected,
+     * and consequently minting tokens for such a treasury is not possible.
+     * Per HIP-1259: The fee collection account should not participate in token operations.
+     */
+    @Order(19)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> tokenCreateWithFeeCollectorAsTreasuryFails() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                newKeyNamed("supplyKey"),
+                // Attempt to create a fungible token with 0.0.802 as treasury
+                tokenCreate("feeCollectorToken")
+                        .treasury(FEE_COLLECTOR)
+                        .supplyKey("supplyKey")
+                        .initialSupply(0L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
+    }
+
+    /**
+     * Verifies that even when a transaction fails, the fees charged for processing it
+     * are still routed to the fee collection account (0.0.802).
+     * Per HIP-1259: All fees go to the fee collection account regardless of transaction outcome.
+     */
+    @Order(20)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> failedTransactionFeesStillGoToFeeCollector() {
+        final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
+        final AtomicLong txnFee = new AtomicLong(0);
+
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                // Record fee collector balance before the failing transaction
+                getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
+                // Execute a transaction that will fail — transfer to a non-existent account
+                cryptoTransfer(tinyBarsFromTo(CIVILIAN_PAYER, "0.0.999999999", ONE_HBAR))
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .hasKnownStatus(INVALID_ACCOUNT_ID)
+                        .via("failedTxn"),
+                // Verify the failed transaction still charged a fee
+                getTxnRecord("failedTxn").exposingTo(record -> {
+                    txnFee.set(record.getTransactionFee());
+                    assertTrue(record.getTransactionFee() > 0, "Failed transaction should still charge a fee");
+                }),
+                // Verify fee collector balance increased by the charged fee
+                sourcing(() ->
+                        getAccountBalance(FEE_COLLECTOR).hasTinyBars(initialFeeCollectionBalance.get() + txnFee.get())),
+                // Verify fee went to fee collector and not to legacy accounts
+                validateRecordContains("failedTxn", FEE_COLLECTOR_ACCOUNT),
+                validateRecordNotContains("failedTxn", UNEXPECTED_FEE_ACCOUNTS));
+    }
+
+    /**
+     * Verifies that airdropping fungible tokens to the fee collection account (0.0.802) is rejected.
+     * Per HIP-1259: The fee collection account should not receive any tokens.
+     */
+    @Order(21)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> fungibleTokenAirdropToFeeCollectionAccountFails() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                tokenCreate("fungibleToken").treasury(CIVILIAN_PAYER).initialSupply(1000L),
+                tokenAirdrop(TokenMovement.moving(100L, "fungibleToken").between(CIVILIAN_PAYER, FEE_COLLECTOR))
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .hasKnownStatus(INVALID_RECEIVING_NODE_ACCOUNT));
+    }
+
+    /**
+     * Verifies that crypto allowance approval cannot be used to indirectly transfer hbar
+     * to the fee collection account (0.0.802).
+     * Per HIP-1259: "Reject any transaction that would send any hbar to the fee account"
+     */
+    @Order(22)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> cryptoAllowanceApprovalTargetingFeeCollectorFails() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate("spender").balance(ONE_HBAR),
+                // Approve spender to spend on behalf of payer
+                cryptoApproveAllowance()
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .addCryptoAllowance(CIVILIAN_PAYER, "spender", 2 * ONE_HBAR)
+                        .hasKnownStatus(SUCCESS),
+                getAccountDetails(CIVILIAN_PAYER)
+                        .has(accountDetailsWith()
+                                .cryptoAllowancesCount(1)
+                                .cryptoAllowancesContaining("spender", 2 * ONE_HBAR)),
+                // Attempt to use the allowance to transfer hbar to the fee collector
+                cryptoTransfer(TokenMovement.movingHbarWithAllowance(ONE_HBAR)
+                                .betweenWithDecimals(CIVILIAN_PAYER, FEE_COLLECTOR))
+                        .payingWith("spender")
+                        .signedBy("spender")
+                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
+    }
+
+    /**
+     * Verifies that wrapping a crypto transfer to the fee collection account (0.0.802)
+     * inside an atomic batch that the fees charged for the failed batch are still routed to the fee collector.
+     */
+    @Order(23)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> atomicBatchTransferToFeeCollectionAccountFailsWithFees() {
+        final var BATCH_OPERATOR = "batchOperator";
+        final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
+        final AtomicLong innerOneFee = new AtomicLong(0);
+        final AtomicLong innerTwoFee = new AtomicLong(0);
+        final AtomicLong batchTxnFee = new AtomicLong(0);
+
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                // Record fee collector balance before the failing batch
+                getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
+                // Wrap a transfer-to-fee-collector inside an atomic batch
+                atomicBatch(
+                                cryptoTransfer(tinyBarsFromTo(CIVILIAN_PAYER, BATCH_OPERATOR, ONE_HBAR))
+                                        .payingWith(CIVILIAN_PAYER)
+                                        .signedBy(CIVILIAN_PAYER)
+                                        .batchKey(BATCH_OPERATOR)
+                                        .via("failedInnerOne")
+                                        .hasKnownStatus(REVERTED_SUCCESS),
+                                cryptoTransfer(tinyBarsFromTo(CIVILIAN_PAYER, FEE_COLLECTOR, ONE_HBAR))
+                                        .payingWith(CIVILIAN_PAYER)
+                                        .signedBy(CIVILIAN_PAYER)
+                                        .batchKey(BATCH_OPERATOR)
+                                        .via("failedInnerTwo")
+                                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED))
+                        .payingWith(BATCH_OPERATOR)
+                        .signedBy(BATCH_OPERATOR, CIVILIAN_PAYER)
+                        .via("failedBatchTxn")
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                // Verify the failed batch still charged a fee
+                getTxnRecord("failedBatchTxn").exposingTo(record -> {
+                    batchTxnFee.set(record.getTransactionFee());
+                    assertTrue(record.getTransactionFee() > 0, "Failed atomic batch should still charge a fee");
+                }),
+                getTxnRecord("failedInnerOne").exposingTo(record -> {
+                    innerOneFee.set(record.getTransactionFee());
+                    assertTrue(record.getTransactionFee() > 0, "Failed atomic batch should still charge a fee");
+                }),
+                getTxnRecord("failedInnerTwo").exposingTo(record -> {
+                    innerTwoFee.set(record.getTransactionFee());
+                    assertTrue(record.getTransactionFee() > 0, "Failed atomic batch should still charge a fee");
+                }),
+                // Verify fee collector balance increased by the charged fee
+                sourcing(() -> getAccountBalance(FEE_COLLECTOR)
+                        .hasTinyBars(initialFeeCollectionBalance.get()
+                                + batchTxnFee.get()
+                                + innerOneFee.get()
+                                + innerTwoFee.get())),
+                // Verify fees went to fee collector and not to legacy accounts
+                validateRecordContains("failedBatchTxn", FEE_COLLECTOR_ACCOUNT),
+                validateRecordNotContains("failedBatchTxn", UNEXPECTED_FEE_ACCOUNTS),
+                validateRecordContains("failedInnerOne", FEE_COLLECTOR_ACCOUNT),
+                validateRecordNotContains("failedInnerOne", UNEXPECTED_FEE_ACCOUNTS),
+                validateRecordContains("failedInnerTwo", FEE_COLLECTOR_ACCOUNT),
+                validateRecordNotContains("failedInnerTwo", UNEXPECTED_FEE_ACCOUNTS));
     }
 }

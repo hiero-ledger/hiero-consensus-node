@@ -2,8 +2,8 @@
 package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.pces.PcesFileManager.NO_LOWER_BOUND;
-import static org.hiero.consensus.pces.PcesUtilities.getDatabaseDirectory;
+import static org.hiero.consensus.pces.impl.common.PcesFileManager.NO_LOWER_BOUND;
+import static org.hiero.consensus.pces.impl.common.PcesUtilities.getDatabaseDirectory;
 
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
@@ -12,11 +12,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
+import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesFile;
-import org.hiero.consensus.pces.PcesFileReader;
-import org.hiero.consensus.pces.PcesFileTracker;
-import org.hiero.consensus.pces.PcesMultiFileIterator;
+import org.hiero.consensus.pces.impl.common.PcesFile;
+import org.hiero.consensus.pces.impl.common.PcesFileReader;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.common.PcesMultiFileIterator;
+import org.hiero.otter.fixtures.result.ReadablePcesFile;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 
 /**
@@ -87,8 +90,8 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      */
     @Override
     @NonNull
-    public Iterator<PcesFile> pcesFiles() {
-        return pcesFileTracker.getFileIterator();
+    public Iterator<ReadablePcesFile> pcesFiles() {
+        return new PcesFileIterator(pcesFileTracker.getFileIterator());
     }
 
     /**
@@ -96,7 +99,35 @@ public class SingleNodePcesResultImpl implements SingleNodePcesResult {
      */
     @Override
     @NonNull
-    public PcesMultiFileIterator pcesEvents() {
-        return new PcesMultiFileIterator(NO_LOWER_BOUND, pcesFiles());
+    public IOIterator<PlatformEvent> pcesEvents() {
+        return new PcesMultiFileIterator(NO_LOWER_BOUND, pcesFileTracker.getFileIterator());
+    }
+
+    /**
+     * An iterator that wraps PcesFile objects in ReadablePcesFile objects.
+     */
+    private static class PcesFileIterator implements Iterator<ReadablePcesFile> {
+
+        private final Iterator<PcesFile> internalIterator;
+
+        public PcesFileIterator(final Iterator<PcesFile> internalIterator) {
+            this.internalIterator = internalIterator;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean hasNext() {
+            return internalIterator.hasNext();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public ReadablePcesFile next() {
+            return new ReadablePcesFileImpl(internalIterator.next());
+        }
     }
 }

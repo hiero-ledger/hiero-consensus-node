@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
@@ -42,6 +42,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of PermissionSemanticsSpec. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@Tag(ATOMIC_BATCH)
 class AtomicPermissionSemanticsSpec {
 
     public static final String NEVER_TO_BE_USED = "neverToBeUsed";
@@ -125,7 +126,6 @@ class AtomicPermissionSemanticsSpec {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> allowsDeleteWithOneTopLevelSig() {
         KeyShape wacl = KeyShape.listOf(KeyShape.SIMPLE, KeyShape.listOf(2));
 

@@ -4,8 +4,8 @@ package com.hedera.node.app.history;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -23,12 +23,8 @@ public interface HistoryLibrary {
     /**
      * The empty public key to use when a node fails to publish its proof key within the grace period.
      */
-    Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
-
-    /**
-     * A placeholder metadata for the genesis WRAPS proof.
-     */
-    byte[] GENESIS_WRAPS_METADATA = new byte[1280];
+    Bytes MISSING_SCHNORR_KEY = Bytes.fromHex(
+            "8b3288d58331049d2703cf9e1fba5de9565d26eeb97233452d286000d6ce101bbdeeb9632479bd393126759069765e655f2c4bbde7fe7cb98fe9e7a3deaa3129cb0480f74201ff0f3c38f20a73871dc3e7f4e5e2cce872c8f3bf28210ca027244e747258ba0ac3e203576a2152c7f43b9fc885c3afca026dcd5bd933b0ec382146b25b4409f4539f05efc85e6306e9b5b659a7016b63ed0e47303a4bb5e6c8034700ceb44c2242a28e4046d36630fde788785bd06023364ef9bec1c333ad7602");
 
     /**
      * An address book for use in the history library.
@@ -36,7 +32,10 @@ public interface HistoryLibrary {
      * @param publicKeys the public keys of the nodes in the address book
      * @param nodeIds the node ids
      */
-    record AddressBook(@NonNull long[] weights, @NonNull byte[][] publicKeys, @NonNull long[] nodeIds) {
+    record AddressBook(
+            @NonNull long[] weights,
+            @NonNull byte[][] publicKeys,
+            @NonNull long[] nodeIds) {
         public AddressBook {
             requireNonNull(weights);
             requireNonNull(publicKeys);
@@ -53,8 +52,8 @@ public interface HistoryLibrary {
                 @NonNull final SortedMap<Long, Long> weights, @NonNull final SortedMap<Long, byte[]> publicKeys) {
             requireNonNull(weights);
             requireNonNull(publicKeys);
-            final var emptyPublicKey = EMPTY_PUBLIC_KEY.toByteArray();
-            return from(weights, nodeId -> publicKeys.getOrDefault(nodeId, emptyPublicKey));
+            final var missingKey = MISSING_SCHNORR_KEY.toByteArray();
+            return from(weights, nodeId -> publicKeys.getOrDefault(nodeId, missingKey));
         }
 
         /**
@@ -127,9 +126,14 @@ public interface HistoryLibrary {
     }
 
     /**
+     * The verification key for WRAPS proofs.
+     */
+    byte[] wrapsVerificationKey();
+
+    /**
      * Returns a new Schnorr key pair.
      */
-    SigningAndVerifyingSchnorrKeys newSchnorrKeyPair();
+    SchnorrKeys newSchnorrKeyPair();
 
     /**
      * Computes the hash of the given address book with the same algorithm used by the SNARK circuit.
@@ -158,11 +162,13 @@ public interface HistoryLibrary {
 
     /**
      * Runs the R2 phase of the signing protocol.
+     *
      * @param entropy the entropy (must be reused in remaining phases)
      * @param message the message to sign
-     * @param privateKey the private key
-     * @param publicKeys all participant's public keys
      * @param r1Messages all participant's R1 messages
+     * @param privateKey the private key
+     * @param currentBook the current address book doing the rotation
+     * @param r1NodeIds the node ids of the participants that contributed to the R1 messages
      * @return the R2 message
      */
     byte[] runWrapsPhaseR2(
@@ -170,16 +176,19 @@ public interface HistoryLibrary {
             @NonNull byte[] message,
             @NonNull byte[][] r1Messages,
             @NonNull byte[] privateKey,
-            @NonNull byte[][] publicKeys);
+            @NonNull AddressBook currentBook,
+            @NonNull Set<Long> r1NodeIds);
 
     /**
      * Runs the R3 phase of the signing protocol.
+     *
      * @param entropy the entropy (must be reused in remaining phases)
      * @param message the message to sign
-     * @param privateKey the private key
-     * @param publicKeys all participant's public keys
      * @param r1Messages all participant's R1 messages
      * @param r2Messages all participant's R2 messages
+     * @param privateKey the private key
+     * @param currentBook the current address book doing the rotation
+     * @param r1NodeIds the node ids of the participants that contributed to the R1 messages
      * @return the R3 message
      */
     byte[] runWrapsPhaseR3(
@@ -188,7 +197,8 @@ public interface HistoryLibrary {
             @NonNull byte[][] r1Messages,
             @NonNull byte[][] r2Messages,
             @NonNull byte[] privateKey,
-            @NonNull byte[][] publicKeys);
+            @NonNull AddressBook currentBook,
+            @NonNull Set<Long> r1NodeIds);
 
     /**
      * Runs the aggregation phase of the signing protocol.
@@ -197,7 +207,8 @@ public interface HistoryLibrary {
      * @param r1Messages all participant's R1 messages
      * @param r2Messages all participant's R2 messages
      * @param r3Messages all participant's R3 messages
-     * @param publicKeys all participant's public keys
+     * @param currentBook the current address book doing the rotation
+     * @param r1NodeIds the node ids of the participants that contributed to the R1 messages
      * @return the aggregated signature
      */
     byte[] runAggregationPhase(
@@ -205,28 +216,39 @@ public interface HistoryLibrary {
             @NonNull byte[][] r1Messages,
             @NonNull byte[][] r2Messages,
             @NonNull byte[][] r3Messages,
-            @NonNull byte[][] publicKeys);
+            @NonNull AddressBook currentBook,
+            @NonNull Set<Long> r1NodeIds);
 
     /**
      * Verifies an aggregated signature.
+     *
      * @param message the message
-     * @param publicKeys the participating signers' public keys, in the same order as the R* messages
+     * @param nodeIds the node ids of full address book
+     * @param publicKeys the full address book public keys
+     * @param weights the weights of the full address book
      * @param signature the aggregated signature
      * @return true if the signature is valid; false otherwise
      */
-    boolean verifyAggregateSignature(@NonNull byte[] message, @NonNull byte[][] publicKeys, @NonNull byte[] signature);
+    boolean verifyAggregateSignature(
+            @NonNull byte[] message,
+            @NonNull long[] nodeIds,
+            @NonNull byte[][] publicKeys,
+            @NonNull long[] weights,
+            @NonNull byte[] signature);
 
     /**
      * Constructs a genesis WRAPS proof.
      *
      * @param genesisAddressBookHash the genesis address book hash
      * @param aggregatedSignature an aggregated signature from the genesis address book
+     * @param genesisHintsVerificationKey the hinTS verification key for the genesis address book
      * @param signers the set of signers contributing to the aggregated signature
      * @param addressBook the genesis address book
      * @return the genesis WRAPS proof
      */
     Proof constructGenesisWrapsProof(
             @NonNull byte[] genesisAddressBookHash,
+            @NonNull byte[] genesisHintsVerificationKey,
             @NonNull byte[] aggregatedSignature,
             @NonNull Set<Long> signers,
             @NonNull AddressBook addressBook);
@@ -251,12 +273,6 @@ public interface HistoryLibrary {
             @NonNull byte[] targetHintsVerificationKey,
             @NonNull byte[] aggregatedSignature,
             @NonNull Set<Long> signers);
-
-    /**
-     * Verifies a WRAPS proof.
-     * @return true if the proof is valid; false otherwise
-     */
-    boolean isValidWraps(byte[] compressedProof);
 
     /**
      * Returns whether the library is ready to be used.

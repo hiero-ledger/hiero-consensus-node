@@ -10,8 +10,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.platform.crypto.KeyGeneratingException;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -22,8 +20,11 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.internal.DetRandomProvider;
+import org.hiero.base.crypto.DetRandomProvider;
+import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.SigningSchema;
+import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
@@ -63,6 +64,12 @@ public class StartFromStateTest {
 
         // Setup simulation
         network.addNodes(numberOfNodes);
+        // The increase in event creation rate is to fix a past issue.
+        // This test encountered a coin round, it took many voting rounds to reach consensus. Because the checking
+        // status gets activated if an event does not reach consensus within a certain amount of time, the test would
+        // fail. By increasing the event creation rate, we can ensure that the network can create enough events to reach
+        // consensus in a timely manner.
+        network.withConfigValue(EventCreationConfig_.MAX_CREATION_RATE, 40);
         network.savedStateDirectory(Path.of("previous-version-state"));
         network.version(
                 currentVersion.copyBuilder().minor(currentVersion.minor()).build());

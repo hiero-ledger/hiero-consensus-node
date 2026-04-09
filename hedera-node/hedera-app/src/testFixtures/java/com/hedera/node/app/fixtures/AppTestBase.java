@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fixtures;
 
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
-import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -22,6 +23,8 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fixtures.state.FakePlatform;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
@@ -51,7 +54,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -62,6 +65,7 @@ import com.swirlds.state.test.fixtures.TestBase;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -76,8 +80,6 @@ import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.AfterEach;
 
 /**
@@ -114,6 +116,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     protected MapWritableKVState<EntityNumber, Node> nodesState;
     protected WritableSingletonState<EntityCounts> entityCountsState;
     protected WritableSingletonState<EntityNumber> entityIdState;
+    protected WritableSingletonState<NodeId> highestNodeIdState;
     protected State state;
 
     protected void setupStandardStates() {
@@ -130,6 +133,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, (a) -> {});
         entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, (a) -> {});
+        highestNodeIdState = new FunctionWritableSingletonState<>(
+                HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, (a) -> {});
         nodesState = new MapWritableKVState<>(NODES_STATE_ID, NODES_STATE_LABEL);
         nodesState.put(
                 EntityNumber.newBuilder().number(nodeSelfId.id()).build(),
@@ -142,12 +147,13 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 .state(aliasesState)
                 .state(entityIdState)
                 .state(entityCountsState)
+                .state(highestNodeIdState)
                 .state(nodesState)
                 .build();
 
         final var virtualMap = VirtualMapUtils.createVirtualMap();
 
-        state = new VirtualMapState(virtualMap, new NoOpMetrics()) {
+        state = new VirtualMapStateImpl(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {
@@ -380,15 +386,17 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             final var workingStateAccessor = new WorkingStateAccessor();
 
             final ConfigProvider configProvider = () -> new VersionedConfigImpl(configBuilder.getOrCreateConfig(), 1);
-            final var addresses = nodes.stream()
-                    .map(nodeInfo -> new Address()
-                            .copySetNodeId(NodeId.of(nodeInfo.nodeId()))
-                            .copySetWeight(nodeInfo.zeroWeight() ? 0 : 10))
-                    .toList();
-            final var addressBook = new AddressBook(addresses);
-            final var platform = new FakePlatform(realSelfNodeInfo.nodeId(), addressBook);
+            final var genesisRoster = Roster.newBuilder()
+                    .rosterEntries(nodes.stream()
+                            .map(ni -> RosterEntry.newBuilder()
+                                    .nodeId(ni.nodeId())
+                                    .weight(ni.weight())
+                                    .build())
+                            .sorted(Comparator.comparing(RosterEntry::nodeId))
+                            .toList())
+                    .build();
+            final var platform = new FakePlatform(realSelfNodeInfo.nodeId(), genesisRoster);
             final var initialState = new FakeState();
-            final var genesisRoster = buildRoster(addressBook);
             final var genesisNetwork = Network.newBuilder()
                     .nodeMetadata(genesisRoster.rosterEntries().stream()
                             .map(entry ->

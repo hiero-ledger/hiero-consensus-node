@@ -16,17 +16,18 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.test.fixtures.Randotron;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,7 +59,8 @@ class InternalEventValidatorTests {
                 .eventExitedIntakePipeline(any());
 
         validator = new DefaultInternalEventValidator(
-                new NoOpMetrics(), new FakeTime(), intakeEventCounter, TRANSACTION_LIMITS);
+                new DefaultEventFieldValidator(new NoOpMetrics(), new FakeTime(), TRANSACTION_LIMITS),
+                intakeEventCounter);
     }
 
     @Test

@@ -16,12 +16,6 @@ public class BlockNodeConfiguration {
      */
     public static final long DEFAULT_MESSAGE_SOFT_LIMIT_BYTES = 2L * 1024 * 1024; // 2 MB
     /**
-     * Default message hard limit size - in bytes: 6 MB + 1 KB. The 6 MB is to support the maximum block items, which
-     * themselves can be 6 MB, and the 1 KB is for additional overhead associated with the maximum block item. The
-     * overhead should be much lower, but the sake of a nice number it was set to 1 KB.
-     */
-    public static final long DEFAULT_MESSAGE_HARD_LIMIT_BYTES = (6L * 1024 * 1024) + 1024; // 6 MB + 1 KB
-    /**
      * The address of the block node (domain name or IP address)
      */
     private final String address;
@@ -148,7 +142,21 @@ public class BlockNodeConfiguration {
                 clientGrpcConfig);
     }
 
-    public static @NonNull BlockNodeConfiguration from(@NonNull final BlockNodeConfig config) {
+    @Override
+    public String toString() {
+        return "BlockNodeConfiguration{" + "address="
+                + (address == null ? null : "'" + address + "'") + ", streamingPort="
+                + streamingPort + ", servicePort="
+                + servicePort + ", priority="
+                + priority + ", messageSizeSoftLimitBytes="
+                + messageSizeSoftLimitBytes + ", messageSizeHardLimitBytes="
+                + messageSizeHardLimitBytes + ", clientHttpConfig="
+                + clientHttpConfig + ", clientGrpcConfig="
+                + clientGrpcConfig + '}';
+    }
+
+    public static @NonNull BlockNodeConfiguration from(
+            @NonNull final BlockNodeConfig config, final long defaultHardLimitBytes) {
         requireNonNull(config, "config must be specified");
 
         final Builder b = newBuilder();
@@ -158,7 +166,7 @@ public class BlockNodeConfiguration {
         b.servicePort(config.servicePort());
         b.priority(config.priority());
         b.messageSizeSoftLimitBytes(config.messageSizeSoftLimitBytesOrElse(DEFAULT_MESSAGE_SOFT_LIMIT_BYTES));
-        b.messageSizeHardLimitBytes(config.messageSizeHardLimitBytesOrElse(DEFAULT_MESSAGE_HARD_LIMIT_BYTES));
+        b.messageSizeHardLimitBytes(config.messageSizeHardLimitBytesOrElse(defaultHardLimitBytes));
         b.clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.from(config.clientGrpcConfig()));
         b.clientHttpConfig(BlockNodeHelidonHttpConfiguration.from(config.clientHttpConfig()));
 

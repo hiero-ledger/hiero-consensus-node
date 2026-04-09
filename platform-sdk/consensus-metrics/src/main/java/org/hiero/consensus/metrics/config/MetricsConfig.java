@@ -21,12 +21,10 @@ import java.time.Duration;
  * @param csvFileName
  *         The prefix of the name of the CSV file that the platform will write statistics to.
  *         If this value is null or an empty string, the platform will not write any statistics.
- * @param csvAppend
- *         Indicates whether statistics should be appended to the CSV file.
+ * @param csvOverwrite
+ *         Indicates whether statistics CSV file should be overwritten on each run.
  * @param csvWriteFrequency
  *         The frequency, in milliseconds, at which values are written to the statistics CSV file.
- * @param metricsDocFileName
- *         the file name to be used for Metrics document generation
  * @param halfLife
  * 		   half life of some of the various statistics (give half the weight to the last halfLife seconds)
  */
@@ -36,9 +34,8 @@ public record MetricsConfig(
         @ConfigProperty(defaultValue = "false") boolean disableMetricsOutput,
         @ConfigProperty(defaultValue = "data/stats") String csvOutputFolder,
         @ConfigProperty(defaultValue = "MainNetStats") String csvFileName,
-        @ConfigProperty(defaultValue = "false") boolean csvAppend,
+        @ConfigProperty(defaultValue = "true") boolean csvOverwrite,
         @Min(0) @ConfigProperty(defaultValue = "3000") int csvWriteFrequency,
-        @ConfigProperty(defaultValue = "metricsDoc.tsv") String metricsDocFileName,
         @ConfigProperty(defaultValue = "10") double halfLife) {
 
     /**

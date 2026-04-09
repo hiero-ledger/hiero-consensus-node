@@ -9,7 +9,6 @@ import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.platform.state.StateKey;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,14 +37,6 @@ public class V0490ContractSchema extends Schema<SemanticVersion> {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        // There are no contracts at genesis
-    }
-
     @Override
     @SuppressWarnings("rawtypes")
     public @NonNull Set<StateDefinition> statesToCreate() {
@@ -53,12 +44,10 @@ public class V0490ContractSchema extends Schema<SemanticVersion> {
     }
 
     private @NonNull StateDefinition<SlotKey, SlotValue> storageDef() {
-        return StateDefinition.onDisk(
-                STORAGE_STATE_ID, STORAGE_KEY, SlotKey.PROTOBUF, SlotValue.PROTOBUF, MAX_STORAGE_ENTRIES);
+        return StateDefinition.keyValue(STORAGE_STATE_ID, STORAGE_KEY, SlotKey.PROTOBUF, SlotValue.PROTOBUF);
     }
 
     private @NonNull StateDefinition<ContractID, Bytecode> bytecodeDef() {
-        return StateDefinition.onDisk(
-                BYTECODE_STATE_ID, BYTECODE_KEY, ContractID.PROTOBUF, Bytecode.PROTOBUF, MAX_BYTECODES);
+        return StateDefinition.keyValue(BYTECODE_STATE_ID, BYTECODE_KEY, ContractID.PROTOBUF, Bytecode.PROTOBUF);
     }
 }

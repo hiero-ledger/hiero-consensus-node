@@ -3,14 +3,15 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
+import com.swirlds.virtualmap.internal.Path;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A task running on the learner side, which is responsible for getting responses from the teacher.
@@ -28,18 +29,16 @@ public class LearnerPullVirtualTreeReceiveTask {
     private static final String NAME = "reconnect-learner-receiver";
 
     private final StandardWorkGroup workGroup;
-    private final SerializableDataInputStream in;
+    private final AsyncInputStream in;
     private final LearnerPullVirtualTreeView view;
 
-    // Indicates if the learner sender task is done sending all requests to the teacher
-    private final AtomicBoolean senderIsFinished;
-
     // Number of requests sent to teacher / responses expected from the teacher. Increased in
-    // the sending task, decreased in this task
+    // sending tasks, decreased in receiving tasks
     private final AtomicLong expectedResponses;
 
-    // Indicates if a response for path 0 (virtual root node) has been received
-    private final CountDownLatch rootResponseReceived;
+    private final Runnable completeListener;
+
+    private final Duration allMessagesReceivedTimeout;
 
     /**
      * Create a thread for receiving responses to queries from the teacher.
@@ -50,22 +49,21 @@ public class LearnerPullVirtualTreeReceiveTask {
      * 		the input stream, this object is responsible for closing this when finished
      * @param view
      * 		the view to be used when touching the merkle tree
-     * @param senderIsFinished
-     * 		becomes true once the sending thread has finished
      */
     public LearnerPullVirtualTreeReceiveTask(
+            final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
-            final SerializableDataInputStream in,
+            final AsyncInputStream in,
             final LearnerPullVirtualTreeView view,
-            final AtomicBoolean senderIsFinished,
             final AtomicLong expectedResponses,
-            final CountDownLatch rootResponseReceived) {
+            final Runnable completeListener) {
         this.workGroup = workGroup;
         this.in = in;
         this.view = view;
-        this.senderIsFinished = senderIsFinished;
         this.expectedResponses = expectedResponses;
-        this.rootResponseReceived = rootResponseReceived;
+        this.completeListener = completeListener;
+
+        this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
     }
 
     public void exec() {
@@ -73,31 +71,42 @@ public class LearnerPullVirtualTreeReceiveTask {
     }
 
     private void run() {
-        try (view) {
-            boolean finished = senderIsFinished.get();
-            boolean responseExpected = expectedResponses.get() > 0;
-
-            while (!finished || responseExpected) {
-                if (responseExpected) {
-                    final PullVirtualTreeResponse response = new PullVirtualTreeResponse(view);
-                    // the learner tree is notified about the new response in deserialize() method below
-                    response.deserialize(in, 0);
-                    view.getMapStats().incrementTransfersFromTeacher();
-                    logger.debug(RECONNECT.getMarker(), "Learner receive path: " + response.getPath());
-                    if (response.getPath() == 0) {
-                        rootResponseReceived.countDown();
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                final PullVirtualTreeResponse response =
+                        in.readAnticipatedMessage(() -> new PullVirtualTreeResponse(view));
+                if (response == null) {
+                    if (!in.isAlive()) {
+                        break;
                     }
-                    expectedResponses.decrementAndGet();
-                } else {
-                    Thread.onSpinWait();
+                    Thread.sleep(0, 1);
+                    continue;
                 }
-
-                finished = senderIsFinished.get();
-                responseExpected = expectedResponses.get() > 0;
+                final long path = response.getPath();
+                if (path != Path.INVALID_PATH) {
+                    view.responseReceived(response);
+                }
+                expectedResponses.decrementAndGet();
+                if (path == Path.INVALID_PATH) {
+                    logger.info(
+                            RECONNECT.getMarker(),
+                            "The last response is received, {} responses are in progress",
+                            expectedResponses.get());
+                    // There may be other messages for this view being handled by other threads
+                    final long waitStart = System.currentTimeMillis();
+                    while (expectedResponses.get() != 0) {
+                        Thread.sleep(0, 1);
+                        if (System.currentTimeMillis() - waitStart > allMessagesReceivedTimeout.toMillis()) {
+                            throw new MerkleSynchronizationException(
+                                    "Timed out waiting for view all remaining view messages to be processed");
+                        }
+                    }
+                    completeListener.run();
+                    logger.info(RECONNECT.getMarker(), "Learning is complete");
+                }
             }
-            logger.debug(RECONNECT.getMarker(), "Learner receive done");
         } catch (final Exception ex) {
-            throw new MerkleSynchronizationException("Exception in the learner's receiving task", ex);
+            workGroup.handleError(ex);
         }
     }
 }

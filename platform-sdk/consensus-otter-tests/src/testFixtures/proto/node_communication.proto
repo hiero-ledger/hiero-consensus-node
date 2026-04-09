@@ -155,12 +155,6 @@ message ProtoConsensusRound {
   uint64 reached_cons_timestamp = 7;
 }
 
-// Represents multiple consensus rounds.
-message ProtoConsensusRounds {
-  // List of consensus rounds.
-  repeated ProtoConsensusRound rounds = 1;
-}
-
 // Wrapper for different types of event messages.
 message EventMessage {
   // Oneof field to represent different event types.
@@ -170,7 +164,7 @@ message EventMessage {
     // Log entry event.
     LogEntry log_entry = 2;
     // Consensus rounds event.
-    ProtoConsensusRounds consensus_rounds = 3;
+    ProtoConsensusRound consensus_round = 3;
   }
 }
 

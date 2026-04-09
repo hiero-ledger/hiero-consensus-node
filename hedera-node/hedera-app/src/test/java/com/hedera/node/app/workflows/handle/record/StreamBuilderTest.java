@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -8,6 +9,7 @@ import static java.util.Collections.emptyList;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -66,6 +68,7 @@ public class StreamBuilderTest {
     public static final long TOPIC_SEQUENCE_NUMBER = 928782L;
     public static final long TOPIC_RUNNING_HASH_VERSION = 153513L;
     public static final long NEW_TOTAL_SUPPLY = 34134546L;
+    public static final long HIGH_VOLUME_PRICING_MULTIPLIER = 4L;
     public static final String MEMO = "Yo Memo";
     private static final Bytes FAKE_BODY_BYTES = Bytes.wrap("body-bytes");
     private static final SignatureMap FAKE_SIG_MAP = SignatureMap.newBuilder()
@@ -166,7 +169,8 @@ public class StreamBuilderTest {
                 .serialNumbers(serialNumbers)
                 .contractStateChanges(List.of(new AbstractMap.SimpleEntry<>(contractStateChanges, false)))
                 .addContractActions(contractActions, false)
-                .addContractBytecode(contractBytecode, false);
+                .addContractBytecode(contractBytecode, false)
+                .highVolumePricingMultiplier(HIGH_VOLUME_PRICING_MULTIPLIER);
 
         if (entropyOneOfType == TransactionRecord.EntropyOneOfType.PRNG_BYTES) {
             singleTransactionRecordBuilder.entropyBytes(prngBytes);
@@ -224,6 +228,9 @@ public class StreamBuilderTest {
         assertEquals(
                 paidStakingRewards, singleTransactionRecord.transactionRecord().paidStakingRewards());
         assertEquals(evmAddress, singleTransactionRecord.transactionRecord().evmAddress());
+        assertEquals(
+                HIGH_VOLUME_PRICING_MULTIPLIER,
+                singleTransactionRecord.transactionRecord().highVolumePricingMultiplier());
 
         assertTransactionReceiptProps(
                 singleTransactionRecord.transactionRecord().receipt(), serialNumbers);
@@ -243,6 +250,23 @@ public class StreamBuilderTest {
                         false,
                         new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, contractBytecode)));
         assertEquals(expectedTransactionSidecarRecords, singleTransactionRecord.transactionSidecarRecords());
+    }
+
+    @Test
+    void protoConversionLeavesReceiptBlockNumberUnsetWhenBuilderDidNotSetIt() {
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
+        builder.signedTx(SignedTransaction.DEFAULT)
+                .status(ResponseCodeEnum.SUCCESS)
+                .exchangeRate(exchangeRate)
+                .accountID(accountID);
+
+        final var record = builder.build().transactionRecord();
+
+        assertNull(record.receiptOrThrow().blockNumber());
+        assertFalse(
+                pbjToProto(record, TransactionRecord.class, com.hederahashgraph.api.proto.java.TransactionRecord.class)
+                        .getReceipt()
+                        .hasBlockNumber());
     }
 
     private void assertTransactionReceiptProps(TransactionReceipt receipt, List<Long> serialNumbers) {

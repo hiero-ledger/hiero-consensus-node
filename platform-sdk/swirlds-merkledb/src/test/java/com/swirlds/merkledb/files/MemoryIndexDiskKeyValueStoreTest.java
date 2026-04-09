@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.google.common.util.concurrent.AtomicDouble;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
 import java.io.IOException;
@@ -22,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
@@ -168,28 +169,21 @@ class MemoryIndexDiskKeyValueStoreTest {
     void createDataAndCheckImpl(final FilesTestType testType) throws Exception {
         // let's store hashes as easy test class
         final Path tempDir = testDirectory.resolve("DataFileTest");
-        final LongListOffHeap index = new LongListOffHeap(1024, 1_000_000, 256);
+        final LongListSegment index = new LongListSegment(1024, 1_000_000, 256);
         final AtomicLong timeSpent = new AtomicLong(0);
-        final AtomicDouble savedSpace = new AtomicDouble(0.0);
-        String storeName = "MemoryIndexDiskKeyValueStoreTest";
+        final AtomicReference<Double> savedSpace = new AtomicReference<>(0.0);
+        final String storeName = "MemoryIndexDiskKeyValueStoreTest";
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MemoryIndexDiskKeyValueStore store =
                 new MemoryIndexDiskKeyValueStore(dbConfig, tempDir, storeName, null, null, index);
-        final DataFileCompactor dataFileCompactor =
-                new DataFileCompactor(
-                        dbConfig,
-                        storeName,
-                        store.fileCollection,
-                        index,
-                        (type, time) -> timeSpent.set(time),
-                        (type, space) -> savedSpace.set(space),
-                        null,
-                        null) {
-                    @Override
-                    int getMinNumberOfFilesToCompact() {
-                        return 1;
-                    }
-                };
+        final DataFileCompactor dataFileCompactor = new DataFileCompactor(
+                storeName,
+                store.fileCollection,
+                index,
+                (type, time) -> timeSpent.set(time),
+                (type, space) -> savedSpace.set(space),
+                null,
+                null);
         // write some batches of data, then check all the contents, we should end up with 3 files
         writeBatch(testType, store, 0, 1000, 1000, 1234);
         checkRange(testType, store, 0, 1000, 1234);
@@ -204,7 +198,7 @@ class MemoryIndexDiskKeyValueStoreTest {
         }
         assertEquals(3, filesCount, "unexpected # of files #1");
         // compact all files
-        dataFileCompactor.compact();
+        dataFileCompactor.compactSingleLevel(store.fileCollection.getAllCompletedFiles(), 1);
         // check number of files after merge
         try (Stream<Path> list = Files.list(tempDir)) {
             filesCount = (int) list.count();
@@ -234,7 +228,7 @@ class MemoryIndexDiskKeyValueStoreTest {
                 }
             } else {
                 try {
-                    dataFileCompactor.compact();
+                    dataFileCompactor.compactSingleLevel(store.fileCollection.getAllCompletedFiles(), 1);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

@@ -19,7 +19,6 @@ package com.hedera.node.app.spi.fees;
 
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
@@ -27,10 +26,36 @@ import org.hiero.hapi.support.fees.Extra;
 /** Calculates transaction and query fees. Null context = approximate, non-null = exact using state. */
 public interface SimpleFeeCalculator {
 
+    /**
+     * Calculates transaction fees.
+     * @param txnBody the transaction body
+     * @param simpleFeeContext the transaction context
+     * @return the fee result
+     */
     @NonNull
-    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull FeeContext feeContext);
+    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull SimpleFeeContext simpleFeeContext);
 
-    long calculateQueryFee(@NonNull Query query, @NonNull QueryContext queryContext);
+    /**
+     * Calculates query fees.
+     * @param query the query
+     * @param simpleFeeContext the query context
+     * @return the fee result
+     */
+    @NonNull
+    FeeResult calculateQueryFee(@NonNull Query query, @NonNull SimpleFeeContext simpleFeeContext);
 
+    /**
+     * Returns the extra fee for the given extra.
+     * @param extra the extra
+     * @return the extra fee
+     */
     long getExtraFee(Extra extra);
+
+    /**
+     * Returns the high volume multiplier for the given transaction body and fee context.
+     * @param txnBody the transaction body
+     * @param feeContext the fee context
+     * @return the high volume multiplier
+     */
+    long highVolumeRawMultiplier(@NonNull TransactionBody txnBody, @NonNull FeeContext feeContext);
 }

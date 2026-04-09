@@ -28,24 +28,10 @@ public class FeeUtils {
      */
     public static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
         return new Fees(
-                tinycentsToTinybars(feeResult.node, rate),
-                tinycentsToTinybars(feeResult.network, rate),
-                tinycentsToTinybars(feeResult.service, rate));
-    }
-
-    /**
-     * Converts a `Fees` object to a `FeeResult` object using the provided exchange rate.
-     *
-     * @param fees The `Fees` object containing node, network, and service fees in tinybars.
-     * @param rate The `ExchangeRate` object used to convert tinybars to tinycents.
-     * @return A `FeeResult` object containing the converted fees in tinycents.
-     */
-    public static FeeResult feesToFeeResult(Fees fees, ExchangeRate rate) {
-        final var feeResult = new FeeResult();
-        feeResult.addNodeFee(1, FeeBuilder.getTinybarsFromTinyCents(rate, fees.nodeFee()));
-        feeResult.addNetworkFee(FeeBuilder.getTinybarsFromTinyCents(rate, fees.networkFee()));
-        feeResult.addServiceFee(1, FeeBuilder.getTinybarsFromTinyCents(rate, fees.serviceFee()));
-        return feeResult;
+                tinycentsToTinybars(feeResult.getNodeTotalTinycents(), rate),
+                tinycentsToTinybars(feeResult.getNetworkTotalTinycents(), rate),
+                tinycentsToTinybars(feeResult.getServiceTotalTinycents(), rate),
+                feeResult.getHighVolumeMultiplier());
     }
 
     public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {

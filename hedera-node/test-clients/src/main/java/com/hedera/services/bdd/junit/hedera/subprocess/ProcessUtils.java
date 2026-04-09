@@ -143,8 +143,9 @@ public class ProcessUtils {
         environment.put("hedera.config.version", Integer.toString(configVersion));
         environment.put("RUST_BACKTRACE", "full");
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
-        // Use non-blank path to enable WRAPS prover
-        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", "");
+        // Set path to the (unzipped) https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz,
+        // e.g. "/Users/hincadenza/misc/wraps-v0.2.0", to get the WRAPS library ready to produce proofs
+        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", System.getProperty("hapi.spec.tssLibWrapsArtifactsPath", ""));
         environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
         environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts
@@ -171,6 +172,19 @@ public class ProcessUtils {
     private static List<String> javaCommandLineFor(@NonNull final NodeMetadata metadata) {
         final List<String> commandLine = new ArrayList<>();
         commandLine.add(ProcessHandle.current().info().command().orElseThrow());
+        // Limit node JVM heap if configured, to avoid overcommitting runner memory.
+        // The pool is the total memory available for all nodes; divide by actual network size.
+        final var nodePoolMib = System.getProperty("hapi.spec.node.poolMib");
+        if (nodePoolMib != null && !nodePoolMib.isBlank()) {
+            try {
+                final int poolMib = Integer.parseInt(nodePoolMib);
+                final int networkSize = Integer.getInteger("hapi.spec.network.size", 4);
+                final int perNodeMib = Math.max(512, Math.min(4096, poolMib / networkSize));
+                commandLine.add("-Xmx" + perNodeMib + "m");
+            } catch (NumberFormatException e) {
+                log.warn("Invalid hapi.spec.node.poolMib value: {}", nodePoolMib);
+            }
+        }
         // Only activate JDWP if not in CI
         if (System.getenv("CI") == null) {
             commandLine.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend="
@@ -185,6 +199,7 @@ public class ProcessUtils {
                 "-Dfile.encoding=UTF-8",
                 "-Dprometheus.endpointPortNumber=" + metadata.prometheusPort(),
                 "-Dhedera.recordStream.logDir=" + DATA_DIR + "/" + RECORD_STREAMS_DIR,
+                "-Dhedera.recordStream.wrappedRecordHashesDir=" + DATA_DIR + "/wrappedRecordHashes",
                 "-Dhedera.profiles.active=DEV",
                 "--module",
                 "com.hedera.node.app/com.hedera.node.app.ServicesMain",

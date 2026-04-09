@@ -9,7 +9,7 @@ import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.util.FileUtilities;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.FilesConfig;
@@ -75,7 +75,7 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
         final var filesConfig = config.getConfigData(FilesConfig.class);
         try {
             final var nodeDetailsId = FileUtilities.createFileID(filesConfig.nodeDetails(), config);
-            final var fileStore = new ReadableStoreFactory(state).getStore(ReadableFileStore.class);
+            final var fileStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableFileStore.class);
             final var nodeDetailsFile = fileStore.getFileLeaf(nodeDetailsId);
             final Bytes bytes = (nodeDetailsFile == null) ? Bytes.EMPTY : nodeDetailsFile.contents();
             if (bytes.length() == 0) {

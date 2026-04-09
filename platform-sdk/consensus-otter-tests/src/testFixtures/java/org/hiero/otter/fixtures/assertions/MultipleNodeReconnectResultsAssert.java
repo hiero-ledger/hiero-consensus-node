@@ -81,23 +81,4 @@ public class MultipleNodeReconnectResultsAssert
         }
         return this;
     }
-
-    /**
-     * Asserts that no node took no longer than the provided time to complete tree initialization after any of its
-     * reconnects.
-     *
-     * <p>If no reconnects occurred, this check will pass.</p>
-     *
-     * @param maximumTreeInitializationTime the maximum allowed tree initialization time
-     * @return a continuous assertion for the given {@link SingleNodeReconnectResult}
-     */
-    @NonNull
-    public MultipleNodeReconnectResultsAssert haveMaximumTreeInitializationTime(
-            @NonNull final Duration maximumTreeInitializationTime) {
-        isNotNull();
-        for (final SingleNodeReconnectResult result : actual.reconnectResults()) {
-            OtterAssertions.assertThat(result).hasMaximumTreeInitializationTime(maximumTreeInitializationTime);
-        }
-        return this;
-    }
 }

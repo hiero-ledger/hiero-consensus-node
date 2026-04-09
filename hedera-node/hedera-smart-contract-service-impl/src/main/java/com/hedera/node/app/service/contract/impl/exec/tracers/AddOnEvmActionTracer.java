@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.tracers;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
@@ -22,36 +23,44 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
 
 /**
- * A {@link OperationTracer} that delegates just the relevant callbacks to a {@link EvmActionTracer}, and all
- * {@link OperationTracer} callbacks to a list of "add on" tracers.
+ * An {@link ActionSidecarContentTracer} that delegates just the relevant callbacks to a {@link EvmActionTracer},
+ * and all {@link ActionSidecarContentTracer} callbacks to a list of "add on" tracers.
  */
 public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
     private final EvmActionTracer evmActionTracer;
-    private final List<OperationTracer> addOnTracers;
+    private final List<ActionSidecarContentTracer> addOnTracers;
 
     /**
      * @param evmActionTracer the evm action tracer
-     * @param addOnTracers all operation tracer callbacks
+     * @param addOnTracers all action sidecar content tracer callbacks
      */
     public AddOnEvmActionTracer(
-            @NonNull final EvmActionTracer evmActionTracer, @NonNull final List<OperationTracer> addOnTracers) {
+            @NonNull final EvmActionTracer evmActionTracer,
+            @NonNull final List<ActionSidecarContentTracer> addOnTracers) {
         this.evmActionTracer = requireNonNull(evmActionTracer);
         this.addOnTracers = requireNonNull(addOnTracers);
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // ActionSidecarContentTracer methods - delegate to evmActionTracer and forward to add-on tracers
+    // ---------------------------------------------------------------------------------------------
+
     @Override
     public void traceOriginAction(@NonNull final MessageFrame frame) {
         evmActionTracer.traceOriginAction(frame);
+        addOnTracers.forEach(tracer -> tracer.traceOriginAction(frame));
     }
 
     @Override
     public void sanitizeTracedActions(@NonNull final MessageFrame frame) {
         evmActionTracer.sanitizeTracedActions(frame);
+        addOnTracers.forEach(tracer -> tracer.sanitizeTracedActions(frame));
     }
 
     @Override
     public void tracePrecompileResult(@NonNull final MessageFrame frame, @NonNull final ContractActionType type) {
         evmActionTracer.tracePrecompileResult(frame, type);
+        addOnTracers.forEach(tracer -> tracer.tracePrecompileResult(frame, type));
     }
 
     @Override
@@ -63,6 +72,11 @@ public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
     // Two OperationTracer methods we delegate to both the evmActionTracer and our add-on tracers
     // ---------------------------------------------------------------------------------------------
 
+    //  The BESU API design here requires an allocated OperationResult per-
+    //  opcode-executed which is a hard performance fail.  Replace it with an
+    //  "open" API where the parts (gas, halt reason) are passed in instead of
+    //  making a wrapper object.  Keeping the old API for running BESU EVM
+    //  tests.  Hedera and Bonneville EVMs should not call this.
     @Override
     public void tracePostExecution(
             @NonNull final MessageFrame frame, @NonNull final Operation.OperationResult operationResult) {
@@ -147,5 +161,27 @@ public class AddOnEvmActionTracer implements ActionSidecarContentTracer {
     @Override
     public boolean isExtendedTracing() {
         return addOnTracers.stream().anyMatch(OperationTracer::isExtendedTracing);
+    }
+
+    // Called as a hot call from the Bonneville EVM.
+    // Frame is in State CODE_EXECUTING.
+    @Override
+    public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {
+        evmActionTracer.tracePerOpcode(frame, gas, halt, op);
+        addOnTracers.forEach(tracer -> tracer.tracePerOpcode(frame, gas, halt, op));
+    }
+
+    // Caller already checked that side-car data is enabled.
+    @Override
+    public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
+        evmActionTracer.traceSuspended(parent, child, opCall);
+        addOnTracers.forEach(tracer -> tracer.traceSuspended(parent, child, opCall));
+    }
+
+    // Caller already checked that side-car data is enabled.
+    @Override
+    public void traceNotExecuting(MessageFrame child) {
+        evmActionTracer.traceNotExecuting(child);
+        addOnTracers.forEach(tracer -> tracer.traceNotExecuting(child));
     }
 }

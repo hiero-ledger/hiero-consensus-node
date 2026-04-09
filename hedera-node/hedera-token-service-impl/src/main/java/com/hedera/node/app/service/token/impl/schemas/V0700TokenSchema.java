@@ -36,10 +36,8 @@ public class V0700TokenSchema extends Schema<SemanticVersion> {
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        final var previousStates = ctx.previousStates();
-        if (ctx.isGenesis() || !previousStates.contains(NODE_PAYMENTS_STATE_ID)) {
-            final var nodePaymentsState = ctx.newStates().getSingleton(NODE_PAYMENTS_STATE_ID);
-            nodePaymentsState.put(NodePayments.DEFAULT);
+        if (!ctx.isGenesis() && !ctx.previousStates().contains(NODE_PAYMENTS_STATE_ID)) {
+            ctx.newStates().<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID).put(NodePayments.DEFAULT);
         }
     }
 }

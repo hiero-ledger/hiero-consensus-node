@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.chaosbot;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.data.Percentage.withPercentage;
 
-import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -13,6 +12,7 @@ import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.LatencyRange;
@@ -25,8 +25,9 @@ import org.hiero.otter.fixtures.network.LatencyRange;
  * @param latencyRange the latency range to apply during the experiment
  */
 public record HighLatencyNodeExperiment(
-        @NonNull Duration minDuration, @NonNull Duration maxDuration, @NonNull LatencyRange latencyRange)
-        implements Experiment {
+        @NonNull Duration minDuration,
+        @NonNull Duration maxDuration,
+        @NonNull LatencyRange latencyRange) implements Experiment {
 
     private static final Logger log = LogManager.getLogger();
 

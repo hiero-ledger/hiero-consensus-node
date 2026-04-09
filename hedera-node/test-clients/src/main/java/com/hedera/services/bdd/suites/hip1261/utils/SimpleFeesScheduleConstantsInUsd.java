@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.hip1261.utils;
 
 /**
  * Class with constants mirroring the Simple Fees JSON schedule used in tests.
- * All values here are in tinycents.
+ * All values here are in USD.
  */
 public class SimpleFeesScheduleConstantsInUsd {
 
@@ -11,98 +11,199 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double NODE_BASE_FEE_USD = 0.00001;
     public static final long NODE_INCLUDED_SIGNATURES = 1L;
+    public static final long NODE_INCLUDED_BYTES = 1350L;
 
     public static final int NETWORK_MULTIPLIER = 9;
-
-    public static final double UNREADABLE_FEE_USD = 0.00000001;
+    public static final double NETWORK_BASE_FEE = NODE_BASE_FEE_USD * NETWORK_MULTIPLIER;
+    public static final double NODE_AND_NETWORK_BASE_FEE = NODE_BASE_FEE_USD + NETWORK_BASE_FEE;
+    public static final double QUERY_BASE_FEE = 0.0001;
 
     /* ---------- Global extras price table ("extras") ---------- */
 
-    public static final double SIGNATURE_FEE_USD = 0.0001;
-    public static final double BYTES_FEE_USD = 0.000000011;
+    public static final double SIGNATURE_FEE_USD = 0.00001;
+    public static final double STATE_BYTES_FEE_USD = 0.0001;
+    public static final double PROCESSING_BYTES_FEE_USD = 0.000_001;
     public static final double KEYS_FEE_USD = 0.01;
-    public static final double TOKEN_TYPES_FEE_USD = 0.0;
-    public static final double NFT_SERIALS_FEE_USD = 0.00089;
-    public static final double ACCOUNTS_FEE_USD = 0.0;
-    public static final double STANDARD_FT_FEE_USD = 0.0009;
-    public static final double STANDARD_NFT_FEE_USD = 0.00001;
-    public static final double CUSTOM_FEE_FT_FEE_USD = 0.0019;
-    public static final double CUSTOM_FEE_NFT_FEE_USD = 0.00101;
-    public static final double CREATED_AUTO_ASSOCIATIONS_FEE_USD = 0.0;
-    public static final double CREATED_ACCOUNTS_FEE_USD = 0.0;
-    public static final double CUSTOM_FEE_FEE_USD = 0.0;
-    public static final double GAS_FEE_USD = 0.0000000001;
-    public static final double ALLOWANCES_FEE_USD = 0.0000002;
-    public static final double AIRDROPS_FEE_USD = 0.00000088;
-    public static final double HOOKS_FEE_USD = 1.0;
+    public static final double ACCOUNTS_FEE_USD = 0.0001;
+    public static final double SIGNATURE_FEE_AFTER_MULTIPLIER = (NETWORK_MULTIPLIER + 1) * SIGNATURE_FEE_USD;
+
+    public static final double TOKEN_TYPES_FEE = 0.0001;
+    public static final double GAS_FEE_USD = 0.000_000_085_2;
+
+    public static final double TOKEN_MINT_FT_BASE_FEE = 0.001;
+    public static final double TOKEN_MINT_NFT_FEE_USD = 0.02;
+    public static final double TOKEN_UPDATE_NFT_FEE = 0.001;
+    public static final long TOKEN_UPDATE_INCLUDED_NFT_COUNT = 1L;
+
+    public static final double AIRDROPS_FEE_USD = 0.05;
+    public static final double AIRDROP_CLAIM_FEE_USD = 0.0009;
+    public static final double AIRDROP_CANCEL_FEE_USD = 0.0009;
+
+    public static final double TOKEN_CLAIM_FEE = 0.001;
+    public static final double HOOK_UPDATES_FEE_USD = 1.0;
+    public static final double HOOK_EXECUTION_FEE_USD = 0.005;
+    public static final double HOOK_SLOT_UPDATE_FEE = 0.005;
+
+    public static final double TOKEN_TRANSFER_FEE = 0.001;
+    public static final double TOKEN_TRANSFER_WITH_CUSTOM_FEE = 0.002;
+    public static final double TOKEN_TRANSFER_BASE_FEE_USD = 0.0009;
+    public static final double TOKEN_TRANSFER_BASE_CUSTOM_FEES_USD = 0.0019;
+
+    public static final double CONS_SUBMIT_MESSAGE_BASE_FEE_USD = 0.000_07;
+    public static final long CONS_SUBMIT_MESSAGE_INCLUDED_BYTES = 100L;
+    public static final double CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES = 0.000_000_680;
+    public static final long CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_INCLUDED_COUNT = 0L;
+    public static final double CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD = 1.99;
+    public static final double CONS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_USD = 0.049_83;
+    public static final double SCHEDULE_CREATE_CONTRACT_CALL_BASE_FEE_USD = 0.049_9;
 
     /* ---------- Crypto service ---------- */
 
+    public static final double CRYPTO_CREATE_TOTAL_FEE = 0.05;
     public static final double CRYPTO_CREATE_BASE_FEE_USD = 0.0499;
     public static final long CRYPTO_CREATE_INCLUDED_KEYS = 1L;
     public static final long CRYPTO_CREATE_INCLUDED_HOOKS = 0L;
 
+    public static final double CRYPTO_UPDATE_FEE = 0.00022;
     public static final double CRYPTO_UPDATE_BASE_FEE_USD = 0.00012;
     public static final long CRYPTO_UPDATE_INCLUDED_KEYS = 1L;
     public static final long CRYPTO_UPDATE_INCLUDED_HOOKS = 0L;
 
     public static final double CRYPTO_DELETE_BASE_FEE_USD = 0.0049;
 
-    public static final double CRYPTO_TRANSFER_BASE_FEE_USD = 0.0000000018;
-    public static final long CRYPTO_TRANSFER_INCLUDED_KEYS = 1L;
-    public static final long CRYPTO_TRANSFER_INCLUDED_ACCOUNTS = 1L;
-    public static final long CRYPTO_TRANSFER_INCLUDED_STD_FT = 1L;
+    public static final double CRYPTO_TRANSFER_BASE_FEE_USD = 0;
+    public static final long CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION = 0L;
+    public static final long CRYPTO_TRANSFER_INCLUDED_GAS = 0L;
+    public static final long CRYPTO_TRANSFER_INCLUDED_ACCOUNTS = 2L;
+    public static final long INCLUDED_TOKEN_TYPES = 1L;
+
+    public static final double CRYPTO_APPROVE_ALLOWANCE_FEE = 0.05;
+    public static final double CRYPTO_DELETE_ALLOWANCE_FEE = 0.05;
+    public static final double CRYPTO_DELETE_ALLOWANCE_BASE_FEE_USD = 0.0499;
+    public static final double CRYPTO_DELETE_ALLOWANCE_EXTRA_FEE_USD = 0.05;
+    public static final long CRYPTO_DELETE_ALLOWANCE_INCLUDED_COUNT = 1L;
+    public static final double CRYPTO_APPROVE_ALLOWANCE_BASE_FEE_USD = 0.0499;
+    public static final double CRYPTO_APPROVE_ALLOWANCE_EXTRA_FEE_USD = 0.05;
+    public static final long CRYPTO_APPROVE_ALLOWANCE_INCLUDED_COUNT = 1L;
 
     /* ---------- Consensus service ---------- */
-
+    public static final double TOPIC_CREATE_FEE = 0.01;
+    public static final double TOPIC_CREATE_WITH_CUSTOM_FEE = TOPIC_CREATE_FEE + CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
     public static final double CONS_CREATE_TOPIC_BASE_FEE_USD = 0.0099;
     public static final long CONS_CREATE_TOPIC_INCLUDED_KEYS = 0L;
 
     public static final double CONS_UPDATE_TOPIC_BASE_FEE_USD = 0.00012;
     public static final long CONS_UPDATE_TOPIC_INCLUDED_KEYS = 1L;
 
-    public static final double CONS_SUBMIT_MESSAGE_BASE_FEE_USD = 0.0;
-    public static final long CONS_SUBMIT_MESSAGE_INCLUDED_BYTES = 100L;
+    public static final double SUBMIT_MESSAGE_FULL_FEE_USD = 0.0008;
+    public static final double SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_INCLUDED = 100;
+    public static final double SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTE_USD = 0.000_1;
+    public static final double SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BASE_USD = 0.05;
 
     public static final double CONS_DELETE_TOPIC_BASE_FEE_USD = 0.0049;
 
-    public static final double CONS_GET_TOPIC_INFO_BASE_FEE_USD = 0.0005;
+    public static final double CONS_GET_TOPIC_INFO_BASE_FEE_USD = 0.0;
 
     /* ---------- File service ---------- */
-
-    public static final double FILE_CREATE_BASE_FEE_USD = 0.000000005;
+    public static final double FILE_CREATE_BASE_FEE_USD = 0.0499;
     public static final long FILE_CREATE_INCLUDED_KEYS = 1L;
     public static final long FILE_CREATE_INCLUDED_BYTES = 1000L;
 
-    public static final double FILE_UPDATE_BASE_FEE_USD = 0.000000005;
+    public static final double FILE_UPDATE_BASE_FEE_USD = 0.0499;
     public static final long FILE_UPDATE_INCLUDED_KEYS = 1L;
     public static final long FILE_UPDATE_INCLUDED_BYTES = 1000L;
 
-    public static final double FILE_APPEND_BASE_FEE_USD = 0.000000005;
-    public static final long FILE_APPEND_INCLUDED_KEYS = 1L;
+    public static final double FILE_APPEND_BASE_FEE_USD = 0.0499;
     public static final long FILE_APPEND_INCLUDED_BYTES = 1000L;
 
-    public static final double FILE_DELETE_BASE_FEE_USD = 0.0000000007;
-    public static final long FILE_DELETE_INCLUDED_KEYS = 1L;
+    public static final double FILE_DELETE_BASE_FEE_USD = 0.0069;
 
-    public static final double FILE_GET_CONTENTS_BASE_FEE_USD = 0.000000001;
-    public static final long FILE_GET_CONTENTS_INCLUDED_KEYS = 1L;
-    public static final long FILE_GET_CONTENTS_INCLUDED_BYTES = 1000L;
+    public static final long FILE_GET_CONTENTS_INCLUDED_PROCESSING_BYTES = 1000L;
+    public static final double FILE_CREATE_BASE_FEE = 0.05;
+    public static final double FILE_UPDATE_BASE_FEE = 0.05;
+    public static final double FILE_APPEND_BASE_FEE = 0.05;
+    public static final double FILE_DELETE_BASE_FEE = 0.007;
+    public static final double FILE_GET_CONTENTS_QUERY_BASE_FEE_USD = 0.0001;
+    public static final double FILE_GET_INFO_QUERY_BASE_FEE_USD = 0.0001;
 
     /* ---------- Token service ---------- */
+    public static final long TOKEN_CREATE_WITH_CUSTOM_FEE_USD = 1L;
 
-    public static final double TOKEN_CREATE_BASE_FEE_USD = 0.0000000025;
+    public static final double TOKEN_CREATE_FEE = 1.0;
+    public static final double TOKEN_CREATE_BASE_FEE_USD = 0.9999;
+    public static final long TOKEN_CREATE_INCLUDED_KEYS = 1L;
 
-    public static final double TOKEN_MINT_BASE_FEE_USD = 0.0000000033;
-    public static final long TOKEN_MINT_INCLUDED_STD_FT = 1L;
-    public static final long TOKEN_MINT_INCLUDED_STD_NFT = 1L;
+    public static final double TOKEN_UPDATE_BASE_FEE_USD = 0.0009;
+    public static final long TOKEN_UPDATE_INCLUDED_KEYS = 1L;
+
+    public static final double TOKEN_DELETE_BASE_FEE_USD = 0.0009;
+
+    public static final double TOKEN_MINT_NFT_FEE = 0.02;
+    public static final double TOKEN_MINT_BASE_FEE_USD = 0.0009;
+    public static final double TOKEN_MINT_NFT_BASE_FEE_USD = 0.019;
+    public static final long TOKEN_MINT_INCLUDED_NFT = 1L;
+
+    public static final double TOKEN_BURN_BASE_FEE_USD = 0.0009;
+
+    public static final double TOKEN_ASSOCIATE_BASE_FEE_USD = 0.0499;
+    public static final long TOKEN_ASSOCIATE_INCLUDED_TOKENS = 1L;
+    public static final double TOKEN_ASSOCIATE_FEE = 0.05;
+    public static final double TOKEN_ASSOCIATE_EXTRA_FEE_USD = 0.05;
+
+    public static final double TOKEN_DISSOCIATE_BASE_FEE_USD = 0.0499;
+
+    public static final double TOKEN_GRANT_KYC_BASE_FEE_USD = 0.0009;
+
+    public static final double TOKEN_REVOKE_KYC_BASE_FEE_USD = 0.0009;
+
+    public static final double TOKEN_FREEZE_BASE_FEE_USD = 0.0009;
+    public static final double TOKEN_UNFREEZE_BASE_FEE_USD = 0.0009;
+    public static final double TOKEN_FREEZE_FEE = 0.001;
+    public static final double TOKEN_UNFREEZE_FEE = 0.001;
+
+    public static final double TOKEN_PAUSE_BASE_FEE_USD = 0.0009;
+
+    public static final double TOKEN_UNPAUSE_BASE_FEE_USD = 0.0009;
+
+    public static final double TOKEN_WIPE_BASE_FEE_USD = 0.0009;
+    public static final double TOKEN_WIPE_FEE = 0.001;
+
+    public static final double TOKEN_REJECT_FEE_USD = 0.0009;
+    public static final double TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD = 0.0009;
+
+    public static final double TOKEN_AIRDROP_BASE_FEE_USD = 0;
+    public static final long TOKEN_AIRDROPS_INCLUDED_COUNT = 0L;
 
     /* ---------- Schedule service ---------- */
+    public static final double SCHEDULE_SIGN_FEE = 0.001;
 
-    public static final double SCHEDULE_CREATE_BASE_FEE_USD = 0.0099;
-    public static final long SCHEDULE_CREATE_INCLUDED_KEYS = 1L;
+    /* ---------- Util service ---------- */
+    public static final double ATOMIC_BATCH_BASE_FEE_USD = 0.0009;
+    public static final double UTIL_PRNG_BASE_FEE_USD = 0.0009;
 
-    public static final double SCHEDULE_SIGN_BASE_FEE_USD = 0.0009;
+    /* ---------- Atomic Batch service ------------ */
+    public static final double BATCH_BASE_FEE = 0.001;
 
-    public static final double SCHEDULE_DELETE_BASE_FEE_USD = 0.0009;
+    /* ---------- Address Book service ---------- */
+    public static final double NODE_CREATE_BASE_FEE_USD = 0.001;
+    public static final double NODE_UPDATE_BASE_FEE_USD = 0.001;
+    public static final double NODE_DELETE_BASE_FEE_USD = 0.001;
+
+    /* ---------- Smart Contracts service ---------- */
+    public static final double CONTRACT_CREATE_BASE_FEE = 1.0;
+    public static final double CONTRACT_DELETE_BASE_FEE_USD = 0.0069;
+    public static final double CONTRACT_DELETE_BASE_FEE = 0.007;
+    public static final double CONTRACT_CALL_BASE_FEE = 0;
+    public static final double CONTRACT_UPDATE_BASE_FEE_USD = 0.0259;
+    public static final double CONTRACT_UPDATE_BASE_FEE = 0.026;
+    public static final double ETHEREUM_CALL_BASE_FEE = 0.0001;
+    public static final double HOOK_SLOT_UPDATE_BASE_FEE = 0.005;
+    public static final long CONTRACT_CREATE_INCLUDED_HOOK_UPDATES = 0L;
+    public static final long CONTRACT_CREATE_INCLUDED_KEYS = 1L;
+    public static final long CONTRACT_UPDATE_INCLUDED_KEYS = 1L;
+    public static final double CONTRACT_CREATE_BASE_FEE_USD = 0.9999;
+    public static final double CONTRACT_CALL_LOCAL_BASE_FEE = 0.001;
+    public static final double CONTRACT_GET_BYTECODE_BASE_FEE = 0.05;
+    public static final long CONTRACT_GET_BYTECODE_INCLUDED_PROCESSING_BYTES = 20_000L;
+    public static final double CONTRACT_GET_INFO_BASE_FEE = 0.0001;
 }

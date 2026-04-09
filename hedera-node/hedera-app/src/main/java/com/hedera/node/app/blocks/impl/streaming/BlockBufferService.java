@@ -72,6 +72,11 @@ public class BlockBufferService {
      */
     private final AtomicLong highestAckedBlockNumber = new AtomicLong(Long.MIN_VALUE);
     /**
+     * Guard to skip redundant concurrent persist operations. When a periodic persist and a freeze
+     * persist overlap, the second one is skipped since the first is already writing the same data.
+     */
+    private final AtomicBoolean isPersistInProgress = new AtomicBoolean(false);
+    /**
      * Executor that is used to schedule buffer pruning and triggering backpressure if needed.
      */
     private ScheduledExecutorService execSvc;
@@ -179,6 +184,11 @@ public class BlockBufferService {
             return;
         }
 
+        logger.info("Shutting down block buffer service...");
+
+        // on shutdown, attempt to persist the buffer
+        persistBufferImpl();
+
         // stop the background task from running
         execSvc.shutdownNow();
         // since the pruning task is no longer running, free up the buffer
@@ -192,6 +202,8 @@ public class BlockBufferService {
         lastPruningResult = PruneResult.NIL;
         lastRecoveryActionTimestamp = Instant.MIN;
         awaitingRecovery = false;
+
+        logger.info("Block buffer service shutdown complete");
     }
 
     /**
@@ -523,21 +535,47 @@ public class BlockBufferService {
      * @see BlockBufferIO
      */
     public void persistBuffer() {
-        if (!isGrpcStreamingEnabled() || !isStarted.get() || !isBufferPersistenceEnabled()) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
             return;
         }
 
-        // collect all closed blocks which are not acked yet
-        final List<BlockState> blocksToPersist = blockBuffer.values().stream()
-                .filter(BlockState::isClosed)
-                .filter(blockState -> blockState.blockNumber() > highestAckedBlockNumber.get())
-                .toList();
+        persistBufferImpl();
+    }
+
+    /**
+     * Persists any unacknowledged blocks to disk, if block buffer persistence is enabled. This method differs from
+     * {@link #persistBuffer()} in that this method does not contain checks of whether streaming is enabled and whether
+     * the buffer service is started. This means this method, unlike the public one, can be invoked during shutdown
+     * when the buffer service is in a terminal state (i.e. {@link #isStarted} is set to false.)
+     */
+    private void persistBufferImpl() {
+        if (!isBufferPersistenceEnabled()) {
+            return;
+        }
+
+        if (!isPersistInProgress.compareAndSet(false, true)) {
+            logger.debug("Persistence request skipped; another persist is already in progress");
+            return;
+        }
 
         try {
+            // collect all closed blocks which are not acked yet
+            final List<BlockState> blocksToPersist = blockBuffer.values().stream()
+                    .filter(BlockState::isClosed)
+                    .filter(blockState -> blockState.blockNumber() > highestAckedBlockNumber.get())
+                    .toList();
+
+            if (blocksToPersist.isEmpty()) {
+                logger.info("No unacked blocks in the buffer to persist");
+                return;
+            }
+
             bufferIO.write(blocksToPersist, highestAckedBlockNumber.get());
             logger.info("Block buffer persisted to disk (blocksWritten: {})", blocksToPersist.size());
         } catch (final RuntimeException | IOException e) {
             logger.error("Failed to write block buffer to disk!", e);
+        } finally {
+            isPersistInProgress.set(false);
         }
     }
 

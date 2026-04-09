@@ -43,13 +43,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.AddressBookConfig;
-import com.swirlds.platform.config.BasicConfig;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.config.BasicConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.config.PcesConfig;
+import org.hiero.consensus.state.config.StateConfig;
 
 /**
  * Configuration utility that provides access to system properties and Hedera platform configuration.
@@ -58,11 +57,9 @@ public final class ConfigUtils {
 
     private ConfigUtils() {}
 
-    public static String STATE_DIR = System.getProperty("state.dir");
+    public static String STATE_DIR;
 
-    public static String STATE_FILE_NAME = "SignedState.swh";
-
-    public static String TMP_DIR = System.getProperty("tmp.dir", "");
+    public static String TMP_DIR;
 
     public static String NODE_NAME = System.getProperty("node.name");
 
@@ -91,9 +88,13 @@ public final class ConfigUtils {
 
     public static String JOB_URL = System.getProperty("job.url");
 
+    public static final String FULL_REHASH_TIMEOUT_MS = System.getProperty("fullRehashTimeoutMs", "600000");
+
     private static Configuration configuration;
 
     private static void initConfiguration() {
+        STATE_DIR = System.getProperty("state.dir");
+        TMP_DIR = System.getProperty("tmp.dir", "");
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(VirtualMapConfig.class)
@@ -108,7 +109,6 @@ public final class ConfigUtils {
                 .withConfigDataType(VersionConfig.class)
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(TokensConfig.class)
-                .withConfigDataType(AddressBookConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
                 .withConfigDataType(AccountsConfig.class)
                 .withConfigDataType(TssConfig.class)
@@ -119,6 +119,8 @@ public final class ConfigUtils {
                 .withSource(new SimpleConfigSource().withValue("merkleDb.minNumberOfFilesInCompaction", 2))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxThreadsPerFileChannel", 1))
+                .withSource(
+                        new SimpleConfigSource().withValue("virtualMap.fullRehashTimeoutMs", FULL_REHASH_TIMEOUT_MS))
                 .withConverter(CongestionMultipliers.class, new CongestionMultipliersConverter())
                 .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
                 .withConverter(KnownBlockValues.class, new KnownBlockValuesConverter())
@@ -137,6 +139,10 @@ public final class ConfigUtils {
                     new SimpleConfigSource().withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
         }
         configuration = configurationBuilder.build();
+    }
+
+    public static void resetConfiguration() {
+        configuration = null;
     }
 
     public static Configuration getConfiguration() {

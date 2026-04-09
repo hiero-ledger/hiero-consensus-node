@@ -38,18 +38,18 @@ testing {
 testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
-    requires("com.swirlds.platform.core.test.fixtures")
     requires("org.apache.logging.log4j")
     requires("org.assertj.core")
     requires("org.hiero.consensus.utility")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.roster")
+    requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requiresStatic("com.github.spotbugs.annotations")
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
 }
 
 testIntegrationModuleInfo { //
@@ -57,6 +57,7 @@ testIntegrationModuleInfo { //
 }
 
 extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
     runtimeOnly("io.grpc.netty.shaded")
 }
 
@@ -85,4 +86,12 @@ tasks.withType<Test>().configureEach {
 tasks.compileTestFixturesJava {
     options.compilerArgs.add("-Alog4j.graalvm.groupId=${project.group}")
     options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
+}
+
+// Task to generate saved states for otter tests
+tasks.register<JavaExec>("generateSavedState") {
+    group = "otter"
+    description = "Generate a saved state for use in otter tests"
+    classpath = sourceSets.testFixtures.get().runtimeClasspath
+    mainClass = "org.hiero.otter.fixtures.tools.GenerateStateTool"
 }

@@ -17,13 +17,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.6"
-  push:
-    branches:
-      - main
-      - "release/**"
-    tags:
-      - "v*.*.*"
+        default: "25"
 
 defaults:
   run:
@@ -34,24 +28,50 @@ permissions:
   contents: read
 
 jobs:
+  commit-info:
+    name: Get Commit Info
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      sha: ${{ steps.commit-info.outputs.sha }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@ffb7446339e8e6007b942312ac95457d1a20b6cf # v1.0.4
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.sha }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Get Commit Info
+        id: commit-info
+        run: |
+          COMMIT_SHA=$(git rev-parse HEAD)
+          echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
+
   check-gradle:
     name: Gradle
+    needs:
+      - commit-info
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
-      ref: ${{ github.event.inputs.ref || '' }}
+      ref: ${{ needs.commit-info.outputs.sha }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-version: ${{ inputs.java-version || '25' }}
     secrets:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
   check-docker:
     name: Docker
+    needs:
+      - commit-info
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
-      ref: ${{ github.event.inputs.ref || '' }}
+      ref: ${{ needs.commit-info.outputs.sha }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      java-version: ${{ inputs.java-version || '21.0.6' }}
+      java-version: ${{ inputs.java-version || '25' }}
     secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}

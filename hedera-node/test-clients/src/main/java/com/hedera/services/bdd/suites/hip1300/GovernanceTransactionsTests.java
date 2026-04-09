@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1300;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.UNIQUE_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -24,6 +25,7 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,7 +40,7 @@ import org.junit.jupiter.api.Tag;
 /**
  * A class with Governance Transactions tests.
  */
-@Tag(MATS)
+@Tag(SERIAL)
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @DisplayName("Governance Transactions Tests")
@@ -73,8 +75,16 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 newKeyNamed(PAYER_KEY).shape(LARGE_SIZE_KEY),
                 newKeyNamed(PAYER_KEY2).shape(LARGE_SIZE_KEY),
                 newKeyNamed(SUBMIT_KEY),
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
-                cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER)
+                        .key(PAYER_KEY)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER2)
+                        .key(PAYER_KEY2)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(PAYER)
@@ -89,8 +99,16 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 newKeyNamed(PAYER_KEY).shape(LARGE_SIZE_KEY),
                 newKeyNamed(PAYER_KEY2).shape(LARGE_SIZE_KEY),
                 newKeyNamed(SUBMIT_KEY),
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
-                cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER)
+                        .key(PAYER_KEY)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER2)
+                        .key(PAYER_KEY2)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(SYSTEM_ADMIN)
@@ -123,7 +141,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(GENESIS).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                        .payingWith(GENESIS)
+                        .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @HapiTest
@@ -139,7 +159,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(SUCCESS)).payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @HapiTest
@@ -154,7 +174,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
         return hapiTest(
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(GENESIS).hasKnownStatus(SUCCESS));
+                atomicBatch(innerTxn.hasKnownStatus(SUCCESS))
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS));
     }
 
     @HapiTest
@@ -217,8 +239,16 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 newKeyNamed(PAYER_KEY).shape(LARGE_SIZE_KEY),
                 newKeyNamed(PAYER_KEY2).shape(LARGE_SIZE_KEY),
                 newKeyNamed(SUBMIT_KEY),
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
-                cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER)
+                        .key(PAYER_KEY)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER2)
+                        .key(PAYER_KEY2)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(SYSTEM_ADMIN)
@@ -254,7 +284,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 overriding("governanceTransactions.isEnabled", "false"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(GENESIS).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                        .payingWith(GENESIS)
+                        .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
@@ -271,7 +303,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 overriding("governanceTransactions.isEnabled", "false"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                        .payingWith(PAYER)
+                        .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
@@ -287,7 +321,9 @@ public class GovernanceTransactionsTests implements LifecycleTest {
         return hapiTest(
                 overriding("governanceTransactions.isEnabled", "false"),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(SYSTEM_ADMIN).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasPrecheck(TRANSACTION_OVERSIZE))
+                        .payingWith(SYSTEM_ADMIN)
+                        .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
     @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})

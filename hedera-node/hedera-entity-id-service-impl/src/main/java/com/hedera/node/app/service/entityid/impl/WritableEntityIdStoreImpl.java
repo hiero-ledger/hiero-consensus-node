@@ -3,10 +3,12 @@ package com.hedera.node.app.service.entityid.impl;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -24,6 +26,7 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     private final WritableSingletonState<EntityNumber> entityIdState;
 
     private final WritableSingletonState<EntityCounts> entityCountsState;
+    private final WritableSingletonState<NodeId> nodeIdState;
 
     /**
      * Create a new {@link WritableEntityIdStoreImpl} instance.
@@ -35,19 +38,21 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
+        this.nodeIdState = states.getSingleton(HIGHEST_NODE_ID_STATE_ID);
     }
 
     @Override
-    public long peekAtNextNumber() {
-        final var oldEntityNum = entityIdState.get();
-        return oldEntityNum == null ? 1 : oldEntityNum.number() + 1;
-    }
-
-    @Override
-    public long incrementAndGet() {
+    public long incrementEntityNumAndGet() {
         final var newEntityNum = peekAtNextNumber();
         entityIdState.put(new EntityNumber(newEntityNum));
         return newEntityNum;
+    }
+
+    @Override
+    public long incrementHighestNodeIdAndGet() {
+        final var next = peekAtNextNodeId();
+        nodeIdState.put(new NodeId(next));
+        return next;
     }
 
     @Override
@@ -75,7 +80,9 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
             case NODE -> newEntityCounts.numNodes(entityCounts.numNodes() + delta);
             case STAKING_INFO -> newEntityCounts.numStakingInfos(entityCounts.numStakingInfos() + delta);
             case HOOK -> newEntityCounts.numHooks(entityCounts.numHooks() + delta);
-            case LAMBDA_STORAGE -> newEntityCounts.numLambdaStorageSlots(entityCounts.numLambdaStorageSlots() + delta);
+            case EVM_HOOK_STORAGE ->
+                newEntityCounts.numEvmHookStorageSlots(entityCounts.numEvmHookStorageSlots() + delta);
+            case REGISTERED_NODE -> newEntityCounts.numRegisteredNodes(entityCounts.numRegisteredNodes() + delta);
         }
         entityCountsState.put(newEntityCounts.build());
     }
@@ -83,5 +90,14 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     @Override
     public void decrementEntityTypeCounter(final EntityType entityType) {
         adjustEntityCount(entityType, -1);
+    }
+
+    @Override
+    public void updateHighestNodeIdIfLarger(final long nodeId) {
+        final var current = nodeIdState.get();
+        final long currentHighest = current == null ? -1 : current.id();
+        if (nodeId > currentHighest) {
+            nodeIdState.put(new NodeId(nodeId));
+        }
     }
 }

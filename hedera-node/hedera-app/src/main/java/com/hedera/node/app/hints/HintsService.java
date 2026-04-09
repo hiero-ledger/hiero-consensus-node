@@ -13,6 +13,7 @@ import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -88,12 +89,6 @@ public interface HintsService extends Service {
     HintsContext.Signing sign(@NonNull Bytes blockHash);
 
     /**
-     * Sets the current roster for the network.
-     * @param roster the roster
-     */
-    void initCurrentRoster(@NonNull Roster roster);
-
-    /**
      * Sets the callback for when a hinTS construction is finished. Only one callback is active at a time.
      * @param cb the callback to invoke with the current writable hints store
      */
@@ -151,11 +146,16 @@ public interface HintsService extends Service {
     /**
      * Executes the work needed to set the CRS for the network and start the preprocessing vote.
      *
-     * @param hintsStore            the hints store
-     * @param now                   the current consensus time
-     * @param isActive               if the platform is active
+     * @param hintsStore the hints store
+     * @param now the current consensus time
+     * @param isActive if the platform is active
+     * @param networkInfo the network information
      */
-    void executeCrsWork(@NonNull WritableHintsStore hintsStore, @NonNull Instant now, boolean isActive);
+    void executeCrsWork(
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Instant now,
+            boolean isActive,
+            @NonNull NetworkInfo networkInfo);
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.

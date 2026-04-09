@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
@@ -36,6 +36,7 @@ import static java.lang.Long.parseLong;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -44,6 +45,8 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of FileUpdateSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@Tag(ATOMIC_BATCH)
+@OrderedInIsolation
 @SuppressWarnings("java:S1192")
 class AtomicFileUpdateSuite {
 
@@ -52,7 +55,6 @@ class AtomicFileUpdateSuite {
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
-    @Tag(MATS)
     final Stream<DynamicTest> apiPermissionsChangeDynamically() {
         final var civilian = CIVILIAN;
         return hapiTest(

@@ -35,6 +35,13 @@ import org.hiero.consensus.model.sequence.Shiftable;
  * retrieved and deleted.
  * </p>
  *
+ * <p>
+ * For example, consider a map of events to their parents in a map. The key is the event and the value is the event's
+ * parents. Every event has a birth round, and multiple events will have the same birth round. Over time, the birth
+ * round of events trends upward. The sequence number in this case is the birth round of the event. When round 100
+ * becomes ancient, we want to remove all events with birth round 100 and lower from the map.
+ * </p>
+ *
  * @param <K>
  * 		the type of key
  * @param <V>
@@ -161,6 +168,11 @@ public interface SequenceMap<K, V> extends Clearable, Shiftable {
      * <p>
      * Remove all keys that have a sequence number smaller than a specified value, and increase the maximum allowed
      * sequence number by the same amount. After this operation, all keys outside the new window will be rejected.
+     * </p>
+     *
+     * <p>
+     * Sequence numbers are processed for removal in ascending order one at a time. Keys with the same sequence number
+     * are processed for removal in random order.
      * </p>
      *
      * <p>

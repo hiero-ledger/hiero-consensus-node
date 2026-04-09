@@ -40,6 +40,7 @@ import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransferList;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -404,6 +405,11 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     }
 
     public HapiCryptoTransfer withPreHookFor(
+            final String account, final long hookId, final long gasLimit, final ByteBuffer data) {
+        return withPreHookFor(account, hookId, gasLimit, ByteString.copyFrom(data));
+    }
+
+    public HapiCryptoTransfer withPreHookFor(
             final String account, final long hookId, final long gasLimit, final ByteString dataUtf8) {
         fungibleHooksByAccount
                 .computeIfAbsent(account, k -> new ArrayList<>())
@@ -482,6 +488,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                                 explicitDef.get().accept(spec, b);
                             } else if (hbarOnlyProvider != MISSING_HBAR_ONLY_PROVIDER) {
                                 b.setTransfers(hbarOnlyProvider.apply(spec));
+                                injectAllowanceHooks(b, spec);
                             } else {
                                 final var xfers = transfersAllFor(spec);
                                 for (final TokenTransferList scopedXfers : xfers) {
@@ -682,13 +689,15 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                             txn,
                             numPayerKeys,
                             feesObserver.get());
+        } else {
+            fees = spec.fees()
+                    .forActivityBasedOp(
+                            HederaFunctionality.CryptoTransfer,
+                            (_txn, _svo) ->
+                                    usageEstimate(_txn, _svo, spec.fees().tokenTransferUsageMultiplier()),
+                            txn,
+                            numPayerKeys);
         }
-        fees = spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.CryptoTransfer,
-                        (_txn, _svo) -> usageEstimate(_txn, _svo, spec.fees().tokenTransferUsageMultiplier()),
-                        txn,
-                        numPayerKeys);
         final var hookInfo = CryptoTransferHandler.getHookInfo(
                 toPbj(extractTransactionBody(txn)).cryptoTransferOrThrow());
         final int totalHookInvocations = hookInfo.numHookInvocations();

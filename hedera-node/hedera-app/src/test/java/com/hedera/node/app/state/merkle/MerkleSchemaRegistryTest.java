@@ -18,10 +18,11 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
@@ -177,7 +178,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks);
+                    startupNetworks,
+                    InitTrigger.RESTART);
             virtualMap.release();
         }
     }
@@ -185,7 +187,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
     @Nested
     @DisplayName("Migration Tests")
     class MigrationTest {
-        private MerkleNodeState merkleTree;
+        private VirtualMapState merkleTree;
         private SemanticVersion[] versions;
 
         @BeforeEach
@@ -219,7 +221,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks))
+                            startupNetworks,
+                            InitTrigger.RESTART))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -235,7 +238,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks))
+                            startupNetworks,
+                            InitTrigger.RESTART))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -251,7 +255,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             null,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks))
+                            startupNetworks,
+                            InitTrigger.GENESIS))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -267,7 +272,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks))
+                            startupNetworks,
+                            InitTrigger.RESTART))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -283,7 +289,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                             config,
                             new HashMap<>(),
                             migrationStateChanges,
-                            startupNetworks))
+                            startupNetworks,
+                            InitTrigger.RESTART))
                     .isInstanceOf(IllegalArgumentException.class);
         }
 
@@ -303,7 +310,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks);
+                    startupNetworks,
+                    InitTrigger.RESTART);
 
             // Then nothing happens
             Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
@@ -325,7 +333,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks);
+                    startupNetworks,
+                    InitTrigger.RESTART);
 
             // Then migration doesn't happen but restart is called
             Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
@@ -348,7 +357,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks);
+                    startupNetworks,
+                    InitTrigger.GENESIS);
 
             // Then migration doesn't happen but restart is called
             Mockito.verify(schema, Mockito.times(1)).migrate(Mockito.any());
@@ -379,7 +389,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     config,
                     new HashMap<>(),
                     migrationStateChanges,
-                    startupNetworks);
+                    startupNetworks,
+                    InitTrigger.GENESIS);
 
             // Then each of v1, v4, and v6 are called
             assertThat(called).hasSize(3);
@@ -400,8 +411,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     @Override
                     @SuppressWarnings("rawtypes")
                     public Set<StateDefinition> statesToCreate() {
-                        final var fruitDef = StateDefinition.onDisk(
-                                FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100);
+                        final var fruitDef = StateDefinition.keyValue(
+                                FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF);
                         return Set.of(fruitDef);
                     }
 
@@ -425,8 +436,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     @Override
                     @SuppressWarnings("rawtypes")
                     public Set<StateDefinition> statesToCreate() {
-                        final var learningDef = StateDefinition.onDisk(
-                                STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100);
+                        final var learningDef = StateDefinition.keyValue(
+                                STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF);
                         final var countryDef =
                                 StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF);
                         return Set.of(learningDef, countryDef);
@@ -443,7 +454,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(previousStates.isEmpty()).isFalse();
                         assertThat(previousStates.contains(FRUIT_STATE_ID)).isTrue();
                         final ReadableKVState<ProtoBytes, ProtoBytes> oldFruit = previousStates.get(FRUIT_STATE_ID);
-                        assertThat(oldFruit.keys()).toIterable().hasSize(3);
                         assertThat(oldFruit.get(A_KEY)).isEqualTo(APPLE);
                         assertThat(oldFruit.get(B_KEY)).isEqualTo(BANANA);
                         assertThat(oldFruit.get(C_KEY)).isEqualTo(CHERRY);
@@ -473,7 +483,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(previousStates.contains(COUNTRY_STATE_ID)).isFalse();
 
                         // Make sure old fruit hasn't been changed in any way
-                        assertThat(oldFruit.keys()).toIterable().hasSize(3);
                         assertThat(oldFruit.get(A_KEY)).isEqualTo(APPLE);
                         assertThat(oldFruit.get(B_KEY)).isEqualTo(BANANA);
                         assertThat(oldFruit.get(C_KEY)).isEqualTo(CHERRY);
@@ -499,7 +508,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(previousStates.stateIds())
                                 .containsExactlyInAnyOrder(FRUIT_STATE_ID, STEAM_STATE_ID, COUNTRY_STATE_ID);
                         final ReadableKVState<ProtoBytes, ProtoBytes> oldFruit = previousStates.get(FRUIT_STATE_ID);
-                        assertThat(oldFruit.keys()).toIterable().containsExactlyInAnyOrder(B_KEY, C_KEY, E_KEY);
                         assertThat(oldFruit.get(B_KEY)).isEqualTo(BLACKBERRY);
                         assertThat(oldFruit.get(C_KEY)).isEqualTo(CHERRY);
                         assertThat(oldFruit.get(E_KEY)).isEqualTo(EGGPLANT);
@@ -546,13 +554,13 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         config,
                         new HashMap<>(),
                         migrationStateChanges,
-                        startupNetworks);
+                        startupNetworks,
+                        InitTrigger.RESTART);
 
                 // Then we see that the values for A, B, and C are available
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
                 assertThat(readableStates.size()).isEqualTo(1);
                 final ReadableKVState<ProtoBytes, ProtoBytes> fruitV1 = readableStates.get(FRUIT_STATE_ID);
-                assertThat(fruitV1.keys()).toIterable().containsExactlyInAnyOrder(A_KEY, B_KEY, C_KEY);
             }
 
             @Test
@@ -573,14 +581,14 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         config,
                         new HashMap<>(),
                         migrationStateChanges,
-                        startupNetworks);
+                        startupNetworks,
+                        InitTrigger.RESTART);
 
                 // We should see the v2 state (the delta from v2 after applied atop v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
                 assertThat(readableStates.size()).isEqualTo(3);
 
                 final ReadableKVState<ProtoBytes, ProtoBytes> fruitV2 = readableStates.get(FRUIT_STATE_ID);
-                assertThat(fruitV2.keys()).toIterable().containsExactlyInAnyOrder(B_KEY, C_KEY, E_KEY);
                 assertThat(fruitV2.get(B_KEY)).isEqualTo(BLACKBERRY);
 
                 final ReadableKVState<ProtoBytes, ProtoBytes> learningV2 = readableStates.get(STEAM_STATE_ID);
@@ -611,7 +619,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         config,
                         new HashMap<>(),
                         migrationStateChanges,
-                        startupNetworks);
+                        startupNetworks,
+                        InitTrigger.RESTART);
 
                 // We should see the v3 state (the delta from v3 after applied atop v2 and v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -654,12 +663,53 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                                 config,
                                 new HashMap<>(),
                                 migrationStateChanges,
-                                startupNetworks))
+                                startupNetworks,
+                                InitTrigger.RESTART))
                         .isInstanceOf(RuntimeException.class)
                         .hasMessage("Bad");
 
                 // And we should see that schemaV2Called is false because it was never called
                 assertThat(schemaV2Called).isFalse();
+            }
+
+            @Test
+            @DisplayName("State should be skipped if removed by later schema already in state")
+            void skipStateIfRemovedByLaterSchema() {
+                // Given a schema V1 that adds FRUIT_STATE_ID
+                final var schemaV1 = createV1Schema();
+                // And a schema V2 that removes FRUIT_STATE_ID
+                final var schemaV2 = new TestSchema(versions[2]) {
+                    @NonNull
+                    @Override
+                    public Set<Integer> statesToRemove() {
+                        return Set.of(FRUIT_STATE_ID);
+                    }
+                };
+
+                schemaRegistry.register(schemaV1);
+                schemaRegistry.register(schemaV2);
+
+                // When we migrate from versions[2] to versions[2]
+                // The registry will see that versions[2] is already in state.
+                // It should apply definitions for schemaV1 because versions[2] >= versions[1].
+                // BUT it should skip definitions for schemaV1 because schemaV2 (which is also already in state)
+                // removes FRUIT_STATE_ID.
+                schemaRegistry.migrate(
+                        merkleTree,
+                        versions[2],
+                        versions[2],
+                        config,
+                        config,
+                        new HashMap<>(),
+                        migrationStateChanges,
+                        startupNetworks,
+                        InitTrigger.RESTART);
+
+                // We expect that FRUIT_STATE_ID was NOT initialized in the merkleTree
+                // because it should have been skipped.
+                // If it wasn't skipped, it would have been initialized.
+                final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
+                assertThat(readableStates.contains(FRUIT_STATE_ID)).isFalse();
             }
         }
     }

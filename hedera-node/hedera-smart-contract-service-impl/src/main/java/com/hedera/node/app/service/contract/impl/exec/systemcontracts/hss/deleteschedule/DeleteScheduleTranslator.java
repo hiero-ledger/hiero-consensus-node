@@ -149,7 +149,8 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
                 && attempt.isRedirect()
                 && attempt.redirectScheduleTxn() != null
                 && attempt.redirectScheduleTxn().adminKey() != null
-                && !attempt.redirectScheduleTxn().adminKey().hasContractID();
+                && !attempt.redirectScheduleTxn().adminKey().hasContractID()
+                && !attempt.redirectScheduleTxn().adminKey().hasDelegatableContractId();
     }
 
     /**

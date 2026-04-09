@@ -38,11 +38,4 @@ class WrappedReadableKVStateTest extends StateTestBase {
 
         assertThat(state.get(A_KEY)).isEqualTo(APPLE);
     }
-
-    @Test
-    void testIterateFromDataSource() {
-        when(delegate.keys()).thenReturn(keys);
-
-        assertThat(state.keys()).isEqualTo(keys);
-    }
 }

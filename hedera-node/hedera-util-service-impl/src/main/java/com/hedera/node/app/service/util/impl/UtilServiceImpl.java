@@ -3,10 +3,14 @@ package com.hedera.node.app.service.util.impl;
 
 import com.hedera.node.app.service.util.UtilService;
 import com.hedera.node.app.service.util.impl.cache.TransactionParser;
+import com.hedera.node.app.service.util.impl.calculator.AtomicBatchFeeCalculator;
+import com.hedera.node.app.service.util.impl.calculator.UtilPrngFeeCalculator;
 import com.hedera.node.app.service.util.impl.handlers.UtilHandlers;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
 
 /** Standard implementation of the {@link UtilService} {@link RpcService}. */
 public final class UtilServiceImpl implements UtilService {
@@ -18,5 +22,10 @@ public final class UtilServiceImpl implements UtilService {
 
     public UtilHandlers handlers() {
         return component.handlers();
+    }
+
+    @Override
+    public Set<ServiceFeeCalculator> serviceFeeCalculators() {
+        return Set.of(new UtilPrngFeeCalculator(), new AtomicBatchFeeCalculator());
     }
 }

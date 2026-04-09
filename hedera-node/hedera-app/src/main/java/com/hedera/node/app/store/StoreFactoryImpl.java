@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -42,7 +43,7 @@ public class StoreFactoryImpl implements StoreFactory {
         requireNonNull(state);
         requireNonNull(serviceName);
         return new StoreFactoryImpl(
-                new ReadableStoreFactory(state),
+                new ReadableStoreFactoryImpl(state),
                 new WritableStoreFactory(state, serviceName, writableEntityIdStoreImpl),
                 new ServiceApiFactory(state, configuration, apiProviders, nodeFeeAccumulator));
     }
@@ -60,7 +61,7 @@ public class StoreFactoryImpl implements StoreFactory {
     @Override
     public <T> T readableStore(@NonNull Class<T> storeInterface) {
         requireNonNull(storeInterface);
-        return readableStoreFactory.getStore(storeInterface);
+        return readableStoreFactory.readableStore(storeInterface);
     }
 
     @NonNull

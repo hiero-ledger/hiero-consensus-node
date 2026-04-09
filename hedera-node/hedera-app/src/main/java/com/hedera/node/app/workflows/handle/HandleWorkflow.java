@@ -16,11 +16,11 @@ import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRAN
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isFreezeRound;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isFreezeRound;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -29,11 +29,13 @@ import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
@@ -41,12 +43,15 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
@@ -70,6 +75,7 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.util.ThrottledLogging;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
@@ -78,16 +84,15 @@ import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
+import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
-import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -100,8 +105,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiConsumer;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -112,6 +118,9 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
+import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.WritableRosterStore;
 
@@ -147,6 +156,7 @@ public class HandleWorkflow {
     private final HintsService hintsService;
     private final HistoryService historyService;
     private final ConfigProvider configProvider;
+    private final BoundaryStateChangeListener boundaryStateChangeListener;
     private final ImmediateStateChangeListener immediateStateChangeListener;
     private final ScheduleService scheduleService;
     private final CongestionMetrics congestionMetrics;
@@ -159,6 +169,11 @@ public class HandleWorkflow {
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
+    @Nullable
+    private Dispatch inFlightDispatch;
+
+    private boolean eventHeaderAlreadyWritten = false;
+
     // The last second since the epoch at which the metrics were updated; this does not affect transaction handling
     private long lastMetricUpdateSecond;
     // The last second for which this workflow has confirmed all scheduled transactions are executed
@@ -167,6 +182,21 @@ public class HandleWorkflow {
     private final NodeFeeManager nodeFeeManager;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
+    // Flag to indicate whether jumpstart hash voting setup has already been attempted
+    private boolean jumpstartHashVotingSetupDone;
+
+    private final ThrottledLogging tssReconcileFailureLogging = new ThrottledLogging();
+
+    private record LedgerIdContext(
+            @NonNull Bytes ledgerId,
+            @NonNull List<ProofKey> proofKeys,
+            @NonNull SortedMap<Long, Long> targetNodeWeights) {
+        private LedgerIdContext {
+            requireNonNull(ledgerId);
+            requireNonNull(proofKeys);
+            requireNonNull(targetNodeWeights);
+        }
+    }
 
     @Inject
     public HandleWorkflow(
@@ -188,6 +218,7 @@ public class HandleWorkflow {
             @NonNull final StakePeriodManager stakePeriodManager,
             @NonNull final List<StateChanges.Builder> migrationStateChanges,
             @NonNull final ParentTxnFactory parentTxnFactory,
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final ScheduleService scheduleService,
             @NonNull final HintsService hintsService,
@@ -219,6 +250,7 @@ public class HandleWorkflow {
         this.migrationStateChanges = new ArrayList<>(migrationStateChanges);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
         this.configProvider = requireNonNull(configProvider);
+        this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.scheduleService = requireNonNull(scheduleService);
         this.congestionMetrics = requireNonNull(congestionMetrics);
@@ -250,11 +282,16 @@ public class HandleWorkflow {
         logStartRound(round);
         blockBufferService.ensureNewBlocksPermitted();
         cacheWarmer.warm(state, round);
+        final var firstEvent = round.iterator().next();
         if (streamMode != RECORDS) {
             blockStreamManager.startRound(round, state);
             blockStreamManager.writeItem(BlockItem.newBuilder()
                     .roundHeader(new RoundHeader(round.getRoundNum()))
                     .build());
+            // "Pull forward" the first event header to respect conventions for the position of a SignedTransaction in
+            // the block stream---we have many kinds of setup and scheduled work that happens by synthetic tx dispatch
+            writeEventHeader(firstEvent);
+            eventHeaderAlreadyWritten = true;
             if (!migrationStateChanges.isEmpty()) {
                 final var startupConsTime = systemTransactions.firstReservedSystemTimeFor(
                         round.iterator().next().getConsensusTimestamp());
@@ -268,6 +305,42 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
+        final boolean isGenesis =
+                switch (streamMode) {
+                    case RECORDS ->
+                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
+                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
+                };
+        if (isGenesis) {
+            final var genesisEventTime = firstEvent.getConsensusTimestamp();
+            logger.info("Doing genesis setup before {}", genesisEventTime);
+            systemTransactions.doGenesisSetup(genesisEventTime, state, this::doStreamingAllChanges);
+            transactionsDispatched = true;
+            if (streamMode != RECORDS) {
+                blockStreamManager.confirmPendingWorkFinished();
+            }
+            logger.info(SYSTEM_ENTITIES_CREATED_MSG);
+            requireNonNull(systemEntitiesCreatedFlag).set(true);
+        } else {
+            try {
+                systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
+            } catch (Exception e) {
+                logger.error("Failed to submit startup migration root-hash vote", e);
+            }
+        }
+
+        if (!jumpstartHashVotingSetupDone) {
+            final var deadline = systemTransactions.maybeSetupJumpstartHashVoting(state, this::doStreamingAllChanges);
+            if (deadline.isPresent()) {
+                blockRecordManager.syncVotingMetadata(false, deadline.getAsLong());
+                logger.info(
+                        "Jumpstart hash voting initialized with deadline {}",
+                        deadline.stream().mapToObj(Long::toString));
+            } else {
+                logger.info("Skipping jumpstart hash voting setup");
+            }
+            jumpstartHashVotingSetupDone = true;
+        }
 
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
         // ensure we don't do this in the same round as externalizing migration state changes to
@@ -295,14 +368,15 @@ public class HandleWorkflow {
             }
         }
 
-        // If only producing a record stream, no reason to do any TSS work (since it is
-        // output exclusively in a block stream)
+        final var setLedgerIdContext = new AtomicReference<LedgerIdContext>(null);
+        // If only producing a record stream, no reason to do any TSS work
         if (streamMode != RECORDS) {
-            configureTssCallbacks(state);
+            configureTssCallbacks(state, setLedgerIdContext);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());
+                resetTssReconcileFailureSuppression();
             } catch (Exception e) {
-                logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+                logTssReconcileFailure(e);
             }
         }
         final var lastUsedConsTime = blockHashSigner.isReady()
@@ -329,6 +403,24 @@ public class HandleWorkflow {
                     .getConfigData(BlockStreamConfig.class)
                     .receiptEntriesBatchSize();
             transactionsDispatched |= handleEvents(state, round, receiptEntriesBatchSize, stateSignatureTxnCallback);
+            if (setLedgerIdContext.get() != null) {
+                try {
+                    final var ctx = setLedgerIdContext.get();
+                    logger.info("Externalizing ledger id {}", ctx.ledgerId().toHex());
+                    // Since we must have handled a TSS tx to trigger setting the ledger id, we
+                    // know the last-used consensus time has advanced since the last system tx
+                    systemTransactions.externalizeLedgerId(
+                            state,
+                            lastUsedConsTime.plusNanos(2),
+                            ctx.ledgerId(),
+                            ctx.proofKeys(),
+                            ctx.targetNodeWeights(),
+                            historyService.historyProofVerificationKey());
+                    transactionsDispatched = true;
+                } catch (Exception e) {
+                    logger.error("{} Failed to externalize ledger id", ALERT_MESSAGE, e);
+                }
+            }
 
             // Inform the BlockRecordManager that the round is complete, so it can update running hashes in state
             // from results computed in background threads. The running hash has to be included in state, but we want
@@ -340,6 +432,19 @@ public class HandleWorkflow {
 
             // Update the latest freeze round after everything is handled
             if (isFreezeRound(state, round)) {
+                // Persist live wrapped record block hashes to state before the freeze.
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .liveWritePrevWrappedRecordHashes()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
+                }
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockRecordStreamConfig.class)
+                        .writeWrappedRecordFileBlockHashesToDisk()) {
+                    blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
+                }
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
@@ -368,18 +473,20 @@ public class HandleWorkflow {
             final int receiptEntriesBatchSize,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean transactionsDispatched = false;
-        for (final var event : round) {
-            if (streamMode != RECORDS) {
+        final var iter = round.iterator();
+        while (iter.hasNext()) {
+            final var event = iter.next();
+            if (streamMode != RECORDS && !eventHeaderAlreadyWritten) {
                 writeEventHeader(event);
             }
+            eventHeaderAlreadyWritten = false;
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
-            final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, bytes) -> {
-                if (txn != null) {
-                    final var scopedTxn =
-                            new ScopedSystemTransaction<>(event.getCreatorId(), event.getBirthRound(), txn);
+            final ShortCircuitCallback shortCircuitCallback = (stateSignatureTx, bytes) -> {
+                if (stateSignatureTx != null) {
+                    final var scopedTxn = new ScopedSystemTransaction<>(
+                            event.getCreatorId(), event.getBirthRound(), stateSignatureTx);
                     stateSignatureTxnCallback.accept(scopedTxn);
                 }
-
                 if (streamMode != RECORDS) {
                     final var txnItem =
                             BlockItem.newBuilder().signedTransaction(bytes).build();
@@ -391,7 +498,7 @@ public class HandleWorkflow {
                 final var platformTxn = it.next();
                 try {
                     transactionsDispatched |= handlePlatformTransaction(
-                            state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitTxnCallback);
+                            state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitCallback);
                 } catch (final Exception e) {
                     logger.fatal(
                             "Possibly CATASTROPHIC failure while running the handle workflow. "
@@ -403,9 +510,8 @@ public class HandleWorkflow {
                 // Clear tx metadata now that we won't use it again
                 platformTxn.setMetadata(null);
             }
-            if (!transactionsDispatched) {
-                // If there were no platform transactions to follow with scheduled transactions, then
-                // use the round consensus time as the execution start time for scheduled transactions
+            if (!transactionsDispatched && !iter.hasNext()) {
+                // If the entire round was empty, use the round consensus time as exec time for scheduled transactions
                 transactionsDispatched = executeScheduledTransactions(state, round.getConsensusTimestamp(), creator);
             }
             recordCache.maybeCommitReceiptsBatch(
@@ -421,23 +527,6 @@ public class HandleWorkflow {
             if (streamMode == RECORDS) {
                 ((BlockRecordManagerImpl) blockRecordManager).maybeQuiesce(state);
             }
-        }
-        final boolean isGenesis =
-                switch (streamMode) {
-                    case RECORDS ->
-                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
-                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
-                };
-        if (isGenesis) {
-            final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
-            logger.info("Doing genesis setup before {}", genesisEventTime);
-            systemTransactions.doGenesisSetup(genesisEventTime, state);
-            transactionsDispatched = true;
-            if (streamMode != RECORDS) {
-                blockStreamManager.confirmPendingWorkFinished();
-            }
-            logger.info(SYSTEM_ENTITIES_CREATED_MSG);
-            requireNonNull(systemEntitiesCreatedFlag).set(true);
         }
         // Update all throttle metrics once per round
         throttleServiceManager.updateAllMetrics();
@@ -489,7 +578,7 @@ public class HandleWorkflow {
      * @param creator the {@link NodeInfo} of the creator of the transaction
      * @param txn the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
-     * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
+     * @param shortCircuitCallback A callback to be called when encountering any short-circuiting
      * transaction type
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
@@ -498,7 +587,7 @@ public class HandleWorkflow {
             @Nullable final NodeInfo creator,
             @NonNull final ConsensusTransaction txn,
             final long eventBirthRound,
-            @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
+            @NonNull final ShortCircuitCallback shortCircuitCallback) {
         final var handleStart = System.nanoTime();
 
         // Always use platform-assigned time for user transaction, c.f. https://hips.hedera.com/hip/hip-993
@@ -529,7 +618,7 @@ public class HandleWorkflow {
             // just took effect; it would be nice to unify the FAB and stake metadata in the future.
             final var writableTokenStates = state.getWritableStates(TokenService.NAME);
             final var writableEntityIdStates = state.getWritableStates(EntityIdService.NAME);
-            doStreamingKVChanges(
+            doStreamingOnlyKvChanges(
                     writableTokenStates,
                     writableEntityIdStates,
                     () -> stakeInfoHelper.adjustPostUpgradeStakes(
@@ -538,6 +627,19 @@ public class HandleWorkflow {
                             new WritableStakingInfoStore(
                                     writableTokenStates, new WritableEntityIdStoreImpl(writableEntityIdStates)),
                             new WritableNetworkStakingRewardsStore(writableTokenStates)));
+            final var writableNodeStates = state.getWritableStates(AddressBookService.NAME);
+            final var entityIdStore = new WritableEntityIdStoreImpl(writableEntityIdStates);
+            final var nodeStore = new WritableNodeStore(writableNodeStates, entityIdStore);
+            doStreamingOnlyKvChanges(writableNodeStates, writableEntityIdStates, () -> {
+                final var nextNodeId = entityIdStore.peekAtNextNodeId();
+                for (int i = 0; i < nextNodeId; i++) {
+                    final var node = nodeStore.get(i);
+                    if (node != null && node.deleted() && !networkInfo.containsNode(node.nodeId())) {
+                        nodeStore.remove(node.nodeId());
+                        logger.info("Node {} was removed from state", node.nodeId());
+                    }
+                }
+            });
             if (streamMode == RECORDS) {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
                 blockRecordManager.markMigrationRecordsStreamed();
@@ -546,7 +648,7 @@ public class HandleWorkflow {
 
         // IMPORTANT - this has the side effect of ensuring the tx's metadata is a PreHandleResult
         final var topLevelTxn =
-                parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitTxnCallback);
+                parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitCallback);
         if (topLevelTxn == null) {
             return false;
         } else if (streamMode != BLOCKS && startsNewRecordFile) {
@@ -707,7 +809,7 @@ public class HandleWorkflow {
                     }
                 }
                 executionEnd = executableTxn.nbf();
-                doStreamingKVChanges(writableStates, entityIdWritableStates, iter::remove);
+                doStreamingOnlyKvChanges(writableStates, entityIdWritableStates, iter::remove);
                 lastTime = streamMode == RECORDS
                         ? blockRecordManager.lastUsedConsensusTime()
                         : blockStreamManager.lastUsedConsensusTime();
@@ -717,7 +819,7 @@ public class HandleWorkflow {
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
             // that expire after the last schedule returned from next(), until either the next executable
             // schedule or the iterator boundary is reached
-            doStreamingKVChanges(writableStates, entityIdWritableStates, iter::purgeUntilNext);
+            doStreamingOnlyKvChanges(writableStates, entityIdWritableStates, iter::purgeUntilNext);
             // If the iterator is not exhausted, we can only mark the second _before_ the last-executed NBF time
             // as complete; if it is exhausted, we mark the rightmost second of the interval as complete
             if (iter.hasNext()) {
@@ -788,22 +890,29 @@ public class HandleWorkflow {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
                 stakePeriodChanges.advanceTimeTo(parentTxn, true);
                 logPreDispatch(parentTxn);
-                hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
-                dispatchProcessor.processDispatch(dispatch);
+                final var hollowAccountCompletionsDetails =
+                        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+                // In case a TSS callback needs access to the current dispatch's savepoint stack
+                this.inFlightDispatch = dispatch;
+                dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
                 updateWorkflowMetrics(parentTxn);
             }
-            final var handleOutput =
-                    parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
+            final var blockNumber = currentBlockNumber();
+            final var handleOutput = parentTxn
+                    .stack()
+                    .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     parentTxn.preHandleResult().dueDiligenceFailure(),
                     handleOutput.preferringBlockRecordSource());
             return handleOutput;
-        } catch (final Exception e) {
+        } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
                     parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
+        } finally {
+            this.inFlightDispatch = null;
         }
     }
 
@@ -834,9 +943,10 @@ public class HandleWorkflow {
         stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
             dispatchProcessor.processDispatch(dispatch);
+            final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
                     .stack()
-                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates());
+                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
@@ -851,31 +961,83 @@ public class HandleWorkflow {
     }
 
     /**
+     * Helper method to get the current block number only when the block stream owns receipt block numbers.
+     *
+     * @return the current block number, or null outside {@link StreamMode#BLOCKS}
+     */
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
+    }
+
+    /**
+     * Commits an action with side effects while capturing all state changes and writing them to the
+     * block stream.
+     * @param writableStates the writable states to commit the action to
+     * @param entityIdWritableStates if not null, the writable states for the entity ID service
+     * @param action the action to commit
+     */
+    private void doStreamingAllChanges(
+            @NonNull final WritableStates writableStates,
+            @Nullable final WritableStates entityIdWritableStates,
+            @NonNull final Runnable action) {
+        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, true);
+    }
+
+    /**
+     * Commits an action with side effects while capturing only its key/value state changes and writing them to the
+     * block stream.
+     * @param writableStates the writable states to commit the action to
+     * @param entityIdWritableStates if not null, the writable states for the entity ID service
+     * @param action the action to commit
+     */
+    private void doStreamingOnlyKvChanges(
+            @NonNull final WritableStates writableStates,
+            @Nullable final WritableStates entityIdWritableStates,
+            @NonNull final Runnable action) {
+        doStreamingChangesInternal(writableStates, entityIdWritableStates, action, false);
+    }
+
+    /**
      * Commits an action with side effects while capturing its key/value state changes and writing them to the
      * block stream.
      *
      * @param writableStates the writable states to commit the action to
      * @param entityIdWritableStates if not null, the writable states for the entity ID service
      * @param action the action to commit
+     * @param includeSingletons whether to include singleton changes
      */
-    private void doStreamingKVChanges(
+    private void doStreamingChangesInternal(
             @NonNull final WritableStates writableStates,
             @Nullable final WritableStates entityIdWritableStates,
-            @NonNull final Runnable action) {
+            @NonNull final Runnable action,
+            final boolean includeSingletons) {
         if (streamMode != RECORDS) {
             immediateStateChangeListener.resetKvStateChanges(null);
+            if (includeSingletons) {
+                boundaryStateChangeListener.reset();
+            }
         }
         action.run();
-        ((CommittableWritableStates) writableStates).commit();
+        if (writableStates instanceof CommittableWritableStates committableWritableStates) {
+            committableWritableStates.commit();
+        }
         if (entityIdWritableStates != null) {
             ((CommittableWritableStates) entityIdWritableStates).commit();
         }
         if (streamMode != RECORDS) {
-            final var changes = immediateStateChangeListener.getKvStateChanges();
-            if (!changes.isEmpty()) {
+            final var kvStateChanges = immediateStateChangeListener.getKvStateChanges();
+            if (!kvStateChanges.isEmpty()) {
                 blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
-                        .stateChanges(new StateChanges(now, new ArrayList<>(changes)))
+                        .stateChanges(new StateChanges(now, new ArrayList<>(kvStateChanges)))
                         .build());
+            }
+            if (includeSingletons) {
+                final var singletonChanges = boundaryStateChangeListener.allStateChanges();
+                if (!singletonChanges.isEmpty()) {
+                    blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
+                            .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
+                            .build());
+                }
             }
         }
     }
@@ -916,8 +1078,10 @@ public class HandleWorkflow {
      * Configure the TSS callbacks for the given state.
      *
      * @param state the latest state
+     * @param setLedgerIdContext the flag to set the ledger id
      */
-    private void configureTssCallbacks(@NonNull final State state) {
+    private void configureTssCallbacks(
+            @NonNull final State state, @NonNull final AtomicReference<LedgerIdContext> setLedgerIdContext) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
             hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
@@ -938,17 +1102,22 @@ public class HandleWorkflow {
                 }
             });
             if (tssConfig.historyEnabled()) {
-                historyService.onFinishedConstruction((historyStore, construction) -> {
+                historyService.onFinishedConstruction((historyStore, construction, targetNodeWeights) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
                     final var activeConstruction = historyStore.getActiveConstruction();
                     if (activeConstruction.constructionId() == construction.constructionId()) {
                         // We just finished the genesis proof, so we use it immediately
                         final var proof = construction.targetProofOrThrow();
                         historyService.setLatestHistoryProof(proof);
-                        // And set the ledger id
-                        final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
-                        historyStore.setLedgerId(ledgerId);
-                        logger.info("Set ledger id to '{}'", ledgerId);
+                        // And set the ledger id if needed
+                        if (historyStore.getLedgerId() == null) {
+                            final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
+                            historyStore.setLedgerId(ledgerId);
+                            logger.info("Set ledger id to '{}'", ledgerId);
+                            // Record its context for later externalization
+                            setLedgerIdContext.set(
+                                    new LedgerIdContext(ledgerId, proof.targetProofKeys(), targetNodeWeights));
+                        }
                         return;
                     }
                     // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time
@@ -964,8 +1133,10 @@ public class HandleWorkflow {
                         historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                         // Finishing WRAPS genesis has no actual implications for hinTS
                         if (!isWrapsGenesis) {
-                            final var writableHintsStates = state.getWritableStates(HintsService.NAME);
-                            final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
+                            // Accumulate the changes in the same SavepointStack used by the HistoryProofVote tx
+                            final var stack = requireNonNull(inFlightDispatch).stack();
+                            final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
+                            final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
                             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
                             final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
                             hintsService.handoff(
@@ -994,19 +1165,37 @@ public class HandleWorkflow {
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
-            final var activeRosters = ActiveRosters.from(rosterStore);
+            final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
+            final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
+            final var readableHistoryStore = new ReadableHistoryStoreImpl(historyWritableStates);
+            final var activeRosters = ActiveRosters.from(
+                    rosterStore,
+                    tssConfig.historyEnabled(),
+                    () -> !new ReadableHintsStoreImpl(hintsWritableStates, entityCounters)
+                            .getActiveConstruction()
+                            .hasHintsScheme(),
+                    !tssConfig.historyEnabled()
+                            ? null
+                            : () -> {
+                                final var activeConstruction = readableHistoryStore.getActiveConstruction();
+                                return !activeConstruction.hasTargetProof()
+                                        || (tssConfig.wrapsEnabled()
+                                                != isWrapsExtensible(activeConstruction.targetProofOrThrow()));
+                            });
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
                 final var workTime =
                         blockHashSigner.isReady() ? blockStreamManager.lastUsedConsensusTime() : roundTimestamp;
-                doStreamingKVChanges(
+                doStreamingOnlyKvChanges(
                         crsWritableStates,
                         null,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
-                final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
-                doStreamingKVChanges(
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters),
+                                workTime,
+                                isActive,
+                                networkInfo));
+                doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,
                         () -> hintsService.reconcile(
@@ -1016,7 +1205,6 @@ public class HandleWorkflow {
                                 tssConfig,
                                 isActive));
                 if (tssConfig.historyEnabled()) {
-                    final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                     // If we are doing a chain-of-trust proof, this is the verification key we are proving;
@@ -1036,7 +1224,7 @@ public class HandleWorkflow {
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
                             .orElse(null);
-                    doStreamingKVChanges(
+                    doStreamingOnlyKvChanges(
                             historyWritableStates,
                             null,
                             () -> historyService.reconcile(
@@ -1061,6 +1249,17 @@ public class HandleWorkflow {
             logStartUserTransactionPreHandleResultP2(parentTxn.preHandleResult());
             logStartUserTransactionPreHandleResultP3(parentTxn.preHandleResult());
         }
+    }
+
+    private void logTssReconcileFailure(@NonNull final Exception e) {
+        if (!tssReconcileFailureLogging.shouldLog(e)) {
+            return;
+        }
+        logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+    }
+
+    private void resetTssReconcileFailureSuppression() {
+        tssReconcileFailureLogging.reset();
     }
 
     /**

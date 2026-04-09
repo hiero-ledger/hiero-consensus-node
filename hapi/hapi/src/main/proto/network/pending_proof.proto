@@ -15,7 +15,7 @@ syntax = "proto3";
 package com.hedera.node.internal.network;
 
 // SPDX-License-Identifier: Apache-2.0
-import "block/stream/block_proof.proto";
+import "block/stream/state_proof.proto";
 
 option java_package = "com.hedera.node.internal.network.legacy";
 // <<<pbj.java_package = "com.hedera.node.internal.network">>> This comment is special code for setting PBJ Compiler java package

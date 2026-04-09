@@ -33,7 +33,6 @@ public final class CryptoConstants {
     public static final String SSL_VERSION = "TLSv1.2";
     // keystore settings
     public static final String KEYSTORE_TYPE = "pkcs12";
-    public static final String PUBLIC_KEYS_FILE = "public.pfx";
 
     private CryptoConstants() {}
 

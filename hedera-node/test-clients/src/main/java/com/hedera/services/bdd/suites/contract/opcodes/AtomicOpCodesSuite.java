@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isOneOfLiteral;
@@ -65,6 +65,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 // Wrapping the most important tests from this package with an atomic batch
+@Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
 class AtomicOpCodesSuite {
 
@@ -99,7 +100,6 @@ class AtomicOpCodesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> payableCreate2WorksAsExpected() {
         final var contract = "PayableCreate2Deploy";
         AtomicReference<String> tcMirrorAddr2 = new AtomicReference<>();
@@ -391,7 +391,6 @@ class AtomicOpCodesSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> chainIdWorks() {
         final var defaultChainId = BigInteger.valueOf(295L);
         final var devChainId = BigInteger.valueOf(298L);

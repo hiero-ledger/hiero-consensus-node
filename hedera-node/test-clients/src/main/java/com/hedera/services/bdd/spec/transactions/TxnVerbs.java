@@ -46,7 +46,7 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiContractDelete;
 import com.hedera.services.bdd.spec.transactions.contract.HapiContractUpdate;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumContractCreate;
-import com.hedera.services.bdd.spec.transactions.contract.HapiLambdaSStore;
+import com.hedera.services.bdd.spec.transactions.contract.HapiHookStore;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoApproveAllowance;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoDelete;
@@ -61,6 +61,9 @@ import com.hedera.services.bdd.spec.transactions.network.HapiUncheckedSubmit;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeDelete;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeUpdate;
+import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeCreate;
+import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeDelete;
+import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeUpdate;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleDelete;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleSign;
@@ -114,6 +117,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -284,6 +288,27 @@ public class TxnVerbs {
 
     public static HapiNodeDelete nodeDelete(String node) {
         return new HapiNodeDelete(node);
+    }
+
+    /* REGISTERED NODE */
+    public static HapiRegisteredNodeCreate registeredNodeCreate(@NonNull final String name) {
+        return new HapiRegisteredNodeCreate(name);
+    }
+
+    public static HapiRegisteredNodeUpdate registeredNodeUpdate(@NonNull final LongSupplier idSupplier) {
+        return new HapiRegisteredNodeUpdate(idSupplier);
+    }
+
+    public static HapiRegisteredNodeUpdate registeredNodeUpdate(@NonNull final String name) {
+        return new HapiRegisteredNodeUpdate(name);
+    }
+
+    public static HapiRegisteredNodeDelete registeredNodeDelete(@NonNull final LongSupplier idSupplier) {
+        return new HapiRegisteredNodeDelete(idSupplier);
+    }
+
+    public static HapiRegisteredNodeDelete registeredNodeDelete(@NonNull final String name) {
+        return new HapiRegisteredNodeDelete(name);
     }
 
     /* TOKEN */
@@ -610,10 +635,10 @@ public class TxnVerbs {
     }
 
     public static HapiContractCall contractCall(
-            String contract, String functionName, Supplier<Object> parmeterSupplier) {
+            String contract, String functionName, Supplier<Object> parameterSupplier) {
         final var abi = getABIFor(FUNCTION, functionName, contract);
         return new HapiContractCall(
-                abi, contract, spec -> List.of(parmeterSupplier.get()).toArray());
+                abi, contract, spec -> List.of(parameterSupplier.get()).toArray());
     }
 
     public static HapiContractCall contractCallWithTuple(String contract, String abi, Function<HapiSpec, Tuple> fn) {
@@ -843,18 +868,18 @@ public class TxnVerbs {
         return new HapiAtomicBatch(ops);
     }
 
-    public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long hookId) {
-        return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
+    public static HapiHookStore accountEvmHookStore(@NonNull final String account, final long hookId) {
+        return new HapiHookStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
     }
 
     /**
-     * Returns a {@link HapiLambdaSStore} for the given contract and hook id.
+     * Returns a {@link HapiHookStore} for the given contract and hook id.
      * @param contract the contract
      * @param hookId the hook id
-     * @return a {@link HapiLambdaSStore} for the given contract and hook id
+     * @return a {@link HapiHookStore} for the given contract and hook id
      */
-    public static HapiLambdaSStore contractLambdaSStore(@NonNull final String contract, final long hookId) {
+    public static HapiHookStore contractHookStore(@NonNull final String contract, final long hookId) {
         requireNonNull(contract);
-        return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.CONTRACT_ID, contract, hookId);
+        return new HapiHookStore(HookEntityId.EntityIdOneOfType.CONTRACT_ID, contract, hookId);
     }
 }

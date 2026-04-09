@@ -16,10 +16,10 @@ testModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.crypto.test.fixtures")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-
-    runtimeOnly("com.swirlds.platform.core")
+    requires("org.apache.logging.log4j.core")
 }
 
 timingSensitiveModuleInfo {

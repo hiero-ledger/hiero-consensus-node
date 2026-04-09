@@ -25,24 +25,24 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'IssDetectorSplitter:IssNotification:💥' \
     -s 'IssDetector:ISS notification monitoring:💀' \
     -s 'ConsensusRoundsSplitter:monitor consensus round:🕐' \
-    -s 'LatestCompleteStateNotifier:complete state notification:💢' \
+    -s 'staleEventsSplitter:stale events:🗑️' \
     -s 'RunningEventHashOverride:hash override:💨' \
     -s 'StateSnapshotManager:state saving monitoring:💾' \
     -s 'PlatformMonitor:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
-    -g 'EventIntakeModule:EventWindowDispatcher,EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,📬' \
-    -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents' \
+    -g 'EventIntakeModule:EventWindowDispatcher,ClearCommandDispatcher,EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer' \
+    -g 'Consensus Engine:ConsensusEngine,RoundsToCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
-    -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
-    -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
+    -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter' \
+    -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus' \
     -g 'EventCreatorModule:EventCreationManager,🍎' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
     -g 'PCES Replay:pcesReplayer,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
     -g 'State Hasher:StateHasher,postHasher_stateReserver' \
-    -g 'Consensus:Consensus Engine,ConsensusEventStream,🌀,🕐' \
+    -g 'Hashgraph Module:Consensus Engine,consensusRounds,ConsensusRoundsSplitter,staleEventsSplitter,staleEvents,PreConsensusEvents,PreConsensusEventsSplitter,EventWindowManager,🌀,🕐,🗑️' \
     -g 'State Verification:StateSigner,HashLogger,ISS Detector,ExecutionSignatureSubmission,🖋️,💥,💀' \
     -g 'Transaction Handling:Transaction Handler,LatestImmutableStateNexus,TransactionPrehandler,getSystemTransactions,🔮' \
     -g 'Branch Detection:BranchDetector,BranchReporter' \

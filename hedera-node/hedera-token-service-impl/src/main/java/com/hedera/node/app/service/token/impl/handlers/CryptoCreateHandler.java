@@ -17,6 +17,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SEND_RECORD_THR
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_NOT_PROVIDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.CREATE_SLOT_MULTIPLIER;
@@ -128,6 +129,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoCreateAccountOrThrow();
+        // HIP-1340 isn't supported yet
+        validateTruePreCheck(op.delegationAddress().length() == 0, NOT_SUPPORTED);
         // Note: validation lives here for now but should take place in handle in the future
         validateTruePreCheck(op.hasAutoRenewPeriod(), INVALID_RENEWAL_PERIOD);
         validateTruePreCheck(op.autoRenewPeriodOrThrow().seconds() >= 0, INVALID_RENEWAL_PERIOD);
@@ -171,7 +174,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             }
         }
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
-        // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
         validateHookDuplicates(op.hookCreationDetails());
     }
 
@@ -466,7 +468,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());
-            builder.numberLambdaStorageSlots(updatedSlots);
+            builder.numberEvmHookStorageSlots(updatedSlots);
         }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither

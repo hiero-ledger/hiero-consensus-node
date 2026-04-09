@@ -76,6 +76,10 @@ import "services/node_create.proto";
 import "services/node_update.proto";
 import "services/node_delete.proto";
 
+import "services/registered_node_create.proto";
+import "services/registered_node_update.proto";
+import "services/registered_node_delete.proto";
+
 /**
  * A schedulable transaction.
  *
@@ -403,6 +407,21 @@ message SchedulableTransactionBody {
          * other recipients receive the "airdropped" tokens immediately.
          */
         TokenAirdropTransactionBody tokenAirdrop = 48;
+
+        /**
+         * Create a new registered node in the network address book.
+         */
+        com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody registeredNodeCreate = 49;
+
+        /**
+         * Update a registered node in the network address book.
+         */
+        com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody registeredNodeUpdate = 50;
+
+        /**
+         * Delete a registered node from the network address book.
+         */
+        com.hedera.hapi.node.addressbook.RegisteredNodeDeleteTransactionBody registeredNodeDelete = 51;
     }
 
     /**

@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
+import com.swirlds.common.test.fixtures.logging.MockAppender;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.ImmutableIndexedObjectListUsingArray;
@@ -27,7 +28,6 @@ import com.swirlds.merkledb.collections.IndexedObject;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
-import com.swirlds.merkledb.test.fixtures.files.MockAppender;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -85,15 +85,6 @@ class DataFileCollectionTest {
                     }
                 },
                 values.length * Long.BYTES);
-    }
-
-    private static long[] readDataItem(final DataFileCollection coll, final long location) throws IOException {
-        final BufferedData data = coll.readDataItem(location);
-        final long[] items = new long[Math.toIntExact(data.remaining() / Long.BYTES)];
-        for (int i = 0; i < items.length; i++) {
-            items[i] = data.readLong();
-        }
-        return items;
     }
 
     // =================================================================================================================
@@ -439,11 +430,6 @@ class DataFileCollectionTest {
         // empty.
         List<DataFileReader> filesLeft = fileCollection.getAllCompletedFiles();
         assertEquals(1, filesLeft.size(), "unexpected # of files #2");
-
-        // and trying to merge just one file is a no-op
-        List<Path> secondMergeResults = fileCompactor.compactFiles(null, filesLeft, 1);
-        assertNotNull(secondMergeResults, "null merged files list");
-        assertEquals(0, secondMergeResults.size(), "unexpected results from second merge");
     }
 
     @Order(101)
@@ -613,13 +599,7 @@ class DataFileCollectionTest {
 
     private static DataFileCompactor createFileCompactor(
             String storeName, DataFileCollection fileCollection, FilesTestType testType) {
-        return new DataFileCompactor(
-                MERKLE_DB_CONFIG, storeName, fileCollection, storedOffsetsMap.get(testType), null, null, null, null) {
-            @Override
-            int getMinNumberOfFilesToCompact() {
-                return 2;
-            }
-        };
+        return new DataFileCompactor(storeName, fileCollection, storedOffsetsMap.get(testType), null, null, null, null);
     }
 
     @Order(203)
@@ -669,7 +649,7 @@ class DataFileCollectionTest {
         // reopen
         final DataFileCollection fileCollection2 = new DataFileCollection(MERKLE_DB_CONFIG, dbDir, storeName, null);
         final DataFileCompactor fileCompactor = new DataFileCompactor(
-                MERKLE_DB_CONFIG, storeName, fileCollection2, storedOffsetsMap.get(testType), null, null, null, null);
+                storeName, fileCollection2, storedOffsetsMap.get(testType), null, null, null, null);
         fileCollectionMap.put(testType, fileCollection2);
         // check 10 files were opened and data is correct
         assertSame(10, fileCollection2.getAllCompletedFiles().size(), "Should be 10 files");
@@ -739,8 +719,8 @@ class DataFileCollectionTest {
         final DataFileCollection fileCollection = new DataFileCollection(MERKLE_DB_CONFIG, dbDir, storeName, null);
         final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
-        final DataFileCompactor compactor = new DataFileCompactor(
-                MERKLE_DB_CONFIG, storeName, fileCollection, storedOffsets, null, null, null, null);
+        final DataFileCompactor compactor =
+                new DataFileCompactor(storeName, fileCollection, storedOffsets, null, null, null, null);
         populateDataFileCollection(FilesTestType.fixed, fileCollection, storedOffsets);
 
         final Thread thread = new Thread(() -> {

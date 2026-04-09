@@ -26,7 +26,8 @@ public class InertProofController implements ProofController {
     }
 
     @Override
-    public boolean isStillInProgress() {
+    public boolean isStillInProgress(@NonNull final TssConfig tssConfig) {
+        requireNonNull(tssConfig);
         return false;
     }
 
@@ -51,9 +52,15 @@ public class InertProofController implements ProofController {
 
     @Override
     public void addProofVote(
-            final long nodeId, @NonNull final HistoryProofVote vote, @NonNull final WritableHistoryStore historyStore) {
+            final long nodeId,
+            @NonNull final HistoryProofVote vote,
+            @NonNull final Instant now,
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final TssConfig tssConfig) {
         requireNonNull(vote);
+        requireNonNull(now);
         requireNonNull(historyStore);
+        requireNonNull(tssConfig);
         // No-op
     }
 

@@ -50,25 +50,24 @@ public class ContainerTestEnvironment implements TestEnvironment {
      * Constructor with default values for using random node-ids and default directory for container logs.
      */
     public ContainerTestEnvironment() {
-        this(true, getDefaultOutputDirectory(ENV_NAME));
+        this(true, getDefaultOutputDirectory(ENV_NAME), true, false, List.of());
     }
 
     /**
-     * Constructor for the {@link ContainerTestEnvironment} class.
+     * Constructor for the {@link ContainerTestEnvironment} class with full configuration.
      *
-     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
-     */
-    public ContainerTestEnvironment(final boolean useRandomNodeIds) {
-        this(useRandomNodeIds, getDefaultOutputDirectory(ENV_NAME));
-    }
-
-    /**
-     * Constructor for the {@link ContainerTestEnvironment} class with custom output directory.
-     *
-     * @param useRandomNodeIds {@code true} if the node IDs should be selected randomly; {@code false} otherwise
+     * @param useRandomNodeIds    {@code true} if the node IDs should be selected randomly; {@code false} otherwise
      * @param rootOutputDirectory the root directory where container logs will be written per test
+     * @param proxyEnabled        {@code true} if the toxiproxy should be enabled; {@code false} otherwise
+     * @param gcLoggingEnabled    {@code true} if GC logging should be enabled for all node processes; {@code false} otherwise
+     * @param jvmArgs             additional JVM arguments to pass to all node processes
      */
-    public ContainerTestEnvironment(final boolean useRandomNodeIds, @NonNull final Path rootOutputDirectory) {
+    public ContainerTestEnvironment(
+            final boolean useRandomNodeIds,
+            @NonNull final Path rootOutputDirectory,
+            final boolean proxyEnabled,
+            final boolean gcLoggingEnabled,
+            @NonNull final List<String> jvmArgs) {
         ContainerLogConfigBuilder.configure();
 
         this.rootOutputDirectory = rootOutputDirectory;
@@ -82,7 +81,14 @@ public class ContainerTestEnvironment implements TestEnvironment {
             fail("Failed to prepare directory: " + rootOutputDirectory, ex);
         }
 
-        network = new ContainerNetwork(timeManager, transactionGenerator, rootOutputDirectory, useRandomNodeIds);
+        network = new ContainerNetwork(
+                timeManager,
+                transactionGenerator,
+                rootOutputDirectory,
+                useRandomNodeIds,
+                proxyEnabled,
+                gcLoggingEnabled,
+                jvmArgs);
     }
 
     /**

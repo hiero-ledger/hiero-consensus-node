@@ -4,7 +4,6 @@ module org.hiero.otter.fixtures {
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base.test.fixtures;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
@@ -13,8 +12,11 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
+    requires transitive org.hiero.consensus.gossip.impl;
+    requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
-    requires transitive org.hiero.consensus.pces;
+    requires transitive org.hiero.consensus.utility.test.fixtures;
+    requires transitive org.hiero.consensus.utility;
     requires transitive com.google.common;
     requires transitive com.google.protobuf;
     requires transitive io.grpc.stub;
@@ -25,14 +27,22 @@ module org.hiero.otter.fixtures {
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
+    requires com.swirlds.common.test.fixtures;
+    requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
-    requires com.swirlds.platform.core.test.fixtures;
+    requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.hashgraph.impl.test.fixtures;
+    requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.pces.impl;
+    requires org.hiero.consensus.pces;
+    requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
-    requires org.hiero.consensus.utility;
+    requires org.hiero.consensus.state;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
@@ -59,6 +69,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.specs;
     exports org.hiero.otter.fixtures.util;
     exports org.hiero.otter.fixtures.app to
+            org.hiero.otter.test.performance,
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
             org.hiero.otter.test,

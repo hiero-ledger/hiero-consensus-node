@@ -36,7 +36,6 @@ import java.util.OptionalLong;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import javax.inject.Inject;
-import org.hyperledger.besu.evm.tracing.OperationTracer;
 
 /**
  * A small utility that runs the * {@code #processTransaction()} call implied by the
@@ -53,7 +52,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final HydratedEthTxData hydratedEthTxData;
 
     @Nullable
-    private final Supplier<List<OperationTracer>> addOnTracers;
+    private final Supplier<List<ActionSidecarContentTracer>> addOnTracers;
 
     private final TransactionProcessor processor;
     private final EvmActionTracer evmActionTracer;
@@ -68,7 +67,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
      * @param contractsConfig the contracts configuration to use
      * @param configuration the configuration to use
      * @param hederaEvmContext the hedera EVM context
-     * @param addOnTracers all operation tracer callbacks
+     * @param addOnTracers all action sidecar content tracer callbacks
      * @param evmActionTracer the EVM action tracer
      * @param worldUpdater the world updater for the transaction
      * @param hevmTransactionFactory the factory for EVM transaction
@@ -82,7 +81,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final ContractsConfig contractsConfig,
             @NonNull final Configuration configuration,
             @NonNull final HederaEvmContext hederaEvmContext,
-            @Nullable Supplier<List<OperationTracer>> addOnTracers,
+            @Nullable Supplier<List<ActionSidecarContentTracer>> addOnTracers,
             @NonNull final EvmActionTracer evmActionTracer,
             @NonNull final RootProxyWorldUpdater worldUpdater,
             @NonNull final HevmTransactionFactory hevmTransactionFactory,

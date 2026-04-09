@@ -47,7 +47,6 @@ public enum BlockStreamAccess {
     /**
      * Reads all files matching the block file pattern from the given path and returns them in
      * ascending order of block number.
-     *
      * @param path the path to read blocks from
      * @return the stream of blocks
      * @throws UncheckedIOException if an I/O error occurs
@@ -55,6 +54,18 @@ public enum BlockStreamAccess {
     public List<Block> readBlocks(@NonNull final Path path) {
         return readBlocks(path, true).toList();
     }
+
+    /**
+     * Reads all files matching the block file pattern from the given path and returns them in
+     * ascending order of block number.
+     * @param path the path to read blocks from
+     * @return the stream of blocks
+     * @throws UncheckedIOException if an I/O error occurs
+     */
+    public List<Block> readBlocksIgnoringMarkers(@NonNull final Path path) {
+        return readBlocks(path, false).toList();
+    }
+
     /**
      * Reads all files matching the block file pattern from the given path and returns them in
      * ascending order of block number.

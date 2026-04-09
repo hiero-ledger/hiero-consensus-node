@@ -102,16 +102,12 @@ public final class CommonUtils {
     // (FUTURE) Rename since 'no throw' is confusing
     public static Bytes noThrowSha384HashOf(@NonNull final Bytes bytes) {
         final var digest = sha384DigestOrThrow();
-        bytes.writeTo(digest);
-        return Bytes.wrap(digest.digest());
+        return hashOfAll(digest, bytes);
     }
 
     public static Bytes sha384HashOfAll(final Bytes... allBytes) {
         final var digest = sha384DigestOrThrow();
-        for (final var bytes : allBytes) {
-            bytes.writeTo(digest);
-        }
-        return Bytes.wrap(digest.digest());
+        return hashOfAll(digest, allBytes);
     }
 
     public static Bytes hashOfAll(@NonNull final MessageDigest digest, @NonNull final Bytes... allBytes) {
@@ -138,6 +134,18 @@ public final class CommonUtils {
 
     public static byte[] sha384HashOf(final byte[]... bytes) {
         return hashOfAll(sha384DigestOrThrow(), bytes);
+    }
+
+    public static Bytes sha384HashOf(
+            @NonNull final Bytes first, @NonNull final Bytes second, @NonNull final byte[] third) {
+        requireNonNull(first);
+        requireNonNull(second);
+        requireNonNull(third);
+
+        final var digest = sha384DigestOrThrow();
+        first.writeTo(digest);
+        second.writeTo(digest);
+        return Bytes.wrap(digest.digest(third));
     }
 
     public static byte[] hashOfAll(@NonNull final MessageDigest digest, @NonNull final byte[]... bytes) {

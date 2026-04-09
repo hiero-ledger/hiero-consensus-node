@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.config.api.ConfigurationExtension;
+import org.hiero.consensus.metrics.config.MetricsConfigurationExtension;
+
 module org.hiero.consensus.metrics {
     exports org.hiero.consensus.metrics;
     exports org.hiero.consensus.metrics.config;
     exports org.hiero.consensus.metrics.extensions;
     exports org.hiero.consensus.metrics.noop;
-    exports org.hiero.consensus.metrics.noop.internal;
     exports org.hiero.consensus.metrics.platform;
     exports org.hiero.consensus.metrics.platform.prometheus;
     exports org.hiero.consensus.metrics.statistics;
@@ -27,4 +29,7 @@ module org.hiero.consensus.metrics {
     requires org.apache.logging.log4j;
     requires simpleclient.httpserver;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides ConfigurationExtension with
+            MetricsConfigurationExtension;
 }

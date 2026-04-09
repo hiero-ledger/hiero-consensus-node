@@ -11,8 +11,6 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
@@ -71,11 +69,17 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             this.valueCodec = Objects.requireNonNull(valueCodec);
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public StateValue<V> getDefaultInstance() {
             return new StateValue<>(stateId, valueCodec.getDefaultInstance());
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public int measureRecord(@NonNull final StateValue<V> value) {
             int size = 0;
@@ -92,6 +96,9 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             return size;
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void write(@NonNull final StateValue<V> value, @NonNull final WritableSequentialData out)
                 throws IOException {
@@ -109,6 +116,9 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             }
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @NonNull
         @Override
         public StateValue<V> parse(
@@ -141,22 +151,9 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             return new StateValue<>(stateId, value);
         }
 
-        @NonNull
-        public static Bytes unwrap(@NonNull final Bytes stateValueBytes) {
-            ReadableSequentialData sequentialData = stateValueBytes.toReadableSequentialData();
-            // skipping tag
-            sequentialData.readVarInt(false);
-            int valueSize = sequentialData.readVarInt(false);
-
-            assert valueSize == sequentialData.remaining() : "Value size mismatch";
-
-            try (InputStream is = sequentialData.asInputStream()) {
-                return Bytes.wrap(is.readAllBytes());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public boolean fastEquals(@NonNull StateValue<V> value, @NonNull ReadableSequentialData in)
                 throws ParseException {
@@ -182,6 +179,9 @@ public record StateValue<V>(int stateId, @NonNull V value) {
             return equals;
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public int measure(@NonNull final ReadableSequentialData in) throws ParseException {
             // This implementation can be optimized a bit to avoid V parsing

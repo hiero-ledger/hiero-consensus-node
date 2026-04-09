@@ -177,9 +177,8 @@ public class RepeatableTssTests {
 
         // 3. The first merkle path is a leaf with the block's consensus timestamp
         final var mp1 = merklePaths.getFirst();
-        assertTrue(mp1.hasLeaf(), "Expected first Merkle path to have a timestamp");
-        assertTrue(mp1.leafOrThrow().hasBlockConsensusTimestamp());
-        assertNotNull(mp1.leafOrThrow().blockConsensusTimestampOrThrow());
+        assertTrue(mp1.hasTimestampLeaf(), "Expected first Merkle path to have a timestamp");
+        assertNotNull(mp1.timestampLeaf());
         final var mp1NextPath = mp1.nextPathIndex();
         assertTrue(
                 mp1NextPath >= 0 && mp1NextPath < merklePaths.size(),
@@ -188,15 +187,16 @@ public class RepeatableTssTests {
         // 4. The first path's next index correctly points to the third merkle path, which should be immediately
         // preceded by the corresponding second merkle path
         final var mp2 = merklePaths.get(mp1NextPath - 1);
-        assertFalse(mp2.hasLeaf());
+        assertFalse(mp2.hasTimestampLeaf());
         assertTrue(mp2.hasHash());
-        assertEquals(4, mp2.siblings().size());
+        assertEquals(
+                BlockStreamManager.NUM_SIBLINGS_PER_BLOCK + 1, mp2.siblings().size());
 
         // 5. As above, the first path's next index points directly to path 3, which should be either an internal node
         // or the root
         final var mp3 = merklePaths.get(mp1NextPath);
         assertTrue(mp3.siblings().isEmpty());
-        assertFalse(mp3.hasLeaf());
+        assertFalse(mp3.hasTimestampLeaf());
         final var mp3NextPath = mp3.nextPathIndex();
         assertTrue(
                 mp3NextPath == -1 || (mp3NextPath >= 0 && mp3NextPath < merklePaths.size()),
@@ -205,7 +205,7 @@ public class RepeatableTssTests {
         // 6. The final path should be the block's root hash
         final var rootMp3 = merklePaths.getLast();
         assertTrue(rootMp3.siblings().isEmpty(), "Expected root Merkle path to have no siblings");
-        assertFalse(rootMp3.hasLeaf());
+        assertFalse(rootMp3.hasTimestampLeaf());
         assertEquals(MerklePath.ContentOneOfType.UNSET, rootMp3.content().kind());
         assertEquals(-1, rootMp3.nextPathIndex(), "Expected final Merkle path to terminate with -1");
     }

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.leaky.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyFactory.KeyType.THRESHOLD;
@@ -41,7 +40,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of LeakyEthereumTestsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 @SuppressWarnings("java:S5960")
 @HapiTestLifecycle
 class AtomicLeakyEthereumTestsSuite {
@@ -61,7 +60,6 @@ class AtomicLeakyEthereumTestsSuite {
     // and so `v` is calculated -> v = {0,1} + 27
     // source: https://eips.ethereum.org/EIPS/eip-155
     @LeakyHapiTest(overrides = {"contracts.chainId"})
-    @Tag(MATS)
     final Stream<DynamicTest> legacyUnprotectedEtxBeforeEIP155() {
         final String DEPOSIT = "deposit";
         final long depositAmount = 20_000L;
@@ -104,7 +102,6 @@ class AtomicLeakyEthereumTestsSuite {
      * if there is no free bit available for this information, as in values like 11155111.
      */
     @LeakyHapiTest(overrides = {"contracts.chainId"})
-    @Tag(MATS)
     /* default */ final Stream<DynamicTest> legacyUnprotectedEtxBeforeEIP155WithChainIdHavingExtraByteForSign() {
         final var deposit = "deposit";
         final var depositAmount = 20_000L;
@@ -146,7 +143,6 @@ class AtomicLeakyEthereumTestsSuite {
     // and so `v` is calculated -> v = {0,1} + CHAIN_ID * 2 + 35
     // source: https://eips.ethereum.org/EIPS/eip-155
     @LeakyHapiTest(overrides = {"contracts.chainId"})
-    @Tag(MATS)
     final Stream<DynamicTest> legacyEtxAfterEIP155() {
         final String DEPOSIT = "deposit";
         final long depositAmount = 20_000L;

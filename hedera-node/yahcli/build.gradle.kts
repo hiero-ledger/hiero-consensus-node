@@ -29,25 +29,14 @@ tasks.compileJava { dependsOn(":test-clients:assemble") }
 
 val yahCliJar =
     tasks.register<ShadowJar>("yahCliJar") {
-        archiveClassifier.set("shadow")
-        configurations = listOf(project.configurations.getByName("runtimeClasspath"))
+        archiveClassifier = "shadow"
+        configurations = listOf(project.configurations["runtimeClasspath"])
 
         manifest { attributes("Main-Class" to "com.hedera.services.yahcli.Yahcli") }
 
         // Include all classes and resources from the main source set
         from(sourceSets["main"].output)
-
-        // Also include all service files (except signature-related) in META-INF
-        mergeServiceFiles()
-        exclude(listOf("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF", "META-INF/INDEX.LIST"))
-
-        // Allow shadow Jar files to have more than 64k entries
-        isZip64 = true
-
-        dependsOn(tasks.compileJava, tasks.classes, tasks.processResources)
     }
-
-tasks.assemble { dependsOn(yahCliJar) }
 
 tasks.register<Copy>("copyYahCli") {
     group = "copy"

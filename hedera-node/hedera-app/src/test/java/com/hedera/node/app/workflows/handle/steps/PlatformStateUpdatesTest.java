@@ -11,6 +11,8 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBo
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
@@ -39,6 +41,7 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.addressbook.AddressBookService;
@@ -50,8 +53,6 @@ import com.hedera.node.app.spi.fixtures.TransactionFactory;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import java.nio.file.Path;
@@ -61,6 +62,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -82,6 +85,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
     private AtomicReference<PlatformState> platformStateBackingStore;
     private AtomicReference<RosterState> rosterStateBackingStore;
     private AtomicReference<EntityCounts> entityCountsBackingStore;
+    private AtomicReference<NodeId> highestNodeIdBackingStore;
     private ConcurrentHashMap<ProtoBytes, Roster> rosters = new ConcurrentHashMap<>();
     private ConcurrentHashMap<EntityNumber, Node> nodes = new ConcurrentHashMap<>();
     private ConcurrentHashMap<EntityNumber, StakingNodeInfo> stakingInfo = new ConcurrentHashMap<>();
@@ -99,6 +103,15 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
         rosterStateBackingStore = new AtomicReference<>(ROSTER_STATE);
         entityCountsBackingStore = new AtomicReference<>(
                 EntityCounts.newBuilder().numNodes(3).numStakingInfos(3).build());
+        highestNodeIdBackingStore =
+                new AtomicReference<>(NodeId.newBuilder().id(2L).build());
+
+        when(writableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
+                .then(invocation -> new FunctionWritableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        highestNodeIdBackingStore::get,
+                        highestNodeIdBackingStore::set));
 
         when(writableStates.getSingleton(ENTITY_COUNTS_STATE_ID))
                 .then(invocation -> new FunctionWritableSingletonState<>(
@@ -132,7 +145,9 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
                                 ENTITY_ID_STATE_ID,
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
                                 ENTITY_COUNTS_STATE_ID,
-                                entityCountsBackingStore));
+                                entityCountsBackingStore,
+                                HIGHEST_NODE_ID_STATE_ID,
+                                highestNodeIdBackingStore));
 
         subject = new PlatformStateUpdates(rosterExportHelper);
     }
@@ -365,7 +380,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
 
     private Configuration configWith(final boolean createCandidateRoster, final boolean exportCandidateRoster) {
         return HederaTestConfigBuilder.create()
-                .withValue("addressBook.createCandidateRosterOnPrepareUpgrade", "" + createCandidateRoster)
+                .withValue("networkAdmin.createCandidateRosterOnPrepareUpgrade", "" + createCandidateRoster)
                 .withValue("networkAdmin.exportCandidateRoster", "" + exportCandidateRoster)
                 .withValue("networkAdmin.candidateRosterExportFile", "candidate-network.json")
                 .getOrCreateConfig();

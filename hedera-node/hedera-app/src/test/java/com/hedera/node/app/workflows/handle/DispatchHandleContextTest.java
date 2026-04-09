@@ -16,7 +16,6 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AL
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBLE;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.independentDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
@@ -27,7 +26,6 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCus
 import static com.hedera.node.app.workflows.handle.steps.HollowAccountCompletionsTest.asTxn;
 import static java.util.Collections.emptySet;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -43,7 +41,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -67,10 +64,10 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
-import com.hedera.node.app.fees.ChildFeeContextImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.ChildFeeContext;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
@@ -91,6 +88,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -103,7 +101,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.DeduplicationCache;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.store.WritableStoreFactory;
@@ -312,7 +310,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @BeforeEach
     void setup() {
         when(serviceScopeLookup.getServiceName(any())).thenReturn(TokenService.NAME);
-        readableStoreFactory = new ReadableStoreFactory(baseState);
+        readableStoreFactory = new ReadableStoreFactoryImpl(baseState);
         apiFactory = new ServiceApiFactory(stack, configuration, Map.of(), NodeFeeAccumulator.NOOP);
         storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, apiFactory);
         subject = createContext(txBody);
@@ -482,6 +480,11 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         assertThat(subject.keyVerifier()).isEqualTo(verifier);
     }
 
+    @Test
+    void getsReadableStoreFactory() {
+        assertThat(subject.readableStoreFactory()).isEqualTo(storeFactory.asReadOnly());
+    }
+
     @Nested
     @DisplayName("Handling of stack data")
     final class StackDataTest {
@@ -559,7 +562,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             final var result = subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO);
             verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
-            assertInstanceOf(ChildFeeContextImpl.class, feeContext);
+            assertInstanceOf(ChildFeeContext.class, feeContext);
             assertSame(fees, result);
         }
 
@@ -573,7 +576,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                     subject.dispatchComputeFees(txnBodyWithoutId, account1002, ComputeDispatchFeesAsTopLevel.NO);
             verify(dispatcher).dispatchComputeFees(captor.capture());
             final var feeContext = captor.getValue();
-            assertInstanceOf(ChildFeeContextImpl.class, feeContext);
+            assertInstanceOf(ChildFeeContext.class, feeContext);
             assertSame(fees, result);
         }
     }
@@ -663,9 +666,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         }
 
         private static Stream<Arguments> createContextDispatchers() {
-            return Stream.of(Arguments.of(
-                    (Consumer<HandleContext>) context ->
-                            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class)),
+            return Stream.of(
                     Arguments.of((Consumer<HandleContext>) context -> context.dispatch(DispatchOptions.subDispatch(
                             ALICE.accountID(),
                             txBody,
@@ -677,7 +678,11 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                             UNIVERSAL_NOOP_FEE_CHARGING,
                             PropagateFeeChargingStrategy.YES))),
                     Arguments.of((Consumer<HandleContext>) context -> context.dispatch(setupDispatch(
-                            ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING)))));
+                            ALICE.accountID(),
+                            txBody,
+                            StreamBuilder.class,
+                            UNIVERSAL_NOOP_FEE_CHARGING,
+                            HandleContext.ConsensusThrottling.ON))));
         }
 
         @ParameterizedTest
@@ -698,52 +703,17 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         }
 
         @Test
-        void testDispatchPrecedingWithNonEmptyStackDoesntFail() {
-            final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
-            stack.createSavepoint();
-
-            assertThatNoException()
-                    .isThrownBy(() ->
-                            context.dispatch(independentDispatch(AccountID.DEFAULT, txBody, StreamBuilder.class)));
-            verify(dispatcher, never()).dispatchHandle(any());
-            verify(stack).commitTransaction(any());
-        }
-
-        @Test
-        void testDispatchPrecedingWithChangedDataDoesntFail() {
-            final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
-            final Map<ProtoBytes, ProtoBytes> newData = new HashMap<>(BASE_DATA);
-            newData.put(B_KEY, BLUEBERRY);
-
-            assertThatNoException()
-                    .isThrownBy(() ->
-                            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class)));
-            assertThatNoException()
-                    .isThrownBy((() ->
-                            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class))));
-            verify(dispatchProcessor, times(2)).processDispatch(any());
-        }
-
-        @Test
-        void testDispatchPrecedingIsCommitted() {
-            final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
-
-            Mockito.lenient().when(verifier.verificationFor((Key) any())).thenReturn(verification);
-
-            context.dispatch(independentDispatch(ALICE.accountID(), txBody, StreamBuilder.class));
-
-            verify(dispatchProcessor).processDispatch(childDispatch);
-            verify(stack).commitTransaction(any());
-        }
-
-        @Test
         void testRemovableDispatchPrecedingIsNotCommitted() {
             final var context = createContext(txBody, HandleContext.TransactionCategory.USER);
 
             Mockito.lenient().when(verifier.verificationFor((Key) any())).thenReturn(verification);
 
-            context.dispatch(
-                    setupDispatch(ALICE.accountID(), txBody, StreamBuilder.class, UNIVERSAL_NOOP_FEE_CHARGING));
+            context.dispatch(setupDispatch(
+                    ALICE.accountID(),
+                    txBody,
+                    StreamBuilder.class,
+                    UNIVERSAL_NOOP_FEE_CHARGING,
+                    HandleContext.ConsensusThrottling.ON));
 
             verify(dispatchProcessor).processDispatch(childDispatch);
             verify(stack, never()).commitFullStack();

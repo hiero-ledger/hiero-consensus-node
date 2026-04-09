@@ -297,6 +297,11 @@ public abstract class TraceableWiringModel implements WiringModel {
         started = true;
     }
 
+    @Override
+    public boolean isRunning() {
+        return started;
+    }
+
     /**
      * Find an existing vertex
      *

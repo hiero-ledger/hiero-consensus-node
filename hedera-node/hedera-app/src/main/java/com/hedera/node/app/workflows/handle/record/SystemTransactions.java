@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.END_OF_PERIOD_MEMO;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.fromStakingInfo;
+import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.handle.HandleOutput.failInvalidStreamItems;
@@ -21,51 +23,71 @@ import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterUtils.formatNodeName;
+import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.common.EntityNumber;
-import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.NodeStake;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionReceipt;
+import com.hedera.hapi.node.tss.LedgerIdNodeContribution;
+import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
+import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.BlocklistParser;
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
-import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
+import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils;
+import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.HandleOutput;
@@ -73,6 +95,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -91,7 +114,10 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableSingletonStateBase;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -104,6 +130,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -113,6 +141,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
@@ -129,7 +158,6 @@ public class SystemTransactions {
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
     private static final long LAST_RESERVED_SYSTEM_CONTRACT = 399L;
-    private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
     private static final long FIRST_MISC_ACCOUNT_NUM = 900L;
     private static final List<ServiceEndpoint> UNKNOWN_HAPI_ENDPOINT =
@@ -148,6 +176,7 @@ public class SystemTransactions {
     private final DispatchProcessor dispatchProcessor;
     private final ConfigProvider configProvider;
     private final EntityIdFactory idFactory;
+    private final ServicesRegistry servicesRegistry;
     private final BlockRecordManager blockRecordManager;
     private final BlockStreamManager blockStreamManager;
     private final ExchangeRateManager exchangeRateManager;
@@ -155,8 +184,18 @@ public class SystemTransactions {
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
-
+    private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
+    private final MigrationRootHashSubmissions migrationRootHashSubmissions;
+    private boolean startupMigrationVoteSubmissionRequested = false;
     private int nextDispatchNonce = 1;
+
+    @FunctionalInterface
+    public interface StateChangeStreaming {
+        void doStreamingChanges(
+                @NonNull WritableStates writableStates,
+                @Nullable WritableStates entityIdWritableStates,
+                @NonNull Runnable action);
+    }
 
     /**
      * Constructs a new {@link SystemTransactions}.
@@ -170,13 +209,16 @@ public class SystemTransactions {
             @NonNull final ConfigProvider configProvider,
             @NonNull final DispatchProcessor dispatchProcessor,
             @NonNull final AppContext appContext,
+            @NonNull final ServicesRegistry servicesRegistry,
             @NonNull final BlockRecordManager blockRecordManager,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final HederaRecordCache recordCache,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StakePeriodChanges stakePeriodChanges,
-            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager) {
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
+            @NonNull final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration,
+            @NonNull final MigrationRootHashSubmissions migrationRootHashSubmissions) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -188,6 +230,7 @@ public class SystemTransactions {
                 .getConfigData(BlockStreamConfig.class)
                 .streamMode();
         this.idFactory = appContext.idFactory();
+        this.servicesRegistry = requireNonNull(servicesRegistry);
         this.blockRecordManager = requireNonNull(blockRecordManager);
         this.blockStreamManager = requireNonNull(blockStreamManager);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
@@ -195,6 +238,8 @@ public class SystemTransactions {
         this.startupNetworks = requireNonNull(startupNetworks);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
+        this.wrappedRecordBlockHashMigration = requireNonNull(wrappedRecordBlockHashMigration);
+        this.migrationRootHashSubmissions = requireNonNull(migrationRootHashSubmissions);
     }
 
     /**
@@ -209,10 +254,35 @@ public class SystemTransactions {
      *
      * @param now the current time
      * @param state the state to set up
+     * @param stateChangeStreaming the callback to stream KV state changes
      */
-    public void doGenesisSetup(@NonNull final Instant now, @NonNull final State state) {
+    public void doGenesisSetup(
+            @NonNull final Instant now,
+            @NonNull final State state,
+            @NonNull final StateChangeStreaming stateChangeStreaming) {
         requireNonNull(now);
         requireNonNull(state);
+        final var config = configProvider.getConfiguration();
+        // Do genesis setup per-service, forcing the PlatformState singleton to be externalized first
+        final var writablePlatformStates = state.getWritableStates(PlatformStateService.NAME);
+        stateChangeStreaming.doStreamingChanges(writablePlatformStates, null, () -> {
+            // Externalize the platform state singleton as it is with a little in-place write
+            final var platformStateSingleton =
+                    writablePlatformStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID);
+            platformStateSingleton.put(platformStateSingleton.get());
+        });
+        final int networkSize = networkInfo.addressBook().size();
+        for (final var r : servicesRegistry.registrations()) {
+            final var service = r.service();
+            if (PlatformStateService.NAME.equals(service.getServiceName())) {
+                continue;
+            }
+            // Maybe EmptyWritableStates if the service's schemas register no state definitions at all
+            final var writableStates = state.getWritableStates(service.getServiceName());
+            stateChangeStreaming.doStreamingChanges(
+                    writableStates, null, () -> service.doGenesisSetup(writableStates, config, networkSize));
+        }
+
         final AtomicReference<Consumer<Dispatch>> onSuccess = new AtomicReference<>(DEFAULT_DISPATCH_ON_SUCCESS);
         final var systemContext = newSystemContext(
                 now,
@@ -221,7 +291,6 @@ public class SystemTransactions {
                 UseReservedConsensusTimes.YES,
                 TriggerStakePeriodSideEffects.NO);
 
-        final var config = configProvider.getConfiguration();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var accountsConfig = config.getConfigData(AccountsConfig.class);
         final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
@@ -305,6 +374,7 @@ public class SystemTransactions {
         final var stakingConfig = config.getConfigData(StakingConfig.class);
         final var numStoredPeriods = stakingConfig.rewardHistoryNumStoredPeriods();
         final var nodeAdminKeys = parseEd25519NodeAdminKeysFrom(bootstrapConfig.nodeAdminKeysPath());
+        final List<NodeStake> nodeStakes = new ArrayList<>();
         for (final var nodeInfo : networkInfo.addressBook()) {
             final var adminKey = nodeAdminKeys.getOrDefault(nodeInfo.nodeId(), systemKey);
             if (adminKey != systemKey) {
@@ -317,21 +387,20 @@ public class SystemTransactions {
                 final var writableStakingInfoStore = new WritableStakingInfoStore(
                         stack.getWritableStates(TokenService.NAME),
                         new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME)));
-                // Writing genesis staking info to state after the node create dispatch is only necessary if the created
-                // node's staking info isn't already present in state
                 if (writableStakingInfoStore.get(nodeInfo.nodeId()) == null) {
+                    log.info("Creating staking info for node{}", nodeInfo.nodeId());
                     final var rewardSumHistory = new Long[numStoredPeriods + 1];
                     Arrays.fill(rewardSumHistory, 0L);
-                    writableStakingInfoStore.putAndIncrementCount(
-                            nodeInfo.nodeId(),
-                            StakingNodeInfo.newBuilder()
-                                    .nodeNumber(nodeInfo.nodeId())
-                                    .maxStake(stakingConfig.maxStake())
-                                    .minStake(stakingConfig.minStake())
-                                    .rewardSumHistory(Arrays.asList(rewardSumHistory))
-                                    .weight(DEFAULT_GENESIS_WEIGHT)
-                                    .build());
+                    final var stakingNodeInfo = StakingNodeInfo.newBuilder()
+                            .nodeNumber(nodeInfo.nodeId())
+                            .maxStake(stakingConfig.maxStake())
+                            .minStake(stakingConfig.minStake())
+                            .rewardSumHistory(Arrays.asList(rewardSumHistory))
+                            .weight(DEFAULT_GENESIS_WEIGHT)
+                            .build();
+                    writableStakingInfoStore.putAndIncrementCount(nodeInfo.nodeId(), stakingNodeInfo);
                     stack.commitFullStack();
+                    nodeStakes.add(fromStakingInfo(0L, stakingNodeInfo));
                 }
             });
             systemContext.dispatchCreation(
@@ -356,8 +425,13 @@ public class SystemTransactions {
         onSuccess.set(DEFAULT_DISPATCH_ON_SUCCESS);
 
         // Now that the node metadata is correct, create the system files
-        final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+        final var nodeStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableNodeStore.class);
         fileService.createSystemEntities(systemContext, nodeStore);
+
+        // And dispatch a node stake update transaction for mirror node benefit
+        final var nodeStakeUpdate = EndOfStakingPeriodUtils.newNodeStakeUpdate(
+                lastInstantOfPreviousPeriodFor(now), nodeStakes, stakingConfig, 0L, 0L, 0L, 0L);
+        systemContext.dispatchAdmin(b -> b.memo(END_OF_PERIOD_MEMO).nodeStakeUpdate(nodeStakeUpdate));
     }
 
     /**
@@ -373,7 +447,7 @@ public class SystemTransactions {
         // We update the node details file from the address book that resulted from all pre-upgrade HAPI node changes
         final var nodesConfig = config.getConfigData(NodesConfig.class);
         if (nodesConfig.enableDAB()) {
-            final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
+            final var nodeStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
         }
         selfNodeAccountIdManager.setSelfNodeAccountId(networkInfo.selfNodeInfo().accountId());
@@ -405,6 +479,17 @@ public class SystemTransactions {
                         in -> parseConfig("override HAPI permissions", in))));
         final var feesConfig = config.getConfigData(FeesConfig.class);
         if (feesConfig.createSimpleFeeSchedule()) {
+            final var simpleFeesFileId = createFileID(filesConfig.simpleFeesSchedules(), config);
+            final var filesState =
+                    state.getReadableStates(FileService.NAME).<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
+            if (filesState.get(simpleFeesFileId) == null) {
+                log.info(
+                        "Creating simple fee schedule file {}.{}.{} (upgrading from pre-simple-fees version)",
+                        simpleFeesFileId.shardNum(),
+                        simpleFeesFileId.realmNum(),
+                        simpleFeesFileId.fileNum());
+                fileService.fileSchema().createGenesisSimpleFeesSchedule(systemContext);
+            }
             autoSysFileUpdates.add(new AutoEntityUpdate<>(
                     (ctx, bytes) -> dispatchSynthFileUpdate(
                             ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),
@@ -422,31 +507,105 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+    }
 
-        // TODO: Delete this in release 0.71
-        // If fee collection account is enabled, we need to create the fee collection account only for release 0.70
-        if (nodesConfig.feeCollectionAccountEnabled()) {
-            final var accountsConfig = config.getConfigData(AccountsConfig.class);
-            final var feeCollectionAccount = accountsConfig.feeCollectionAccount();
-            // check if account 802 exists
-            final var accounts = state.getWritableStates(TokenService.NAME)
-                    .<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_STATE_ID);
-            if (accounts.contains(idFactory.newAccountId(feeCollectionAccount))) {
-                log.info("Fee collection account already exists, skipping creation");
-                return;
+    public OptionalLong maybeSetupJumpstartHashVoting(
+            @NonNull final State state, @NonNull final StateChangeStreaming stateChangeStreaming) {
+        if (configProvider
+                .getConfiguration()
+                .getConfigData(BlockRecordStreamConfig.class)
+                .liveWritePrevWrappedRecordHashes()) {
+            final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+
+            final var blockInfoSingleton =
+                    blockRecordStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+            final var existingBlockInfo = requireNonNull(blockInfoSingleton.get());
+            if (existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0 || existingBlockInfo.votingComplete()) {
+                // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
+                if (!startupMigrationVoteSubmissionRequested) {
+                    startupMigrationVoteSubmissionRequested = true;
+                    log.info(
+                            "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
+                            existingBlockInfo.votingCompletionDeadlineBlockNumber(),
+                            existingBlockInfo.votingComplete());
+                }
+            } else {
+                final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
+                stateChangeStreaming.doStreamingChanges(blockRecordStates, null, () -> {
+                    blockInfoSingleton.put(existingBlockInfo
+                            .copyBuilder()
+                            .votingComplete(false)
+                            .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
+                            .build());
+                    ((WritableSingletonStateBase<BlockInfo>) blockInfoSingleton).commit();
+                    log.info(
+                            "Initialized wrapped record voting singleton with deadline={}",
+                            votingCompletionDeadlineBlockNumber);
+                });
+
+                // Keep migration result available for asynchronous submission once gossip is active.
+                final var migration = wrappedRecordBlockHashMigration.result();
+                if (migration != null) {
+                    startupMigrationVoteSubmissionRequested = false;
+                    log.info(
+                            "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}); will submit vote",
+                            networkInfo.selfNodeInfo().nodeId(),
+                            migration.wrappedIntermediateBlockRootsLeafCount(),
+                            migration
+                                    .wrappedIntermediatePreviousBlockRootHashes()
+                                    .size());
+                } else {
+                    startupMigrationVoteSubmissionRequested = true;
+                    log.info(
+                            "No local startup migration root hash result for node{}",
+                            networkInfo.selfNodeInfo().nodeId());
+                }
+                return OptionalLong.of(votingCompletionDeadlineBlockNumber);
             }
-
-            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-            final var systemAutoRenewPeriod = new Duration(ledgerConfig.autoRenewPeriodMaxDuration());
-            systemContext.dispatchCreation(
-                    b -> b.memo("Fee collection account creation for v0.70")
-                            .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
-                                    .key(IMMUTABILITY_SENTINEL_KEY)
-                                    .autoRenewPeriod(systemAutoRenewPeriod)
-                                    .build())
-                            .build(),
-                    feeCollectionAccount);
         }
+        return OptionalLong.empty();
+    }
+
+    /**
+     * Submits this node's startup migration root-hash vote once round handling is active.
+     *
+     * <p>If this node's vote is already present in state or voting is complete, this is a no-op.
+     * If no local migration result is available, this is also a no-op.
+     *
+     * @param state the writable state in the current handling context
+     */
+    public void maybeSubmitStartupMigrationRootHashVote(@NonNull final State state) {
+        requireNonNull(state);
+
+        final var migration = wrappedRecordBlockHashMigration.result();
+        if (migration == null) {
+            return;
+        }
+
+        final var selfNodeId = networkInfo.selfNodeInfo().nodeId();
+        final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
+        final var blockInfo = blockRecordStates
+                .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                .get();
+        if (blockInfo == null) {
+            return;
+        }
+        final var existingVote = blockInfo.migrationRootHashVotes().stream()
+                .filter(vote -> vote.nodeIdOrElse(NodeId.DEFAULT).id() == selfNodeId)
+                .map(NodeMigrationRootHashVote::vote)
+                .findFirst()
+                .orElse(null);
+        if (existingVote != null || blockInfo.votingComplete() || startupMigrationVoteSubmissionRequested) {
+            return;
+        }
+
+        final var voteBody = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(migration.previousWrappedRecordBlockRootHash())
+                .wrappedIntermediatePreviousBlockRootHashes(migration.wrappedIntermediatePreviousBlockRootHashes())
+                .wrappedIntermediateBlockRootsLeafCount(migration.wrappedIntermediateBlockRootsLeafCount())
+                .build();
+        log.info("Submitting startup migration root hash vote for node{} during round handling", selfNodeId);
+        startupMigrationVoteSubmissionRequested = migrationRootHashSubmissions.submitStartupVoteIfActive(voteBody);
     }
 
     /**
@@ -466,8 +625,8 @@ public class SystemTransactions {
             log.info("No fees to distribute for nodes");
             return;
         }
-        final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        final var systemContext =
+                newSystemContext(now, state, _ -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                         .transfers(transfers)
@@ -476,98 +635,77 @@ public class SystemTransactions {
     }
 
     /**
-     * Dispatches a synthetic node reward crypto transfer for the given active node accounts.
-     * If the {@link NodesConfig#minPerPeriodNodeRewardUsd()} is greater than zero, inactive nodes will receive the minimum node
-     * reward.
+     * Externalizes the ledger id and associated verification key for recursive chain-of-trust proofs.
      *
-     * @param state The state.
-     * @param now The current time.
-     * @param activeNodeIds The list of active node ids.
-     * @param perNodeReward The per node reward.
-     * @param nodeRewardsAccountId The node rewards account id.
-     * @param rewardAccountBalance The reward account balance.
-     * @param minNodeReward The minimum node reward.
-     * @param rosterEntries The list of roster entries.
+     * @param state the current state
+     * @param now the consensus time for the synthetic transaction
+     * @param ledgerId the new ledger id
+     * @param proofKeys the proof keys for the new ledger id
+     * @param targetNodeWeights the weights of the nodes in the target roster
+     * @param historyProofVerificationKey the verification key for the new ledger id
      */
-    public void dispatchNodeRewards(
+    public void externalizeLedgerId(
             @NonNull final State state,
             @NonNull final Instant now,
-            @NonNull final List<Long> activeNodeIds,
-            final long perNodeReward,
-            @NonNull final AccountID nodeRewardsAccountId,
-            final long rewardAccountBalance,
-            final long minNodeReward,
-            @NonNull final List<RosterEntry> rosterEntries) {
-        requireNonNull(state);
+            @NonNull final Bytes ledgerId,
+            @NonNull final List<ProofKey> proofKeys,
+            @NonNull final SortedMap<Long, Long> targetNodeWeights,
+            @NonNull final Bytes historyProofVerificationKey) {
         requireNonNull(now);
-        requireNonNull(activeNodeIds);
-        requireNonNull(nodeRewardsAccountId);
+        requireNonNull(ledgerId);
+        requireNonNull(proofKeys);
+        requireNonNull(targetNodeWeights);
+        requireNonNull(historyProofVerificationKey);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
-        final var activeNodeAccountIds = activeNodeIds.stream()
-                .map(id -> systemContext.networkInfo().nodeInfo(id))
-                .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
-                .map(NodeInfo::accountId)
+        final List<LedgerIdNodeContribution> contributions = proofKeys.stream()
+                .map(proofKey -> LedgerIdNodeContribution.newBuilder()
+                        .nodeId(proofKey.nodeId())
+                        .historyProofKey(proofKey.key())
+                        .weight(targetNodeWeights.get(proofKey.nodeId()))
+                        .build())
                 .toList();
-        final var inactiveNodeAccountIds = rosterEntries.stream()
-                .map(RosterEntry::nodeId)
-                .filter(id -> !activeNodeIds.contains(id))
-                .map(id -> systemContext.networkInfo().nodeInfo(id))
-                .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
-                .map(NodeInfo::accountId)
-                .toList();
-        if (activeNodeAccountIds.isEmpty() && (minNodeReward <= 0 || inactiveNodeAccountIds.isEmpty())) {
-            // No eligible rewards to distribute
+        systemContext.dispatchAdmin(b -> b.memo("Ledger id")
+                .ledgerIdPublication(LedgerIdPublicationTransactionBody.newBuilder()
+                        .ledgerId(ledgerId)
+                        .nodeContributions(contributions)
+                        .historyProofVerificationKey(historyProofVerificationKey)
+                        .build()));
+    }
+
+    /**
+     * Dispatches node rewards using pre-calculated reward amounts.
+     *
+     * @param state the current state
+     * @param now the current time
+     * @param rewardAmounts the pre-calculated reward amounts to dispatch
+     */
+    public void dispatchNodeRewards(
+            @NonNull final State state, @NonNull final Instant now, @NonNull final NodeRewardAmounts rewardAmounts) {
+        requireNonNull(state);
+        requireNonNull(now);
+        requireNonNull(rewardAmounts);
+
+        if (rewardAmounts.isEmpty()) {
+            log.info("No node rewards to distribute for nodes");
             return;
         }
-        log.info("Found active node accounts {}", activeNodeAccountIds);
-        if (minNodeReward > 0 && !inactiveNodeAccountIds.isEmpty()) {
-            log.info(
-                    "Found inactive node accounts {} that will receive minimum node reward {}",
-                    inactiveNodeAccountIds,
-                    minNodeReward);
-        }
-        // Check if rewardAccountBalance is enough to distribute rewards. If the balance is not enough, distribute
-        // rewards to active nodes only. If the balance is enough, distribute rewards to both active and inactive nodes.
-        final long activeTotal = activeNodeAccountIds.size() * perNodeReward;
-        final long inactiveTotal = minNodeReward > 0 ? inactiveNodeAccountIds.size() * minNodeReward : 0L;
 
-        if (rewardAccountBalance <= activeTotal) {
-            final long activeNodeReward = rewardAccountBalance / activeNodeAccountIds.size();
-            log.info("Balance insufficient for all, rewarding active nodes only: {} tinybars each", activeNodeReward);
-            if (activeNodeReward > 0) {
-                dispatchSynthNodeRewards(systemContext, activeNodeAccountIds, nodeRewardsAccountId, activeNodeReward);
-            }
-        } else {
-            final long activeNodeReward =
-                    activeNodeAccountIds.isEmpty() ? 0 : activeTotal / activeNodeAccountIds.size();
-            final long totalInactiveNodesReward =
-                    Math.min(Math.max(0, rewardAccountBalance - activeTotal), inactiveTotal);
-            final long inactiveNodeReward =
-                    inactiveNodeAccountIds.isEmpty() ? 0 : totalInactiveNodesReward / inactiveNodeAccountIds.size();
-            log.info(
-                    "Paying active nodes {} tinybars each, inactive nodes {} tinybars each",
-                    activeNodeReward,
-                    inactiveNodeReward);
-            dispatchSynthNodeRewards(
-                    systemContext,
-                    activeNodeAccountIds,
-                    nodeRewardsAccountId,
-                    activeNodeReward,
-                    inactiveNodeAccountIds,
-                    inactiveNodeReward);
-        }
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+
+        dispatchSynthNodeRewards(systemContext, rewardAmounts);
     }
 
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {
         requireNonNull(state);
         requireNonNull(now);
-        final var readableStoreFactory = new ReadableStoreFactory(state);
-        final var rosterStore = readableStoreFactory.getStore(ReadableRosterStore.class);
-        final var nodeStore = readableStoreFactory.getStore(ReadableNodeStore.class);
+        final var readableStoreFactory = new ReadableStoreFactoryImpl(state);
+        final var rosterStore = readableStoreFactory.readableStore(ReadableRosterStore.class);
+        final var nodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
-        final var network = startupNetworks.overrideNetworkFor(currentRoundNum - 1, configProvider.getConfiguration());
+        final var network = startupNetworks.lastUsedOverrideNetwork(configProvider.getConfiguration());
         if (rosterStore.isTransplantInProgress() && network.isPresent()) {
             log.info("Roster transplant in progress, dispatching node updates for round {}", currentRoundNum - 1);
             final var overrideNodes = network.get().nodeMetadata().stream()
@@ -616,9 +754,10 @@ public class SystemTransactions {
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
             }
-            final var numNodes =
-                    readableStoreFactory.getStore(ReadableEntityIdStore.class).numNodes();
-            for (var i = 0; i < numNodes; i++) {
+            final var nextNodeId = readableStoreFactory
+                    .readableStore(ReadableEntityIdStore.class)
+                    .peekAtNextNodeId();
+            for (var i = 0; i < nextNodeId; i++) {
                 final long nodeId = i;
                 final var existingNode = nodeStore.get(i);
                 if (existingNode != null && !overrideNodes.contains(nodeId) && !existingNode.deleted()) {
@@ -713,7 +852,8 @@ public class SystemTransactions {
      * Whether a context for system transactions should use reserved prior consensus times, or pick up from
      * the time given to the transaction context factory.
      */
-    private enum UseReservedConsensusTimes {
+    @VisibleForTesting
+    enum UseReservedConsensusTimes {
         YES,
         NO
     }
@@ -722,12 +862,14 @@ public class SystemTransactions {
      * Whether the dispatches in a context for system transactions should trigger stake period boundary
      * side effects.
      */
-    private enum TriggerStakePeriodSideEffects {
+    @VisibleForTesting
+    enum TriggerStakePeriodSideEffects {
         YES,
         NO
     }
 
-    private SystemContext newSystemContext(
+    @VisibleForTesting
+    SystemContext newSystemContext(
             @NonNull final Instant now,
             @NonNull final State state,
             @NonNull final Consumer<Dispatch> onSuccess,
@@ -770,7 +912,15 @@ public class SystemTransactions {
                                 .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
-                dispatch(builder.build(), 0, triggerStakePeriodSideEffects);
+                final var body = builder.build();
+                final var output = dispatch(body, 0, triggerStakePeriodSideEffects);
+                final var statuses = output.preferringBlockRecordSource().identifiedReceipts().stream()
+                        .map(RecordSource.IdentifiedReceipt::receipt)
+                        .map(TransactionReceipt::status)
+                        .toList();
+                if (!SUCCESSES.containsAll(statuses)) {
+                    log.warn("Failed to dispatch system transaction {} - {}", body, statuses);
+                }
             }
 
             @Override
@@ -811,7 +961,7 @@ public class SystemTransactions {
                 return nextConsTime.get();
             }
 
-            private void dispatch(
+            private HandleOutput dispatch(
                     @NonNull final TransactionBody body,
                     final long entityNum,
                     @NonNull final TriggerStakePeriodSideEffects triggerStakePeriodSideEffects) {
@@ -842,6 +992,7 @@ public class SystemTransactions {
                 if (streamMode != RECORDS) {
                     handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
                 }
+                return handleOutput;
             }
         };
     }
@@ -878,25 +1029,16 @@ public class SystemTransactions {
         final var parentTxn =
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
-        final var dispatch = parentTxnFactory.createDispatch(parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE);
+        final var createMetadata = new HandleContext.DispatchMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, nextEntityNum);
+        final var dispatch = parentTxnFactory.createDispatch(
+                parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE, createMetadata);
         stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
         try {
-            long prevEntityNum;
-            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
-                WritableSingletonState<EntityCounts> countsBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
-                prevEntityNum = requireNonNull(countsBefore.get()).numNodes();
-                countsBefore.put(requireNonNull(countsBefore.get())
-                        .copyBuilder()
-                        .numNodes(nextEntityNum)
-                        .build());
-            } else {
-                WritableSingletonState<EntityNumber> controlledNum =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
-                prevEntityNum = requireNonNull(controlledNum.get()).number();
-                if (nextEntityNum != 0) {
-                    controlledNum.put(new EntityNumber(nextEntityNum - 1));
-                }
+            WritableSingletonState<EntityNumber> controlledNum =
+                    dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
+            final var prevEntityNum = requireNonNull(controlledNum.get()).number();
+            if (nextEntityNum != 0) {
+                controlledNum.put(new EntityNumber(nextEntityNum - 1));
             }
 
             dispatchProcessor.processDispatch(dispatch);
@@ -911,23 +1053,16 @@ public class SystemTransactions {
             } else {
                 onSuccess.accept(dispatch);
             }
-            if (dispatch.txnInfo().functionality() == NODE_CREATE) {
-                WritableSingletonState<EntityCounts> countsBefore =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
-                countsBefore.put(requireNonNull(countsBefore.get())
-                        .copyBuilder()
-                        .numNodes(isSuccess ? Math.max(nextEntityNum + 1, prevEntityNum) : prevEntityNum)
-                        .build());
-            } else {
-                WritableSingletonState<EntityNumber> controlledNum =
-                        dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
-                if (nextEntityNum != 0) {
-                    controlledNum.put(new EntityNumber(prevEntityNum));
-                }
+
+            if (nextEntityNum != 0) {
+                controlledNum.put(new EntityNumber(prevEntityNum));
             }
+
             dispatch.stack().commitFullStack();
-            final var handleOutput =
-                    parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
+            final var handleOutput = parentTxn
+                    .stack()
+                    .buildHandleOutput(
+                            parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), currentBlockNumber());
             recordCache.addRecordSource(
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
@@ -938,6 +1073,10 @@ public class SystemTransactions {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
             return failInvalidStreamItems(parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
+    }
+
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
     }
 
     private static Bytes parseFeeSchedules(@NonNull final InputStream in) {

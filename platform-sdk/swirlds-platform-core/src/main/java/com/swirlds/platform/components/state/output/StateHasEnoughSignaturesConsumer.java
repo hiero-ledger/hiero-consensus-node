@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.state.output;
 
-import com.swirlds.platform.state.signed.SignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * An event when a signed state gathers enough signatures to be considered complete.

@@ -2,7 +2,6 @@
 package com.swirlds.state.spi;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Iterator;
 
 /**
  * Used to wrap a {@link ReadableKVState}, allowing to buffer reads into the {@link
@@ -32,13 +31,6 @@ public class WrappedReadableKVState<K, V> extends ReadableKVStateBase<K, V> {
     @Override
     protected V readFromDataSource(@NonNull K key) {
         return delegate.get(key);
-    }
-
-    /** {@inheritDoc} */
-    @NonNull
-    @Override
-    protected Iterator<K> iterateFromDataSource() {
-        return delegate.keys();
     }
 
     /** {@inheritDoc} */

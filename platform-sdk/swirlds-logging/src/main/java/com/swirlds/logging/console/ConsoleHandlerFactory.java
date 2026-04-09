@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.logging.console;
 
-import com.google.auto.service.AutoService;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.api.extensions.handler.LogHandler;
 import com.swirlds.logging.api.extensions.handler.LogHandlerFactory;
@@ -17,7 +16,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * @see ConsoleHandler
  * @see Configuration
  */
-@AutoService(LogHandlerFactory.class)
 public class ConsoleHandlerFactory implements LogHandlerFactory {
 
     public static final String CONSOLE_HANDLER_TYPE = "console";

@@ -22,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -52,15 +53,17 @@ public class TransactionProcessor {
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
     private final CodeFactory codeFactory;
+    private final HEVM hevm;
 
     public TransactionProcessor(
-            @NonNull final FrameBuilder frameBuilder,
-            @NonNull final FrameRunner frameRunner,
-            @NonNull final CustomGasCharging gasCharging,
-            @NonNull final CustomMessageCallProcessor messageCall,
-            @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull FrameBuilder frameBuilder,
+            @NonNull FrameRunner frameRunner,
+            @NonNull CustomGasCharging gasCharging,
+            @NonNull CustomMessageCallProcessor messageCall,
+            @NonNull ContractCreationProcessor contractCreation,
+            @NonNull FeatureFlags featureFlags,
+            @NonNull CodeFactory codeFactory,
+            @NonNull HEVM hevm) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
@@ -68,6 +71,7 @@ public class TransactionProcessor {
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
         this.codeFactory = codeFactory;
+        this.hevm = hevm;
     }
 
     /**
@@ -78,7 +82,9 @@ public class TransactionProcessor {
      * @param receiverAddress the address of the account receiving the top-level call
      */
     private record InvolvedParties(
-            @NonNull HederaEvmAccount sender, @Nullable HederaEvmAccount relayer, @NonNull Address receiverAddress) {
+            @NonNull HederaEvmAccount sender,
+            @Nullable HederaEvmAccount relayer,
+            @NonNull Address receiverAddress) {
         @NonNull
         AccountID senderId() {
             return sender.hederaId();
@@ -126,7 +132,7 @@ public class TransactionProcessor {
             @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final InvolvedParties parties) {
         // If it is hook dispatch, skip gas charging because gas is pre-paid in cryptoTransfer already
-        final var gasCharges = transaction.hookOwnerAddress() != null
+        final var gasCharges = transaction.isHookExecution()
                 ? GasCharges.NONE
                 : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
         final var initialFrame = frameBuilder.buildInitialFrameWith(
@@ -143,12 +149,12 @@ public class TransactionProcessor {
 
         // Compute the result of running the frame to completion
         final var result = frameRunner.runToCompletion(
-                transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation);
+                transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation, hevm);
 
         // Maybe refund some of the charged fees before committing if not a hook dispatch
         // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once
         // hook is executed
-        if (transaction.hookOwnerAddress() == null) {
+        if (!transaction.isHookExecution()) {
             gasCharging.maybeRefundGiven(
                     transaction.unusedGas(result.gasUsed()),
                     gasCharges.relayerAllowanceUsed(),
@@ -242,9 +248,9 @@ public class TransactionProcessor {
         } else {
             final var to = updater.getHederaAccount(transaction.contractIdOrThrow());
             if (contractNotRequired(to, config)) {
-                parties = partiesWhenContractNotRequired(to, sender, relayer, transaction, updater, config);
+                parties = partiesWhenContractNotRequired(to, sender, relayer, transaction, updater);
             } else {
-                parties = partiesWhenContractRequired(to, sender, relayer, transaction, updater, config);
+                parties = partiesWhenContractRequired(to, sender, relayer, transaction, updater);
             }
         }
         if (transaction.isEthereumTransaction()) {
@@ -274,10 +280,9 @@ public class TransactionProcessor {
             @NonNull final HederaEvmAccount sender,
             @Nullable final HederaEvmAccount relayer,
             @NonNull final HederaEvmTransaction transaction,
-            @NonNull final HederaWorldUpdater updater,
-            @NonNull final Configuration config) {
+            @NonNull final HederaWorldUpdater updater) {
         final InvolvedParties parties;
-        if (maybeLazyCreate(transaction, to, config)) {
+        if (maybeLazyCreate(transaction, to)) {
             // Presumably these checks _could_ be done later as part of the message
             // call, but historically we have failed fast when they do not pass
             validateTrue(transaction.hasValue(), INVALID_CONTRACT_ID);
@@ -297,10 +302,9 @@ public class TransactionProcessor {
             @NonNull final HederaEvmAccount sender,
             @Nullable final HederaEvmAccount relayer,
             @NonNull final HederaEvmTransaction transaction,
-            @NonNull final HederaWorldUpdater updater,
-            @NonNull final Configuration config) {
+            @NonNull final HederaWorldUpdater updater) {
         final InvolvedParties parties;
-        if (maybeLazyCreate(transaction, to, config)) {
+        if (maybeLazyCreate(transaction, to)) {
             // Only set up the lazy creation if the transaction has a value and a valid alias
             final var alias = transaction.contractIdOrThrow().evmAddress();
             if (transaction.hasValue() && alias != null) {
@@ -326,9 +330,7 @@ public class TransactionProcessor {
     }
 
     private boolean maybeLazyCreate(
-            @NonNull final HederaEvmTransaction transaction,
-            @Nullable final HederaEvmAccount to,
-            @NonNull final Configuration config) {
+            @NonNull final HederaEvmTransaction transaction, @Nullable final HederaEvmAccount to) {
         return to == null && transaction.isEthereumTransaction() && messageCall.isImplicitCreationEnabled();
     }
 }

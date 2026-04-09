@@ -6,6 +6,8 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdWithAlias;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static java.util.Collections.EMPTY_LIST;
 import static java.util.stream.Collectors.toList;
 
@@ -29,7 +31,6 @@ import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
-import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.Duration;
@@ -297,7 +298,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
             final double tinybarFee = centsFee
                     / spec.ratesProvider().rates().getCentEquiv()
                     * spec.ratesProvider().rates().getHbarEquiv()
-                    * HapiSuite.ONE_HBAR;
+                    * ONE_HBAR;
             fee = Optional.of((long) tinybarFee);
         }
         Consumer<TransactionBody.Builder> netDef = fee.map(amount -> minDef.andThen(b -> b.setTransactionFee(amount)))
@@ -318,9 +319,14 @@ public abstract class HapiSpecOperation implements SpecOperation {
         } else {
             final Key payerKey =
                     spec.registry().getKey(payer.orElse(spec.setup().defaultPayerName()));
-            final int numPayerKeys = hardcodedNumPayerKeys.orElse(spec.keys().controlledKeyCount(payerKey, overrides));
-            final long customFee = feeFor(spec, provisional, numPayerKeys);
-            netDef = netDef.andThen(b -> b.setTransactionFee(customFee));
+            if (spec.simpleFeesEnabled()) {
+                netDef = netDef.andThen(b -> b.setTransactionFee(ONE_HUNDRED_HBARS));
+            } else {
+                final int numPayerKeys =
+                        hardcodedNumPayerKeys.orElse(spec.keys().controlledKeyCount(payerKey, overrides));
+                final long customFee = feeFor(spec, provisional, numPayerKeys);
+                netDef = netDef.andThen(b -> b.setTransactionFee(customFee));
+            }
             txn = getSigned(spec, spec.txns().getReadyToSign(netDef, bodyMutation, spec), keys);
         }
 

@@ -1340,10 +1340,13 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             @Nullable final Map<String, String> setupOverrides,
             @NonNull final SpecOperation... ops) {
         requireNonNull(propertiesToPreserve);
+        final var specName = SPEC_NAME.get();
+        final var displayName =
+                specName != null ? specName.substring(specName.lastIndexOf('.') + 1) : AS_WRITTEN_DISPLAY_NAME;
         return Stream.of(DynamicTest.dynamicTest(
-                AS_WRITTEN_DISPLAY_NAME,
+                displayName,
                 targeted(new HapiSpec(
-                                SPEC_NAME.get(),
+                                specName,
                                 HapiSpecSetup.setupFrom(HapiSpecSetup.getDefaultPropertySource()),
                                 new SpecOperation[0],
                                 new SpecOperation[0],
@@ -1374,6 +1377,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         }
         Optional.ofNullable(TEST_LIFECYCLE.get())
                 .map(TestLifecycle::getSharedStates)
+                .map(List::copyOf)
                 .ifPresent(spec::setSharedStates);
         spec.throttleResource = THROTTLES_OVERRIDE.get();
         spec.feeResource = FEES_OVERRIDE.get();
@@ -1502,6 +1506,13 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         interface Then {
             Stream<DynamicTest> then(SpecOperation... ops);
         }
+    }
+
+    public boolean simpleFeesEnabled() {
+        return this.targetNetworkOrThrow()
+                .startupProperties()
+                .get("fees.simpleFeesEnabled")
+                .equals("true");
     }
 
     @Override

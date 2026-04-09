@@ -6,6 +6,7 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP
 
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
@@ -13,8 +14,6 @@ import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
 import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.state.service.SnapshotPlatformStateAccessor;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -24,6 +23,8 @@ import java.time.InstantSource;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntSupplier;
 import javax.inject.Singleton;
+import org.hiero.consensus.platformstate.PlatformStateAccessor;
+import org.hiero.consensus.platformstate.SnapshotPlatformStateAccessor;
 
 @Module
 public interface StandaloneModule {
@@ -31,6 +32,13 @@ public interface StandaloneModule {
     @Nullable
     @Singleton
     static AtomicBoolean provideMaybeSystemEntitiesCreatedFlag() {
+        return null;
+    }
+
+    @Provides
+    @Nullable
+    @Singleton
+    static BlockRecordManager provideNoOpBlockRecordManager() {
         return null;
     }
 

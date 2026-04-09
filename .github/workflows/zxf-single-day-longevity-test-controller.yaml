@@ -16,7 +16,7 @@ permissions:
 jobs:
   verify-tag:
     name: Verify Tag
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdlt-lin-sm
     continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
@@ -66,16 +66,17 @@ jobs:
       ref: "${{ github.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "100000000"
-      nlg-time: "960"
+      nlg-time: "720"
       add-app-props: ""
       add-settings: ""
+      reconnect-uptime: "600"
       delete-namespace: true
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - run-single-day-longevity-test
       - verify-tag
@@ -126,7 +127,7 @@ jobs:
 
   get-commit-info:
     name: Get Commit Information
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
     outputs:
@@ -176,7 +177,7 @@ jobs:
 
   report-success:
     name: Report SDLT execution success
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
       - tag-sdlt-result
@@ -196,7 +197,7 @@ jobs:
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_PERFORMANCE_TEST_REPORTS }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload: |
@@ -300,7 +301,7 @@ jobs:
 
   report-failure:
     name: Report SDLT execution failure
-    runs-on: hiero-citr-linux-medium
+    runs-on: hl-cn-sdlt-lin-sm
     needs:
       - verify-tag
       - run-single-day-longevity-test
@@ -527,18 +528,20 @@ jobs:
           }
           EOF
 
-      - name: Report failure (slack citr-operations)
+      - name: Report failure (slack performance-test-reports)
+        if: ${{ steps.set-service.outputs.service != 'CI/CD Workflows' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_PERFORMANCE_TEST_REPORTS }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
 
-      - name: Report failure (slack release-team)
+      - name: Report failure (slack citr-failures)
+        if: ${{ steps.set-service.outputs.service == 'CI/CD Workflows' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
-          webhook: ${{ secrets.SLACK_RELEASE_TEAM_WEBHOOK }}
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json

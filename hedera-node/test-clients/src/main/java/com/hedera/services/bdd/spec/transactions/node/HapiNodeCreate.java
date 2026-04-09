@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.spec.transactions.node;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.endpointFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.endpointFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdForKeyLookUp;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
@@ -61,6 +61,9 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
     private Optional<String> adminKeyName = Optional.empty();
     private Optional<KeyShape> adminKeyShape = Optional.empty();
     private Optional<Boolean> declineReward = Optional.empty();
+
+    @Nullable
+    private List<Long> associatedRegisteredNode;
 
     @Nullable
     private LongConsumer nodeIdObserver;
@@ -156,6 +159,11 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
         return this;
     }
 
+    public HapiNodeCreate associatedRegisteredNode(@NonNull final List<Long> ids) {
+        this.associatedRegisteredNode = requireNonNull(ids);
+        return this;
+    }
+
     public HapiNodeCreate adminKey(final String name) {
         adminKeyName = Optional.of(name);
         return this;
@@ -217,6 +225,9 @@ public class HapiNodeCreate extends HapiTxnOp<HapiNodeCreate> {
                             gossipCaCertificate.ifPresent(s -> builder.setGossipCaCertificate(ByteString.copyFrom(s)));
                             grpcCertificateHash.ifPresent(s -> builder.setGrpcCertificateHash(ByteString.copyFrom(s)));
                             declineReward.ifPresent(builder::setDeclineReward);
+                            if (associatedRegisteredNode != null) {
+                                builder.addAllAssociatedRegisteredNode(associatedRegisteredNode);
+                            }
                         });
         return b -> b.setNodeCreate(opBody);
     }

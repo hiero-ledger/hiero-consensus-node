@@ -6,13 +6,15 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.records.RecordCache;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -80,13 +82,26 @@ public class QueryContextImpl implements QueryContext {
     @Override
     @NonNull
     public <C> C createStore(@NonNull Class<C> storeInterface) {
-        return storeFactory.getStore(storeInterface);
+        return storeFactory.readableStore(storeInterface);
     }
 
     @NonNull
     @Override
     public Configuration configuration() {
         return configuration;
+    }
+
+    @NonNull
+    @Override
+    public Bytes ledgerId() {
+        final var historyStore = storeFactory.readableStore(ReadableHistoryStore.class);
+        if (historyStore != null) {
+            final var externalizedLedgerId = historyStore.getLedgerId();
+            if (externalizedLedgerId != null) {
+                return externalizedLedgerId;
+            }
+        }
+        return QueryContext.super.ledgerId();
     }
 
     @NonNull

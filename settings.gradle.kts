@@ -1,22 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 plugins {
-    id("org.hiero.gradle.build") version "0.6.2"
-    id("com.hedera.pbj.pbj-compiler") version "0.12.10" apply false
+    id("org.hiero.gradle.build") version "0.7.6"
+    id("com.hedera.pbj.pbj-compiler") version "0.14.5" apply false
+}
+
+// Configure test retry for CI flaky test handling using the retry plugin bundled with Develocity.
+// Retries only in CI (when the CI env var is set).
+// Flaky tests (passed after retry) do not fail the build.
+gradle.allprojects {
+    pluginManager.withPlugin("java") {
+        tasks.withType(Test::class.java).configureEach {
+            develocity.testRetry {
+                maxRetries.set(providers.environmentVariable("CI").map { 2 }.orElse(0))
+                maxFailures.set(10)
+                failOnPassedAfterRetry.set(false)
+            }
+            reports.junitXml.mergeReruns.set(true)
+        }
+    }
 }
 
 javaModules {
-    // This "intermediate parent project" should be removed
-    module("platform-sdk") { artifact = "swirlds-platform" }
-
     // The Hedera API module
     directory("hapi") { group = "com.hedera.hashgraph" }
 
     // The Hedera platform modules
-    directory("platform-sdk") {
-        group = "com.hedera.hashgraph"
-        module("swirlds") // not actually a Module as it has no module-info.java
-        module("swirlds-benchmarks") // not actually a Module as it has no module-info.java
-    }
+    directory("platform-sdk") { group = "com.hedera.hashgraph" }
 
     // The Hedera services modules
     directory("hedera-node") {
@@ -52,6 +61,8 @@ javaModules {
 
     // Platform-base demo applications
     directory("example-apps") { group = "com.hedera.hashgraph" }
+
+    directory("hiero-observability") { group = "com.hedera.hashgraph" }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }

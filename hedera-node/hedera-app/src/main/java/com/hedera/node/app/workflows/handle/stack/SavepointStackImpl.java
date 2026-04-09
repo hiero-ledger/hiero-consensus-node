@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -15,6 +16,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBe
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
+import static com.hedera.node.app.workflows.handle.stack.savepoints.AbstractSavepoint.SUCCESSES;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
@@ -261,6 +263,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         while (!stack.isEmpty()) {
             stack.pop().rollback();
         }
+        // Rolling back is idempotent for stream builders; so make certain here that we do it for our base builder
+        // (if we were used to persist stake-period changes, it will have already been "flushed" into our sink)
+        baseBuilder.nullOutSideEffectFields();
+        if (SUCCESSES.contains(baseBuilder.status())) {
+            baseBuilder.status(REVERTED_SUCCESS);
+        }
         setupFirstSavepoint(baseBuilder.category());
     }
 
@@ -361,14 +369,15 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
-     * May only be called on the root stack to determine if this stack has capacity to create more system records to
+     * May only be called on the root stack to determine if this stack has capacity to create more system records
      * as preceding dispatches.
      *
      * @return whether there are more system records to be created
      * @throws NullPointerException if called on a non-root stack
      */
-    public boolean hasMoreSystemRecords() {
-        return requireNonNull(builderSink).precedingCapacity() > 0;
+    public boolean rootHasPrecedingCapacity() {
+        return requireNonNull(builderSink).precedingCapacity()
+                > requireNonNull(stack.peekFirst()).numPreceding();
     }
 
     /**
@@ -488,7 +497,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
-     * Builds the {@link BlockRecordSource} and/or {@link RecordSource} for this user transaction.
+     * Builds the {@link BlockRecordSource} and/or {@link RecordSource} for this user transaction. This is only used in
+     * {@link com.hedera.node.app.workflows.standalone.TransactionExecutor}
      *
      * @param consensusTime consensus time of the transaction
      * @param exchangeRates the active exchange rates
@@ -496,6 +506,21 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      */
     public HandleOutput buildHandleOutput(
             @NonNull final Instant consensusTime, @NonNull final ExchangeRateSet exchangeRates) {
+        return buildHandleOutput(consensusTime, exchangeRates, null);
+    }
+
+    /**
+     * Builds the {@link BlockRecordSource} and/or {@link RecordSource} for this user transaction.
+     *
+     * @param consensusTime consensus time of the transaction
+     * @param exchangeRates the active exchange rates
+     * @param blockNumber the block number for the produced records, if known
+     * @return the source of records and/or blocks for the transaction
+     */
+    public HandleOutput buildHandleOutput(
+            @NonNull final Instant consensusTime,
+            @NonNull final ExchangeRateSet exchangeRates,
+            @Nullable final Long blockNumber) {
         final List<BlockStreamBuilder.Output> outputs = streamMode != RECORDS ? new LinkedList<>() : null;
         final List<SingleTransactionRecord> records = streamMode != BLOCKS ? new ArrayList<>() : null;
         final List<RecordSource.IdentifiedReceipt> receipts = streamMode != BLOCKS ? new ArrayList<>() : null;
@@ -573,6 +598,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                     case CHILD -> builder.parentConsensus(parentConsensusTime).exchangeRate(null);
                 }
             }
+            if (streamMode == BLOCKS) {
+                builder.blockNumber(blockNumber);
+            }
 
             switch (streamMode) {
                 case RECORDS -> {
@@ -615,13 +643,5 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     @Override
     public void setHash(Hash hash) {
         state.setHash(hash);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isStartUpMode() {
-        return state.isStartUpMode();
     }
 }

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -94,7 +93,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of HelloWorldEthereumSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 class AtomicHelloWorldEthereumSuite {
     public static final long depositAmount = 20_000L;
 
@@ -198,7 +197,6 @@ class AtomicHelloWorldEthereumSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> badRelayClient() {
         final var adminKey = "adminKey";
         final var exploitToken = "exploitToken";
@@ -296,7 +294,6 @@ class AtomicHelloWorldEthereumSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> depositSuccess() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),

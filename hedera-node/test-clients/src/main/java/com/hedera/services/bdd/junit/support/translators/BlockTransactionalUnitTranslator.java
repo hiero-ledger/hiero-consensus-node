@@ -29,11 +29,16 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_ASSEMBLY_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_KEY_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
-import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
+import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
@@ -83,6 +88,7 @@ import com.hedera.services.bdd.junit.support.translators.impl.EthereumTransactio
 import com.hedera.services.bdd.junit.support.translators.impl.FileCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.FileUpdateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.NodeCreateTranslator;
+import com.hedera.services.bdd.junit.support.translators.impl.RegisteredNodeCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ScheduleCreateTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ScheduleDeleteTranslator;
 import com.hedera.services.bdd.junit.support.translators.impl.ScheduleSignTranslator;
@@ -143,11 +149,14 @@ public class BlockTransactionalUnitTranslator {
                     put(FILE_UPDATE, new FileUpdateTranslator());
                     put(FILE_APPEND, new FileAppendTranslator());
                     put(FREEZE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
-                    put(LAMBDA_S_STORE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(HOOK_STORE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_CREATE, new NodeCreateTranslator());
                     put(NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(NODE_STAKE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(REGISTERED_NODE_CREATE, new RegisteredNodeCreateTranslator());
+                    put(REGISTERED_NODE_DELETE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(REGISTERED_NODE_UPDATE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(SCHEDULE_CREATE, new ScheduleCreateTranslator());
                     put(SCHEDULE_DELETE, new ScheduleDeleteTranslator());
                     put(SCHEDULE_SIGN, new ScheduleSignTranslator());
@@ -183,6 +192,8 @@ public class BlockTransactionalUnitTranslator {
                     put(HISTORY_PROOF_KEY_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(HISTORY_ASSEMBLY_SIGNATURE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(HISTORY_PROOF_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(LEDGER_ID_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(MIGRATION_ROOT_HASH_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                 }
             };
 

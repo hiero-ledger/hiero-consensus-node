@@ -7,6 +7,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
@@ -34,6 +36,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
@@ -107,7 +110,10 @@ class TokenServiceApiImplTest {
                     ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.DEFAULT, c -> {}),
             ENTITY_COUNTS_STATE_ID,
             new FunctionWritableSingletonState<>(
-                    ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {})));
+                    ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {}),
+            HIGHEST_NODE_ID_STATE_ID,
+            new FunctionWritableSingletonState<>(
+                    HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.DEFAULT, c -> {})));
     private WritableAccountStore accountStore;
 
     @Mock
@@ -210,7 +216,7 @@ class TokenServiceApiImplTest {
         final var accountId = AccountID.newBuilder().accountNum(12345).build();
         accountStore.put(Account.newBuilder().accountId(accountId).build());
 
-        final var e = assertThrows(HandleException.class, () -> subject.updateLambdaStorageSlots(accountId, 1, true));
+        final var e = assertThrows(HandleException.class, () -> subject.updateHookStorageSlots(accountId, 1, true));
         assertEquals(ResponseCodeEnum.WRONG_HOOK_ENTITY_TYPE, e.getStatus());
     }
 
@@ -832,23 +838,29 @@ class TokenServiceApiImplTest {
                     .build());
 
             final var config = configBuilder.getOrCreateConfig();
-            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+            nodeFeeAccumulator.accumulate(NODE_ACCOUNT_ID, 10L);
+            subject =
+                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
 
             // When we refund fees (with node fee)
             final var fees = new Fees(10, 20, 20); // 10 node, 40 network+service
             subject.refundFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, (amount) -> {});
 
-            // Then fee collection account balance is reduced by network+service fees
+            // Then fee collection account balance is reduced by total fees
             final var feeCollectionAccount = requireNonNull(accountState.get(FEE_COLLECTION_ACCOUNT_ID));
-            assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(60L); // 100 - 40
+            assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(50L); // 100 - 50
 
-            // And node account balance is reduced by node fee
+            // And node account balance is unchanged
             final var nodeAccount = requireNonNull(accountState.get(NODE_ACCOUNT_ID));
-            assertThat(nodeAccount.tinybarBalance()).isEqualTo(40L); // 50 - 10
+            assertThat(nodeAccount.tinybarBalance()).isEqualTo(50L);
 
             // And payer balance is increased by total refund
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
             assertThat(payerAccount.tinybarBalance()).isEqualTo(70L); // 20 + 50 (10 + 40)
+
+            // And accumulated node fees are reduced
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isZero();
         }
 
         private static class TestNodeFeeAccumulator implements NodeFeeAccumulator {
@@ -857,6 +869,20 @@ class TokenServiceApiImplTest {
             @Override
             public void accumulate(AccountID nodeAccountId, long amount) {
                 accumulatedFees.merge(nodeAccountId, amount, Long::sum);
+            }
+
+            @Override
+            public void dissipate(AccountID nodeAccountId, long amount) {
+                accumulatedFees.compute(nodeAccountId, (id, currentFees) -> {
+                    if (currentFees == null || currentFees == 0) {
+                        return null; // Remove the entry if it would be zero or negative
+                    }
+                    final long newFees = currentFees - amount;
+                    if (newFees < 0) {
+                        return null; // Remove the entry if it would be zero or negative
+                    }
+                    return newFees == 0 ? null : newFees; // Remove entry if zero
+                });
             }
 
             public long getAccumulatedFees(AccountID nodeAccountId) {

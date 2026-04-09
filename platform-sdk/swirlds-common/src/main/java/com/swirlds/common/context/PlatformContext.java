@@ -5,14 +5,12 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.merkle.crypto.MerkleCryptography;
-import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.Thread.UncaughtExceptionHandler;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
@@ -39,8 +37,7 @@ public interface PlatformContext {
         final Metrics metrics = new NoOpMetrics();
         final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
         final Time time = Time.getCurrent();
-        final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);
-        return create(configuration, time, metrics, fileSystemManager, new NoOpRecycleBin(), merkleCryptography);
+        return create(configuration, time, metrics, fileSystemManager, new NoOpRecycleBin());
     }
 
     /**
@@ -61,13 +58,11 @@ public interface PlatformContext {
             @NonNull final Time time,
             @NonNull final Metrics metrics,
             @NonNull final FileSystemManager fileSystemManager,
-            @NonNull final RecycleBin recycleBin,
-            @NonNull final MerkleCryptography merkleCryptography) {
+            @NonNull final RecycleBin recycleBin) {
 
         final UncaughtExceptionHandler handler = new PlatformUncaughtExceptionHandler();
         final ExecutorFactory executorFactory = ExecutorFactory.create("platform", null, handler);
-        return new DefaultPlatformContext(
-                configuration, metrics, time, executorFactory, fileSystemManager, recycleBin, merkleCryptography);
+        return new DefaultPlatformContext(configuration, metrics, time, executorFactory, fileSystemManager, recycleBin);
     }
 
     /**
@@ -117,12 +112,4 @@ public interface PlatformContext {
      */
     @NonNull
     RecycleBin getRecycleBin();
-
-    /**
-     * Returns the {@link MerkleCryptography} for this node
-     *
-     * @return the {@link MerkleCryptography} for this node
-     */
-    @NonNull
-    MerkleCryptography getMerkleCryptography();
 }

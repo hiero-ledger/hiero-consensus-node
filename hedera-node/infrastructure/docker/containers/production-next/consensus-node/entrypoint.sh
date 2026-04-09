@@ -159,8 +159,8 @@ echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> BEGIN WAITING FOR FILES >>>>>>>>
 ## This is a permanent belt and suspenders type of fix in addition to any resiliency which may also be added to the
 ## Platform configuration loading mechanism.
 waitForFileEx "log4j2.xml" "Checking for log4j2.xml presence"
-waitForFileEx "config.txt" "Checking for config.txt presence"
 waitForFileEx "settings.txt" "Checking for settings.txt presence"
+waitForFileEx "data/config/genesis-network.json" "Checking for genesis-network.json presence"
 waitForFileEx "data/config/application.properties" "Checking for application.properties presence"
 waitForFileEx "data/config/api-permission.properties" "Checking for api-permission.properties presence"
 waitForFileEx "hedera.crt" "Checking for hedera.crt presence (optional)" "true"

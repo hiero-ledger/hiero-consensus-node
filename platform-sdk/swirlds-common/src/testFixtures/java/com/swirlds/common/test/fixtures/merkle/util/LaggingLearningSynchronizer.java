@@ -3,18 +3,15 @@ package com.swirlds.common.test.fixtures.merkle.util;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.metrics.api.Metrics;
+import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.io.SelfSerializable;
+import org.hiero.base.crypto.Hashable;
+import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link LearningSynchronizer} with simulated latency.
@@ -25,25 +22,16 @@ public class LaggingLearningSynchronizer extends LearningSynchronizer {
 
     /**
      * Create a new learning synchronizer with simulated latency.
-     * @param metrics a Metrics object
      */
     public LaggingLearningSynchronizer(
-            final MerkleDataInputStream in,
-            final MerkleDataOutputStream out,
-            final MerkleNode root,
+            final SerializableDataInputStream in,
+            final SerializableDataOutputStream out,
+            final Hashable newRoot,
+            final LearnerTreeView view,
             final int latencyMilliseconds,
             final Runnable breakConnection,
-            final ReconnectConfig reconnectConfig,
-            @NonNull final Metrics metrics) {
-        super(
-                getStaticThreadManager(),
-                in,
-                out,
-                root,
-                breakConnection,
-                TestMerkleCryptoFactory.getInstance(),
-                reconnectConfig,
-                metrics);
+            final ReconnectConfig reconnectConfig) {
+        super(getStaticThreadManager(), in, out, newRoot, view, breakConnection, reconnectConfig);
 
         this.latencyMilliseconds = latencyMilliseconds;
     }
@@ -52,8 +40,10 @@ public class LaggingLearningSynchronizer extends LearningSynchronizer {
      * {@inheritDoc}
      */
     @Override
-    public <T extends SelfSerializable> AsyncOutputStream<T> buildOutputStream(
-            final StandardWorkGroup workGroup, final SerializableDataOutputStream out) {
-        return new LaggingAsyncOutputStream<>(out, workGroup, latencyMilliseconds, reconnectConfig);
+    protected AsyncOutputStream buildOutputStream(
+            @NonNull final StandardWorkGroup workGroup,
+            @NonNull final SerializableDataOutputStream out,
+            @NonNull final ReconnectConfig reconnectConfig) {
+        return new LaggingAsyncOutputStream(out, workGroup, latencyMilliseconds, reconnectConfig);
     }
 }

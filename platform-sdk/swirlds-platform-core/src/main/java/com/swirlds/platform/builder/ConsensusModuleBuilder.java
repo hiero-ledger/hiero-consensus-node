@@ -1,128 +1,152 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.io.utility.NoOpRecycleBin;
-import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
-import com.swirlds.component.framework.model.WiringModel;
+import static com.swirlds.logging.legacy.LogMarker.ERROR;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
+import com.swirlds.platform.reconnect.ReconnectModule;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.SecureRandom;
 import java.util.List;
-import java.util.Map;
 import java.util.ServiceLoader;
-import org.hiero.consensus.crypto.SigningSchema;
-import org.hiero.consensus.event.IntakeEventCounter;
+import java.util.ServiceLoader.Provider;
+import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.gossip.GossipModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.pces.PcesModule;
 
 /**
  * A builder for consensus modules using the ServiceLoader mechanism.
+ *
+ * <p>Module selection is driven by {@link ModulesConfig}. When a config property is set, the
+ * provider whose JPMS module name matches the property value is selected. When the property is
+ * empty and only one provider exists, that provider is used. When the property is empty but
+ * multiple providers exist, an {@link IllegalStateException} is thrown to prevent
+ * non-deterministic selection across nodes.
  */
 public class ConsensusModuleBuilder {
+
+    private static final Logger log = LogManager.getLogger(ConsensusModuleBuilder.class);
 
     private ConsensusModuleBuilder() {}
 
     /**
-     * Create an instance of the {@link EventCreatorModule} using {@link ServiceLoader}.
+     * Create a module implementation via {@link ServiceLoader}, selecting by JPMS module name when configured, and
+     * enforcing determinism when multiple providers are available.
      *
-     * @return an instance of {@code EventCreatorModule}
-     * @throws IllegalStateException if no implementation is found
+     * <p>The config property name is derived from the interface's simple name by stripping the
+     * {@code "Module"} suffix and lowercasing the first letter (e.g. {@code EventCreatorModule}
+     * becomes config key {@code "modules.eventCreator"}).
+     *
+     * @param <T>            the module interface type
+     * @param moduleClass    the module interface class (must end with {@code "Module"})
+     * @param configuration  the configuration to read the selected module from
+     * @return the selected module instance
+     * @throws IllegalStateException if no provider is found, multiple providers exist without explicit selection,
+     *                               or the class name does not follow the naming convention
      */
-    public static EventCreatorModule createEventCreatorModule() {
-        return ServiceLoader.load(EventCreatorModule.class)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No EventCreatorModule implementation found!"));
+    public static <T> T createModule(@NonNull final Class<T> moduleClass, @NonNull final Configuration configuration) {
+        final String selectedModule = getSelectedModule(moduleClass, configuration);
+        return createModule(moduleClass, selectedModule);
     }
 
     /**
-     * Create and initialize a no-op instance of the {@link EventCreatorModule}.
+     * Create a module implementation via {@link ServiceLoader}, selecting by JPMS module name when configured, and
+     * enforcing determinism when multiple providers are available.
      *
-     * @param model the wiring model
-     * @param configuration the configuration
-     * @return an initialized no-op instance of {@code EventCreatorModule}
+     * <p>The config property name is derived from the interface's simple name by stripping the
+     * {@code "Module"} suffix and lowercasing the first letter (e.g. {@code EventCreatorModule}
+     * becomes config key {@code "modules.eventCreator"}).
+     *
+     * @param <T>            the module interface type
+     * @param moduleClass    the module interface class (must end with {@code "Module"})
+     * @param selectedModule  the name of the module to load
+     * @return the selected module instance
+     * @throws IllegalStateException if no provider is found, multiple providers exist without explicit selection,
+     *                               or the class name does not follow the naming convention
      */
-    public static EventCreatorModule createNoOpEventCreatorModule(
-            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
-        final Metrics metrics = new NoOpMetrics();
-        final Time time = Time.getCurrent();
-        final NodeId selfId = NodeId.FIRST_NODE_ID;
-        final SecureRandom random = new SecureRandom();
-        final KeysAndCerts keysAndCerts;
+    public static <T> @NonNull T createModule(final @NonNull Class<T> moduleClass, final String selectedModule) {
         try {
-            keysAndCerts = KeysAndCertsGenerator.generate(selfId, SigningSchema.ED25519, random, random);
-        } catch (final Exception e) {
-            throw new RuntimeException("Exception thrown while creating dummy KeysAndCerts", e);
+
+            final List<Provider<T>> providers = loadProviders(moduleClass);
+
+            if (providers.isEmpty()) {
+                throw new IllegalStateException("No " + moduleClass.getSimpleName() + " implementation found!");
+            }
+
+            final Provider<T> provider;
+            if ("".equals(selectedModule)) {
+                if (providers.size() > 1) {
+                    final String available = providers.stream()
+                            .map(ConsensusModuleBuilder::providerModuleName)
+                            .collect(Collectors.joining(", "));
+                    throw new IllegalStateException("Multiple " + moduleClass.getSimpleName() + " providers found ["
+                            + available + "] but no explicit selection has been configured. "
+                            + "Explicit selection is required to guarantee determinism.");
+                }
+                provider = providers.getFirst();
+            } else {
+                provider = providers.stream()
+                        .filter(p -> providerModuleName(p).equals(selectedModule))
+                        .findFirst()
+                        .orElseThrow(() -> {
+                            final String available = providers.stream()
+                                    .map(ConsensusModuleBuilder::providerModuleName)
+                                    .sorted()
+                                    .collect(Collectors.joining(", "));
+                            return new IllegalStateException(
+                                    "No " + moduleClass.getSimpleName() + " provider found in requested module '"
+                                            + selectedModule + "'. Available: [" + available + "]");
+                        });
+            }
+            final T module = provider.get();
+
+            log.info(
+                    STARTUP.getMarker(),
+                    "Loaded {} module: {} (from {})",
+                    moduleClass.getSimpleName(),
+                    module.getClass().getSimpleName(),
+                    providerModuleName(provider));
+            return module;
+        } catch (final IllegalStateException e) {
+            log.error(ERROR.getMarker(), e.getMessage(), e);
+
+            throw e;
         }
-        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
+    }
 
-        final EventCreatorModule eventCreatorModule = createEventCreatorModule();
-        eventCreatorModule.initialize(
-                model, configuration, metrics, time, random, keysAndCerts, roster, selfId, List::of, () -> false);
-        return eventCreatorModule;
+    private static <T> String getSelectedModule(
+            @NonNull final Class<T> moduleClass, @NonNull final Configuration configuration) {
+        final ModulesConfig modulesConfig = configuration.getConfigData(ModulesConfig.class);
+
+        if (moduleClass.equals(EventCreatorModule.class)) return modulesConfig.eventCreator();
+        if (moduleClass.equals(EventIntakeModule.class)) return modulesConfig.eventIntake();
+        if (moduleClass.equals(GossipModule.class)) return modulesConfig.gossip();
+        if (moduleClass.equals(HashgraphModule.class)) return modulesConfig.hashgraph();
+        if (moduleClass.equals(ReconnectModule.class)) return modulesConfig.reconnect();
+        if (moduleClass.equals(PcesModule.class)) return modulesConfig.pces();
+
+        throw new IllegalStateException("Module:" + moduleClass.getSimpleName() + " not recognized");
     }
 
     /**
-     * Create an instance of the {@link EventIntakeModule} using {@link ServiceLoader}.
-     *
-     * @return an instance of {@code EventIntakeModule}
-     * @throws IllegalStateException if no implementation is found
+     * Load all {@link ServiceLoader} providers for the given module interface.
      */
-    public static EventIntakeModule createEventIntakeModule() {
-        return ServiceLoader.load(EventIntakeModule.class)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No EventIntakeModule implementation found!"));
+    static <T> List<Provider<T>> loadProviders(@NonNull final Class<T> moduleClass) {
+        return ServiceLoader.load(moduleClass).stream().toList();
     }
 
     /**
-     * Create and initialize a no-op instance of the {@link EventIntakeModule}.
-     *
-     * @param model the wiring model
-     * @param configuration the configuration
-     * @return an initialized no-op instance of {@code EventIntakeModule}
+     * Get a stable identifier for a ServiceLoader provider. Uses the JPMS module name when
+     * available; falls back to the provider class's package name for classpath (unnamed module)
+     * environments such as containers.
      */
-    public static EventIntakeModule createNoOpEventIntakeModule(
-            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
-        final Metrics metrics = new NoOpMetrics();
-        final Time time = Time.getCurrent();
-        final NodeId selfId = NodeId.FIRST_NODE_ID;
-        final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
-        final RosterHistory rosterHistory =
-                new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
-        final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
-        final TransactionLimits transactionLimits = new TransactionLimits(0, 0);
-        final RecycleBin recycleBin = new NoOpRecycleBin();
-        final long startingRound = 0L;
-        final EventPipelineTracker eventPipelineTracker = null;
-
-        final EventIntakeModule eventIntakeModule = createEventIntakeModule();
-        eventIntakeModule.initialize(
-                model,
-                configuration,
-                metrics,
-                time,
-                rosterHistory,
-                selfId,
-                intakeEventCounter,
-                transactionLimits,
-                recycleBin,
-                startingRound,
-                eventPipelineTracker);
-        return eventIntakeModule;
+    private static <T> String providerModuleName(@NonNull final Provider<T> provider) {
+        final String jpmsName = provider.type().getModule().getName();
+        return jpmsName != null ? jpmsName : provider.type().getPackageName();
     }
 }

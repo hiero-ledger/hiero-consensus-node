@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token.batch;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.TOKEN;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
@@ -20,8 +18,6 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.roy
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeWithFallback;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -41,7 +37,6 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -51,8 +46,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of TokenFeeScheduleUpdateSpecs. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(TOKEN)
-@Tag(MATS)
+@Tag(ATOMIC_BATCH)
 class AtomicTokenFeeScheduleUpdateSpecs {
 
     private static final String BATCH_OPERATOR = "batchOperator";
@@ -156,80 +150,6 @@ class AtomicTokenFeeScheduleUpdateSpecs {
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)));
-    }
-
-    private HapiSpecOperation[] customFeeValidationBase() {
-        final var hbarAmount = 1_234L;
-        final var htsAmount = 2_345L;
-        final var numerator = 1;
-        final var denominator = 10;
-        final var minimumToCollect = 5;
-        final var maximumToCollect = 50;
-
-        final var token = "withCustomSchedules";
-        final var immutableTokenWithFeeScheduleKey = "immutableToken";
-        final var noFeeScheduleKeyToken = "tokenWithoutFeeScheduleKey";
-        final var feeDenom = "denom";
-        final var hbarCollector = "hbarFee";
-        final var htsCollector = "denomFee";
-        final var tokenCollector = "fractionalFee";
-
-        final var adminKey = "admin";
-        final var feeScheduleKey = "feeSchedule";
-
-        final var newFeeDenom = "newDenom";
-        final var newHbarCollector = "newHbarFee";
-        final var newHtsCollector = "newDenomFee";
-        final var newTokenCollector = "newFractionalFee";
-
-        return new HapiSpecOperation[] {
-            fileUpdate(APP_PROPERTIES).payingWith(GENESIS).overridingProps(Map.of("tokens.maxCustomFeesAllowed", "10")),
-            newKeyNamed(adminKey),
-            newKeyNamed(feeScheduleKey),
-            cryptoCreate(htsCollector),
-            cryptoCreate(newHtsCollector),
-            cryptoCreate(hbarCollector),
-            cryptoCreate(newHbarCollector),
-            cryptoCreate(tokenCollector),
-            cryptoCreate(newTokenCollector),
-            tokenCreate(feeDenom).treasury(htsCollector),
-            tokenCreate(newFeeDenom).treasury(newHtsCollector),
-            tokenCreate(token)
-                    .adminKey(adminKey)
-                    .feeScheduleKey(feeScheduleKey)
-                    .treasury(tokenCollector)
-                    .withCustom(fixedHbarFee(hbarAmount, hbarCollector))
-                    .withCustom(fixedHtsFee(htsAmount, feeDenom, htsCollector))
-                    .withCustom(fractionalFee(
-                            numerator,
-                            denominator,
-                            minimumToCollect,
-                            OptionalLong.of(maximumToCollect),
-                            tokenCollector)),
-            tokenCreate(immutableTokenWithFeeScheduleKey)
-                    .feeScheduleKey(feeScheduleKey)
-                    .treasury(tokenCollector)
-                    .withCustom(fixedHbarFee(hbarAmount, hbarCollector))
-                    .withCustom(fixedHtsFee(htsAmount, feeDenom, htsCollector))
-                    .withCustom(fractionalFee(
-                            numerator,
-                            denominator,
-                            minimumToCollect,
-                            OptionalLong.of(maximumToCollect),
-                            tokenCollector)),
-            tokenCreate(noFeeScheduleKeyToken)
-                    .adminKey(adminKey)
-                    .treasury(tokenCollector)
-                    .withCustom(fixedHbarFee(hbarAmount, hbarCollector))
-                    .withCustom(fixedHtsFee(htsAmount, feeDenom, htsCollector))
-                    .withCustom(fractionalFee(
-                            numerator,
-                            denominator,
-                            minimumToCollect,
-                            OptionalLong.of(maximumToCollect),
-                            tokenCollector)),
-            fileUpdate(APP_PROPERTIES).payingWith(GENESIS).overridingProps(Map.of("tokens.maxCustomFeesAllowed", "1"))
-        };
     }
 
     @HapiTest

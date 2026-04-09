@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -43,6 +43,7 @@ import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of SubmitMessageSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
+@Tag(ATOMIC_BATCH)
 class AtomicSubmitMessageSuite {
 
     private static final String BATCH_OPERATOR = "batchOperator";
@@ -171,7 +172,6 @@ class AtomicSubmitMessageSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> messageSubmissionMultiple() {
         final int numMessages = 10;
 
@@ -248,7 +248,6 @@ class AtomicSubmitMessageSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> chunkTransactionIDIsValidated() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

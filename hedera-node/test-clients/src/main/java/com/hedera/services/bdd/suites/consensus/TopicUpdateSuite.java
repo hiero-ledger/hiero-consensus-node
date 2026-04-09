@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -53,7 +52,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class TopicUpdateSuite {
     private static final long validAutoRenewPeriod = 7_000_000L;
@@ -69,7 +67,6 @@ public class TopicUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         final var autoRenewAccount = "autoRenewAccount";
         return hapiTest(
@@ -368,7 +365,6 @@ public class TopicUpdateSuite {
 
     // TOPIC_RENEW_19
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateImmutableTopicWithAutoRenewAccountWithNewExpirationTime() {
         return hapiTest(
                 cryptoCreate("payer"),
@@ -387,7 +383,6 @@ public class TopicUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> feeScheduleUpdatesRequireFeeScheduleKeyExtantAndSigning() {
         final var newExpiryTime = new AtomicLong();
         final var minAutoRenewPeriod = new AtomicLong();
@@ -535,7 +530,7 @@ public class TopicUpdateSuite {
                         .payingWith(ALICE)
                         .hasKnownStatus(INVALID_SIGNATURE),
 
-                // Failed hack - cannot update feeScheduleKey without admin key signature even when changing expiry
+                // Update feeScheduleKey without admin key signature if changing expiry, should fail
                 updateTopic(TOPIC)
                         .expiry(futureExpiry)
                         .feeScheduleKeyName(FEE_SCHEDULE_KEY2)
@@ -544,7 +539,7 @@ public class TopicUpdateSuite {
                         .hasKnownStatus(INVALID_SIGNATURE),
                 getTopicInfo(TOPIC).hasFeeScheduleKey(FEE_SCHEDULE_KEY).hasAdminKey(ADMIN_KEY),
 
-                // Failed hack - cannot add custom fee without feeSchedule key signature even if expiry changes
+                // Add custom fee without feeSchedule key signature if expiry changes, should fail
                 updateTopic(TOPIC)
                         .expiry(futureExpiry)
                         .withConsensusCustomFee(fixedConsensusHbarFee(1, ATTACKER))
@@ -556,7 +551,7 @@ public class TopicUpdateSuite {
                         .hasAdminKey(ADMIN_KEY)
                         .hasFeeScheduleKey(FEE_SCHEDULE_KEY),
 
-                // Failed hack - cannot update exempt keys without admin key signature even if expiry changes
+                // Update exempt keys without admin key signature if expiry changes, should fail
                 updateTopic(TOPIC)
                         .expiry(futureExpiry)
                         .feeExemptKeys(FEE_SCHEDULE_KEY)

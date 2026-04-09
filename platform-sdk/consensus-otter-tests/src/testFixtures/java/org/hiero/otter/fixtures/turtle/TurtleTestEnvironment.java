@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static java.util.Collections.unmodifiableSet;
 import static org.hiero.otter.fixtures.util.EnvironmentUtils.getDefaultOutputDirectory;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -22,6 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -112,10 +111,8 @@ public class TurtleTestEnvironment implements TestEnvironment {
         RuntimeObjectRegistry.initialize(time);
 
         try {
-            final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-            registry.reset();
-            registry.registerConstructables("");
-            registerConstructablesForStorage(CONFIGURATION);
+            ConstructableRegistry.getInstance().reset();
+            ConstructableRegistration.registerAllConstructables();
         } catch (final ConstructableRegistryException e) {
             throw new RuntimeException(e);
         }

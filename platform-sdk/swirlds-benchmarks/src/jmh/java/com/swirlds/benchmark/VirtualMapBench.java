@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
+import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.ArrayDeque;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -22,6 +27,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 5)
 public class VirtualMapBench extends VirtualMapBaseBench {
 
+    @Override
     String benchmarkName() {
         return "VirtualMapBench";
     }
@@ -31,7 +37,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void update() throws Exception {
-        beforeTest("update");
+        setTestDir("update");
 
         logger.info(RUN_DELIMITER);
 
@@ -48,7 +54,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
 
             for (int j = 0; j < numRecords; ++j) {
                 long id = Utils.randomLong(maxKey);
-                Bytes key = BenchmarkKey.longToKey(id);
+                Bytes key = longToKey(id);
                 BenchmarkValue value = virtualMap.get(key, BenchmarkValueCodec.INSTANCE);
                 long val = nextValue();
                 if (value != null) {
@@ -73,14 +79,12 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         logger.info("Updated {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
+        final var finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     /**
@@ -88,7 +92,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void create() throws Exception {
-        beforeTest("create");
+        setTestDir("create");
 
         logger.info(RUN_DELIMITER);
 
@@ -100,7 +104,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         for (int i = 0; i < numFiles; i++) {
             for (int j = 0; j < numRecords; ++j) {
                 long id = Utils.randomLong(maxKey);
-                final Bytes key = BenchmarkKey.longToKey(id);
+                final Bytes key = longToKey(id);
                 final long val = nextValue();
                 final BenchmarkValue value = new BenchmarkValue(val);
                 virtualMap.put(key, value, BenchmarkValueCodec.INSTANCE);
@@ -115,14 +119,12 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         logger.info("Created {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
+        final var finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     /**
@@ -130,7 +132,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void delete() throws Exception {
-        beforeTest("delete");
+        setTestDir("delete");
 
         logger.info(RUN_DELIMITER);
 
@@ -150,7 +152,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
             // Add/update new values
             for (int j = 0; j < numRecords; ++j) {
                 final long id = Utils.randomLong(maxKey);
-                final Bytes key = BenchmarkKey.longToKey(id);
+                final Bytes key = longToKey(id);
                 BenchmarkValue value = virtualMap.get(key, BenchmarkValueCodec.INSTANCE);
                 final long val = nextValue();
                 if (value != null) {
@@ -172,7 +174,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 if (entry == null || entry.time > curTime) {
                     break;
                 }
-                virtualMap.remove(BenchmarkKey.longToKey(entry.id));
+                virtualMap.remove(longToKey(entry.id));
                 if (verify) map[(int) entry.id] = 0L;
                 expirables.removeFirst();
             }
@@ -184,50 +186,44 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         logger.info("Updated {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
 
         // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushMap(virtualMap);
+        final var finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
-    }
-
-    private void preCreateMap() {
-        if (virtualMapP != null) {
-            return;
-        }
-        virtualMapP = createEmptyMap();
-
-        long start = System.currentTimeMillis();
-        int count = 0;
-        for (int i = 0; i < maxKey; i++) {
-            Bytes key = BenchmarkKey.longToKey(i);
-            BenchmarkValue value = new BenchmarkValue(nextValue());
-            virtualMapP.put(key, value, BenchmarkValueCodec.INSTANCE);
-
-            if (++count == maxKey / numFiles) {
-                count = 0;
-                virtualMapP = copyMap(virtualMapP);
-            }
-        }
-
-        logger.info("Pre-created {} records in {} ms", maxKey, System.currentTimeMillis() - start);
-
-        virtualMapP = flushMap(virtualMapP);
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     /**
      * Read from a pre-created map. Parallel.
      */
     @Benchmark
-    public void read() throws Exception {
-        beforeTest("read");
+    public void read() {
+        setTestDir("read");
+        preserveTestDir();
 
         logger.info(RUN_DELIMITER);
 
-        preCreateMap();
+        if (virtualMapP == null) {
+            virtualMapP = createEmptyMap();
+            final AtomicReference<VirtualMap> mapRef = new AtomicReference<>(virtualMapP);
+            final long recordsPerCopy = maxKey / numFiles;
+
+            final long start = System.currentTimeMillis();
+            new StateBuilder(BenchmarkKeyUtils::longToKey, i -> new BenchmarkValue(nextValue()))
+                    .populateState(
+                            0,
+                            maxKey,
+                            i -> {
+                                if (i > 0 && i % recordsPerCopy == 0) {
+                                    mapRef.set(virtualMapP = copyMap(virtualMapP));
+                                }
+                            },
+                            StateBuilder.buildVMPopulator(mapRef));
+            logger.info("Pre-created {} records in {} ms", maxKey, System.currentTimeMillis() - start);
+
+            virtualMapP = flushAndOptionallySaveMap(virtualMapP);
+        }
 
         final long start = System.currentTimeMillis();
         final AtomicLong total = new AtomicLong(0);
@@ -235,7 +231,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
             long sum = 0;
             for (int i = 0; i < numRecords; ++i) {
                 final long id = Utils.randomLong(maxKey);
-                final BenchmarkValue value = virtualMapP.get(BenchmarkKey.longToKey(id), BenchmarkValueCodec.INSTANCE);
+                final BenchmarkValue value = virtualMapP.get(longToKey(id), BenchmarkValueCodec.INSTANCE);
                 sum += value.hashCode();
             }
             total.addAndGet(sum);
@@ -246,7 +242,5 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 (long) numRecords * numThreads,
                 numThreads,
                 System.currentTimeMillis() - start);
-
-        afterTest(true);
     }
 }

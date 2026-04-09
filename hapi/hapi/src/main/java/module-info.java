@@ -100,8 +100,10 @@ module com.hedera.node.hapi {
     opens com.hedera.hapi.node.state.hooks.legacy;
     opens com.hedera.hapi.services.auxiliary.hints.legacy;
     opens com.hedera.hapi.services.auxiliary.history.legacy;
+    opens com.hedera.hapi.services.auxiliary.blockrecords.legacy;
     opens com.hedera.node.internal.network.legacy;
     opens com.hedera.hapi.node.state.token.legacy;
+    opens com.hedera.hapi.node.tss.legacy;
 
     // for reflective access when asserting object equality
     opens com.hedera.hapi.platform.state to
@@ -114,6 +116,9 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.services.auxiliary.hints.legacy;
     exports com.hedera.hapi.services.auxiliary.history.legacy;
     exports com.hedera.hapi.node.state.token.legacy;
+    exports com.hedera.hapi.node.tss;
+    exports com.hedera.hapi.services.auxiliary.blockrecords;
+    exports com.hedera.hapi.services.auxiliary.blockrecords.legacy;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.google.common;

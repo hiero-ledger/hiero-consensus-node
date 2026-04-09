@@ -8,7 +8,6 @@ import static org.hiero.base.CompareTo.isGreaterThan;
 
 import com.swirlds.base.formatting.UnitFormatter;
 import com.swirlds.base.units.TimeUnit;
-import com.swirlds.common.io.IOIterator;
 import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamMultiFileIterator;
 import com.swirlds.platform.recovery.internal.MultiFileRunningHashIterator;
@@ -19,6 +18,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**

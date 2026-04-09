@@ -7,6 +7,7 @@ import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.merkledb.GarbageScanner;
 import com.swirlds.merkledb.collections.IndexedObject;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
@@ -24,6 +25,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -55,7 +57,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * }
  * </pre>
  */
-public final class DataFileReader implements AutoCloseable, Comparable<DataFileReader>, IndexedObject {
+public final class DataFileReader implements Comparable<DataFileReader>, IndexedObject {
 
     private static final ThreadLocal<ByteBuffer> BUFFER_CACHE = new ThreadLocal<>();
     private static final ThreadLocal<BufferedData> BUFFEREDDATA_CACHE = new ThreadLocal<>();
@@ -92,10 +94,25 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
     private final AtomicBoolean open = new AtomicBoolean(true);
     /** The path to the file on disk */
     private final Path path;
-    /** The metadata for this file read from the footer */
-    private final DataFileMetadata metadata;
+    /**
+     * The metadata for this file. This is an {@link AtomicReference} because metadata is updated
+     * after construction — {@link DataFileCollection#endWriting()} propagates the final
+     * {@code itemsCount} from the writer. These updates happen on the flush or compaction thread while
+     * scanner and compaction threads may concurrently read the metadata. The atomic reference
+     * ensures cross-thread visibility without explicit synchronization.
+     */
+    private final AtomicReference<DataFileMetadata> metadataRef = new AtomicReference<>();
     /** A flag for if the underlying file is fully written and ready to be compacted. */
     private final AtomicBoolean fileCompleted = new AtomicBoolean(false);
+
+    /**
+     * Flag indicating this file is currently assigned to a compaction task. Set to {@code true}
+     * when a CompactionTask begins execution, reset to {@code false} in the task's finally block.
+     * While set, the file is invisible to {@link GarbageScanner} — it won't appear in scan
+     * results. If compaction succeeds, the file is deleted and the reset is a no-op on a dead
+     * object. If compaction fails, the reset makes the file visible to future scans.
+     */
+    private final AtomicBoolean compactionInProgress = new AtomicBoolean(false);
 
     /**
      * The size of this file in bytes, cached as need it often. This size is updated in {@link
@@ -131,7 +148,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
                     "Tried to open a non existent data file [" + path.toAbsolutePath() + "].");
         }
         this.path = path;
-        this.metadata = metadata;
+        this.metadataRef.set(metadata);
         openNewFileChannel(0);
     }
 
@@ -161,12 +178,36 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
     }
 
     /**
+     * Marks this file as being actively compacted.
+     */
+    public void setCompactionInProgress() {
+        compactionInProgress.set(true);
+    }
+
+    /**
+     * Resets the compaction flag, making this file visible to future scans.
+     * Called in the compaction task's finally block.
+     */
+    public void resetCompactionInProgress() {
+        compactionInProgress.set(false);
+    }
+
+    /**
+     * Returns whether this file is currently being compacted.
+     *
+     * @return {@code true} if a compaction task is processing this file
+     */
+    public boolean isCompactionInProgress() {
+        return compactionInProgress.get();
+    }
+
+    /**
      * Get file index, the index is an ordered integer identifying the file in a set of files.
      *
      * @return file index
      */
     public int getIndex() {
-        return metadata.getIndex();
+        return metadataRef.get().getIndex();
     }
 
     /**
@@ -175,7 +216,15 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * @return file metadata
      */
     public DataFileMetadata getMetadata() {
-        return metadata;
+        return metadataRef.get();
+    }
+
+    /**
+     * Update the metadata of this data file.
+     * @param metadata new metadata to set
+     */
+    public void updateMetadata(final DataFileMetadata metadata) {
+        metadataRef.set(metadata);
     }
 
     /**
@@ -196,11 +245,12 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * @throws IOException if there was a problem creating a new DataFileIterator
      */
     public DataFileIterator createIterator() throws IOException {
-        return new DataFileIterator(dbConfig, path, metadata);
+        return new DataFileIterator(dbConfig, path, metadataRef.get());
     }
 
     /**
-     * Read data item from file at dataLocation.
+     * Read a data item from the file at a given data location. Only data item data is included
+     * in the result buffer.
      *
      * @param dataLocation data item location, which combines data file index and offset in the file
      * @return deserialized data item
@@ -209,7 +259,21 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      */
     public BufferedData readDataItem(final long dataLocation) throws IOException {
         final long byteOffset = DataFileCommon.byteOffsetFromDataLocation(dataLocation);
-        return read(byteOffset);
+        return read(byteOffset, false);
+    }
+
+    /**
+     * Read a data item from the file at a given data location. The result buffer includes data item
+     * tag and data item length, followed by data file data.
+     *
+     * @param dataLocation data item location, which combines data file index and offset in the file
+     * @return deserialized data item
+     * @throws IOException If there was a problem reading from data file
+     * @throws ClosedChannelException if the data file was closed
+     */
+    public BufferedData readDataItemWithTag(final long dataLocation) throws IOException {
+        final long byteOffset = DataFileCommon.byteOffsetFromDataLocation(dataLocation);
+        return read(byteOffset, true);
     }
 
     /**
@@ -248,6 +312,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
         if (this == o) {
             return 0;
         }
+        final DataFileMetadata metadata = metadataRef.get();
         final int res = metadata.getCreationDate().compareTo(o.getMetadata().getCreationDate());
         return (res != 0)
                 ? res
@@ -257,7 +322,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
     /** ToString for debugging */
     @Override
     public String toString() {
-        return Integer.toString(metadata.getIndex());
+        return Integer.toString(metadataRef.get().getIndex());
     }
 
     // For testing purpose
@@ -278,7 +343,6 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
         return open.get();
     }
 
-    @Override
     public void close() throws IOException {
         if (!open.compareAndSet(true, false)) {
             return;
@@ -378,15 +442,17 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
      * number of bytes read and be less than bytesToRead.
      *
      * @param byteOffsetInFile Offset to start reading at
+     * @param includeTag Indicates whether the returned data should include FIELD_DATAFILE_ITEMS tag
+     *                   and data item length, or it should be just data item data
      * @return ByteBuffer containing read data. This is a reused per thread buffer, so you can use
      *     it till your thread calls read again.
      * @throws IOException if there was a problem reading
      * @throws ClosedChannelException if the file was closed
      */
-    private BufferedData read(final long byteOffsetInFile) throws IOException {
+    private BufferedData read(final long byteOffsetInFile, final boolean includeTag) throws IOException {
         // Buffer size to read data item tag and size. If the whole item is small and
         // fits into this buffer, there is no need to make an extra file read
-        final int PRE_READ_BUF_SIZE = 2048;
+        final int PRE_READ_BUF_SIZE = 4096;
         ByteBuffer readBB = BUFFER_CACHE.get();
         BufferedData readBuf = BUFFEREDDATA_CACHE.get();
         if (readBuf == null) {
@@ -427,30 +493,30 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
                 final int sizeOfTag = ProtoWriterTools.sizeOfUnsignedVarInt32(tag);
                 final int size = readBuf.getVarInt(sizeOfTag, false);
                 final int sizeOfSize = ProtoWriterTools.sizeOfUnsignedVarInt32(size);
+                final int totalSize = sizeOfTag + sizeOfSize + size;
                 // Check if the whole data item is already read in the header
-                if (bytesRead >= sizeOfTag + sizeOfSize + size) {
-                    readBuf.position(sizeOfTag + sizeOfSize);
+                if (bytesRead >= totalSize) {
+                    readBuf.position(includeTag ? 0 : sizeOfTag + sizeOfSize);
                     readBuf.limit(sizeOfTag + sizeOfSize + size);
                     return readBuf;
                 }
                 // Otherwise read it separately
-                if (readBB.capacity() <= size) {
-                    readBB = ByteBuffer.allocate(size);
+                if (readBB.capacity() <= totalSize) {
+                    readBB = ByteBuffer.allocate(totalSize);
                     BUFFER_CACHE.set(readBB);
                     readBuf = BufferedData.wrap(readBB);
                     BUFFEREDDATA_CACHE.set(readBuf);
                 } else {
                     readBB.position(0);
-                    readBB.limit(size);
+                    readBB.limit(totalSize);
                 }
-                bytesRead = MerkleDbFileUtils.completelyRead(
-                        fileChannel, readBB, byteOffsetInFile + sizeOfTag + sizeOfSize);
-                if (bytesRead != size) {
-                    throw new IOException("Failed to read all bytes: toread=" + size + " read=" + bytesRead + " file="
-                            + getIndex() + " off=" + byteOffsetInFile);
+                bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile);
+                if (bytesRead != totalSize) {
+                    throw new IOException("Failed to read all bytes: toread=" + totalSize + " read=" + bytesRead
+                            + " file=" + getIndex() + " off=" + byteOffsetInFile);
                 }
-                readBuf.position(0);
-                readBuf.limit(bytesRead);
+                readBuf.position(includeTag ? 0 : sizeOfTag + sizeOfSize);
+                readBuf.limit(totalSize);
                 return readBuf;
             } catch (final ClosedByInterruptException e) {
                 // If the thread and the channel are interrupted, propagate it to the callers

@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.pbj.runtime.grpc.GrpcException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.EnumMap;
@@ -18,7 +19,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Base implementation for a connection to a block node.
  */
-public abstract class AbstractBlockNodeConnection {
+public abstract class AbstractBlockNodeConnection implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AbstractBlockNodeConnection.class);
 
@@ -77,17 +78,19 @@ public abstract class AbstractBlockNodeConnection {
      * @param type the type of connection being created
      * @param configuration the block node configuration associated with this connection
      * @param configProvider the {@link ConfigProvider} that can be used to retrieve configuration data
+     * @param nodeId the consensus node ID to include in correlation IDs
      */
     AbstractBlockNodeConnection(
             @NonNull final ConnectionType type,
             @NonNull final BlockNodeConfiguration configuration,
-            @NonNull final ConfigProvider configProvider) {
+            @NonNull final ConfigProvider configProvider,
+            final long nodeId) {
         this.configuration = requireNonNull(configuration, "configuration is required");
         this.configProvider = requireNonNull(configProvider, "configProvider is required");
         this.type = requireNonNull(type, "type is required");
 
-        connectionId =
-                String.format("%s.%06d", type.key, connIdCtrByType.get(type).incrementAndGet());
+        final int sequenceNumber = connIdCtrByType.get(type).incrementAndGet();
+        connectionId = "N" + nodeId + "-" + type.key + sequenceNumber;
         stateRef = new AtomicReference<>(ConnectionState.UNINITIALIZED);
     }
 
@@ -96,6 +99,33 @@ public abstract class AbstractBlockNodeConnection {
      */
     final @NonNull String connectionId() {
         return connectionId;
+    }
+
+    /**
+     * Returns a request-level correlation ID for block-specific requests.
+     *
+     * @param blockNumber block number
+     * @param requestNumber request number scoped to the block
+     * @return correlation ID in format N#-[STR|SVC]#-BLK#-REQ#
+     */
+    final @NonNull String blockRequestCorrelationId(final long blockNumber, final int requestNumber) {
+        return connectionId + "-BLK" + blockNumber + "-REQ" + requestNumber;
+    }
+
+    /**
+     * Formats a connection context string using either a supplied correlation ID or this connection's base ID.
+     *
+     * @param correlationId correlation ID to display in the context, or null to use base connection ID
+     * @return formatted context string in the form {@code [ID/host:port/STATE]}
+     */
+    final @NonNull String connectionContext(@Nullable final String correlationId) {
+        final int port =
+                switch (type) {
+                    case BLOCK_STREAMING -> configuration.streamingPort();
+                    case SERVER_STATUS -> configuration.servicePort();
+                };
+        final String idToDisplay = (correlationId == null || correlationId.isBlank()) ? connectionId : correlationId;
+        return "[" + idToDisplay + "/" + configuration.address() + ":" + port + "/" + stateRef.get() + "]";
     }
 
     /**
@@ -189,7 +219,7 @@ public abstract class AbstractBlockNodeConnection {
      * Closes this connection. The connection should transition to a CLOSING state upon entering this method and then
      * at the conclusion of this method (either successful or failed) the state should transition to CLOSED.
      */
-    abstract void close();
+    public abstract void close();
 
     /**
      * @return the configuration provider used by this connection
@@ -212,15 +242,29 @@ public abstract class AbstractBlockNodeConnection {
         return configuration;
     }
 
+    /**
+     * Given a throwable, determine if the throwable or one of its causes is a {@link GrpcException}.
+     *
+     * @param t the throwable to search
+     * @return the {@link GrpcException} associated with this throwable, or null if one is not found
+     */
+    protected GrpcException findGrpcException(final Throwable t) {
+        Throwable th = t;
+
+        while (th != null) {
+            if (th instanceof final GrpcException grpcException) {
+                return grpcException;
+            }
+
+            th = th.getCause();
+        }
+
+        return null;
+    }
+
     @Override
     public final String toString() {
-        final int port =
-                switch (type) {
-                    case BLOCK_STREAMING -> configuration.streamingPort();
-                    case SERVER_STATUS -> configuration.servicePort();
-                };
-
-        return "[" + connectionId + "/" + configuration.address() + ":" + port + "/" + stateRef.get() + "]";
+        return connectionContext(null);
     }
 
     @Override

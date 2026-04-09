@@ -3,12 +3,13 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication.allFromHistory;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V069HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
@@ -38,6 +39,7 @@ import java.util.Set;
 public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
 
     private final ReadableSingletonState<ProtoBytes> ledgerId;
+    private final ReadableSingletonState<ProtoBytes> expectedWrapsProvingKeyHash;
     private final ReadableSingletonState<HistoryProofConstruction> nextConstruction;
     private final ReadableSingletonState<HistoryProofConstruction> activeConstruction;
     private final ReadableKVState<NodeId, ProofKeySet> proofKeySets;
@@ -47,6 +49,7 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
     public ReadableHistoryStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
         this.ledgerId = states.getSingleton(LEDGER_ID_STATE_ID);
+        this.expectedWrapsProvingKeyHash = states.getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
@@ -56,8 +59,19 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
 
     @Override
     public @Nullable Bytes getLedgerId() {
-        final var maybeLedgerId = requireNonNull(ledgerId.get()).value();
+        final var protoLedgerId = ledgerId.get();
+        if (protoLedgerId == null) {
+            // Very narrow edge case at genesis before handling first round
+            return null;
+        }
+        final var maybeLedgerId = protoLedgerId.value();
         return Bytes.EMPTY.equals(maybeLedgerId) ? null : maybeLedgerId;
+    }
+
+    @Override
+    public @Nullable Bytes getWrapsProvingKeyHash() {
+        final var maybeHash = requireNonNull(expectedWrapsProvingKeyHash.get()).value();
+        return Bytes.EMPTY.equals(maybeHash) ? null : maybeHash;
     }
 
     @Override

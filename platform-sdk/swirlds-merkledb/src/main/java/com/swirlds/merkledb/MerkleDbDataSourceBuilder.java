@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.constructable.constructors.MerkleDbDataSourceBuilderConstructor;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,11 +14,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Objects;
-import org.hiero.base.constructable.ConstructableClass;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * Virtual data source builder that manages MerkleDb data sources.
@@ -32,23 +26,12 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
  * builder uses certain sub-folder under snapshot dir as described in {@link #snapshot(Path, VirtualDataSource)}
  * and {@link VirtualDataSourceBuilder#build(String, Path, boolean, boolean)} methods.
  */
-@ConstructableClass(
-        value = MerkleDbDataSourceBuilder.CLASS_ID,
-        constructorType = MerkleDbDataSourceBuilderConstructor.class)
-public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder, SelfSerializable {
-
-    public static final long CLASS_ID = 0x176ede0e1a69828L;
-
-    private static final class ClassVersion {
-        public static final int NO_TABLE_CONFIG = 2;
-    }
+public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
     /** Platform configuration */
     private final Configuration configuration;
 
     private long initialCapacity = 0;
-
-    private long hashesRamToDiskThreshold = 0;
 
     /**
      * Constructor for deserialization purposes.
@@ -62,16 +45,11 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder, Self
      * Creates a new data source builder with the specified table configuration.
      *
      * @param initialCapacity initial capacity of the map
-     * @param hashesRamToDiskThreshold threshold where we switch from storing internal hashes in ram to storing them on disk
      * @param configuration platform configuration
      */
-    public MerkleDbDataSourceBuilder(
-            @NonNull final Configuration configuration,
-            final long initialCapacity,
-            final long hashesRamToDiskThreshold) {
+    public MerkleDbDataSourceBuilder(@NonNull final Configuration configuration, final long initialCapacity) {
         this.configuration = requireNonNull(configuration);
         this.initialCapacity = initialCapacity;
-        this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
     }
 
     @SuppressWarnings("deprecation")
@@ -120,13 +98,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder, Self
         try {
             final Path dataSourceDir = newDataSourceDir(label);
             return new MerkleDbDataSource(
-                    dataSourceDir,
-                    configuration,
-                    label,
-                    initialCapacity,
-                    hashesRamToDiskThreshold,
-                    compactionEnabled,
-                    offlineUse);
+                    dataSourceDir, configuration, label, initialCapacity, compactionEnabled, offlineUse);
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         }
@@ -134,12 +106,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder, Self
 
     private void snapshotDataSource(final MerkleDbDataSource dataSource, final Path dir) {
         try {
-            try {
-                dataSource.pauseCompaction();
-                dataSource.snapshot(dir);
-            } finally {
-                dataSource.resumeCompaction();
-            }
+            dataSource.pauseCompactionAndRun(() -> dataSource.snapshot(dir));
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
         }
@@ -191,57 +158,5 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder, Self
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.NO_TABLE_CONFIG;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(final SerializableDataOutputStream out) throws IOException {
-        throw new UnsupportedOperationException("Serialization is not supported");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(@NonNull final SerializableDataInputStream in, final int version) throws IOException {
-        initialCapacity = in.readLong();
-        hashesRamToDiskThreshold = in.readLong();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int hashCode() {
-        return Objects.hash(initialCapacity, hashesRamToDiskThreshold);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean equals(final Object obj) {
-        if (!(obj instanceof MerkleDbDataSourceBuilder that)) {
-            return false;
-        }
-        return (initialCapacity == that.initialCapacity) && (hashesRamToDiskThreshold == that.hashesRamToDiskThreshold);
     }
 }

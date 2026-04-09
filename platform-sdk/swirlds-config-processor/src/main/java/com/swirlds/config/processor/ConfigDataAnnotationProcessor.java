@@ -3,7 +3,6 @@ package com.swirlds.config.processor;
 
 import static com.swirlds.config.processor.ConfigProcessorConstants.CONSTANTS_CLASS_SUFFIX;
 
-import com.google.auto.service.AutoService;
 import com.swirlds.config.processor.antlr.AntlrConfigRecordParser;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -14,7 +13,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import javax.annotation.processing.AbstractProcessor;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedAnnotationTypes;
 import javax.annotation.processing.SupportedSourceVersion;
@@ -30,8 +28,7 @@ import javax.tools.StandardLocation;
  * An annotation processor that creates documentation and constants for config data records.
  */
 @SupportedAnnotationTypes(ConfigProcessorConstants.CONFIG_DATA_ANNOTATION)
-@SupportedSourceVersion(SourceVersion.RELEASE_21)
-@AutoService(Processor.class)
+@SupportedSourceVersion(SourceVersion.RELEASE_25)
 public final class ConfigDataAnnotationProcessor extends AbstractProcessor {
 
     @Override

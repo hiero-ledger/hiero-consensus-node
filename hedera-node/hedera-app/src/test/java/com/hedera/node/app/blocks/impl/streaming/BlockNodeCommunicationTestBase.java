@@ -30,6 +30,7 @@ import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
@@ -64,6 +65,15 @@ public abstract class BlockNodeCommunicationTestBase {
                 .status(responseCode)
                 .build();
         return PublishStreamResponse.newBuilder().endStream(eos).build();
+    }
+
+    @NonNull
+    protected static PublishStreamResponse createBlockNodeBehindResponse(final long lastVerifiedBlock) {
+        final BehindPublisher nodeBehind =
+                BehindPublisher.newBuilder().blockNumber(lastVerifiedBlock).build();
+        return PublishStreamResponse.newBuilder()
+                .nodeBehindPublisher(nodeBehind)
+                .build();
     }
 
     @NonNull
@@ -112,7 +122,8 @@ public abstract class BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
                 .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)
-                .withValue("blockNode.highLatencyThresholdMs", 500);
+                .withValue("blockNode.highLatencyThresholdMs", 500)
+                .withValue("blockNode.streamResetPeriodJitter", "0s");
     }
 
     protected ConfigProvider createConfigProvider(final TestConfigBuilder configBuilder) {
@@ -180,11 +191,7 @@ public abstract class BlockNodeCommunicationTestBase {
     protected static BlockNodeConfiguration newBlockNodeConfig(
             final String address, final int port, final int priority) {
         return newBlockNodeConfig(
-                address,
-                port,
-                priority,
-                BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES,
-                BlockNodeConfiguration.DEFAULT_MESSAGE_HARD_LIMIT_BYTES);
+                address, port, priority, BlockNodeConfiguration.DEFAULT_MESSAGE_SOFT_LIMIT_BYTES, 36L * 1024 * 1024);
     }
 
     protected static BlockNodeConfiguration newBlockNodeConfig(

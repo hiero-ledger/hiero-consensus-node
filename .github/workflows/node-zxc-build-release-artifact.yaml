@@ -54,7 +54,7 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
-        default: "21.0.6"
+        default: "25"
       gradle-version:
         description: "Gradle Version:"
         type: string
@@ -113,7 +113,7 @@ permissions:
 jobs:
   validate:
     name: Validate
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     if: ${{ !github.event.workflow_call.repository.fork }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
@@ -245,7 +245,7 @@ jobs:
 
   build-artifact:
     name: Build Artifact
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     needs:
       - validate
     steps:
@@ -406,7 +406,7 @@ jobs:
 
   local-node-images:
     name: Publish Local Node Images
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-lg
     needs:
       - validate
       - build-artifact
@@ -451,10 +451,10 @@ jobs:
         uses: docker/setup-qemu-action@5964de0df58d5ad28b04d8fe2e6b80ad47105b91 # v3.5.0
 
       - name: Setup Docker Buildx Support
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        uses: step-security/setup-buildx-action@f931205d68723ad9589fd2a7e2ece238bf9de341 # v4.0.0
         with:
-          version: v0.16.2
-          driver-opts: network=host
+          version: v0.32.1
+          driver-opts: network=host,image=ghcr.io/hashgraph/runner-images/buildkit:buildx-stable-1
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
@@ -558,6 +558,7 @@ jobs:
       custom-job-name: "Publish Production Image (GCP)"
       ref: ${{ needs.validate.outputs.commit-id }}
     secrets:
+      access-token: ${{ secrets.access-token }}
       jf-url: ${{ secrets.jf-url }}
       jf-user-name: ${{ secrets.jf-user-name }}
       jf-docker-registry: ${{ secrets.jf-docker-registry }}
@@ -577,6 +578,7 @@ jobs:
       custom-job-name: "Publish Production Image (JFrog)"
       ref: ${{ needs.validate.outputs.commit-id }}
     secrets:
+      access-token: ${{ secrets.access-token }}
       jf-url: ${{ secrets.jf-url }}
       jf-user-name: ${{ secrets.jf-user-name }}
       jf-docker-registry: ${{ secrets.jf-docker-registry }}
@@ -584,10 +586,11 @@ jobs:
 
   validate-production-image:
     name: Validate Production Image
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-md
     needs:
       - gcp-production-image
       - jfr-production-image
+      - validate
     if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
     steps:
       - name: Harden Runner
@@ -701,7 +704,7 @@ jobs:
 
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-lg
     outputs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
     needs:
@@ -717,7 +720,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ inputs.ref-name }}
+          ref: ${{ needs.validate.outputs.commit-id }}
 
       - name: Install GnuPG Tools
         if: ${{ inputs.dry-run-enabled != true }}
@@ -872,14 +875,14 @@ jobs:
 
       - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
         if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
+        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache --no-parallel
 
       - name: Gradle Publish to Maven Central
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
           NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
-        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
+        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true --no-configuration-cache --no-parallel
 
       - name: Upload SDK Release Archives
         if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
@@ -909,11 +912,13 @@ jobs:
 
   create-github-release:
     name: Create GitHub Release
-    if: ${{ needs.publish.outputs.create-release == 'true' }}
+    if: ${{ github.event.repository.private == false && needs.publish.outputs.create-release == 'true' }}
     uses: ./.github/workflows/zxc-create-github-release.yaml
     needs:
       - publish
+      - validate
     with:
+      ref: ${{ needs.validate.outputs.commit-id }}
       release-version: ${{ inputs.ref-name }}
       create-release-notes: true
       create-release: true
@@ -922,7 +927,7 @@ jobs:
 
   send-notifications:
     name: Send Release Notifications
-    runs-on: hiero-network-node-linux-large
+    runs-on: hl-cn-default-lin-sm
     needs:
       - validate
       - local-node-images

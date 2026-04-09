@@ -8,19 +8,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleInternal;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
+import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
@@ -35,10 +30,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -95,20 +89,7 @@ public abstract class VirtualMapReconnectTestBase {
     @BeforeAll
     public static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero");
-        registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
-        registry.registerConstructable(new ClassConstructorPair(DummyMerkleInternal.class, DummyMerkleInternal::new));
-        registry.registerConstructable(new ClassConstructorPair(DummyMerkleLeaf.class, DummyMerkleLeaf::new));
-        registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-    }
-
-    protected MerkleInternal createTreeForMap(VirtualMap map) {
-        final var tree = MerkleTestUtils.buildLessSimpleTree();
-        tree.getChild(1).asInternal().setChild(3, map);
-        tree.reserve();
-        return tree;
+        ConstructableRegistration.registerAllConstructables();
     }
 
     protected void reconnect() throws Exception {
@@ -116,16 +97,16 @@ public abstract class VirtualMapReconnectTestBase {
     }
 
     protected void reconnectMultipleTimes(int attempts) {
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
 
         withSuppressedErr(() -> {
             try {
                 for (int i = 0; i < attempts; i++) {
                     try {
                         final var node =
-                                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+                                MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
                         node.release();
                         assertEquals(attempts - 1, i, "We should only succeed on the last try");
                         assertTrue(learnerMap.isHashed(), "Learner map must be hashed");
@@ -139,8 +120,8 @@ public abstract class VirtualMapReconnectTestBase {
                     }
                 }
             } finally {
-                teacherTree.release();
-                learnerTree.release();
+                teacherMap.release();
+                learnerMap.release();
                 copy.release();
             }
         });
@@ -204,7 +185,7 @@ public abstract class VirtualMapReconnectTestBase {
         public void saveRecords(
                 long firstLeafPath,
                 long lastLeafPath,
-                @NonNull Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+                @NonNull Stream<VirtualHashChunk> hashChunksToUpdate,
                 @NonNull Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
                 @NonNull Stream<VirtualLeafBytes> leafRecordsToDelete,
                 boolean isReconnectContext)
@@ -225,7 +206,7 @@ public abstract class VirtualMapReconnectTestBase {
             delegate.saveRecords(
                     firstLeafPath,
                     lastLeafPath,
-                    pathHashRecordsToUpdate,
+                    hashChunksToUpdate,
                     leaves.stream(),
                     leafRecordsToDelete,
                     isReconnectContext);
@@ -252,8 +233,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public Hash loadHash(final long path) throws IOException {
-            return delegate.loadHash(path);
+        public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
+            return delegate.loadHashChunk(chunkId);
         }
 
         @Override
@@ -279,6 +260,11 @@ public abstract class VirtualMapReconnectTestBase {
         @Override
         public long getLastLeafPath() {
             return delegate.getLastLeafPath();
+        }
+
+        @Override
+        public int getHashChunkHeight() {
+            return delegate.getHashChunkHeight();
         }
 
         @Override

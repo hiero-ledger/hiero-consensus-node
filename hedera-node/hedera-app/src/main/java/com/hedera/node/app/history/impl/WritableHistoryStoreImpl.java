@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V069HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
@@ -37,6 +39,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -53,6 +56,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     private static final Logger log = LogManager.getLogger(WritableHistoryStoreImpl.class);
 
     private final WritableSingletonState<ProtoBytes> ledgerId;
+    private final WritableSingletonState<ProtoBytes> wrapsProvingKeyHash;
     private final WritableSingletonState<HistoryProofConstruction> nextConstruction;
     private final WritableSingletonState<HistoryProofConstruction> activeConstruction;
     private final WritableKVState<NodeId, ProofKeySet> proofKeySets;
@@ -62,6 +66,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public WritableHistoryStoreImpl(@NonNull final WritableStates states) {
         super(states);
         this.ledgerId = states.getSingleton(LEDGER_ID_STATE_ID);
+        this.wrapsProvingKeyHash = states.getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
@@ -82,13 +87,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
-        // Special case at genesis with WRAPS enabled where even though a construction
-        // exists, it was completed with a non-extensible proof, so we need to start a
-        // new construction nonetheless
-        if (construction == null
-                || (tssConfig.wrapsEnabled()
-                        && construction.hasTargetProof()
-                        && !isWrapsExtensible(construction.targetProof()))) {
+        if (construction == null) {
             final var gracePeriod = phase == BOOTSTRAP
                     ? tssConfig.bootstrapProofKeyGracePeriod()
                     : tssConfig.transitionProofKeyGracePeriod();
@@ -174,9 +173,25 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
+    public HistoryProofConstruction restartWrapsSigning(
+            final long constructionId, @NonNull final Set<Long> sourceNodeIds) {
+        requireNonNull(sourceNodeIds);
+        sourceNodeIds.forEach(nodeId -> wrapsMessageHistories.remove(new ConstructionNodeId(constructionId, nodeId)));
+        return updateOrThrow(constructionId, (c, b) -> b.wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(R1).build())
+                .wrapsRetryCount(c.wrapsRetryCount() + 1));
+    }
+
+    @Override
     public void setLedgerId(@NonNull final Bytes bytes) {
         requireNonNull(bytes);
         ledgerId.put(new ProtoBytes(bytes));
+    }
+
+    @Override
+    public void setWrapsProvingKeyHash(@NonNull final Bytes hash) {
+        requireNonNull(hash);
+        wrapsProvingKeyHash.put(new ProtoBytes(hash));
     }
 
     @Override
@@ -185,9 +200,8 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         if (toRosterHash == null
                 || requireNonNull(nextConstruction.get()).targetRosterHash().equals(toRosterHash)) {
             // The next construction is becoming the active one; so purge obsolete votes now
-            final var upcomingConstruction = requireNonNull(activeConstruction.get());
-            log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
-            purgePublications(upcomingConstruction.constructionId(), fromRoster);
+            final var obsoleteConstruction = requireNonNull(activeConstruction.get());
+            purgePublications(obsoleteConstruction.constructionId(), fromRoster);
             if (toRoster != null && fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
                 final var survivingNodeIds = toRoster.rosterEntries().stream()
                         .map(RosterEntry::nodeId)
@@ -199,8 +213,10 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                     }
                 });
             }
+            final var upcomingConstruction = requireNonNull(nextConstruction.get());
+            log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
             // And finally, make the next construction the active one
-            activeConstruction.put(nextConstruction.get());
+            activeConstruction.put(upcomingConstruction);
             nextConstruction.put(HistoryProofConstruction.DEFAULT);
             return true;
         }

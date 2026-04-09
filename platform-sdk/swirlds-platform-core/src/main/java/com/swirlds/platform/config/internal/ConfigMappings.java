@@ -18,6 +18,8 @@ public final class ConfigMappings {
     private ConfigMappings() {}
 
     static final List<ConfigMapping> MAPPINGS = List.of(
+            new ConfigMapping("gossip.connectionServerThreadPriority", "thread.threadPrioritySync"),
+            new ConfigMapping("gossip.hangingThreadDuration", "hangingThreadDuration"),
             new ConfigMapping("consensus.roundsNonAncient", "state.roundsNonAncient"),
             new ConfigMapping("consensus.roundsExpired", "state.roundsExpired"),
             new ConfigMapping("consensus.coinFreq", "coinFreq"),
@@ -39,7 +41,6 @@ public final class ConfigMappings {
             new ConfigMapping("metrics.csvWriteFrequency", "csvWriteFrequency"),
             new ConfigMapping("metrics.csvOutputFolder", "csvOutputFolder"),
             new ConfigMapping("metrics.csvFileName", "csvFileName"),
-            new ConfigMapping("metrics.csvAppend", "csvAppend"),
             new ConfigMapping("metrics.disableMetricsOutput", "disableMetricsOutput"),
             new ConfigMapping("prometheus.endpointEnabled", "prometheusEndpointEnabled"),
             new ConfigMapping("prometheus.endpointPortNumber", "prometheusEndpointPortNumber"),

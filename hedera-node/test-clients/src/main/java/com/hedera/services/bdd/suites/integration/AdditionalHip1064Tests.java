@@ -161,6 +161,12 @@ public class AdditionalHip1064Tests {
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Order(2)
     final Stream<DynamicTest> nodeWithCompleteInactivityReceivesNoReward() {
+        // Captures consensus time after the mutation so the assertion ignores earlier records.
+        // In CI, previous test classes may have set lastNodeRewardsPaymentTime, causing the first
+        // waitUntilStartOfNextStakingPeriod to distribute rewards from 801 to still-active nodes.
+        // The FileAlterationMonitor can race with the assertion subscription,
+        // delivering those old reward records as "new" and causing a false failure.
+        final AtomicReference<Instant> mutationTime = new AtomicReference<>();
         return hapiTest(
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
@@ -174,34 +180,37 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set all eligible nodes to miss ALL rounds (100% inactive)
-                // Based on working tests, this is what makes nodes inactive
-                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
-                    final int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(
-                                    NodeActivity.newBuilder()
-                                            .nodeId(1)
-                                            .numMissedJudgeRounds(totalRounds)
-                                            .build(), // 0% active
-                                    NodeActivity.newBuilder()
-                                            .nodeId(2)
-                                            .numMissedJudgeRounds(totalRounds)
-                                            .build(), // 0% active
-                                    NodeActivity.newBuilder()
-                                            .nodeId(3)
-                                            .numMissedJudgeRounds(totalRounds)
-                                            .build()) // 0% active
-                            .build();
-                }),
+                // Use Integer.MAX_VALUE to guarantee inactivity regardless of numRoundsInStakingPeriod
+                // (if numRoundsInStakingPeriod is 0, using totalRounds would make nodes appear active)
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                        .copyBuilder()
+                        .nodeActivities(
+                                NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(Integer.MAX_VALUE)
+                                        .build(), // 0% active
+                                NodeActivity.newBuilder()
+                                        .nodeId(2)
+                                        .numMissedJudgeRounds(Integer.MAX_VALUE)
+                                        .build(), // 0% active
+                                NodeActivity.newBuilder()
+                                        .nodeId(3)
+                                        .numMissedJudgeRounds(Integer.MAX_VALUE)
+                                        .build()) // 0% active
+                        .build()),
+                doingContextual(spec -> mutationTime.set(spec.consensusTime())),
                 waitUntilStartOfNextStakingPeriod(1),
 
-                // Expect no rewards since nodes are completely inactive
+                // Expect no rewards since nodes are completely inactive; filter by consensus time
+                // to ignore any legitimate reward distributions from before the mutation
                 recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(selectedItems(
                         (spec, records) -> Assertions.fail("Should not have any records with 801 being debited!"),
                         1,
                         (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                .anyMatch(aa -> aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L))),
+                                        .anyMatch(
+                                                aa -> aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L)
+                                && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                        .isAfter(mutationTime.get()))),
                 cryptoCreate("nobody").payingWith(GENESIS));
     }
 
@@ -230,25 +239,23 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Set all nodes to be inactive (miss all rounds)
-                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
-                    final int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(
-                                    NodeActivity.newBuilder()
-                                            .nodeId(1)
-                                            .numMissedJudgeRounds(totalRounds)
-                                            .build(), // 0% active
-                                    NodeActivity.newBuilder()
-                                            .nodeId(2)
-                                            .numMissedJudgeRounds(totalRounds)
-                                            .build(), // 0% active
-                                    NodeActivity.newBuilder()
-                                            .nodeId(3)
-                                            .numMissedJudgeRounds(totalRounds)
-                                            .build()) // 0% active
-                            .build();
-                }),
+                // Use Integer.MAX_VALUE to guarantee inactivity regardless of numRoundsInStakingPeriod
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                        .copyBuilder()
+                        .nodeActivities(
+                                NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(Integer.MAX_VALUE)
+                                        .build(), // 0% active
+                                NodeActivity.newBuilder()
+                                        .nodeId(2)
+                                        .numMissedJudgeRounds(Integer.MAX_VALUE)
+                                        .build(), // 0% active
+                                NodeActivity.newBuilder()
+                                        .nodeId(3)
+                                        .numMissedJudgeRounds(Integer.MAX_VALUE)
+                                        .build()) // 0% active
+                        .build()),
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoCreate("nobody").payingWith(GENESIS),
                 // Verify system handles all-inactive scenario gracefully
@@ -671,25 +678,23 @@ public class AdditionalHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
 
                 // Only node 2 is active, others are inactive
-                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
-                    int totalRounds = (int) nodeRewards.numRoundsInStakingPeriod();
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(
-                                    NodeActivity.newBuilder()
-                                            .nodeId(1)
-                                            .numMissedJudgeRounds(totalRounds)
-                                            .build(), // 0% active
-                                    NodeActivity.newBuilder()
-                                            .nodeId(2)
-                                            .numMissedJudgeRounds(0)
-                                            .build(), // 100% active
-                                    NodeActivity.newBuilder()
-                                            .nodeId(3)
-                                            .numMissedJudgeRounds(totalRounds)
-                                            .build()) // 0% active
-                            .build();
-                }),
+                // Use Integer.MAX_VALUE to guarantee inactivity regardless of numRoundsInStakingPeriod
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                        .copyBuilder()
+                        .nodeActivities(
+                                NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(Integer.MAX_VALUE)
+                                        .build(), // 0% active
+                                NodeActivity.newBuilder()
+                                        .nodeId(2)
+                                        .numMissedJudgeRounds(0)
+                                        .build(), // 100% active
+                                NodeActivity.newBuilder()
+                                        .nodeId(3)
+                                        .numMissedJudgeRounds(Integer.MAX_VALUE)
+                                        .build()) // 0% active
+                        .build()),
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoCreate("nobody").payingWith(GENESIS),
                 getAccountBalance(NODE_REWARD)

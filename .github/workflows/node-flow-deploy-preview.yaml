@@ -20,7 +20,7 @@ defaults:
 jobs:
   prepare-deploy-preview:
     name: Prepare for Deploy
-    runs-on: hiero-network-node-linux-medium
+    runs-on: hl-cn-default-lin-sm
     outputs:
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}

@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.lang.System.arraycopy;
@@ -35,8 +36,8 @@ import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
+import com.hedera.hapi.node.hooks.EvmHook;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
-import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.node.app.hapi.fees.usage.SigUsage;
 import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
@@ -109,7 +110,9 @@ import org.hiero.base.utility.CommonUtils;
 public class TxnUtils {
     private static final Logger log = LogManager.getLogger(TxnUtils.class);
 
-    public static final ResponseCodeEnum[] NOISY_RETRY_PRECHECKS = {BUSY, PLATFORM_TRANSACTION_NOT_CREATED};
+    public static final ResponseCodeEnum[] NOISY_RETRY_PRECHECKS = {
+        BUSY, PLATFORM_TRANSACTION_NOT_CREATED, PLATFORM_NOT_ACTIVE
+    };
 
     public static final int BYTES_4K = 4 * (1 << 10);
 
@@ -118,6 +121,11 @@ public class TxnUtils {
     private static final Pattern POSNEG_NUMERIC_LITERAL_PATTERN = Pattern.compile("^-?\\d+");
     private static final int BANNER_WIDTH = 80;
     private static final int BANNER_BOUNDARY_THICKNESS = 2;
+    /**
+     * Maximum memo length to include in log output, aligned with the default value of
+     * {@code hedera.transaction.maxMemoUtf8Bytes}.
+     */
+    private static final int MAX_LOGGED_MEMO_LENGTH = 100;
     // Wait just a bit longer than the 2-second block period to be certain we've ended the period
     private static final java.time.Duration END_OF_BLOCK_PERIOD_SLEEP_PERIOD = java.time.Duration.ofMillis(2_200L);
     // Wait just over a second to give the record stream file a chance to close
@@ -175,7 +183,7 @@ public class TxnUtils {
             return com.hedera.hapi.node.hooks.HookCreationDetails.newBuilder()
                     .hookId(hookId)
                     .extensionPoint(HookExtensionPoint.ACCOUNT_ALLOWANCE_HOOK)
-                    .lambdaEvmHook(LambdaEvmHook.newBuilder().spec(hookSpec))
+                    .evmHook(EvmHook.newBuilder().spec(hookSpec))
                     .build();
         };
     }
@@ -693,7 +701,13 @@ public class TxnUtils {
      * @throws InvalidProtocolBufferException when protocol buffer is invalid
      */
     public static String toReadableString(final Transaction grpcTransaction) throws InvalidProtocolBufferException {
-        final TransactionBody body = extractTransactionBody(grpcTransaction);
+        TransactionBody body = extractTransactionBody(grpcTransaction);
+        final String memo = body.getMemo();
+        if (memo.length() > MAX_LOGGED_MEMO_LENGTH) {
+            body = body.toBuilder()
+                    .setMemo(memo.substring(0, MAX_LOGGED_MEMO_LENGTH) + "... <truncated " + memo.length() + " bytes>")
+                    .build();
+        }
         return "body="
                 + TextFormat.shortDebugString(body)
                 + "; sigs="
@@ -838,7 +852,7 @@ public class TxnUtils {
      */
     public static String resourceAsString(@NonNull final String loc) {
         try {
-            try (final var in = TxnUtils.class.getClassLoader().getResourceAsStream(loc);
+            try (final var in = TxnUtils.class.getResourceAsStream("/" + loc);
                     final var bridge = new InputStreamReader(requireNonNull(in));
                     final var reader = new BufferedReader(bridge)) {
                 return reader.lines().collect(joining("\n"));

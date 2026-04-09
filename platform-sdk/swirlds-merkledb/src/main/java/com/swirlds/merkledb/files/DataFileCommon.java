@@ -77,9 +77,9 @@ public final class DataFileCommon {
     public static final int PAGE_SIZE = 4096;
 
     // Data file protobuf fields
-    static final FieldDefinition FIELD_DATAFILE_METADATA =
+    public static final FieldDefinition FIELD_DATAFILE_METADATA =
             new FieldDefinition("metadata", FieldType.MESSAGE, false, false, false, 1);
-    static final FieldDefinition FIELD_DATAFILE_ITEMS =
+    public static final FieldDefinition FIELD_DATAFILE_ITEMS =
             new FieldDefinition("items", FieldType.MESSAGE, true, true, false, 11);
 
     private DataFileCommon() {
@@ -251,7 +251,7 @@ public final class DataFileCommon {
     }
 
     /**
-     * Get total size fo a collection of files.
+     * Get total size for a collection of files.
      *
      * @param fileReaders collection of paths to files
      * @return total number of bytes take for all the files in fileReaders
@@ -336,7 +336,7 @@ public final class DataFileCommon {
                                 effectively read at {} effectively written at {},
                                 compactedFiles[{}] = {},
                                 filesToMerge[{}] = {}
-                                allFilesAfter[{}] = {}""",
+                                allFilesAfter[{}]""",
                 storeName,
                 filesToMerge.size(),
                 formatSizeBytes(filesToMergeSize),
@@ -351,8 +351,7 @@ public final class DataFileCommon {
                 Arrays.toString(mergedFiles.stream().map(Path::getFileName).toArray()),
                 fileToMergeIndexes.length,
                 Arrays.toString(fileToMergeIndexes),
-                allFileIndexes.length,
-                Arrays.toString(allFileIndexes));
+                allFileIndexes.length);
     }
 
     /**

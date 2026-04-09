@@ -95,15 +95,23 @@ public class HgcaaLogValidator {
                 List.of("Completing signing attempt"),
                 List.of("No pending blocks found"),
                 List.of("Forcing handoff to construction", "with different target roster"),
-                List.of("HintsSubmissions", "Failed to submit", "(PLATFORM_NOT_ACTIVE)"),
+                List.of("HintsSubmissions", "Failed to submit"),
                 List.of("Ignoring invalid partial signature"),
                 List.of("Action stack prematurely empty"),
-                List.of("Block node", "reported it is behind. Will restart stream at block"),
+                List.of("Block node", "reported it is behind. Will start streaming block"),
                 List.of("BlockNodeConnectionManager", "Block stream worker interrupted"),
                 List.of("BlockNodeConnectionManager", "No active connections available for streaming"),
                 List.of("No block nodes available to connect to"),
                 // Not present on OS X
-                List.of("Native library besu blake2bf is not present"));
+                List.of("Native library besu blake2bf is not present"),
+                // Expected as part of WRAPS proving key verification tests
+                List.of("WRAPS proving key hash mismatch at"),
+                List.of("Failed to extract WRAPS proving key archive"),
+                List.of("Failed to download WRAPS proving key"),
+                List.of("WRAPS proving key download failed"),
+                List.of("Downloaded WRAPS proving key hash mismatch"),
+                List.of("WRAPS proving key download did not complete"),
+                List.of("Failed to initiate async download of WRAPS proving key (from URL "));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

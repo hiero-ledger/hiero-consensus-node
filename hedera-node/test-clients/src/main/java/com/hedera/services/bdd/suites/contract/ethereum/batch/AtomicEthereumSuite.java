@@ -3,8 +3,7 @@ package com.hedera.services.bdd.suites.contract.ethereum.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -138,7 +137,7 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of EthereumSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @HapiTestLifecycle
-@Tag(SMART_CONTRACT)
+@Tag(ATOMIC_BATCH)
 @SuppressWarnings("java:S5960")
 class AtomicEthereumSuite {
     public static final long GAS_LIMIT = 1_000_000;
@@ -327,7 +326,6 @@ class AtomicEthereumSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> matrixedPayerRelayerTest1() {
         return feePaymentMatrix().get(0);
     }
@@ -441,6 +439,72 @@ class AtomicEthereumSuite {
                                     success ? -(wholeTransactionFee - senderGasCharged) : -wholeTransactionFee));
                     allRunFor(spec, subop4, subop5);
                 })));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> rollbackInBatchRechargesAllAssessedFees() {
+        final long smallGasLimit = 22_000L;
+        final AtomicLong relayerFee = new AtomicLong();
+        final AtomicLong senderFee = new AtomicLong();
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT + 1))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .via("referenceTx")
+                        .nonce(0)
+                        .gasPrice(GAS_PRICE)
+                        .maxGasAllowance(smallGasLimit / 2 * 71)
+                        .gasLimit(smallGasLimit)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .sending(DEPOSIT_AMOUNT)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                getTxnRecord("referenceTx").exposingTo(r -> r.getTransferList()
+                        .getAccountAmountsList()
+                        .forEach(aa -> {
+                            if (aa.getAccountID().equals(r.getTransactionID().getAccountID())) {
+                                relayerFee.set(-aa.getAmount());
+                            } else if (aa.getAccountID()
+                                    .equals(r.getContractCallResult().getSenderId())) {
+                                senderFee.set(-aa.getAmount());
+                            }
+                        })),
+                atomicBatch(ethereumCall(PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT + 1))
+                                .type(EthTxData.EthTransactionType.EIP1559)
+                                .signingWith(SECP_256K1_SOURCE_KEY)
+                                .payingWith(RELAYER)
+                                .via("batchTx")
+                                .nonce(1)
+                                .gasPrice(GAS_PRICE)
+                                .maxGasAllowance(smallGasLimit / 2 * 71)
+                                .gasLimit(smallGasLimit)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .sending(DEPOSIT_AMOUNT)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getTxnRecord("batchTx").exposingTo(r -> r.getTransferList()
+                        .getAccountAmountsList()
+                        .forEach(aa -> {
+                            if (aa.getAccountID().equals(r.getTransactionID().getAccountID())) {
+                                assertEquals(
+                                        relayerFee.get(),
+                                        -aa.getAmount(),
+                                        "Relayer fee should be the same as reference transaction");
+                            } else if (aa.getAccountID()
+                                    .equals(r.getContractCallResult().getSenderId())) {
+                                assertEquals(
+                                        senderFee.get(),
+                                        -aa.getAmount(),
+                                        "Sender fee should be the same as reference transaction");
+                            }
+                        })));
     }
 
     @HapiTest
@@ -830,7 +894,6 @@ class AtomicEthereumSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> directTransferWorksForERC20() {
         final var tokenSymbol = "FDFGF";
         final var tokenTotalSupply = 5;
@@ -1214,12 +1277,11 @@ class AtomicEthereumSuite {
         final var firstTxn = "firstCreateTxn";
         // RAW_BIG_INTEGER_WEIBAR has high bit _ON_: Negative in two's complement but positive in Ethereum
         final var RAW_BIG_INTEGER_WEIBAR =
-                new BigInteger(Bytes.fromHex("FAC7230489E80000").toByteArray());
-        //             ^^^^ 10000000000000000000 wasn't enough to pay the tx fee, so changed the leading `8` to an `F`
-        final var BIG_INTEGER_WEIBAR = new BigInteger("18070450532247928832"); // this is the actual value
+                new BigInteger(Bytes.fromHex("FAC7230489E8000000").toByteArray());
+        final var BIG_INTEGER_WEIBAR = new BigInteger("4626035336252247928832"); // this is the actual value
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, 20 * ONE_HUNDRED_HBARS))
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_MILLION_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
                 cryptoCreate(feeCollectorAndAutoRenew)
                         .keyShape(SigControl.ED25519_ON)
