@@ -359,6 +359,52 @@ jobs:
           --args '"-c 5 -a 10 -R -t 10"'
         continue-on-error: true
 
+      - name: Get Initial ServerStatus from Block Nodes
+        id: bn-init-status
+        run: |
+          # Call serverStatus on BN 1
+          STATUS_JSON_1=$(grpcurl \
+            -plaintext \
+            -emit-defaults \
+            -import-path block-node-proto \
+            -proto block-node/api/node_service.proto \
+            -d '{}' \
+            localhost:40841 \
+            org.hiero.block.api.BlockNodeService/serverStatus)
+
+          # Extract values
+          LAST_AVAILABLE_BLOCK_1=$(echo "$STATUS_JSON_1" | jq -r '.lastAvailableBlock')
+          echo "BN1_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_1" >> $GITHUB_ENV
+          
+          # Call serverStatus on BN 2
+          STATUS_JSON_2=$(grpcurl \
+            -plaintext \
+            -emit-defaults \
+            -import-path block-node-proto \
+            -proto block-node/api/node_service.proto \
+            -d '{}' \
+            localhost:40842 \
+            org.hiero.block.api.BlockNodeService/serverStatus)
+
+          # Extract values
+          LAST_AVAILABLE_BLOCK_2=$(echo "$STATUS_JSON_2" | jq -r '.lastAvailableBlock')
+          echo "BN2_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_2" >> $GITHUB_ENV
+          
+          # Call serverStatus on BN 3
+          STATUS_JSON_3=$(grpcurl \
+            -plaintext \
+            -emit-defaults \
+            -import-path block-node-proto \
+            -proto block-node/api/node_service.proto \
+            -d '{}' \
+            localhost:40843 \
+            org.hiero.block.api.BlockNodeService/serverStatus)
+
+          # Extract values
+          LAST_AVAILABLE_BLOCK_3=$(echo "$STATUS_JSON_3" | jq -r '.lastAvailableBlock')
+          echo "BN3_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_3" >> $GITHUB_ENV
+        continue-on-error: true
+
       # After some run time stop BN2 and BN3 to simulate unavailable BNs
       - name: Scale 2 BNs down to simulate failure
         run: |
@@ -457,6 +503,13 @@ jobs:
           # Export for later steps
           echo "BN1_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "BN1_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+          
+          range=$((${{ env.BN1_LAST_AVAILABLE_BLOCK }} - ${{ env.BN1_LAST_AVAILABLE_BLOCK_INIT }}))
+          echo "BN1 advanced $range blocks in x time"
+          if (( range < 1 )); then
+              echo "BN1 failed to advance"
+              exit 1
+          fi
         continue-on-error: true
 
         # Verify the BN2 is getting blocks
@@ -493,6 +546,13 @@ jobs:
           # Export for later steps
           echo "BN2_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "BN2_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+          
+          range=$((${{ env.BN2_LAST_AVAILABLE_BLOCK }} - ${{ env.BN2_LAST_AVAILABLE_BLOCK_INIT }}))
+          echo "BN2 advanced $range blocks in x time"
+          if (( range < 1 )); then
+              echo "BN2 failed to advance"
+              exit 1
+          fi
         continue-on-error: true
 
         # Verify the BN3 is getting blocks
@@ -529,6 +589,13 @@ jobs:
           # Export for later steps
           echo "BN3_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "BN3_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+          
+          range=$((${{ env.BN3_LAST_AVAILABLE_BLOCK }} - ${{ env.BN3_LAST_AVAILABLE_BLOCK_INIT }}))
+          echo "BN3 advanced $range blocks in x time"
+          if (( range < 1 )); then
+              echo "BN3 failed to advance"
+              exit 1
+          fi
         continue-on-error: true
 
         # Verify the available blocks from BNs 1-3 are within a reasonable range to showcase catchup
@@ -552,9 +619,9 @@ jobs:
           
           # Calculate min and max last available blocks
           min_last_available=$((${{ env.BN1_LAST_AVAILABLE_BLOCK }} < ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }}))
-          min_last_available=$((min_available < ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}))
+          min_last_available=$((min_last_available < ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_last_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}))
           max_last_available=$((${{ env.BN1_LAST_AVAILABLE_BLOCK }} > ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }}))
-          max_last_available=$((min_available > ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}))
+          max_last_available=$((max_last_available > ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? max_last_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}))
           
           echo "Minimum last available block among BNs: $min_last_available"
           echo "Maximum last available block among BNs: $max_last_available"
