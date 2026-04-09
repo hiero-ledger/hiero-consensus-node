@@ -4,6 +4,7 @@ package com.hedera.node.app.records.schemas;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -82,7 +83,7 @@ class V0740BlockRecordSchemaTest {
 
         subject.restart(ctx);
 
-        verify(blockInfoState, never()).put(org.mockito.ArgumentMatchers.any());
+        verify(blockInfoState, never()).put(any());
     }
 
     @Test
@@ -99,7 +100,7 @@ class V0740BlockRecordSchemaTest {
 
         subject.restart(ctx);
 
-        verify(blockInfoState, never()).put(org.mockito.ArgumentMatchers.any());
+        verify(blockInfoState, never()).put(any());
     }
 
     @Test
@@ -132,7 +133,7 @@ class V0740BlockRecordSchemaTest {
 
         subject.restart(ctx);
 
-        verify(blockInfoState, never()).put(org.mockito.ArgumentMatchers.any());
+        verify(blockInfoState, never()).put(any());
     }
 
     private void givenRestartPreconditions() {
