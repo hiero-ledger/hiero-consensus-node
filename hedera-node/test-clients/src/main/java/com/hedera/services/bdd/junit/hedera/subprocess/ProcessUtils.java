@@ -175,6 +175,19 @@ public class ProcessUtils {
     private static List<String> javaCommandLineFor(@NonNull final NodeMetadata metadata) {
         final List<String> commandLine = new ArrayList<>();
         commandLine.add(ProcessHandle.current().info().command().orElseThrow());
+        // Limit node JVM heap if configured, to avoid overcommitting runner memory.
+        // The pool is the total memory available for all nodes; divide by actual network size.
+        final var nodePoolMib = System.getProperty("hapi.spec.node.poolMib");
+        if (nodePoolMib != null && !nodePoolMib.isBlank()) {
+            try {
+                final int poolMib = Integer.parseInt(nodePoolMib);
+                final int networkSize = Integer.getInteger("hapi.spec.network.size", 4);
+                final int perNodeMib = Math.max(512, Math.min(4096, poolMib / networkSize));
+                commandLine.add("-Xmx" + perNodeMib + "m");
+            } catch (NumberFormatException e) {
+                log.warn("Invalid hapi.spec.node.poolMib value: {}", nodePoolMib);
+            }
+        }
         // Only activate JDWP if not in CI
         if (System.getenv("CI") == null) {
             commandLine.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend="

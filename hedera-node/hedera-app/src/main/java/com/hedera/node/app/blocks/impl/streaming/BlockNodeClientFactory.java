@@ -13,6 +13,7 @@ import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.spi.ProtocolConfig;
 import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
 import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
@@ -23,8 +24,15 @@ import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublish
  * connections in the constructor and there is no way to mock that.
  */
 public class BlockNodeClientFactory {
+    public static final String CORRELATION_ID_HEADER = "hiero-correlation-id";
 
     private static class DefaultRequestOptions implements ServiceInterface.RequestOptions {
+        private final Map<String, String> metadata;
+
+        private DefaultRequestOptions(@NonNull final Map<String, String> metadata) {
+            this.metadata = requireNonNull(metadata);
+        }
+
         @Override
         public @NonNull Optional<String> authority() {
             return Optional.empty();
@@ -33,6 +41,11 @@ public class BlockNodeClientFactory {
         @Override
         public @NonNull String contentType() {
             return RequestOptions.APPLICATION_GRPC;
+        }
+
+        @Override
+        public @NonNull Map<String, String> metadata() {
+            return metadata;
         }
     }
 
@@ -87,8 +100,24 @@ public class BlockNodeClientFactory {
      */
     public BlockStreamPublishServiceClient createStreamingClient(
             @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
+        return createStreamingClient(config, timeout, null);
+    }
+
+    /**
+     * Create a new {@link BlockStreamPublishServiceClient} instance using the specified configuration and
+     * connection-level correlation ID.
+     *
+     * @param config the block node configuration to use
+     * @param timeout the timeout to use
+     * @param connectionCorrelationId correlation ID to send in gRPC metadata
+     * @return a new {@link BlockStreamPublishServiceClient} instance
+     */
+    public BlockStreamPublishServiceClient createStreamingClient(
+            @NonNull final BlockNodeConfiguration config,
+            @NonNull final Duration timeout,
+            final String connectionCorrelationId) {
         final PbjGrpcClient client = buildPbjClient(ClientType.STREAMING, config, timeout);
-        return new BlockStreamPublishServiceClient(client, new DefaultRequestOptions());
+        return new BlockStreamPublishServiceClient(client, requestOptionsForCorrelationId(connectionCorrelationId));
     }
 
     /**
@@ -100,7 +129,36 @@ public class BlockNodeClientFactory {
      */
     public BlockNodeServiceClient createServiceClient(
             @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
+        return createServiceClient(config, timeout, null);
+    }
+
+    /**
+     * Create a new {@link BlockNodeServiceClient} instance using the specified configuration and connection-level
+     * correlation ID.
+     *
+     * @param config the block node configuration to use
+     * @param timeout the timeout to use
+     * @param connectionCorrelationId correlation ID to send in gRPC metadata
+     * @return a new {@link BlockNodeServiceClient} instance
+     */
+    public BlockNodeServiceClient createServiceClient(
+            @NonNull final BlockNodeConfiguration config,
+            @NonNull final Duration timeout,
+            final String connectionCorrelationId) {
         final PbjGrpcClient client = buildPbjClient(ClientType.SERVICE, config, timeout);
-        return new BlockNodeServiceClient(client, new DefaultRequestOptions());
+        return new BlockNodeServiceClient(client, requestOptionsForCorrelationId(connectionCorrelationId));
+    }
+
+    /**
+     * Creates request options that include the given correlation ID in metadata.
+     *
+     * @param correlationId request or connection correlation ID
+     * @return request options with metadata attached
+     */
+    public ServiceInterface.RequestOptions requestOptionsForCorrelationId(final String correlationId) {
+        final Map<String, String> metadata = correlationId == null || correlationId.isBlank()
+                ? Map.of()
+                : Map.of(CORRELATION_ID_HEADER, correlationId);
+        return new DefaultRequestOptions(metadata);
     }
 }

@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import com.sun.management.OperatingSystemMXBean
-import java.lang.management.ManagementFactory
 
 plugins {
     id("org.hiero.gradle.module.application")
@@ -9,6 +7,50 @@ plugins {
 }
 
 description = "Hedera Services Test Clients for End to End Tests (EET)"
+
+// Detect available resources and scale JVM settings accordingly
+val availableCpus = Runtime.getRuntime().availableProcessors()
+val totalMemoryGib: Double =
+    try {
+        val osName = System.getProperty("os.name", "").lowercase()
+        if (osName.contains("linux")) {
+            // Try cgroup limit first (container-aware), fall back to /proc/meminfo
+            val cgroupV2 = File("/sys/fs/cgroup/memory.max")
+            val cgroupV1 = File("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+            val cgroupBytes: Long? =
+                when {
+                    cgroupV2.exists() -> cgroupV2.readText().trim().toLongOrNull()
+                    cgroupV1.exists() -> cgroupV1.readText().trim().toLongOrNull()
+                    else -> null
+                }
+            if (cgroupBytes != null && cgroupBytes < Long.MAX_VALUE / 2) {
+                cgroupBytes / 1024.0 / 1024.0 / 1024.0
+            } else {
+                val memLine =
+                    File("/proc/meminfo").readLines().first { line -> line.startsWith("MemTotal") }
+                memLine.split("\\s+".toRegex())[1].toLong() / 1024.0 / 1024.0
+            }
+        } else {
+            // macOS/other: use Gradle JVM max memory as a proxy, fallback to 16 GiB
+            // This is the Gradle daemon's max heap, not physical RAM, but provides a
+            // reasonable lower bound for scaling test settings
+            Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0 / 1024.0
+        }
+    } catch (_: Exception) {
+        16.0
+    }
+// Use all available processors but cap at 8 to avoid excessive thread contention
+val testProcessorCount = availableCpus.coerceAtMost(8)
+// Parallelism is set per-task based on actual node count (see testSubprocessConcurrent below)
+// Reserve ~half of total memory for the test client JVM, leave the rest for forked node JVMs and OS
+val testClientHeapGib = (totalMemoryGib / 2).toInt().coerceIn(4, 8)
+val testMaxHeap = "${testClientHeapGib}g"
+// Pass remaining memory pool to ProcessUtils, which divides by actual node count at runtime
+val nodePoolMib = ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
+
+logger.lifecycle(
+    "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
+)
 
 mainModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
@@ -59,100 +101,9 @@ tasks.test {
     // Tell our launcher to target an embedded network whose mode is set per-class
     systemProperty("hapi.spec.embedded.mode", "per-class")
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
-}
-
-data class SubprocessJvmBudget(
-    val totalCores: Int,
-    val totalMemoryMiB: Int,
-    val reservedMemoryMiB: Int,
-    val workerHeapMiB: Int,
-    val nodeHeapMiB: Int,
-    val workerActiveProcessorCount: Int,
-    val nodeActiveProcessorCount: Int,
-)
-
-val subprocessJvmBudget by lazy {
-    val osMx = ManagementFactory.getOperatingSystemMXBean() as OperatingSystemMXBean
-    val totalCores = osMx.availableProcessors
-    val totalMemoryMiB = (osMx.totalMemorySize / (1024L * 1024L)).toInt()
-
-    // Budget for the worst case subprocess topology: four node JVMs plus one test worker JVM.
-    val budgetedNodeJvmCount = 4
-    val workerMemoryWeight = 2
-    val totalMemoryWeight = budgetedNodeJvmCount + workerMemoryWeight
-
-    // Preserve headroom for the OS, Gradle daemon, filesystem cache, and log processing.
-    val reservedMemoryMiB =
-        when {
-            totalMemoryMiB >= 32 * 1024 -> 4 * 1024
-            totalMemoryMiB >= 16 * 1024 -> 3 * 1024
-            else -> maxOf(1024, totalMemoryMiB / 5)
-        }
-    val usableMemoryMiB = maxOf(1536, totalMemoryMiB - reservedMemoryMiB)
-    val nodeHeapMiB = maxOf(512, usableMemoryMiB / totalMemoryWeight)
-    val workerHeapMiB = maxOf(1024, usableMemoryMiB - budgetedNodeJvmCount * nodeHeapMiB)
-
-    // Give each node at least one virtual CPU and let the test worker use the remainder.
-    // This still oversubscribes hosts with fewer than five cores, but avoids pretending
-    // the test worker owns the whole machine when subprocess nodes are also active.
-    val reservedSystemCores = if (totalCores >= 6) 1 else 0
-    val cpuBudget = maxOf(1, totalCores - reservedSystemCores)
-    val totalCpuWeight = budgetedNodeJvmCount + workerMemoryWeight
-    val nodeActiveProcessorCount = maxOf(1, cpuBudget / totalCpuWeight)
-    val workerActiveProcessorCount = maxOf(1, cpuBudget - budgetedNodeJvmCount * nodeActiveProcessorCount)
-
-    SubprocessJvmBudget(
-        totalCores = totalCores,
-        totalMemoryMiB = totalMemoryMiB,
-        reservedMemoryMiB = reservedMemoryMiB,
-        workerHeapMiB = workerHeapMiB,
-        nodeHeapMiB = nodeHeapMiB,
-        workerActiveProcessorCount = workerActiveProcessorCount,
-        nodeActiveProcessorCount = nodeActiveProcessorCount,
-    )
-}
-
-fun Test.applySubprocessJvmBudget(concurrentClasses: Boolean, extraJvmArgs: List<String> = emptyList()) {
-    systemProperty("hapi.spec.subprocess.node.maxHeapMiB", subprocessJvmBudget.nodeHeapMiB.toString())
-    systemProperty(
-        "hapi.spec.subprocess.node.activeProcessorCount",
-        subprocessJvmBudget.nodeActiveProcessorCount.toString(),
-    )
-    systemProperty("hapi.spec.subprocess.worker.maxHeapMiB", subprocessJvmBudget.workerHeapMiB.toString())
-    systemProperty(
-        "hapi.spec.subprocess.worker.activeProcessorCount",
-        subprocessJvmBudget.workerActiveProcessorCount.toString(),
-    )
-    if (concurrentClasses) {
-        systemProperty(
-            "junit.jupiter.execution.parallel.config.fixed.parallelism",
-            subprocessJvmBudget.workerActiveProcessorCount.toString(),
-        )
-    }
-
-    maxHeapSize = "${subprocessJvmBudget.workerHeapMiB}m"
-    jvmArgs(
-        "-XX:ActiveProcessorCount=${subprocessJvmBudget.workerActiveProcessorCount}",
-        *extraJvmArgs.toTypedArray(),
-    )
-    maxParallelForks = 1
-
-    doFirst {
-        logger.lifecycle(
-            "$path subprocess JVM budget: totalCores=${subprocessJvmBudget.totalCores}, " +
-                "totalMemoryMiB=${subprocessJvmBudget.totalMemoryMiB}, " +
-                "reservedMemoryMiB=${subprocessJvmBudget.reservedMemoryMiB}, " +
-                "workerHeapMiB=${subprocessJvmBudget.workerHeapMiB}, " +
-                "workerActiveProcessorCount=${subprocessJvmBudget.workerActiveProcessorCount}, " +
-                "nodeHeapMiB=${subprocessJvmBudget.nodeHeapMiB}, " +
-                "nodeActiveProcessorCount=${subprocessJvmBudget.nodeActiveProcessorCount}, " +
-                "junitFixedParallelism=" +
-                if (concurrentClasses) subprocessJvmBudget.workerActiveProcessorCount else 1,
-        )
-    }
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
 }
 
 val miscTags =
@@ -233,9 +184,9 @@ val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCrypto" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCryptoSerial" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to
@@ -292,10 +243,11 @@ val prCheckNetSizeOverrides =
         "hapiTestSimpleFees" to "3",
         "hapiTestSimpleFeesSerial" to "3",
         "hapiTestTokenSerial" to "3",
-        "hapiTestSmartContract" to "4",
+        "hapiTestSmartContract" to "3",
         "hapiTestSmartContractSerial" to "3",
         "hapiTestAtomicBatch" to "3",
         "hapiTestAtomicBatchSerial" to "3",
+        "hapiTestStateThrottling" to "3",
     )
 
 tasks {
@@ -323,6 +275,7 @@ tasks {
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -427,24 +380,26 @@ tasks.register<Test>("testSubprocess") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Budget the test worker and subprocess nodes from the same host resources.
-    applySubprocessJvmBudget(
-        concurrentClasses = false,
-        extraJvmArgs =
-            listOf(
-                // Fix testcontainers module system access to commons libraries.
-                // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies.
-                "--add-reads=org.testcontainers=org.apache.commons.lang3",
-                "--add-reads=org.testcontainers=org.apache.commons.compress",
-                "--add-reads=org.testcontainers=org.apache.commons.io",
-                "--add-reads=org.testcontainers=org.apache.commons.codec",
-            ),
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    // Limit forked node JVM heap to avoid overcommitting container/runner memory
+    systemProperty("hapi.spec.node.poolMib", "$nodePoolMib")
+    // Fix testcontainers module system access to commons libraries
+    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+    jvmArgs(
+        "-XX:ActiveProcessorCount=$testProcessorCount",
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
     )
+    maxParallelForks = 1
 }
 
 tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -545,20 +500,36 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
     // Limit concurrent test classes to prevent transaction backlog
-    // Use fixed strategy with limited parallelism to balance speed and stability
+    // Use fixed strategy with parallelism based on node count: 3 nodes → 3 threads, 4 nodes → 2
+    // threads
+    val testParallelism = if ((networkSize.toIntOrNull() ?: 4) <= 3) 3 else 2
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
+    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "$testParallelism")
     systemProperty(
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Budget the test worker and subprocess nodes from the same host resources.
-    applySubprocessJvmBudget(concurrentClasses = true)
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    // Limit forked node JVM heap to avoid overcommitting container/runner memory
+    systemProperty("hapi.spec.node.poolMib", "$nodePoolMib")
+    // Fix testcontainers module system access to commons libraries
+    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+    jvmArgs(
+        "-XX:ActiveProcessorCount=$testProcessorCount",
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
+    maxParallelForks = 1
 }
 
 tasks.register<Test>("testRemote") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
@@ -617,9 +588,9 @@ tasks.register<Test>("testRemote") {
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
     )
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
     maxParallelForks = 1
 }
 
@@ -654,6 +625,7 @@ tasks {
 tasks.register<Test>("testEmbedded") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -694,9 +666,9 @@ tasks.register<Test>("testEmbedded") {
         systemProperty("fees.simpleFeesEnabled", "true")
     }
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
 }
 
 val repeatableBaseTags = mapOf("hapiTestMiscRepeatable" to "REPEATABLE&!CRYPTO")
@@ -714,6 +686,7 @@ tasks {
 tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -739,9 +712,9 @@ tasks.register<Test>("testRepeatable") {
     // Tell our launcher to target a repeatable embedded network
     systemProperty("hapi.spec.embedded.mode", "repeatable")
 
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
+    // Scale heap and processor count to match available resources
+    maxHeapSize = testMaxHeap
+    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"

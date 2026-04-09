@@ -59,8 +59,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static org.hiero.hapi.support.fees.Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
-import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -2096,7 +2096,7 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     // --- Fee validations in simple fees - legacy fees dual-mode ---//
                     validateFeeModeAwareWithTxnSize(
                             "simpleSubmit",
-                            Map.of(SIGNATURES, 1L, STATE_BYTES, testMsgBytes),
+                            Map.of(SIGNATURES, 1L, CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, testMsgBytes),
                             Map.of(LEGACY_EXPECTED_USD, 0.05, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
                             simpleFeesAllowedPercentDiff,
                             submitExpectedFn),
@@ -2104,7 +2104,7 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             "submit513",
                             Map.of(
                                     SIGNATURES, 1L,
-                                    STATE_BYTES, 513L),
+                                    CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 513L),
                             Map.of(LEGACY_EXPECTED_USD, 0.051, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
                             simpleFeesAllowedPercentDiff,
                             submitExpectedFn),
@@ -2112,7 +2112,7 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             "submit800",
                             Map.of(
                                     SIGNATURES, 1L,
-                                    STATE_BYTES, 800L),
+                                    CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 800L),
                             Map.of(
                                     LEGACY_EXPECTED_USD,
                                     0.055999,
@@ -2124,7 +2124,7 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             "submit1000",
                             Map.of(
                                     SIGNATURES, 1L,
-                                    STATE_BYTES, 1000L),
+                                    CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 1000L),
                             Map.of(LEGACY_EXPECTED_USD, 0.06, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
                             simpleFeesAllowedPercentDiff,
                             submitExpectedFn),
@@ -2132,13 +2132,13 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             "submit1024",
                             Map.of(
                                     SIGNATURES, 1L,
-                                    STATE_BYTES, 1024L),
+                                    CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 1024L),
                             Map.of(LEGACY_EXPECTED_USD, 0.06, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
                             simpleFeesAllowedPercentDiff,
                             submitExpectedFn),
                     validateFeeModeAwareWithTxnSize(
                             "extraSigs",
-                            Map.of(SIGNATURES, 2L, STATE_BYTES, testMsgBytes),
+                            Map.of(SIGNATURES, 2L, CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, testMsgBytes),
                             Map.of(LEGACY_EXPECTED_USD, 0.0792, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
                             simpleFeesAllowedPercentDiff,
                             submitExpectedFn)));

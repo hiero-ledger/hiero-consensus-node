@@ -402,6 +402,7 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
             final DataFileMetadata metadata = dataReader.getMetadata();
             setOfNewFileIndexes.remove(metadata.getIndex());
         }
+        dataReader.updateMetadata(dataWriter.getMetadata()); // propagate final itemsCount
         dataReader.setFileCompleted();
         return dataReader;
     }

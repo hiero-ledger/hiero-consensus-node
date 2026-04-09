@@ -15,6 +15,7 @@ defaults:
 permissions:
   id-token: write
   actions: read
+  issues: write
   pull-requests: write
   statuses: write
   checks: write
@@ -108,13 +109,26 @@ jobs:
             exit 1
           fi
 
+  report-flaky-tests:
+    name: Report Flaky Tests
+    needs:
+      - detect-change-type
+      - mats-pr-checks
+    # Skip flaky test processing when the PR is a draft
+    if: ${{  !github.event.pull_request.draft && !cancelled() && always() }}
+    uses: ./.github/workflows/800-call-report-flaky-test.yaml
+    with:
+      workflow-context: pr-checks
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+
   report-summary:
     name: Report PR Check Summary
     runs-on: hl-cn-default-lin-sm
     needs:
       - detect-change-type
       - mats-pr-checks
-    if: ${{ !cancelled() && always() }}
+      - report-flaky-tests
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
@@ -125,7 +139,7 @@ jobs:
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: "0"
-          ref: ${{ inputs.ref || '' }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Report Summary
         id: report-summary
