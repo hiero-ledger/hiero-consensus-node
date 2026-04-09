@@ -200,8 +200,7 @@ public class ReconnectStateLearner {
         final SerializableDataInputStream in = new SerializableDataInputStream(connection.getDis());
         final SerializableDataOutputStream out = new SerializableDataOutputStream(connection.getDos());
 
-        connection.getDis().getSyncByteCounter().resetCount();
-        connection.getDos().getSyncByteCounter().resetCount();
+        connection.getDis().byteCounter().getAndReset();
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
@@ -242,7 +241,7 @@ public class ReconnectStateLearner {
         SignedStateFileReader.registerServiceStates(newSignedState);
         newSignedState.setSigSet(sigSet);
 
-        final double mbReceived = connection.getDis().getSyncByteCounter().getMebiBytes();
+        final double mbReceived = connection.getDis().byteCounter().getMebiBytes();
         logger.info(
                 RECONNECT.getMarker(),
                 () -> new ReconnectDataUsagePayload("Reconnect data usage report", mbReceived).toString());
