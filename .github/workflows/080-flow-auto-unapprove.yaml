@@ -33,5 +33,5 @@ jobs:
           github-token: ${{ secrets.GH_AUTO_UNAPPROVE_TOKEN }}
           pr-number: "24874"
           dry-run: "false"
-          code-owners-file: '.github/CODEOWNERS'
-          team-start-with: '@hiero-ledger/'
+          code-owners-file: ".github/CODEOWNERS"
+          team-start-with: "@hiero-ledger/"
