@@ -365,7 +365,16 @@ jobs:
         run: |
           solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
-          npm run test 
+          mocha --parallel --node-option require=ts-node/register --node-option require=tsconfig-paths/register --recursive 'src/tests/contract-service/*.ts' --reporter mochawesome --exit
+          mocha --parallel --node-option require=ts-node/register --node-option require=tsconfig-paths/register --recursive 'src/tests/contracts/*.ts' --reporter mochawesome --exit
+          mocha --parallel --node-option require=ts-node/register --node-option require=tsconfig-paths/register --recursive 'src/tests/crypto-service/*.ts' --reporter mochawesome --exit
+          mocha --parallel --node-option require=ts-node/register --node-option require=tsconfig-paths/register --recursive 'src/tests/ethereum/*.ts' --reporter mochawesome --exit
+          mocha --parallel --node-option require=ts-node/register --node-option require=tsconfig-paths/register --recursive 'src/tests/file-service/*.ts' --reporter mochawesome --exit
+          mocha --parallel --node-option require=ts-node/register --node-option require=tsconfig-paths/register --recursive 'src/tests/node-service/*.ts' --reporter mochawesome --exit
+          mocha --parallel --node-option require=ts-node/register --node-option require=tsconfig-paths/register --recursive 'src/tests/schedule-service/*.ts' --reporter mochawesome --exit
+          mocha --parallel --node-option require=ts-node/register --node-option require=tsconfig-paths/register --recursive 'src/tests/token-service/*.ts' --reporter mochawesome --exit
+          mocha --parallel --node-option require=ts-node/register --node-option require=tsconfig-paths/register --recursive 'src/tests/topic-service/*.ts' --reporter mochawesome --exit
+          #npm run test 
           #npm run test:file src/tests/crypto-service/test-transfer-hbar-transaction.ts
           #npm run test:file src/tests/contract-service/test-contract-delete-transaction.ts
         working-directory: sdk-tck/regression # required
