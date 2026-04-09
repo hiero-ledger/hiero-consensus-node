@@ -109,12 +109,12 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
             @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {
+        this.vmapLearner = Objects.requireNonNull(vmapLearner, "vmapLearner is null");
         this.originalState = vmapLearner.getOriginalState();
         this.reconnectState = vmapLearner.getReconnectState();
-        this.reconnectConfig = reconnectConfig;
-        this.vmapLearner = Objects.requireNonNull(vmapLearner);
-        this.traversalOrder = traversalOrder;
-        this.mapStats = mapStats;
+        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
+        this.traversalOrder = Objects.requireNonNull(traversalOrder, "traversalOrder is null");
+        this.mapStats = Objects.requireNonNull(mapStats, "mapStats is null");
     }
 
     @Override

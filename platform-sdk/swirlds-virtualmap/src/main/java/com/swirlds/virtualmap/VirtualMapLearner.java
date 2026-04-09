@@ -95,7 +95,8 @@ public final class VirtualMapLearner {
     private final CompletableFuture<Hash> reconnectHashingFuture = new CompletableFuture<>();
     private final AtomicBoolean reconnectHashingStarted = new AtomicBoolean(false);
 
-    private final AtomicReference<State> state = new AtomicReference<>(State.NEW);
+    // Tracks current stage of the reconnect process
+    private final AtomicReference<Stage> stage = new AtomicReference<>(Stage.NEW);
 
     // ---- Set after reconnect completes ----
 
@@ -110,7 +111,7 @@ public final class VirtualMapLearner {
     @Nullable
     private VirtualMap virtualMap;
 
-    private enum State {
+    private enum Stage {
         NEW,
         INITIALIZING,
         INITIALIZED,
@@ -191,10 +192,17 @@ public final class VirtualMapLearner {
 
     // ---- Reconnect operations (called by LearnerTreeView implementations) ----
 
-    private void changeState(State expectedState, State newState) {
-        if (!state.compareAndSet(expectedState, newState)) {
-            throw new IllegalStateException("Reconnect state is incorrect. expected=" + expectedState + ", actual="
-                    + state.get() + ", desired=" + newState);
+    /**
+     * Updates the stage of the reconnect process, ensuring that stage transitions happen in the expected order.
+     *
+     * @param expectedStage the expected current stage; if the actual stage does not match this, an exception is thrown
+     * @param newStage the desired new stage to be set
+     * @throws IllegalStateException if the actual current stage does not match the expected stage, indicating an incorrect sequence of operations
+     */
+    private void updateStage(@NonNull final Stage expectedStage, @NonNull final Stage newStage) {
+        if (!stage.compareAndSet(expectedStage, newStage)) {
+            throw new IllegalStateException("Reconnect stage is incorrect. expected=" + expectedStage + ", actual="
+                    + stage.get() + ", desired=" + newStage);
         }
     }
 
@@ -210,7 +218,7 @@ public final class VirtualMapLearner {
      * @param beforeCleaningLeavesAction an action to run after the reconnect state is initialized but before any old leaves are marked for deletion. Can be {@code null}.
      */
     public void init(final long firstLeafPath, final long lastLeafPath, @Nullable Runnable beforeCleaningLeavesAction) {
-        changeState(State.NEW, State.INITIALIZING);
+        updateStage(Stage.NEW, Stage.INITIALIZING);
 
         logger.info(
                 RECONNECT.getMarker(),
@@ -233,7 +241,7 @@ public final class VirtualMapLearner {
         }
 
         deleteOldLeavesBeforeNewFirstLeafPath();
-        changeState(State.INITIALIZING, State.INITIALIZED);
+        updateStage(Stage.INITIALIZING, Stage.INITIALIZED);
     }
 
     /**
@@ -282,6 +290,7 @@ public final class VirtualMapLearner {
      * @param leaf the leaf record received from the teacher; must not be null
      */
     public void onDirtyLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
+        assert stage.get() == Stage.INITIALIZED : "reconnect is not initialized yet";
         checkOldLeafToBeDeleted(leaf);
         reconnectFlusher.updateLeaf(leaf);
 
@@ -322,7 +331,7 @@ public final class VirtualMapLearner {
      * @throws MerkleSynchronizationException if hashing fails or if the calling thread is interrupted
      */
     public void finish() {
-        changeState(State.INITIALIZED, State.FINISHING);
+        updateStage(Stage.INITIALIZED, Stage.FINISHING);
 
         logger.info(RECONNECT.getMarker(), "Finalizing learner reconnect");
 
@@ -333,7 +342,7 @@ public final class VirtualMapLearner {
         virtualMap = new VirtualMap(
                 virtualMapConfig, dataSourceBuilder, dataSource, reconnectState.copy(), statistics, hasher, finalHash);
 
-        changeState(State.FINISHING, State.FINISHED);
+        updateStage(Stage.FINISHING, Stage.FINISHED);
         logger.info(RECONNECT.getMarker(), "Learner reconnect complete");
     }
 
@@ -479,8 +488,9 @@ public final class VirtualMapLearner {
      */
     @NonNull
     public VirtualMap getVirtualMap() {
+        assert stage.get() == Stage.FINISHED : "Reconnect has not completed; current stage is " + stage.get();
         if (virtualMap == null) {
-            throw new IllegalStateException("Reconnect has not completed; VirtualMap is not yet available");
+            throw new IllegalStateException("Reconnect has not completed - new virtual map is not yet available");
         }
         return virtualMap;
     }
