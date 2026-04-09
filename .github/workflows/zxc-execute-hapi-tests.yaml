@@ -48,7 +48,7 @@ on:
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-smart-contract-and-iss-and-iss:
+      enable-hapi-tests-smart-contract-and-iss:
         description: "HAPI Testing (Smart Contracts & ISS) Enabled"
         type: string
         required: false
