@@ -100,8 +100,9 @@ jobs:
           curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
           tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
           install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          export PATH="${RUNNER_TEMP}:${PATH}"
           echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
-          helm version --short
+          "${RUNNER_TEMP}/helm" version --short
 
       - name: Verify Solo Dependency Versions
         run: |
