@@ -549,6 +549,22 @@ public class UtilVerbs {
     }
 
     /**
+     * Returns an operation that polls the selected nodes' block node comms logs until they contain
+     * the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep polling
+     * @return the operation that polls until the target logs contain the given text
+     */
+    public static UntilLogContainsOp awaitBlockNodeCommsLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration timeout) {
+        return new UntilLogContainsOp(selector, BLOCK_NODE_COMMS_LOG, text, null, () -> new SpecOperation[0])
+                .lasting(timeout)
+                .pollingEvery(Duration.ofSeconds(1));
+    }
+
+    /**
      * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
      * application logs contain the given text, or the timeout elapses.
      *
