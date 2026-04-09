@@ -5,7 +5,6 @@ import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationErro
 
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationException;
@@ -99,6 +98,8 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes<?> leafBytes) {
         Objects.requireNonNull(virtualMap);
         Objects.requireNonNull(keyToPath);
+        Objects.requireNonNull(pathToDiskLocationLeafNodes);
+        Objects.requireNonNull(keyValueStore);
 
         try {
             final Bytes keyBytes = leafBytes.keyBytes();
@@ -154,16 +155,16 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
             try {
                 final BufferedData rawStoreBytes = keyValueStore.get(p2KvPath);
                 if (rawStoreBytes == null) {
-                    storeMismatchCount.incrementAndGet(); // New counter for data retrieval issues
+                    storeMismatchCount.incrementAndGet();
                     log.error("Store cross-check failed: keyValueStore returned null for path={}", p2KvPath);
                     return;
                 }
                 // read canonical bytes directly from the store and parse
-                leafBytesFromStore = VirtualLeafBytes.parseFrom((ReadableSequentialData) rawStoreBytes);
+                leafBytesFromStore = VirtualLeafBytes.parseFrom(rawStoreBytes);
             } catch (RuntimeException ex) {
                 storeMismatchCount.incrementAndGet();
                 log.error(
-                        "Index cross-check failed: unable to parse bytes from store for path={}. error={}",
+                        "Index cross-check failed: unable to parse bytes from store for path={}.",
                         p2KvPath,
                         ex.getMessage());
                 return;
