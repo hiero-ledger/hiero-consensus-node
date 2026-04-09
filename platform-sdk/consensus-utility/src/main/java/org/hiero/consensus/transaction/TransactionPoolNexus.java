@@ -8,12 +8,16 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
@@ -23,11 +27,23 @@ import org.hiero.consensus.model.transaction.TimestampedTransaction;
  * created.
  */
 public class TransactionPoolNexus implements EventTransactionSupplier {
+    private static final Logger logger = LogManager.getLogger(TransactionPoolNexus.class);
+    private static final Duration MINIMUM_REJECTION_LOG_PERIOD = Duration.ofMinutes(1);
+
     /**
      * The default maximum amount of time the platform may be in an unhealthy state before we start rejecting
      * transactions.
      */
     public static final Duration DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION = Duration.ofSeconds(1);
+
+    private enum ApplicationTransactionRejectionReason {
+        PLATFORM_UNHEALTHY,
+        PLATFORM_NOT_ACTIVE,
+        PLATFORM_UNHEALTHY_AND_NOT_ACTIVE,
+        NULL_TRANSACTION,
+        TRANSACTION_TOO_LARGE,
+        QUEUE_FULL
+    }
 
     /**
      * The maximum amount of time the platform may be in an unhealthy state before we start rejecting transactions.
@@ -82,9 +98,20 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     private boolean healthy = true;
 
     /**
+     * The most recent unhealthy duration reported by the health monitor.
+     */
+    private Duration lastReportedUnhealthyDuration = Duration.ZERO;
+
+    /**
      * Time source for timestamping transactions.
      */
     private final InstantSource time;
+
+    /**
+     * Last log time for each rejection reason, to avoid flooding logs while preserving signal.
+     */
+    private final EnumMap<ApplicationTransactionRejectionReason, Instant> lastRejectionLogTimes =
+            new EnumMap<>(ApplicationTransactionRejectionReason.class);
 
     /**
      * Creates a new transaction pool for transactions waiting to be put in an event.
@@ -127,16 +154,10 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      * @return true if the transaction passed all validity checks and was accepted by the consumer
      */
     public synchronized boolean submitApplicationTransaction(@NonNull final Bytes appTransaction) {
-        if (!healthy || platformStatus != PlatformStatus.ACTIVE) {
-            return false;
-        }
-
-        if (appTransaction == null) {
-            // FUTURE WORK: This really should throw, but to avoid changing existing API this will be changed later.
-            return false;
-        }
-        if (appTransaction.length() > maximumTransactionSize) {
-            // FUTURE WORK: This really should throw, but to avoid changing existing API this will be changed later.
+        final ApplicationTransactionRejectionReason rejectionReason =
+                getApplicationTransactionRejectionReason(appTransaction);
+        if (rejectionReason != null) {
+            logRejectedApplicationTransaction(rejectionReason, appTransaction);
             return false;
         }
 
@@ -168,9 +189,9 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
 
         // Always submit system transactions. If it's not a system transaction, then only submit it if we
         // don't violate queue size capacity restrictions.
-        if (!priority
-                && (bufferedTransactions.size() + priorityBufferedTransactions.size()) > throttleTransactionQueueSize) {
+        if (!priority && getBufferedTransactionQueueDepth() > throttleTransactionQueueSize) {
             transactionPoolMetrics.recordRejectedAppTransaction();
+            logRejectedApplicationTransaction(ApplicationTransactionRejectionReason.QUEUE_FULL, transaction);
             return false;
         }
 
@@ -297,7 +318,33 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      * @param duration the amount of time that the system has been in an unhealthy state
      */
     public synchronized void reportUnhealthyDuration(@NonNull final Duration duration) {
+        Objects.requireNonNull(duration);
+        lastReportedUnhealthyDuration = duration;
+        final boolean wasHealthy = healthy;
         healthy = isLessThan(duration, maximumPermissibleUnhealthyDuration);
+        if (wasHealthy == healthy) {
+            return;
+        }
+
+        if (healthy) {
+            logger.info(
+                    "Transaction pool became healthy and will accept application transactions again "
+                            + "[reportedUnhealthyDuration={}, maximumPermissibleUnhealthyDuration={}, "
+                            + "platformStatus={}, queueDepth={}]",
+                    duration,
+                    maximumPermissibleUnhealthyDuration,
+                    platformStatus,
+                    getBufferedTransactionQueueDepth());
+        } else {
+            logger.warn(
+                    "Transaction pool became unhealthy and will reject application transactions "
+                            + "[reportedUnhealthyDuration={}, maximumPermissibleUnhealthyDuration={}, "
+                            + "platformStatus={}, queueDepth={}]",
+                    duration,
+                    maximumPermissibleUnhealthyDuration,
+                    platformStatus,
+                    getBufferedTransactionQueueDepth());
+        }
     }
 
     /**
@@ -307,5 +354,117 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
         bufferedTransactions.clear();
         priorityBufferedTransactions.clear();
         bufferedSignatureTransactionCount = 0;
+    }
+
+    @Nullable
+    private ApplicationTransactionRejectionReason getApplicationTransactionRejectionReason(
+            @Nullable final Bytes transaction) {
+        if (!healthy && platformStatus != PlatformStatus.ACTIVE) {
+            return ApplicationTransactionRejectionReason.PLATFORM_UNHEALTHY_AND_NOT_ACTIVE;
+        }
+        if (!healthy) {
+            return ApplicationTransactionRejectionReason.PLATFORM_UNHEALTHY;
+        }
+        if (platformStatus != PlatformStatus.ACTIVE) {
+            return ApplicationTransactionRejectionReason.PLATFORM_NOT_ACTIVE;
+        }
+        if (transaction == null) {
+            return ApplicationTransactionRejectionReason.NULL_TRANSACTION;
+        }
+        if (transaction.length() > maximumTransactionSize) {
+            return ApplicationTransactionRejectionReason.TRANSACTION_TOO_LARGE;
+        }
+        return null;
+    }
+
+    private void logRejectedApplicationTransaction(
+            @NonNull final ApplicationTransactionRejectionReason rejectionReason, @Nullable final Bytes transaction) {
+        final Instant now = time.instant();
+        final Instant lastLogTime = lastRejectionLogTimes.get(rejectionReason);
+        if (lastLogTime != null && isLessThan(Duration.between(lastLogTime, now), MINIMUM_REJECTION_LOG_PERIOD)) {
+            return;
+        }
+        lastRejectionLogTimes.put(rejectionReason, now);
+
+        final Long transactionSize = transaction == null ? null : transaction.length();
+        final int queueDepth = getBufferedTransactionQueueDepth();
+        switch (rejectionReason) {
+            case PLATFORM_UNHEALTHY -> logger.warn(
+                    "Rejected application transaction because the platform health gate is closed "
+                            + "[reportedUnhealthyDuration={}, maximumPermissibleUnhealthyDuration={}, "
+                            + "platformStatus={}, queueDepth={}, throttleTransactionQueueSize={}, "
+                            + "transactionSize={}, maximumTransactionSize={}]",
+                    lastReportedUnhealthyDuration,
+                    maximumPermissibleUnhealthyDuration,
+                    platformStatus,
+                    queueDepth,
+                    throttleTransactionQueueSize,
+                    transactionSize,
+                    maximumTransactionSize);
+            case PLATFORM_NOT_ACTIVE -> logger.warn(
+                    "Rejected application transaction because the transaction pool platform status is not ACTIVE "
+                            + "[platformStatus={}, healthy={}, reportedUnhealthyDuration={}, "
+                            + "maximumPermissibleUnhealthyDuration={}, queueDepth={}, "
+                            + "throttleTransactionQueueSize={}, transactionSize={}, maximumTransactionSize={}]",
+                    platformStatus,
+                    healthy,
+                    lastReportedUnhealthyDuration,
+                    maximumPermissibleUnhealthyDuration,
+                    queueDepth,
+                    throttleTransactionQueueSize,
+                    transactionSize,
+                    maximumTransactionSize);
+            case PLATFORM_UNHEALTHY_AND_NOT_ACTIVE -> logger.warn(
+                    "Rejected application transaction because the platform is both unhealthy and not ACTIVE "
+                            + "[platformStatus={}, reportedUnhealthyDuration={}, "
+                            + "maximumPermissibleUnhealthyDuration={}, queueDepth={}, "
+                            + "throttleTransactionQueueSize={}, transactionSize={}, maximumTransactionSize={}]",
+                    platformStatus,
+                    lastReportedUnhealthyDuration,
+                    maximumPermissibleUnhealthyDuration,
+                    queueDepth,
+                    throttleTransactionQueueSize,
+                    transactionSize,
+                    maximumTransactionSize);
+            case NULL_TRANSACTION -> logger.warn(
+                    "Rejected application transaction because the transaction payload was null "
+                            + "[platformStatus={}, healthy={}, reportedUnhealthyDuration={}, "
+                            + "maximumPermissibleUnhealthyDuration={}, queueDepth={}, "
+                            + "throttleTransactionQueueSize={}]",
+                    platformStatus,
+                    healthy,
+                    lastReportedUnhealthyDuration,
+                    maximumPermissibleUnhealthyDuration,
+                    queueDepth,
+                    throttleTransactionQueueSize);
+            case TRANSACTION_TOO_LARGE -> logger.warn(
+                    "Rejected application transaction because it exceeds the maximum transaction size "
+                            + "[transactionSize={}, maximumTransactionSize={}, platformStatus={}, healthy={}, "
+                            + "reportedUnhealthyDuration={}, queueDepth={}, throttleTransactionQueueSize={}]",
+                    transactionSize,
+                    maximumTransactionSize,
+                    platformStatus,
+                    healthy,
+                    lastReportedUnhealthyDuration,
+                    queueDepth,
+                    throttleTransactionQueueSize);
+            case QUEUE_FULL -> logger.warn(
+                    "Rejected application transaction because the transaction queue is over capacity "
+                            + "[queueDepth={}, throttleTransactionQueueSize={}, platformStatus={}, healthy={}, "
+                            + "reportedUnhealthyDuration={}, maximumPermissibleUnhealthyDuration={}, "
+                            + "transactionSize={}, maximumTransactionSize={}]",
+                    queueDepth,
+                    throttleTransactionQueueSize,
+                    platformStatus,
+                    healthy,
+                    lastReportedUnhealthyDuration,
+                    maximumPermissibleUnhealthyDuration,
+                    transactionSize,
+                    maximumTransactionSize);
+        }
+    }
+
+    private int getBufferedTransactionQueueDepth() {
+        return bufferedTransactions.size() + priorityBufferedTransactions.size();
     }
 }
