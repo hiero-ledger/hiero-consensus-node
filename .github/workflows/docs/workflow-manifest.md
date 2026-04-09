@@ -40,6 +40,7 @@
 | zxf-single-day-longevity-test-controller.yaml         | ZXF: [CITR] Single Day Longevity Test Controller                  |                  |                      |
 | zxf-single-day-performance-test-controller-adhoc.yaml | ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT) |                  |                      |
 | zxf-single-day-performance-test-controller.yaml       | ZXF: [CITR] Single Day Performance Test Controller (SDPT)         |                  |                      |
+| 200-user-adhoc-solo-tests.yaml                        | 200: [USER] Ad Hoc Solo Tests                                     |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # BUILD                                               |                                                                   |                  |                      |
 | node-flow-build-application.yaml                      | Node: Build Application                                           |                  |                      |
