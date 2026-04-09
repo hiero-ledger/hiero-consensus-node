@@ -106,7 +106,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
         ValidationAssertions.requireNonNull(entityCounts, getName());
 
         final boolean ok;
-        if (!NET_NAME.equals("Mainnet")) {
+        if (NET_NAME.equals("Mainnet")) {
             ok = entityCounts.numAccounts() == accountCount.get()
                     && entityCounts.numAliases() == aliasesCount.get()
                     && entityCounts.numTokens() == tokenCount.get()
