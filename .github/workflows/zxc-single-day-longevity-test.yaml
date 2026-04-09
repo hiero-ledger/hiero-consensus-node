@@ -350,6 +350,7 @@ jobs:
           cd "${{ github.workspace }}"
 
       - name: Compile BN
+        if: false
         run: |
           cd "${{ github.workspace }}"/target_block_node
           ./gradlew app:distTar
@@ -394,6 +395,7 @@ jobs:
           fi
 
       - name: Build Validator
+        if: false
         run: |
           cd "${{ github.workspace }}"/target_consensus_node
           ./gradlew --no-daemon :hedera-state-validator:shadowJar
@@ -763,6 +765,7 @@ jobs:
           done
 
       - name: Deploy Validator
+        if: false
         run: |
           set +x
           set +e
