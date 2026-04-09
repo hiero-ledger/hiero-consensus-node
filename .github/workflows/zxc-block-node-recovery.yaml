@@ -335,17 +335,13 @@ jobs:
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
         continue-on-error: true
 
-      # port forwards
-      - name: Solo Port forwards
+      - name: Port forward CN proxy & MN ports
         id: deploy_end
         run: |
           kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
           kubectl port-forward svc/mirror-1-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
           kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
-          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
-          kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
-          kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &
           
           echo "deploy_end=$(date +%s)" >> "$GITHUB_OUTPUT"
 
@@ -422,6 +418,13 @@ jobs:
           curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
           sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
           rm grpcurl.tar.gz
+
+      - name: Port forward BN ports
+        id: deploy_end
+        run: |
+          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
+          kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
+          kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &
 
         # Verify the BN1 is getting blocks
       - name: Get ServerStatus from Block Node 1
