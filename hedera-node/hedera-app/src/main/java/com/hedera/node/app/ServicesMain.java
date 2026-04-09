@@ -224,12 +224,13 @@ public class ServicesMain {
         // BlockRecordManagerImpl is constructed during DI initialization.
         // The migration itself is gated by the appropriate feature flags, so this is safe to invoke.
         // If migration voting has already completed in state, skip the migration entirely.
+        final var hederaConfig = hedera.configProvider().getConfiguration();
         final var migrationAlreadyApplied = isMigrationVotingComplete(state);
         hedera.wrappedRecordBlockHashMigration()
                 .execute(
-                        platformConfig.getConfigData(BlockStreamConfig.class).streamMode(),
-                        platformConfig.getConfigData(BlockRecordStreamConfig.class),
-                        platformConfig.getConfigData(BlockStreamJumpstartConfig.class),
+                        hederaConfig.getConfigData(BlockStreamConfig.class).streamMode(),
+                        hederaConfig.getConfigData(BlockRecordStreamConfig.class),
+                        hederaConfig.getConfigData(BlockStreamJumpstartConfig.class),
                         migrationAlreadyApplied);
 
         // --- Now build the platform and start it ---

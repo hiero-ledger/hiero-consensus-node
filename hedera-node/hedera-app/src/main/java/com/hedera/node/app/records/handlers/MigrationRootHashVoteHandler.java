@@ -166,7 +166,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         log.info(
                 "Finalized migration root hash vote values: Block {} previousWrappedRecordBlockRootHash={},"
                         + " wrappedIntermediatePreviousBlockRootHashes=[{}], wrappedIntermediateBlockRootsLeafCount={}",
-                blockRecordManager != null ? blockRecordManager.blockNo() : "Unknown",
+                blockRecordManager != null ? blockRecordManager.blockNo() - 1 : "Unknown",
                 previousWrappedRecordBlockRootHash.toHex(),
                 finalizedIntermediateState.stream().map(Bytes::toHex).collect(Collectors.joining(", ")),
                 finalizedLeafCount);
