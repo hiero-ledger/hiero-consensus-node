@@ -30,7 +30,9 @@ import java.time.Duration;
  * @param defaultMessageHardLimitBytes the default message hard limit (in bytes) used when a block node does not specify its own hard limit. Default is 37748736 bytes (36 MB).
  * @param connectionMonitorCheckIntervalMillis the amount of time (in milliseconds) between checking the health of block node connectivity
  * @param connectionStallThresholdMillis the amount of time needed to elapse (in milliseconds) between connection worker loop invocations before a connection is considered stalled
- * @param connectCoolDownSeconds the minimum amount of time (in seconds) to permit reconnecting to a block node
+ * @param globalCoolDownSeconds the minimum amount of time (in seconds) between switching block node connections
+ * @param basicNodeCoolDownSeconds the minimum amount of time (in seconds) to permit reconnecting to a block node for basic scenarios
+ * @param extendedNodeCoolDownSeconds the minimum amount of time (in seconds) to permit reconnecting to a block node for extended scenarios
  */
 // spotless:off
 @ConfigData("blockNode")
@@ -55,6 +57,8 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "37748736") @Min(1) @NodeProperty long defaultMessageHardLimitBytes,
         @ConfigProperty(defaultValue = "200") @Min(1) @NetworkProperty int connectionMonitorCheckIntervalMillis,
         @ConfigProperty(defaultValue = "250") @Min(10) @NetworkProperty int connectionStallThresholdMillis,
-        @ConfigProperty(defaultValue = "15") @Min(0) @NetworkProperty int connectCoolDownSeconds) {
+        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int globalCoolDownSeconds,
+        @ConfigProperty(defaultValue = "15") @Min(0) @NetworkProperty int basicNodeCoolDownSeconds,
+        @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int extendedNodeCoolDownSeconds) {
 }
 // spotless:on

@@ -63,7 +63,8 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     }
 
     private static final long NODE_ID = 0L;
-    private static final int COOL_DOWN_SECONDS = 15;
+    private static final int BASIC_COOL_DOWN_SECONDS = 15;
+    private static final int EXTENDED_COOL_DOWN_SECONDS = 30;
 
     private ConfigProvider configProvider;
     private BlockNodeConfiguration configuration;
@@ -82,7 +83,8 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .when(versionedConfiguration.getConfigData(BlockNodeConnectionConfig.class))
                 .thenReturn(bncConfig);
-        lenient().when(bncConfig.connectCoolDownSeconds()).thenReturn(COOL_DOWN_SECONDS);
+        lenient().when(bncConfig.basicNodeCoolDownSeconds()).thenReturn(BASIC_COOL_DOWN_SECONDS);
+        lenient().when(bncConfig.extendedNodeCoolDownSeconds()).thenReturn(EXTENDED_COOL_DOWN_SECONDS);
 
         configuration = newBlockNodeConfig("localhost", 1234, 1);
         globalActiveStreamConnectionCount = new AtomicInteger();
@@ -362,7 +364,8 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         when(connection.connectionId()).thenReturn(connectionId);
         final Instant closeTimestamp = Instant.now();
         when(connection.closeTimestamp()).thenReturn(closeTimestamp);
-        when(connection.closeReason()).thenReturn(CloseReason.CONNECTION_ERROR); // CONNECTION_ERROR requires cool down
+        when(connection.closeReason())
+                .thenReturn(CloseReason.CONNECTION_ERROR); // CONNECTION_ERROR requires basic cool down
         when(connection.numberOfBlocksSent()).thenReturn(10);
 
         connectionHistories()
@@ -372,7 +375,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
         assertThat(localActiveStreamingConnectionCount()).hasValue(0);
         assertThat(globalActiveStreamConnectionCount).hasValue(0);
-        final Instant expectedCoolDownTimestamp = Instant.now(clock).plusSeconds(COOL_DOWN_SECONDS);
+        final Instant expectedCoolDownTimestamp = Instant.now(clock).plusSeconds(BASIC_COOL_DOWN_SECONDS);
         assertThat(nodeCoolDownTimestampRef()).hasValue(expectedCoolDownTimestamp);
 
         final ConnectionHistory history = connectionHistories().get(connectionId);
@@ -492,14 +495,53 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testApplyCoolDown_deviantConnectionClose() {
+    void testApplyCoolDown_deviantConnectionClose_basicCoolDown() {
         assertThat(node.isStreamingCandidate()).isTrue();
         assertThat(nodeCoolDownTimestampRef()).hasNullValue();
 
         node.applyCoolDown(new DeviantConnectionClose(CloseReason.BUFFER_SATURATION));
 
+        final Instant expectedCoolDownTimestamp = Instant.now(clock).plusSeconds(BASIC_COOL_DOWN_SECONDS);
+
         assertThat(node.isStreamingCandidate()).isFalse();
-        assertThat(nodeCoolDownTimestampRef()).doesNotHaveNullValue();
+        assertThat(nodeCoolDownTimestampRef()).hasValue(expectedCoolDownTimestamp);
+    }
+
+    @Test
+    void testApplyCoolDown_deviantConnectionClose_extendedCoolDown() {
+        assertThat(node.isStreamingCandidate()).isTrue();
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+
+        node.applyCoolDown(new DeviantConnectionClose(CloseReason.TOO_MANY_END_STREAM_RESPONSES));
+
+        final Instant expectedCoolDownTimestamp = Instant.now(clock).plusSeconds(EXTENDED_COOL_DOWN_SECONDS);
+
+        assertThat(node.isStreamingCandidate()).isFalse();
+        assertThat(nodeCoolDownTimestampRef()).hasValue(expectedCoolDownTimestamp);
+    }
+
+    @Test
+    void testApplyCoolDown_deviantConnectionClose_noCoolDown() {
+        // This scenario shouldn't be possible, but the code is defensive to check for it
+        assertThat(node.isStreamingCandidate()).isTrue();
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+
+        node.applyCoolDown(new DeviantConnectionClose(CloseReason.SHUTDOWN));
+
+        assertThat(node.isStreamingCandidate()).isTrue();
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+    }
+
+    @Test
+    void testApplyCoolDown_existingLongerCoolDown() {
+        // explicitly set the cool down such that an extended cool down was previously applied
+        // then try to apply a basic cool down. the extended cool down should be kept since it is longer
+        final Instant extendedCoolDownTimestamp = Instant.now(clock).plusSeconds(EXTENDED_COOL_DOWN_SECONDS);
+        nodeCoolDownTimestampRef().set(extendedCoolDownTimestamp);
+
+        node.applyCoolDown(new DeviantConnectionClose(CloseReason.BUFFER_SATURATION));
+
+        assertThat(nodeCoolDownTimestampRef()).hasValue(extendedCoolDownTimestamp);
     }
 
     @SuppressWarnings("unchecked")

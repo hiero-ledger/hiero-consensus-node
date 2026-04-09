@@ -444,7 +444,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             blockStreamMetrics.recordEndOfStreamLimitExceeded();
 
             sendEndStream(RESET);
-            close(CloseReason.END_STREAM_RECEIVED, true);
+            close(CloseReason.TOO_MANY_END_STREAM_RESPONSES, true);
             return;
         }
 
@@ -466,11 +466,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
                 logger.info(
                         "{} Block node reported status indicating immediate restart should be attempted. "
-                                + "Will restart stream at block {}.",
+                                + "May restart stream at block {}.",
                         this,
                         restartBlockNumber);
 
-                close(CloseReason.END_STREAM_RECEIVED, true);
+                close(CloseReason.TRANSIENT_END_STREAM_RECEIVED, true);
             }
             case Code.SUCCESS -> {
                 // The block node orderly ended the stream. In this case, no errors occurred.

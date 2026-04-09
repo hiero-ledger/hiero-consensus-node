@@ -973,7 +973,7 @@ public class BlockNodeConnectionManager {
         }
 
         // set the global cool down so we don't try to switch connections too frequently
-        final int coolDownSeconds = bncConfig().connectCoolDownSeconds();
+        final int coolDownSeconds = bncConfig().globalCoolDownSeconds();
         globalCoolDownTimestampRef.set(Instant.now().plusSeconds(coolDownSeconds));
     }
 

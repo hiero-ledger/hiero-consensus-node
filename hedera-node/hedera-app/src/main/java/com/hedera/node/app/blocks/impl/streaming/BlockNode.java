@@ -338,7 +338,7 @@ public class BlockNode {
         connHistory.onClose(connection);
 
         final CloseReason closeReason = connHistory.closeReason;
-        if (closeReason.isCoolDownRequired()) {
+        if (closeReason.isDeviantCloseReason()) {
             applyCoolDown(new DeviantConnectionClose(closeReason));
         }
     }
@@ -368,20 +368,52 @@ public class BlockNode {
      * @param reason the reason for the cool down
      */
     void applyCoolDown(@NonNull final CoolDownReason reason) {
-        final int coolDownSeconds = configProvider
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .connectCoolDownSeconds();
-        final Instant coolDownTimestamp = Instant.now(clock).plusSeconds(coolDownSeconds);
+        final CoolDownType coolDownType =
+                switch (reason) {
+                    case ServiceConnectionFailure() -> CoolDownType.BASIC;
+                    case DeviantConnectionClose(final CloseReason closeReason) -> closeReason.coolDownType();
+                };
+        final BlockNodeConnectionConfig bncConfig =
+                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+        final int coolDownSeconds =
+                switch (coolDownType) {
+                    case BASIC -> bncConfig.basicNodeCoolDownSeconds();
+                    case EXTENDED -> bncConfig.extendedNodeCoolDownSeconds();
+                    default -> 0;
+                };
+
+        if (coolDownSeconds == 0) {
+            return;
+        }
+
+        final Instant newCoolDownTimestamp = Instant.now(clock).plusSeconds(coolDownSeconds);
+        final Instant actualCoolDownTimestamp = nodeCoolDownTimestampRef.updateAndGet(existingCoolDown -> {
+            if (existingCoolDown == null || existingCoolDown.isBefore(newCoolDownTimestamp)) {
+                return newCoolDownTimestamp;
+            }
+
+            return existingCoolDown;
+        });
+
+        if (!newCoolDownTimestamp.equals(actualCoolDownTimestamp)) {
+            // there is another cool down active that extends beyond what this invocation wanted the cool down to be
+            // leave the longer cool down in place
+            logger.debug(
+                    "An cool down with a later end is already exists (existing: {}, wanted: {}) - will not modify the cool down",
+                    actualCoolDownTimestamp,
+                    newCoolDownTimestamp);
+            return;
+        }
+
         final BlockNodeEndpoint endpoint = configuration().streamingEndpoint();
 
         logger.warn(
                 "[{}:{}] Block node is in cool down until {} (reason: {})",
                 endpoint.host(),
                 endpoint.port(),
-                coolDownTimestamp,
+                newCoolDownTimestamp,
                 reason);
-        nodeCoolDownTimestampRef.set(coolDownTimestamp);
+        nodeCoolDownTimestampRef.set(newCoolDownTimestamp);
     }
 
     /**

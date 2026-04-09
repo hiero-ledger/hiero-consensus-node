@@ -568,7 +568,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = createEndOfStreamResponse(responseCode, 10L);
         connection.onNext(response);
 
-        assertThat(connection.closeReason()).isEqualTo(CloseReason.END_STREAM_RECEIVED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.TRANSIENT_END_STREAM_RECEIVED);
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
         verify(metrics).recordResponseEndOfStreamReceived(responseCode);
@@ -1533,7 +1533,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.onNext(response);
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
-        assertThat(connection.closeReason()).isEqualTo(CloseReason.END_STREAM_RECEIVED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.TOO_MANY_END_STREAM_RESPONSES);
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
         verify(metrics).recordResponseEndOfStreamReceived(Code.ERROR);
@@ -1564,7 +1564,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.onNext(response);
 
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
-        assertThat(connection.closeReason()).isEqualTo(CloseReason.END_STREAM_RECEIVED);
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.TRANSIENT_END_STREAM_RECEIVED);
 
         verify(metrics).recordLatestBlockEndOfStream(Long.MAX_VALUE);
         verify(metrics).recordResponseEndOfStreamReceived(responseCode);
