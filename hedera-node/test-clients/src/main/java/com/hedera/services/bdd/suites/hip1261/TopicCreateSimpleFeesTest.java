@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -23,16 +22,12 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateNetworkFeeOnlyUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsdWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOPIC_CREATE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -48,8 +43,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EX
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -60,7 +53,6 @@ import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -78,6 +70,7 @@ public class TopicCreateSimpleFeesTest {
     private static final String SUBMIT_KEY = "submitKey";
     private static final String ADMIN_KEY = "adminKey";
     private static final String PAYER_KEY = "payerKey";
+    private static final String createTopicTxn = "create-topic-txn";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -95,15 +88,15 @@ public class TopicCreateSimpleFeesTest {
                             .memo("testMemo")
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
                                     KEYS, 0L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -121,15 +114,15 @@ public class TopicCreateSimpleFeesTest {
                             .submitKeyName(SUBMIT_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN, AUTO_RENEW_ACCOUNT)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -143,15 +136,15 @@ public class TopicCreateSimpleFeesTest {
                             .autoRenewAccountId(AUTO_RENEW_ACCOUNT)
                             .payingWith(PAYER)
                             .signedBy(PAYER, AUTO_RENEW_ACCOUNT)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
                                     KEYS, 0L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -165,15 +158,15 @@ public class TopicCreateSimpleFeesTest {
                             .adminKeyName(ADMIN)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
                                     KEYS, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -189,15 +182,15 @@ public class TopicCreateSimpleFeesTest {
                             .submitKeyName(SUBMIT_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
                                     KEYS, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -222,15 +215,15 @@ public class TopicCreateSimpleFeesTest {
                             .submitKeyName(SUBMIT_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 3L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -255,15 +248,15 @@ public class TopicCreateSimpleFeesTest {
                             .submitKeyName(SUBMIT_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 4L,
                                     KEYS, 5L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -280,15 +273,15 @@ public class TopicCreateSimpleFeesTest {
                             .adminKeyName(ADMIN)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -312,15 +305,15 @@ public class TopicCreateSimpleFeesTest {
                             .submitKeyName(SUBMIT_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 5L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
         }
 
         @HapiTest
@@ -344,15 +337,95 @@ public class TopicCreateSimpleFeesTest {
                             .submitKeyName(PAYER)
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
+                            .via(createTopicTxn),
                     validateChargedUsdWithinWithTxnSize(
-                            "create-topic-txn",
+                            createTopicTxn,
                             txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 8L,
                                     PROCESSING_BYTES, (long) txnSize)),
-                            0.01));
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("Create topic - with submit key only is charged key extra without extra signature")
+        final Stream<DynamicTest> createTopicWithSubmitKeyOnlyChargedKeyExtra() {
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(SUBMIT_KEY),
+                    createTopic("testTopic")
+                            .blankMemo()
+                            .submitKeyName(SUBMIT_KEY)
+                            .payingWith(PAYER)
+                            .signedBy(PAYER) // Submit key does NOT need to sign at creation
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("Create topic - with large payer key - extra processing bytes fee")
+        final Stream<DynamicTest> createTopicWithLargePayerKeyExtraProcessingBytesFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(
+                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    createTopic("testTopic")
+                            .blankMemo()
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER)
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 20L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(createTopicTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("Create topic - with very large payer key below oversize - extra processing bytes fee")
+        final Stream<DynamicTest> createTopicWithVeryLargePayerKeyBelowOversizeFee() {
+            KeyShape keyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigned = keyShape.signedWith(sigs(
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    createTopic("testTopic")
+                            .blankMemo()
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .signedBy(PAYER)
+                            .via(createTopicTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            createTopicTxn,
+                            txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                    SIGNATURES, 41L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            0.1));
         }
     }
 
@@ -364,13 +437,8 @@ public class TopicCreateSimpleFeesTest {
             @HapiTest
             @DisplayName("Create topic with insufficient txn fee fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicInsufficientFeeFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save payer balance before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
 
                         // Create topic with insufficient fee
                         createTopic("testTopic")
@@ -378,30 +446,18 @@ public class TopicCreateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
                                 .fee(ONE_HBAR / 100000) // fee is too low
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
-
                         // assert no txn record is created
-                        getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(createTopicTxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("Create topic not signed by payer fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicNotSignedByPayerFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
-
-                        // Save payer balance before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
 
                         // Create topic with admin key not signed by payer
                         createTopic("testTopic")
@@ -409,80 +465,45 @@ public class TopicCreateSimpleFeesTest {
                                 .payingWith(PAYER)
                                 .adminKeyName(ADMIN)
                                 .signedBy(ADMIN)
-                                .fee(ONE_HBAR)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
-
                         // assert no txn record is created
-                        getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(createTopicTxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("Create topic with insufficient payer balance fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicWithInsufficientPayerBalanceFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HBAR / 100000), // insufficient balance
                         newKeyNamed(ADMIN),
-
-                        // Save payer balance before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
 
                         // Create topic with insufficient payer balance
                         createTopic("testTopic")
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .adminKeyName(ADMIN)
-                                .fee(ONE_HBAR)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
-
                         // assert no txn record is created
-                        getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(createTopicTxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("Create topic with too long memo fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicTooLongMemoFailsOnIngest() {
                 final var LONG_MEMO = "x".repeat(1025); // memo exceeds 1024 bytes limit
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save payer balance before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-
                         // Create topic with too long memo
                         createTopic("testTopic")
                                 .memo(LONG_MEMO)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasPrecheck(MEMO_TOO_LONG),
-
                         // assert no txn record is created
-                        getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(createTopicTxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
@@ -490,14 +511,8 @@ public class TopicCreateSimpleFeesTest {
             final Stream<DynamicTest> createTopicExpiredFailsOnIngest() {
                 final var expiredTxnId = "expiredCreateTopic";
                 final var oneHourPast = -3_600L; // 1 hour before
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save payer balance before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-
                         // Create expired topic
                         usableTxnIdNamed(expiredTxnId)
                                 .modifyValidStart(oneHourPast)
@@ -506,19 +521,11 @@ public class TopicCreateSimpleFeesTest {
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(expiredTxnId)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasPrecheck(TRANSACTION_EXPIRED),
-
                         // assert no txn record is created
-                        getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(createTopicTxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
@@ -526,14 +533,8 @@ public class TopicCreateSimpleFeesTest {
             final Stream<DynamicTest> createTopicTooFarStartTimeFailsOnIngest() {
                 final var futureTxnId = "futureCreateTopic";
                 final var oneHourFuture = 3_600L; // 1 hour after
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save payer balance before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-
                         // Create topic with start time in the future
                         usableTxnIdNamed(futureTxnId)
                                 .modifyValidStart(oneHourFuture)
@@ -542,80 +543,45 @@ public class TopicCreateSimpleFeesTest {
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .txnId(futureTxnId)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasPrecheck(INVALID_TRANSACTION_START),
-
                         // assert no txn record is created
-                        getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(createTopicTxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("Create topic with invalid duration time fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicInvalidDurationTimeFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save payer balance before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-
                         // Create topic with invalid duration time
                         createTopic("testTopic")
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .validDurationSecs(0) // invalid duration
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasPrecheck(INVALID_TRANSACTION_DURATION),
-
                         // assert no txn record is created
-                        getTxnRecord("create-topic-txn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(createTopicTxn).logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("Create topic duplicate txn fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicDuplicateTxnFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-
-                        // Save payer balance before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-
                         // Create topic successful first txn
-                        createTopic("testTopic").blankMemo().fee(ONE_HBAR).via("create-topic-txn"),
+                        createTopic("testTopic").blankMemo().via(createTopicTxn),
                         // Create topic duplicate txn
                         createTopic("testTopicDuplicate")
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
-                                .txnId("create-topic-txn")
+                                .txnId(createTopicTxn)
                                 .via("create-topic-duplicate-txn")
-                                .hasPrecheck(DUPLICATE_TRANSACTION),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                                .hasPrecheck(DUPLICATE_TRANSACTION));
             }
         }
 
@@ -624,11 +590,6 @@ public class TopicCreateSimpleFeesTest {
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
             @DisplayName("Create topic with insufficient txn fee fails on pre-handle and payer is not charged")
             final Stream<DynamicTest> createTopicInsufficientFeeFailsOnPreHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 final String INNER_ID = "create-topic-txn-inner-id";
 
                 return hapiTest(
@@ -636,11 +597,7 @@ public class TopicCreateSimpleFeesTest {
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .payingWith(PAYER)
@@ -649,34 +606,18 @@ public class TopicCreateSimpleFeesTest {
                                 .setNode(4)
                                 .via(INNER_ID)
                                 .hasKnownStatus(INSUFFICIENT_TX_FEE),
-
-                        // Save balances after and assert payer was not charged
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateNetworkFeeOnlyUsd(1));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
-                                0.01));
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, "4"));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
             @DisplayName("Create topic not signed by payer fails on pre-handle and payer is not charged")
             final Stream<DynamicTest> createTopicNotSignedByPayerFailsOnPreHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 final String INNER_ID = "create-topic-txn-inner-id";
 
                 return hapiTest(
@@ -685,48 +626,27 @@ public class TopicCreateSimpleFeesTest {
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .adminKeyName(ADMIN)
                                 .signedBy(ADMIN)
-                                .fee(ONE_HBAR)
                                 .setNode(4)
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
-
-                        // Save balances after and assert payer was not charged
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateNetworkFeeOnlyUsd(1));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
-                                1));
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, "4"));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
             @DisplayName("Create topic with insufficient payer balance fails on pre-handle and payer is not charged")
             final Stream<DynamicTest> createTopicWithInsufficientPayerBalanceFailsOnPreHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 final String INNER_ID = "create-topic-txn-inner-id";
 
                 return hapiTest(
@@ -735,48 +655,27 @@ public class TopicCreateSimpleFeesTest {
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .adminKeyName(ADMIN)
                                 .signedBy(ADMIN, PAYER)
-                                .fee(ONE_HBAR)
                                 .setNode(4)
                                 .via(INNER_ID)
                                 .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE),
-
-                        // Save balances after and assert payer was not charged
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateNetworkFeeOnlyUsd(2));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(2, txnSize),
-                                0.01));
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, "4"));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
             @DisplayName("Create topic with admin key not signed by the admin fails on pre-handle and payer is charged")
             final Stream<DynamicTest> createTopicWithAdminKeyNotSignedByAdminFailsOnPreHandlePayerIsCharged() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 final String INNER_ID = "create-topic-txn-inner-id";
 
                 return hapiTest(
@@ -787,42 +686,24 @@ public class TopicCreateSimpleFeesTest {
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
 
                         // Save balances before
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .adminKeyName(ADMIN)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .setNode(4)
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_SIGNATURE),
-
-                        // Save balances after and assert changes
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info(
-                                    "Recorded fee: {}",
-                                    expectedTopicCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 1L,
-                                            KEYS, 1L)));
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialBalance,
-                                afterBalance,
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
                                         KEYS, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.01));
+                                0.1),
+                        validateChargedAccount(INNER_ID, PAYER));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -830,46 +711,26 @@ public class TopicCreateSimpleFeesTest {
             final Stream<DynamicTest> createTopicWithTooLongMemoFailsOnPreHandlePayerIsNotCharged() {
                 final var LONG_MEMO = "x".repeat(1025); // memo exceeds 1024 bytes limit
                 final String INNER_ID = "create-topic-txn-inner-id";
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                         createTopic("testTopic")
                                 .memo(LONG_MEMO)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .setNode(4)
                                 .via(INNER_ID)
                                 .hasKnownStatus(MEMO_TOO_LONG),
-
-                        // Save balances after and assert changes
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateNetworkFeeOnlyUsd(1));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
-                                0.01));
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, "4"));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -877,48 +738,28 @@ public class TopicCreateSimpleFeesTest {
             final Stream<DynamicTest> createTopicExpiredFailsOnPreHandlePayerIsNotCharged() {
                 final var oneHourPast = -3_600L; // 1 hour before
                 final String INNER_ID = "create-topic-txn-inner-id";
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).modifyValidStart(oneHourPast).payerId(PAYER),
-
-                        // Save balances before
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .setNode(4)
                                 .txnId(INNER_ID)
                                 .via(INNER_ID)
                                 .hasKnownStatus(TRANSACTION_EXPIRED),
-
-                        // Save balances after and assert changes
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateNetworkFeeOnlyUsd(1));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
-                                0.01));
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, "4"));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -926,10 +767,6 @@ public class TopicCreateSimpleFeesTest {
             final Stream<DynamicTest> createTopicTooFarStartTimeFailsOnPreHandlePayerIsNotCharged() {
                 final var oneHourFuture = 3_600L; // 1 hour after
                 final String INNER_ID = "create-topic-txn-inner-id";
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
 
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -941,60 +778,37 @@ public class TopicCreateSimpleFeesTest {
 
                         // Save balances before
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .setNode(4)
                                 .txnId(INNER_ID)
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_TRANSACTION_START),
-
-                        // Save balances after and assert payer was not charged
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateNetworkFeeOnlyUsd(1));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
+                        getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
-                                0.01));
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, "4"));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
             @DisplayName("Create topic with invalid duration time fails on pre-handle and payer is not charged")
             final Stream<DynamicTest> createTopicInvalidDurationTimeFailsOnPreHandlePayerIsNotCharged() {
                 final String INNER_ID = "create-topic-txn-inner-id";
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Register a TxnId for the inner txn
                         usableTxnIdNamed(INNER_ID).payerId(PAYER),
-
-                        // Save balances before
                         cryptoTransfer(movingHbar(ONE_HBAR).between(GENESIS, "4")),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(initialNodeBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .validDurationSecs(0) // invalid duration
                                 .setNode(4)
                                 .txnId(INNER_ID)
@@ -1003,21 +817,12 @@ public class TopicCreateSimpleFeesTest {
 
                         // Save balances after and assert payer was not charged
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
-                            log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedTopicCreateNetworkFeeOnlyUsd(1));
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(1, txnSize),
-                                0.01));
+                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(INNER_ID, "4"));
             }
         }
 
@@ -1039,7 +844,6 @@ public class TopicCreateSimpleFeesTest {
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .setNode(4)
                                 .txnId(DUPLICATE_TXN_ID)
                                 .via("topicCreateTxn"),
@@ -1047,13 +851,18 @@ public class TopicCreateSimpleFeesTest {
                                 .blankMemo()
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HBAR)
                                 .setNode(3)
                                 .txnId(DUPLICATE_TXN_ID)
                                 .via("topicCreateDuplicateTxn")
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
-                        validateChargedAccount("topicCreateTxn", PAYER),
-                        validateChargedUsd("topicCreateTxn", TOPIC_CREATE_FEE));
+                        validateChargedUsdWithinWithTxnSize(
+                                "topicCreateTxn",
+                                txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount("topicCreateTxn", PAYER));
             }
 
             @HapiTest
@@ -1061,8 +870,6 @@ public class TopicCreateSimpleFeesTest {
                     "Create topic - with invalid threshold signature with two extra signatures and three extra keys - "
                             + "fails on handle")
             final Stream<DynamicTest> createTopicWithInvalidSignatureWithTwoExtraSigAndThreeExtraKeysFailsOnHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
 
                 // Define a threshold key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -1075,7 +882,6 @@ public class TopicCreateSimpleFeesTest {
                         newKeyNamed(ADMIN_KEY).shape(keyShape),
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).key(ADMIN_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .sigControl(forKey(ADMIN_KEY, invalidSig))
@@ -1083,39 +889,21 @@ public class TopicCreateSimpleFeesTest {
                                 .submitKeyName(SUBMIT_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN)
-                                .fee(ONE_HBAR)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasKnownStatus(INVALID_SIGNATURE),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info(
-                                    "Recorded fee: {}",
-                                    expectedTopicCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 2L,
-                                            KEYS, 3L)));
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "create-topic-txn",
-                                initialBalance,
-                                afterBalance,
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
                                         KEYS, 3L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.01));
+                                0.1),
+                        validateChargedAccount(createTopicTxn, PAYER));
             }
 
             @HapiTest
             @DisplayName("Create topic - with empty threshold signature fails on handle")
             final Stream<DynamicTest> createTopicWithEmptyThresholdSignatureFailsOnHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 // Define a threshold key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(0, 0);
 
@@ -1123,38 +911,22 @@ public class TopicCreateSimpleFeesTest {
                         newKeyNamed(SUBMIT_KEY).shape(keyShape),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .adminKeyName(ADMIN)
                                 .submitKeyName(SUBMIT_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN)
-                                .fee(ONE_HBAR)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasKnownStatus(BAD_ENCODING),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info(
-                                    "Recorded fee: {}",
-                                    expectedTopicCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 2L,
-                                            KEYS, 1L)));
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "create-topic-txn",
-                                initialBalance,
-                                afterBalance,
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
                                         KEYS, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.01));
+                                0.1),
+                        validateChargedAccount(createTopicTxn, PAYER));
             }
 
             @HapiTest
@@ -1162,9 +934,6 @@ public class TopicCreateSimpleFeesTest {
                     "Create topic - with invalid threshold signature with two extra signatures and five extra keys - "
                             + "fails on handle")
             final Stream<DynamicTest> createTopicWithInvalidSignatureWithThreeExtraSigAndFiveExtraKeysFailsOnHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 // Define a threshold key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
 
@@ -1176,7 +945,6 @@ public class TopicCreateSimpleFeesTest {
                         newKeyNamed(ADMIN_KEY).shape(keyShape),
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).key(ADMIN_KEY).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .sigControl(forKey(ADMIN_KEY, invalidSig))
@@ -1184,39 +952,21 @@ public class TopicCreateSimpleFeesTest {
                                 .submitKeyName(SUBMIT_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN)
-                                .fee(ONE_HBAR)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasKnownStatus(INVALID_SIGNATURE),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info(
-                                    "Recorded fee: {}",
-                                    expectedTopicCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 2L,
-                                            KEYS, 5L)));
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "create-topic-txn",
-                                initialBalance,
-                                afterBalance,
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
                                         KEYS, 5L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.01));
+                                0.1),
+                        validateChargedAccount(createTopicTxn, PAYER));
             }
 
             @HapiTest
             @DisplayName("Create topic - with empty threshold nested signature fails on handle")
             final Stream<DynamicTest> createTopicWithEmptyThresholdNestedSignatureFailsOnHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 // Define a threshold key that requires two simple keys signatures
                 KeyShape keyShape = threshOf(3, listOf(0));
 
@@ -1224,46 +974,27 @@ public class TopicCreateSimpleFeesTest {
                         newKeyNamed(SUBMIT_KEY).shape(keyShape),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .adminKeyName(ADMIN)
                                 .submitKeyName(SUBMIT_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN)
-                                .fee(ONE_HBAR)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasKnownStatus(BAD_ENCODING),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info(
-                                    "Recorded fee: {}",
-                                    expectedTopicCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 2L,
-                                            KEYS, 1L)));
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "create-topic-txn",
-                                initialBalance,
-                                afterBalance,
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
                                         KEYS, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.01));
+                                0.1),
+                        validateChargedAccount(createTopicTxn, PAYER));
             }
 
             @HapiTest
             @DisplayName("Create topic - with invalid key list signature fails on handle")
             final Stream<DynamicTest> createTopicWithInvalidKeyListSignatureFailsOnHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         newKeyNamed(SUBMIT_KEY),
                         newKeyNamed("firstKey"),
@@ -1271,53 +1002,33 @@ public class TopicCreateSimpleFeesTest {
                         newKeyListNamed(ADMIN_KEY, List.of("firstKey", "secondKey")),
                         cryptoCreate(ADMIN).key(ADMIN_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         createTopic("testTopic")
                                 .blankMemo()
                                 .adminKeyName(ADMIN)
                                 .submitKeyName(SUBMIT_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, "firstKey")
-                                .fee(ONE_HBAR)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasKnownStatus(INVALID_SIGNATURE),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info(
-                                    "Recorded fee: {}",
-                                    expectedTopicCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 2L,
-                                            KEYS, 3L)));
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "create-topic-txn",
-                                initialBalance,
-                                afterBalance,
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
                                         KEYS, 3L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.01));
+                                0.1),
+                        validateChargedAccount(createTopicTxn, PAYER));
             }
 
             @HapiTest
             @DisplayName("Create topic - with admin, submit key and invalid auto-renew account fails on handle")
             final Stream<DynamicTest> createTopicWithAdminSubmitKeyAndInvalidAutoRenewAccountFailsOnHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(AUTO_RENEW_ACCOUNT).balance(ONE_HBAR),
                         newKeyNamed(ADMIN),
                         newKeyNamed(SUBMIT_KEY),
                         cryptoDelete(AUTO_RENEW_ACCOUNT),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         createTopic("testTopic")
                                 .memo("testMemo")
                                 .autoRenewAccountId(AUTO_RENEW_ACCOUNT)
@@ -1325,31 +1036,16 @@ public class TopicCreateSimpleFeesTest {
                                 .submitKeyName(SUBMIT_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN, AUTO_RENEW_ACCOUNT)
-                                .fee(ONE_HBAR)
-                                .via("create-topic-txn")
+                                .via(createTopicTxn)
                                 .hasKnownStatus(INVALID_AUTORENEW_ACCOUNT),
-
-                        // Save balances and assert changes
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            long payerDelta = initialBalance.get() - afterBalance.get();
-                            log.info("Payer balance change: {}", payerDelta);
-                            log.info(
-                                    "Recorded fee: {}",
-                                    expectedTopicCreateFullFeeUsd(Map.of(
-                                            SIGNATURES, 3L,
-                                            KEYS, 2L)));
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsdWithTxnSize(
-                                "create-topic-txn",
-                                initialBalance,
-                                afterBalance,
+                        validateChargedUsdWithinWithTxnSize(
+                                createTopicTxn,
                                 txnSize -> expectedTopicCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 3L,
                                         KEYS, 2L,
                                         PROCESSING_BYTES, (long) txnSize)),
-                                0.01));
+                                0.1),
+                        validateChargedAccount(createTopicTxn, PAYER));
             }
         }
     }

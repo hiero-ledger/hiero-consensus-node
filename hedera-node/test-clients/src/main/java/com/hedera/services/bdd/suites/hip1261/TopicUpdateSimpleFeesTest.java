@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.hip1261;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
+import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -10,7 +11,6 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -19,23 +19,29 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicUpdateNetworkFeeOnlyUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hiero.hapi.support.fees.Extra.KEYS;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -45,7 +51,6 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -70,6 +75,7 @@ public class TopicUpdateSimpleFeesTest {
     private static final String NEW_SUBMIT_KEY = "newSubmitKey";
     private static final String PAYER_KEY = "payerKey";
     private static final String TOPIC = "testTopic";
+    private static final String topicUpdateTxn = "topicUpdateTxn";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -86,21 +92,20 @@ public class TopicUpdateSimpleFeesTest {
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     newKeyNamed(ADMIN_KEY),
-                    createTopic(TOPIC)
-                            .adminKeyName(ADMIN_KEY)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS),
+                    createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(PAYER).signedBy(PAYER, ADMIN_KEY),
                     updateTopic(TOPIC)
                             .memo("updated memo")
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("topicUpdateTxn"),
-                    validateChargedUsdWithin(
-                            "topicUpdateTxn",
-                            expectedTopicUpdateFullFeeUsd(2L, 0L), // 2 sigs, 0 extra keys
-                            1.0));
+                            .via(topicUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            topicUpdateTxn,
+                            txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(topicUpdateTxn, PAYER));
         }
 
         @HapiTest
@@ -110,22 +115,20 @@ public class TopicUpdateSimpleFeesTest {
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     newKeyNamed(ADMIN_KEY),
                     newKeyNamed(NEW_ADMIN_KEY),
-                    createTopic(TOPIC)
-                            .adminKeyName(ADMIN_KEY)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS),
+                    createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(PAYER).signedBy(PAYER, ADMIN_KEY),
                     updateTopic(TOPIC)
                             .adminKey(NEW_ADMIN_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("topicUpdateTxn"),
-                    validateChargedUsdWithin(
-                            "topicUpdateTxn",
-                            expectedTopicUpdateFullFeeUsd(
-                                    3L, 1L), // 3 sigs (payer + old admin + new admin), 1 extra key
-                            1.0));
+                            .via(topicUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            topicUpdateTxn,
+                            txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(topicUpdateTxn, PAYER));
         }
 
         @HapiTest
@@ -135,21 +138,20 @@ public class TopicUpdateSimpleFeesTest {
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     newKeyNamed(ADMIN_KEY),
                     newKeyNamed(NEW_SUBMIT_KEY),
-                    createTopic(TOPIC)
-                            .adminKeyName(ADMIN_KEY)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS),
+                    createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(PAYER).signedBy(PAYER, ADMIN_KEY),
                     updateTopic(TOPIC)
                             .submitKey(NEW_SUBMIT_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("topicUpdateTxn"),
-                    validateChargedUsdWithin(
-                            "topicUpdateTxn",
-                            expectedTopicUpdateFullFeeUsd(2L, 1L), // 2 sigs, 1 extra key (new submit key)
-                            1.0));
+                            .via(topicUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            topicUpdateTxn,
+                            txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                    SIGNATURES, 2L,
+                                    KEYS, 1L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(topicUpdateTxn, PAYER));
         }
 
         @HapiTest
@@ -165,19 +167,21 @@ public class TopicUpdateSimpleFeesTest {
                             .adminKeyName(ADMIN_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY)
-                            .sigControl(forKey(ADMIN_KEY, validSig))
-                            .fee(ONE_HUNDRED_HBARS),
+                            .sigControl(forKey(ADMIN_KEY, validSig)),
                     updateTopic(TOPIC)
                             .memo("updated memo")
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY)
                             .sigControl(forKey(ADMIN_KEY, validSig))
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("topicUpdateTxn"),
-                    validateChargedUsdWithin(
-                            "topicUpdateTxn",
-                            expectedTopicUpdateFullFeeUsd(3L, 0L), // 3 sigs (1 payer + 2 admin threshold), 0 extra keys
-                            1.0));
+                            .via(topicUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            topicUpdateTxn,
+                            txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(topicUpdateTxn, PAYER));
         }
 
         @HapiTest
@@ -185,21 +189,20 @@ public class TopicUpdateSimpleFeesTest {
         final Stream<DynamicTest> topicUpdatePayerIsAdmin() {
             return hapiTest(
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    createTopic(TOPIC)
-                            .adminKeyName(PAYER)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS),
+                    createTopic(TOPIC).adminKeyName(PAYER).payingWith(PAYER).signedBy(PAYER),
                     updateTopic(TOPIC)
                             .memo("updated memo")
                             .payingWith(PAYER)
                             .signedBy(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("topicUpdateTxn"),
-                    validateChargedUsdWithin(
-                            "topicUpdateTxn",
-                            expectedTopicUpdateFullFeeUsd(1L, 0L), // 1 sig (payer is admin), 0 extra keys
-                            1.0));
+                            .via(topicUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            topicUpdateTxn,
+                            txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                    SIGNATURES, 1L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(topicUpdateTxn, PAYER));
         }
 
         @HapiTest
@@ -210,23 +213,81 @@ public class TopicUpdateSimpleFeesTest {
                     newKeyNamed(ADMIN_KEY),
                     newKeyNamed(NEW_ADMIN_KEY),
                     newKeyNamed(NEW_SUBMIT_KEY),
-                    createTopic(TOPIC)
-                            .adminKeyName(ADMIN_KEY)
-                            .payingWith(PAYER)
-                            .signedBy(PAYER, ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS),
+                    createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(PAYER).signedBy(PAYER, ADMIN_KEY),
                     updateTopic(TOPIC)
                             .adminKey(NEW_ADMIN_KEY)
                             .submitKey(NEW_SUBMIT_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, ADMIN_KEY, NEW_ADMIN_KEY)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("topicUpdateTxn"),
-                    validateChargedUsdWithin(
-                            "topicUpdateTxn",
-                            expectedTopicUpdateFullFeeUsd(
-                                    3L, 2L), // 3 sigs (payer + old admin + new admin), 2 extra keys (new admin + new
-                            // submit)
+                            .via(topicUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            topicUpdateTxn,
+                            txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                    SIGNATURES, 3L,
+                                    KEYS, 2L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0),
+                    validateChargedAccount(topicUpdateTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TopicUpdate - large payer key charges extra signatures and processing bytes")
+        final Stream<DynamicTest> topicUpdateLargePayerKeyExtraFee() {
+            KeyShape largeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigning = largeKeyShape.signedWith(
+                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(ADMIN_KEY),
+                    createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(DEFAULT_PAYER),
+                    updateTopic(TOPIC)
+                            .memo("updated memo")
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigning))
+                            .signedBy(PAYER, ADMIN_KEY)
+                            .via(topicUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            topicUpdateTxn,
+                            txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                    SIGNATURES, 21L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
+                            1.0));
+        }
+
+        @HapiTest
+        @DisplayName("TopicUpdate - very large payer key below oversize limit")
+        final Stream<DynamicTest> topicUpdateVeryLargePayerKeyBelowOversizeFee() {
+            KeyShape veryLargeKeyShape = threshOf(
+                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
+                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
+            SigControl allSigning = veryLargeKeyShape.signedWith(sigs(
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
+                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(ADMIN_KEY),
+                    createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(DEFAULT_PAYER),
+                    updateTopic(TOPIC)
+                            .memo("updated memo")
+                            .payingWith(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allSigning))
+                            .signedBy(PAYER, ADMIN_KEY)
+                            .via(topicUpdateTxn),
+                    validateChargedUsdWithinWithTxnSize(
+                            topicUpdateTxn,
+                            txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                    SIGNATURES, 42L,
+                                    KEYS, 0L,
+                                    PROCESSING_BYTES, (long) txnSize)),
                             1.0));
         }
     }
@@ -242,89 +303,151 @@ public class TopicUpdateSimpleFeesTest {
             @HapiTest
             @DisplayName("TopicUpdate - insufficient tx fee fails on ingest - no fee charged")
             final Stream<DynamicTest> topicUpdateInsufficientTxFeeFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(ADMIN_KEY),
                         createTopic(TOPIC)
                                 .adminKeyName(ADMIN_KEY)
                                 .payingWith(PAYER)
-                                .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                                .signedBy(PAYER, ADMIN_KEY),
                         updateTopic(TOPIC)
                                 .memo("updated memo")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(1L) // Fee too low
-                                .via("topicUpdateTxn")
+                                .via(topicUpdateTxn)
                                 .hasPrecheck(INSUFFICIENT_TX_FEE),
-                        getTxnRecord("topicUpdateTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(topicUpdateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("TopicUpdate - missing payer signature fails on ingest - no fee charged")
             final Stream<DynamicTest> topicUpdateMissingPayerSignatureFailsOnIngest() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(ADMIN_KEY),
                         createTopic(TOPIC)
                                 .adminKeyName(ADMIN_KEY)
                                 .payingWith(PAYER)
-                                .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                                .signedBy(PAYER, ADMIN_KEY),
                         updateTopic(TOPIC)
                                 .memo("updated memo")
                                 .payingWith(PAYER)
                                 .signedBy(ADMIN_KEY) // Missing payer signature
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("topicUpdateTxn")
+                                .via(topicUpdateTxn)
                                 .hasPrecheck(INVALID_SIGNATURE),
-                        getTxnRecord("topicUpdateTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(topicUpdateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
             }
 
             @HapiTest
             @DisplayName("TopicUpdate - memo too long fails on ingest - no fee charged")
             final Stream<DynamicTest> topicUpdateMemoTooLongFailsOnIngest() {
                 final var LONG_MEMO = "x".repeat(1025);
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(ADMIN_KEY),
                         createTopic(TOPIC)
                                 .adminKeyName(ADMIN_KEY)
                                 .payingWith(PAYER)
-                                .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                                .signedBy(PAYER, ADMIN_KEY),
                         updateTopic(TOPIC)
                                 .memo(LONG_MEMO)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("topicUpdateTxn")
+                                .via(topicUpdateTxn)
                                 .hasPrecheck(MEMO_TOO_LONG),
-                        getTxnRecord("topicUpdateTxn").hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                        }));
+                        getTxnRecord(topicUpdateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicUpdate - insufficient payer balance fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicUpdateInsufficientPayerBalanceFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(0L),
+                        newKeyNamed(ADMIN_KEY),
+                        createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(DEFAULT_PAYER),
+                        updateTopic(TOPIC)
+                                .memo("updated memo")
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .via(topicUpdateTxn)
+                                .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
+                        getTxnRecord(topicUpdateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicUpdate - expired transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicUpdateExpiredFailsOnIngest() {
+                final var expiredTxnId = "expiredTopicUpdateTxn";
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(ADMIN_KEY),
+                        createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(DEFAULT_PAYER),
+                        usableTxnIdNamed(expiredTxnId).modifyValidStart(-3_600L).payerId(PAYER),
+                        updateTopic(TOPIC)
+                                .memo("updated memo")
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .txnId(expiredTxnId)
+                                .via(topicUpdateTxn)
+                                .hasPrecheck(TRANSACTION_EXPIRED),
+                        getTxnRecord(topicUpdateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicUpdate - too far in future fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicUpdateTooFarInFutureFailsOnIngest() {
+                final var futureTxnId = "futureTopicUpdateTxn";
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(ADMIN_KEY),
+                        createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(DEFAULT_PAYER),
+                        usableTxnIdNamed(futureTxnId).modifyValidStart(3_600L).payerId(PAYER),
+                        updateTopic(TOPIC)
+                                .memo("updated memo")
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .txnId(futureTxnId)
+                                .via(topicUpdateTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_START),
+                        getTxnRecord(topicUpdateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicUpdate - invalid transaction duration fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicUpdateInvalidDurationFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(ADMIN_KEY),
+                        createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(DEFAULT_PAYER),
+                        updateTopic(TOPIC)
+                                .memo("updated memo")
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .validDurationSecs(0L)
+                                .via(topicUpdateTxn)
+                                .hasPrecheck(INVALID_TRANSACTION_DURATION),
+                        getTxnRecord(topicUpdateTxn).hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND));
+            }
+
+            @HapiTest
+            @DisplayName("TopicUpdate - duplicate transaction fails on ingest - no fee charged")
+            final Stream<DynamicTest> topicUpdateDuplicateFailsOnIngest() {
+                return hapiTest(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        newKeyNamed(ADMIN_KEY),
+                        createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(DEFAULT_PAYER),
+                        updateTopic(TOPIC)
+                                .memo("first update")
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .via(topicUpdateTxn),
+                        updateTopic(TOPIC)
+                                .memo("duplicate update")
+                                .payingWith(PAYER)
+                                .signedBy(PAYER, ADMIN_KEY)
+                                .txnId(topicUpdateTxn)
+                                .hasPrecheck(DUPLICATE_TRANSACTION));
             }
         }
 
@@ -335,11 +458,6 @@ public class TopicUpdateSimpleFeesTest {
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
             @DisplayName("TopicUpdate - invalid payer signature fails on pre-handle - network fee only")
             final Stream<DynamicTest> topicUpdateInvalidPayerSigFailsOnPreHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-                final AtomicLong initialNodeBalance = new AtomicLong();
-                final AtomicLong afterNodeBalance = new AtomicLong();
-
                 final String INNER_ID = "topic-update-txn-inner-id";
 
                 KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
@@ -349,36 +467,23 @@ public class TopicUpdateSimpleFeesTest {
                         newKeyNamed(PAYER_KEY).shape(keyShape),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(ADMIN_KEY),
-                        createTopic(TOPIC)
-                                .adminKeyName(ADMIN_KEY)
-                                .signedBy(DEFAULT_PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "0.0.4"))
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance("0.0.4").exposingBalanceTo(initialNodeBalance::set),
+                        createTopic(TOPIC).adminKeyName(ADMIN_KEY).signedBy(DEFAULT_PAYER, ADMIN_KEY),
+                        cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "4")),
                         updateTopic(TOPIC)
                                 .memo("updated memo")
                                 .payingWith(PAYER)
                                 .sigControl(forKey(PAYER_KEY, invalidSig))
                                 .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .setNode("0.0.4")
+                                .setNode("4")
                                 .via(INNER_ID)
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        getAccountBalance("0.0.4").exposingBalanceTo(afterNodeBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertEquals(initialBalance.get(), afterBalance.get());
-                            assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
+                        validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                initialNodeBalance,
-                                afterNodeBalance,
-                                expectedTopicUpdateNetworkFeeOnlyUsd(2L),
-                                1.0));
+                                txnSize -> expectedTopicUpdateNetworkFeeOnlyUsd(
+                                        Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                1.0),
+                        validateChargedAccount(INNER_ID, "4"));
             }
         }
 
@@ -387,111 +492,82 @@ public class TopicUpdateSimpleFeesTest {
         class TopicUpdateFailuresOnHandle {
 
             @HapiTest
-            @DisplayName("TopicUpdate - invalid topic fails - fee charged")
-            final Stream<DynamicTest> topicUpdateInvalidTopicFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
+            @DisplayName("TopicUpdate - invalid topic fails on handle - full fee charged")
+            final Stream<DynamicTest> topicUpdateInvalidTopicFailsOnHandle() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
                         updateTopic("0.0.99999999") // Invalid topic
                                 .memo("updated memo")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("topicUpdateTxn")
+                                .via(topicUpdateTxn)
                                 .hasKnownStatus(INVALID_TOPIC_ID),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "topicUpdateTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTopicUpdateFullFeeUsd(1L),
-                                1.0));
+                        validateChargedUsdWithinWithTxnSize(
+                                topicUpdateTxn,
+                                txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0),
+                        validateChargedAccount(topicUpdateTxn, PAYER));
             }
 
             @HapiTest
-            @DisplayName("TopicUpdate - deleted topic fails - fee charged")
-            final Stream<DynamicTest> topicUpdateDeletedTopicFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
+            @DisplayName("TopicUpdate - deleted topic fails on handle - full fee charged")
+            final Stream<DynamicTest> topicUpdateDeletedTopicFailsOnHandle() {
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(ADMIN_KEY),
                         createTopic(TOPIC)
                                 .adminKeyName(ADMIN_KEY)
                                 .payingWith(PAYER)
-                                .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        deleteTopic(TOPIC)
-                                .payingWith(PAYER)
-                                .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                                .signedBy(PAYER, ADMIN_KEY),
+                        deleteTopic(TOPIC).payingWith(PAYER).signedBy(PAYER, ADMIN_KEY),
                         updateTopic(TOPIC)
                                 .memo("updated memo")
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("topicUpdateTxn")
+                                .via(topicUpdateTxn)
                                 .hasKnownStatus(INVALID_TOPIC_ID),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "topicUpdateTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTopicUpdateFullFeeUsd(2L),
-                                1.0));
+                        validateChargedUsdWithinWithTxnSize(
+                                topicUpdateTxn,
+                                txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 0L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0),
+                        validateChargedAccount(topicUpdateTxn, PAYER));
             }
 
             @HapiTest
             @DisplayName("TopicUpdate - immutable topic (no admin key) submit key update fails - fee charged")
             final Stream<DynamicTest> topicUpdateImmutableTopicFails() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(SUBMIT_KEY),
                         createTopic(TOPIC)
                                 // No admin key - topic is immutable
                                 .payingWith(PAYER)
-                                .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                                .signedBy(PAYER),
                         updateTopic(TOPIC)
                                 .submitKey(SUBMIT_KEY) // Trying to add submit key to immutable topic
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("topicUpdateTxn")
+                                .via(topicUpdateTxn)
                                 .hasKnownStatus(UNAUTHORIZED),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "topicUpdateTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTopicUpdateFullFeeUsd(1L, 1L),
-                                1.0));
+                        validateChargedUsdWithinWithTxnSize(
+                                topicUpdateTxn,
+                                txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0),
+                        validateChargedAccount(topicUpdateTxn, PAYER));
             }
 
             @HapiTest
             @DisplayName("TopicUpdate - new admin key not signed fails at handle - fee charged")
             final Stream<DynamicTest> topicUpdateNewAdminKeyNotSignedFailsAtHandle() {
-                final AtomicLong initialBalance = new AtomicLong();
-                final AtomicLong afterBalance = new AtomicLong();
-
                 return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         newKeyNamed(ADMIN_KEY),
@@ -499,26 +575,61 @@ public class TopicUpdateSimpleFeesTest {
                         createTopic(TOPIC)
                                 .adminKeyName(ADMIN_KEY)
                                 .payingWith(PAYER)
-                                .signedBy(PAYER, ADMIN_KEY)
-                                .fee(ONE_HUNDRED_HBARS),
-                        getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+                                .signedBy(PAYER, ADMIN_KEY),
                         updateTopic(TOPIC)
                                 .adminKey(NEW_ADMIN_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, ADMIN_KEY) // Missing new admin key signature
-                                .fee(ONE_HUNDRED_HBARS)
-                                .via("topicUpdateTxn")
+                                .via(topicUpdateTxn)
                                 .hasKnownStatus(INVALID_SIGNATURE),
-                        getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                        withOpContext((spec, log) -> {
-                            assertTrue(initialBalance.get() > afterBalance.get());
-                        }),
-                        validateChargedFeeToUsd(
-                                "topicUpdateTxn",
-                                initialBalance,
-                                afterBalance,
-                                expectedTopicUpdateFullFeeUsd(2L, 1L), // 2 sigs, 1 extra key (new admin key)
-                                1.0));
+                        validateChargedUsdWithinWithTxnSize(
+                                topicUpdateTxn,
+                                txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                        SIGNATURES, 2L,
+                                        KEYS, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                1.0),
+                        validateChargedAccount(topicUpdateTxn, PAYER));
+            }
+
+            @Nested
+            @DisplayName("TopicUpdate Duplicate on Handle")
+            class TopicUpdateDuplicateOnHandle {
+                private static final String DUPLICATE_TXN_ID = "duplicateTopicUpdateTxnId";
+
+                @Tag(ONLY_SUBPROCESS)
+                @HapiTest
+                @DisplayName("TopicUpdate - duplicate on handle charges full fee to payer")
+                final Stream<DynamicTest> topicUpdateDuplicateFailsOnHandle() {
+                    return hapiTest(
+                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                            newKeyNamed(ADMIN_KEY),
+                            createTopic(TOPIC).adminKeyName(ADMIN_KEY).payingWith(DEFAULT_PAYER),
+                            cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, "4")),
+                            usableTxnIdNamed(DUPLICATE_TXN_ID).payerId(PAYER),
+                            updateTopic(TOPIC)
+                                    .memo("updated memo")
+                                    .payingWith(PAYER)
+                                    .signedBy(PAYER, ADMIN_KEY)
+                                    .txnId(DUPLICATE_TXN_ID)
+                                    .setNode("4")
+                                    .via(topicUpdateTxn),
+                            updateTopic(TOPIC)
+                                    .memo("updated memo")
+                                    .payingWith(PAYER)
+                                    .signedBy(PAYER, ADMIN_KEY)
+                                    .txnId(DUPLICATE_TXN_ID)
+                                    .setNode("3")
+                                    .hasPrecheck(DUPLICATE_TRANSACTION),
+                            validateChargedUsdWithinWithTxnSize(
+                                    topicUpdateTxn,
+                                    txnSize -> expectedTopicUpdateFullFeeUsd(Map.of(
+                                            SIGNATURES, 2L,
+                                            KEYS, 0L,
+                                            PROCESSING_BYTES, (long) txnSize)),
+                                    1.0),
+                            validateChargedAccount(topicUpdateTxn, PAYER));
+                }
             }
         }
     }
