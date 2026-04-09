@@ -118,7 +118,7 @@ public class TeachingSynchronizer {
             logger.warn(RECONNECT.getMarker(), "Interrupted while waiting for work group termination");
         } catch (final Throwable t) {
             logger.info(RECONNECT.getMarker(), "Caught exception while sending tree", t);
-            throw t;
+            throw new RuntimeException(t);
         }
 
         if ((interruptException != null) || workGroup.hasExceptions()) {
