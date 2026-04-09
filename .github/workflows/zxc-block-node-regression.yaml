@@ -203,7 +203,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hiero-ledger/solo@latest
+        run: npm install -g @hiero-ledger/solo@{{ inputs.solo-version || 'latest' }}"
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -365,9 +365,7 @@ jobs:
         run: |
           solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
-          #npm run test 
-          npm run test:file src/tests/crypto-service/test-transfer-hbar-transaction.ts
-          npm run test:file src/tests/contract-service/test-contract-delete-transaction.ts
+          npm run test
         working-directory: sdk-tck/regression # required
 
       - name: BN Based - SDK TCK Regression Test Report
