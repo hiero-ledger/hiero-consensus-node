@@ -38,6 +38,7 @@ jobs:
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     runs-on: hl-cn-rpc-relay-lin-lg
+    timeout-minutes: 120
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -85,11 +86,29 @@ jobs:
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           install_only: true
-          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
-          version: v0.26.0
-          kubectl_version: v1.31.4
+          node_image: kindest/node:v1.32.0
+          version: v0.29.0
+          kubectl_version: v1.32.2
           verbosity: 3
           wait: 120s
+
+      - name: Install Helm v3.14.2
+        run: |
+          set -eo pipefail
+          HELM_VERSION="v3.14.2"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+          helm version --short
+
+      - name: Verify Solo Dependency Versions
+        run: |
+          set -eo pipefail
+          helm version --short
+          kind --version
+          kubectl version --client=true
 
       - name: Build Consensus Node Local Artifacts
         run: ${GRADLE_EXEC} assemble
@@ -99,10 +118,12 @@ jobs:
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/solo-wrb-jumpstart.sh"
           chmod +x "${SCRIPT_PATH}"
-          BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-          UPGRADE_LOCAL_VERSION="${{ inputs.upgrade-local-version }}" \
-          KEEP_NETWORK="false" \
-          "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/wrb-script.log"
+          timeout --signal=SIGINT --kill-after=5m 75m \
+            env \
+              BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
+              UPGRADE_LOCAL_VERSION="${{ inputs.upgrade-local-version }}" \
+              KEEP_NETWORK="false" \
+            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/wrb-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}
