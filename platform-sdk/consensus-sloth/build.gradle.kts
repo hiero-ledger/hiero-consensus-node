@@ -110,4 +110,10 @@ tasks.named<Test>("testPerformance") {
     project.properties
         .filterKeys { it.startsWith("sloth.") }
         .forEach { (key, value) -> systemProperty(key, value.toString()) }
+
+    // Allow running @Disabled tests for manual remote runs, e.g.:
+    //   ./gradlew :consensus-sloth:testPerformance -PincludeDisabled
+    if (project.hasProperty("includeDisabled")) {
+        systemProperty("junit.jupiter.conditions.deactivate", "org.junit.*Disabled*")
+    }
 }

@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Disabled;
  */
 @Disabled
 @SlothSpecs(randomNodeIds = false)
-@RemoteSpecs(hosts = "perf1,perf2", remoteJavaPath = "/opt/sloth/jdk/bin/java")
+@RemoteSpecs(hosts = "perf1,perf2", remoteJavaPath = "/opt/sloth/jdk/bin/java", nodesPerHost = 4)
 public class RemoteSmokeTest {
 
     private static final Logger log = LogManager.getLogger(RemoteSmokeTest.class);
@@ -48,7 +48,7 @@ public class RemoteSmokeTest {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
-        network.addNodes(2);
+        network.addNodes(8);
 
         log.info("Starting network on remote hosts...");
         network.start();

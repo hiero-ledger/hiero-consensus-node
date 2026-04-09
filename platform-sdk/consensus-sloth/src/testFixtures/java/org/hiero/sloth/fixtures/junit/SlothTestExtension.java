@@ -295,10 +295,11 @@ public class SlothTestExtension
         final String remoteWorkDir = remoteSpecs.remoteWorkDir();
         final boolean cleanupOnDestroy = remoteSpecs.cleanupOnDestroy();
         final String remoteJavaPath = remoteSpecs.remoteJavaPath();
+        final int nodesPerHost = remoteSpecs.nodesPerHost();
 
         final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("remote", extensionContext);
         return new RemoteTestEnvironment(
-                randomNodeIds, outputDirectory, hosts, remoteWorkDir, cleanupOnDestroy, remoteJavaPath);
+                randomNodeIds, outputDirectory, hosts, remoteWorkDir, cleanupOnDestroy, remoteJavaPath, nodesPerHost);
     }
 
     /**

@@ -46,6 +46,7 @@ public class RemoteTestEnvironment implements TestEnvironment {
      * @param remoteWorkDir the base working directory on the remote hosts
      * @param cleanupOnDestroy whether to clean up remote files after test completion
      * @param remoteJavaPath path to the Java executable on remote hosts
+     * @param nodesPerHost maximum number of nodes per host
      */
     public RemoteTestEnvironment(
             final boolean useRandomNodeIds,
@@ -53,7 +54,8 @@ public class RemoteTestEnvironment implements TestEnvironment {
             @NonNull final List<String> hosts,
             @NonNull final String remoteWorkDir,
             final boolean cleanupOnDestroy,
-            @NonNull final String remoteJavaPath) {
+            @NonNull final String remoteJavaPath,
+            final int nodesPerHost) {
         try {
             if (Files.exists(rootOutputDirectory)) {
                 FileUtils.deleteDirectory(rootOutputDirectory);
@@ -70,7 +72,8 @@ public class RemoteTestEnvironment implements TestEnvironment {
                 hosts,
                 remoteWorkDir,
                 cleanupOnDestroy,
-                remoteJavaPath);
+                remoteJavaPath,
+                nodesPerHost);
     }
 
     /**

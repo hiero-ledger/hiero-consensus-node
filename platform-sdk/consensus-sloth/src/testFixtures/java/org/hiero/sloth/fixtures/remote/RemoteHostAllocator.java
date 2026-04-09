@@ -10,43 +10,55 @@ import java.util.Map;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
- * Assigns each node to a dedicated remote host. Exactly one node per host is supported; an exception is thrown if more
- * nodes are requested than hosts are available.
+ * Assigns nodes to remote hosts in round-robin fashion. Multiple nodes can share a single host; each node on the same
+ * host receives unique ports derived from a base port plus an offset. An exception is thrown if more nodes are requested
+ * than the configured capacity ({@code hosts.size() * nodesPerHost}).
  */
 public class RemoteHostAllocator {
 
-    /** Port for the container control gRPC service. */
-    private static final int CONTROL_PORT = 8080;
+    /** Base port for the container control gRPC service. */
+    private static final int BASE_CONTROL_PORT = 8080;
 
-    /** Port for the node communication gRPC service. */
-    private static final int COMM_PORT = 8081;
+    /** Base port for the node communication gRPC service. */
+    private static final int BASE_COMM_PORT = 8081;
 
-    /** Port for gossip communication. */
-    private static final int GOSSIP_PORT = 5777;
+    /** Base port for gossip communication. */
+    private static final int BASE_GOSSIP_PORT = 5777;
+
+    /** Port stride between nodes on the same host (must be >= 2 to cover control + comm). */
+    private static final int PORT_STRIDE = 2;
 
     private final List<String> hosts;
+    private final int nodesPerHost;
     private final Map<NodeId, HostAssignment> assignments = new HashMap<>();
+    private final Map<String, Integer> nodesOnHost = new HashMap<>();
 
     /**
      * Creates a new allocator for the given list of hosts.
      *
      * @param hosts the list of SSH host names (must not be empty)
+     * @param nodesPerHost maximum number of nodes per host (must be >= 1)
      */
-    public RemoteHostAllocator(@NonNull final List<String> hosts) {
+    public RemoteHostAllocator(@NonNull final List<String> hosts, final int nodesPerHost) {
         requireNonNull(hosts, "hosts must not be null");
         if (hosts.isEmpty()) {
             throw new IllegalArgumentException("At least one host must be specified");
         }
+        if (nodesPerHost < 1) {
+            throw new IllegalArgumentException("nodesPerHost must be >= 1, got " + nodesPerHost);
+        }
         this.hosts = List.copyOf(hosts);
+        this.nodesPerHost = nodesPerHost;
     }
 
     /**
-     * Allocates a dedicated host for the given node. Each node gets its own host. If more nodes are requested than
-     * hosts are available, an {@link IllegalStateException} is thrown.
+     * Allocates a host for the given node. Nodes are distributed across hosts in round-robin order. If multiple nodes
+     * land on the same host, each receives unique ports (base port + offset). An {@link IllegalStateException} is
+     * thrown when the total capacity ({@code hosts * nodesPerHost}) is exceeded.
      *
      * @param nodeId the node to allocate
      * @return the host assignment with connection details
-     * @throws IllegalStateException if all hosts have already been allocated
+     * @throws IllegalStateException if all host slots have been exhausted
      */
     @NonNull
     public HostAssignment allocate(@NonNull final NodeId nodeId) {
@@ -54,14 +66,22 @@ public class RemoteHostAllocator {
             return assignments.get(nodeId);
         }
 
-        final int index = assignments.size();
-        if (index >= hosts.size()) {
-            throw new IllegalStateException("Cannot allocate node " + nodeId + ": only " + hosts.size()
-                    + " host(s) available but " + (index + 1) + " node(s) requested. Each node requires its own host.");
+        final int totalAllocated = assignments.size();
+        final int maxCapacity = hosts.size() * nodesPerHost;
+        if (totalAllocated >= maxCapacity) {
+            throw new IllegalStateException("Cannot allocate node " + nodeId + ": capacity exhausted (" + hosts.size()
+                    + " host(s) x " + nodesPerHost + " node(s)/host = " + maxCapacity + " max).");
         }
 
-        final String host = hosts.get(index);
-        final HostAssignment assignment = new HostAssignment(host, CONTROL_PORT, COMM_PORT, GOSSIP_PORT);
+        // Round-robin: node 0 -> host 0, node 1 -> host 1, ..., node N -> host N % size
+        final String host = hosts.get(totalAllocated % hosts.size());
+        final int slotOnHost = nodesOnHost.merge(host, 1, Integer::sum) - 1;
+
+        final HostAssignment assignment = new HostAssignment(
+                host,
+                BASE_CONTROL_PORT + slotOnHost * PORT_STRIDE,
+                BASE_COMM_PORT + slotOnHost * PORT_STRIDE,
+                BASE_GOSSIP_PORT + slotOnHost);
         assignments.put(nodeId, assignment);
         return assignment;
     }

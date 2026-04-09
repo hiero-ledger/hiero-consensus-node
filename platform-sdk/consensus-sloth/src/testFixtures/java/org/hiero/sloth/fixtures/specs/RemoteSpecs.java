@@ -39,4 +39,10 @@ public @interface RemoteSpecs {
      * remote {@code PATH}.
      */
     String remoteJavaPath() default "java";
+
+    /**
+     * Maximum number of nodes per host. When more nodes are requested than hosts, multiple nodes are placed on the
+     * same host with unique port assignments. Defaults to {@code 1} (one node per host).
+     */
+    int nodesPerHost() default 1;
 }
