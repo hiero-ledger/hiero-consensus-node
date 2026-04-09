@@ -81,6 +81,7 @@ public class TlsFactory implements SocketFactory {
     @Override
     public @NonNull ServerSocket createServerSocket(final int port) throws IOException {
         final SSLServerSocket serverSocket = (SSLServerSocket) sslServerSocketFactory.createServerSocket();
+        serverSocket.setEnabledProtocols(new String[] {CryptoConstants.SSL_VERSION});
         serverSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
         serverSocket.setWantClientAuth(true);
         serverSocket.setNeedClientAuth(true);
@@ -102,6 +103,7 @@ public class TlsFactory implements SocketFactory {
         synchronized (this) {
             final SSLSocket clientSocket = (SSLSocket) sslSocketFactory.createSocket();
             // ensure the connection is ALWAYS the exact cipher suite we've chosen
+            clientSocket.setEnabledProtocols(new String[] {CryptoConstants.SSL_VERSION});
             clientSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
             clientSocket.setWantClientAuth(true);
             clientSocket.setNeedClientAuth(true);
