@@ -30,7 +30,8 @@ jobs:
       - name: Smart dismiss reviews
         uses: step-security/auto-unapprove@7665c273e3bef296dbfd162d8f31911d8ffe4281 # v1.0.2
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GH_AUTO_UNAPPROVE_TOKEN }}
           pr-number: "24874"
           dry-run: "false"
           code-owners-file: '.github/CODEOWNERS'
+          team-start-with: '@hiero-ledger/'
