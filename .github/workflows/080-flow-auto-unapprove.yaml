@@ -3,9 +3,7 @@ name: "080: [FLOW] Auto Unapprove PR"
 on:
   pull_request:
     types:
-      - opened
       - synchronize
-      - reopened
 
 defaults:
   run:
@@ -35,4 +33,5 @@ jobs:
           pr-number: ${{ github.event.pull_request.number }}
           dry-run: "false"
           code-owners-file: ".github/CODEOWNERS"
+          target-branch: ${{ github.event.pull_request.base.ref }}
           team-start-with: "@hiero-ledger/"
