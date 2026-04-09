@@ -330,6 +330,8 @@ jobs:
           set +e
           set +x
           cd "${{ github.workspace }}"/target_consensus_node
+
+          echo "0.73.0-rc.1" > version.txt
           ./gradlew clean assemble
 
           if [ "${{ inputs.perf_analysis }}" == "true" ]
@@ -491,6 +493,10 @@ jobs:
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
 
+          #FIXME:
+          echo "DEBUG:"
+          cat Taskfile.yml
+
           # Update Init Containers values
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
@@ -543,13 +549,6 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
           cd "${{ github.workspace }}"
 
-          mkdir solo_deploy
-          cp -r "${HOME}"/.solo/logs solo_deploy/
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
-          cp -r podlog_"${{ steps.set-namespace.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-
           exit "${task_code}"
 
       - name: Add BlockNodes
@@ -588,6 +587,23 @@ jobs:
           set +e
           cd "${{ github.workspace}}"/solo
           task installCNs
+
+      - name: Solo logs
+        if: ${{ !cancelled() && always() }}
+        env:
+          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          mkdir solo_deploy
+          cp -r "${HOME}"/.solo/logs solo_deploy/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
+          cp -r podlog_"${{ steps.set-namespace.outputs.namespace }}" solo_deploy/
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          cd "${{ github.workspace}}"
 
       - name: Update CNs with BNs
         if: false
