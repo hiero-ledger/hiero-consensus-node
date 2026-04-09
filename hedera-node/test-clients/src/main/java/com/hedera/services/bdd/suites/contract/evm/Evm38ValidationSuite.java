@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.contract.evm;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -68,6 +69,7 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @HapiTestLifecycle
+@Tag(SERIAL)
 public class Evm38ValidationSuite {
     private static final Logger LOG = LogManager.getLogger(Evm38ValidationSuite.class);
     private static final String CREATE_TRIVIAL = "CreateTrivial";
