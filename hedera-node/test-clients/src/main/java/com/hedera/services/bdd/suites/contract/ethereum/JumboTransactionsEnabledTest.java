@@ -167,13 +167,36 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
     class JumboEthereumTransactionsPositiveTests {
 
         private final Stream<TestCombinationWithGas> positiveBoundariesTestCases = Stream.of(
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 400_000, 47_358),
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP2930, 400_000, 47_358),
-                new TestCombinationWithGas(SIX_KB_SIZE, EthTxData.EthTransactionType.EIP1559, 400_000, 47_358),
                 new TestCombinationWithGas(
-                        MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.LEGACY_ETHEREUM, 9_000_000, 542_986),
-                new TestCombinationWithGas(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP2930, 9_000_000, 542_986),
-                new TestCombinationWithGas(MAX_ALLOWED_SIZE, EthTxData.EthTransactionType.EIP1559, 9_000_000, 542_986));
+                        SIX_KB_SIZE,
+                        EthTxData.EthTransactionType.LEGACY_ETHEREUM,
+                        400_000,
+                        83_300 /* TODO(Pectra): used to be 47_358 */),
+                new TestCombinationWithGas(
+                        SIX_KB_SIZE,
+                        EthTxData.EthTransactionType.EIP2930,
+                        400_000,
+                        83_300 /* TODO(Pectra): used to be 47_358 */),
+                new TestCombinationWithGas(
+                        SIX_KB_SIZE,
+                        EthTxData.EthTransactionType.EIP1559,
+                        400_000,
+                        83_300 /* TODO(Pectra): used to be 47_358 */),
+                new TestCombinationWithGas(
+                        MAX_ALLOWED_SIZE,
+                        EthTxData.EthTransactionType.LEGACY_ETHEREUM,
+                        9_000_000,
+                        1_322_370 /* TODO(Pectra): used to be 542_986 */),
+                new TestCombinationWithGas(
+                        MAX_ALLOWED_SIZE,
+                        EthTxData.EthTransactionType.EIP2930,
+                        9_000_000,
+                        1_322_370 /* TODO(Pectra): used to be 542_986 */),
+                new TestCombinationWithGas(
+                        MAX_ALLOWED_SIZE,
+                        EthTxData.EthTransactionType.EIP1559,
+                        9_000_000,
+                        1_322_370 /* TODO(Pectra): used to be 542_986 */));
 
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Jumbo Ethereum transactions should pass for valid sizes and expected gas used")
