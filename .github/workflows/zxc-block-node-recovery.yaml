@@ -420,7 +420,6 @@ jobs:
           rm grpcurl.tar.gz
 
       - name: Port forward BN ports
-        id: deploy_end
         run: |
           kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
           kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
