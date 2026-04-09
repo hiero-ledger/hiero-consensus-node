@@ -110,7 +110,7 @@ jobs:
   hapi-tests-misc-and-nd-reconnect:
     name: "HAPI Tests (Misc & ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-misc-and-nd-reconnect == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -189,7 +189,7 @@ jobs:
   hapi-tests-misc-records-and-crypto:
     name: "HAPI Tests (Misc Records & Crypto)"
     if: ${{ inputs.enable-hapi-tests-misc-records-and-crypto == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -345,7 +345,7 @@ jobs:
   hapi-tests-token-and-time-consuming:
     name: "HAPI Tests (Token & Time Consuming)"
     if: ${{ inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}
-    runs-on: hl-cn-hapi-lin-xl
+    runs-on: hl-cn-hapi-lin-lg
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
