@@ -1,0 +1,66 @@
+version: '3'
+
+services:
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-remote-write-receiver'
+      - '--enable-feature=native-histograms'
+    ports:
+      - "9090:9090"
+    networks:
+      - observe-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana-oss
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_PLUGIN_ALLOW_LOCAL_MODE=true
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_INSTALL_PLUGINS=marcusolsson-csv-datasource
+      - GF_SERVER_HTTP_PORT=3001
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/etc/grafana/dashboards
+      - ./../data:/benchmark-data
+    ports:
+      - "3001:3001"
+    depends_on:
+      - prometheus
+      - promtail
+    networks:
+      - observe-network
+
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki/:/etc/loki/
+    networks:
+      - observe-network
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./promtail/promtail.yaml:/etc/promtail/config.yaml:ro  # Read-only mount for config
+      - ../output:/shared/logs/benchmarks:ro
+    command:
+      - "-config.file=/etc/promtail/config.yaml"
+    depends_on:
+      - loki
+    ports:
+      - "9080:9080"
+    networks:
+      - observe-network
+
+networks:
+  observe-network:
+    driver: bridge

@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 3s
+
+scrape_configs:
+  - job_name: 'prom-scrap'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['host.docker.internal:9999', 'host.docker.internal:8888']
+        labels:
+          node_id: '0'
+          environment: 'benchmark'

@@ -28,10 +28,12 @@ jmhModuleInfo {
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.reconnect")
+    requires("org.hiero.metrics")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
     requiresStatic("com.github.spotbugs.annotations")
     runtimeOnly("com.swirlds.config.impl")
+    runtimeOnly("org.hiero.metrics.openmetrics.httpserver")
 }
 
 jmh {
@@ -66,3 +68,16 @@ tasks.register<JMHTask>("jmhReconnect") {
     benchmarkParameters.put("teacherRemoveProbability", listProperty("0.01"))
     benchmarkParameters.put("teacherModifyProbability", listProperty("0.01"))
 }
+
+val cleanBenchmarkOutput =
+    tasks.register<Delete>("cleanBenchmarkOutput") {
+        description = "Clean up benchmark output and data directories"
+        group = "jmh"
+        delete(
+            layout.projectDirectory.dir("data"),
+            layout.projectDirectory.dir("output"),
+            layout.projectDirectory.file("settingsUsed.txt"),
+        )
+    }
+
+tasks.clean { dependsOn(cleanBenchmarkOutput) }
