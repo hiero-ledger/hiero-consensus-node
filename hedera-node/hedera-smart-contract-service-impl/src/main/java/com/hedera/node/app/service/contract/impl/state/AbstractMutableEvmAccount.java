@@ -27,7 +27,7 @@ import org.hyperledger.besu.evm.account.MutableAccount;
  *     <li>{@link MutableAccount#getUpdatedStorage()} - The {@link EvmFrameState} manages transaction boundaries.</li>
  *  </ul>
  */
-public abstract class AbstractMutableEvmAccount implements MutableAccount, HederaEvmAccount {
+public abstract class AbstractMutableEvmAccount implements HederaEvmAccount {
     /**
      * Unlike in Besu, we don't store the address hash in state (c.f. {@link Account#getAddressHash()} javadoc);
      * and also don't support {@link org.hyperledger.besu.evm.worldstate.WorldState#streamAccounts(Bytes32, int)}. So
@@ -88,5 +88,13 @@ public abstract class AbstractMutableEvmAccount implements MutableAccount, Heder
     @Override
     public Map<UInt256, UInt256> getUpdatedStorage() {
         throw new UnsupportedOperationException("Storage changes are managed by the EvmFrameState");
+    }
+
+    /**
+     *  The default implementation clones the code bytes, making getting the
+     *  length very expensive.
+     */
+    public int getCodeSize() {
+        return getCode().size();
     }
 }

@@ -40,7 +40,7 @@ public class ProxyEvmAccount extends AbstractProxyEvmAccount {
     @Nullable
     private Address address;
 
-    public ProxyEvmAccount(final AccountID accountID, @NonNull final EvmFrameState state) {
+    public ProxyEvmAccount(final AccountID accountID, @NonNull final DispatchingEvmFrameState state) {
         super(accountID, state);
     }
 

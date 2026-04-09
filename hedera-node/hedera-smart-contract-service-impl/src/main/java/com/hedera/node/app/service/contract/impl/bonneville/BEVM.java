@@ -9,6 +9,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
@@ -23,8 +24,6 @@ import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.account.Account;
-import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.blockhash.BlockHashLookup;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -35,7 +34,6 @@ import org.hyperledger.besu.evm.log.LogTopic;
 import org.hyperledger.besu.evm.operation.BlockHashOperation;
 import org.hyperledger.besu.evm.operation.ChainIdOperation;
 import org.hyperledger.besu.evm.operation.Operation;
-import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 
 /**
  * Main Interpreter Loop and Instance
@@ -76,11 +74,11 @@ class BEVM {
     long _gas;
 
     // Map from Address to Account
-    WorldUpdater _updater;
+    ProxyWorldUpdater _updater;
 
     // Recipient
     Address _recvAddr; // Receiver Address
-    Account _recvAcct; // Receiver Account
+    AbstractMutableEvmAccount _recvAcct; // Receiver Account
 
     // Some context flags
     Address _hookOwner;
@@ -117,7 +115,7 @@ class BEVM {
 
     ContractID _contractId;
 
-    // BEVMs are allocated once per executing frame, and are recycled via a
+    // BEVMs are allocated once per executing frame and are recycled via a
     // thread-local pool managed by Bonneville.
     BEVM(BonnevilleEVM bevm, Operation[] operations) {
         _bonneville = bevm;
@@ -156,7 +154,7 @@ class BEVM {
         _gas = frame.getRemainingGas();
 
         // Map from Address to Account.
-        _updater = frame.getWorldUpdater();
+        _updater = (ProxyWorldUpdater)frame.getWorldUpdater();
 
         // Account receiver.  Can be null for various broken calls
         _recvAddr = frame.getRecipientAddress();
@@ -197,9 +195,7 @@ class BEVM {
         _callData = _frame.getInputData().toArrayUnsafe();
 
         // TODO: Could get lazier here
-        _contractId = _updater instanceof ProxyWorldUpdater pwu
-            ? pwu.getHederaContractIdNotThrowing(_recvAddr)
-            : null;
+        _contractId = _updater.getHederaContractIdNotThrowing(_recvAddr);
 
         // If top-level, use the top-level warm-address stack.
         // If NOT top-level, pass down the top-level stack.
@@ -736,10 +732,7 @@ class BEVM {
             if( rhs0 == 0) return push0();
             if( rhs0 == 1) return push(lhs0, lhs1, lhs2, lhs3);
         }
-        int rbc0 = Long.bitCount(rhs0),
-                rbc1 = Long.bitCount(rhs1),
-                rbc2 = Long.bitCount(rhs2),
-                rbc3 = Long.bitCount(rhs3);
+        int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
         if( rbc0 + rbc1 + rbc2 + rbc3 == 1) {
             int shf = shf(rbc0, rbc1, rbc2, rbc3, rhs0, rhs1, rhs2, rhs3);
             return sar(shf, lhs0, lhs1, lhs2, lhs3);
@@ -854,7 +847,7 @@ class BEVM {
     // Sgn extend
     private ExceptionalHaltReason sign() {
         int x = popInt();
-        // Push the sign-extend of val, starting from byte x.  if x>=32, then v
+        // Push the sign-extend of val, starting from byte x.  If x>=32, then v
         // is used no-change.  If x==31 then we would only extend the high byte.
         if( x >= 31) return null;
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
@@ -1093,7 +1086,7 @@ class BEVM {
 
         if( isSystem) return push0();
 
-        Account acct = _updater.get(address);
+        AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct == null) return push0();
         return push((UInt256) acct.getBalance().toBytes());
     }
@@ -1184,9 +1177,9 @@ class BEVM {
         var halt = useGas(gas);
         if( halt != null) return halt;
 
-        Account acct = _updater.get(address);
+        AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct == null) return push0(); // No account, zero code size
-        return push(acct.getCode().size());
+        return push(acct.getCodeSize());
     }
 
     private ExceptionalHaltReason customExtCodeCopy() {
@@ -1215,7 +1208,7 @@ class BEVM {
         var halt = useGas(gas);
         if( halt != null) return halt;
 
-        Account acct = _updater.get(address);
+        AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct != null) _mem.write(doff, acct.getCode().toArray(), soff, len);
         return null;
     }
@@ -1239,12 +1232,12 @@ class BEVM {
         var halt = useGas(gas);
         if( halt != null) return halt;
 
-        Account acct = _updater.get(address);
+        AbstractMutableEvmAccount acct = _updater.get(address);
         if( acct == null) return push0(); // No account, zero code size
         return push32(acct.getCodeHash().toArrayUnsafe());
     }
 
-    private boolean assertValidSolidity(Address adr) {
+    boolean assertValidSolidity(Address adr) {
         // CNC notes - I am unable to find a test case which triggers this
         // original code, it may no longer be possible.  Asserting it cannot
         // happen, but including the old handler code, commented out.
@@ -1433,17 +1426,12 @@ class BEVM {
     }
 
     private ExceptionalHaltReason PRNGSeed() {
-        if( _updater instanceof ProxyWorldUpdater pwu ) {
-            com.hedera.pbj.runtime.io.buffer.Bytes entropy = pwu.enhancement().operations().entropy();
-            long x0 = entropy.getLong( 0);
-            long x1 = entropy.getLong( 8);
-            long x2 = entropy.getLong(16);
-            long x3 = entropy.getLong(24);
-            return push(x0, x1, x2, x3);
-        }
-        // BESU impl
-        //return push(_frame.getBlockValues().getMixHashOrPrevRandao());
-        return push0();
+        com.hedera.pbj.runtime.io.buffer.Bytes entropy = _updater.enhancement().operations().entropy();
+        long x0 = entropy.getLong( 0);
+        long x1 = entropy.getLong( 8);
+        long x2 = entropy.getLong(16);
+        long x3 = entropy.getLong(24);
+        return push(x0, x1, x2, x3);
     }
 
     private ExceptionalHaltReason gasLimit() {
@@ -1602,7 +1590,7 @@ class BEVM {
     // Store into the global/permanent store
     private ExceptionalHaltReason customSStore() {
         // Mutable version of receiver
-        MutableAccount recv = _updater.getAccount(_recvAddr);
+        AbstractMutableEvmAccount recv = _updater.getAccount(_recvAddr);
         if( recv == null ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 
         // Attempt to write to read-only
@@ -1686,14 +1674,12 @@ class BEVM {
         for (int i = 0; i < ntopics; i++)
             ary.add(LogTopic.create(popBytes()));
 
-        if( _updater instanceof ProxyWorldUpdater pwu ) {
-            // Since these are consumed by mirror nodes, which always want to know the Hedera id
-            // of the emitting contract, we always resolve to a long-zero address for the log
-            var loggerAddress = ConversionUtils.isLongZero(_recvAddr)
-                ? _recvAddr
-                : ConversionUtils.asLongZeroAddress(pwu.getHederaContractId(_recvAddr).contractNumOrThrow());
-            _frame.addLog(new Log(loggerAddress, data, ary));
-        }
+        // Since these are consumed by mirror nodes, which always want to know the Hedera id
+        // of the emitting contract, we always resolve to a long-zero address for the log
+        var loggerAddress = ConversionUtils.isLongZero(_recvAddr)
+            ? _recvAddr
+            : ConversionUtils.asLongZeroAddress(_updater.getHederaContractId(_recvAddr).contractNumOrThrow());
+        _frame.addLog(new Log(loggerAddress, data, ary));
         return null;
     }
 
