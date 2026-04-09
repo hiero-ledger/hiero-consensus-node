@@ -4,6 +4,7 @@ on:
   pull_request:
     types:
       - synchronize
+  workflow_dispatch:
 
 defaults:
   run:
@@ -30,5 +31,5 @@ jobs:
         uses: step-security/auto-unapprove@7665c273e3bef296dbfd162d8f31911d8ffe4281 # v1.0.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          pr-number: ${{ github.event.number }}
+          pr-number: "24874"
           dry-run: "false"
