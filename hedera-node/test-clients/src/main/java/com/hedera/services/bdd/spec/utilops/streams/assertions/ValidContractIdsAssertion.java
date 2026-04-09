@@ -5,28 +5,82 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.ContractActionType;
+import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
+import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * A {@link RecordStreamAssertion} that validates contract and account IDs in transaction sidecar records.
+ *
+ * <p>When constructed with {@code specTxnIds}, this assertion is <b>scoped</b> to only validate sidecars
+ * belonging to the specified transactions (matched by consensus timestamp). This prevents cross-test
+ * interference on shared {@code @HapiTest} networks where sidecars from other concurrent tests would
+ * otherwise be validated and could cause false failures.
+ *
+ * <p>When constructed without {@code specTxnIds} (or with an empty array), the assertion validates
+ * <b>all</b> sidecars on the record stream (the original behavior).
+ */
 public class ValidContractIdsAssertion implements RecordStreamAssertion {
 
     private final long shard;
     private final long realm;
+    private final HapiSpec spec;
+    private final String[] specTxnIds;
+    private final Set<Timestamp> trackedTimestamps = ConcurrentHashMap.newKeySet();
 
-    public ValidContractIdsAssertion(HapiSpec spec) {
+    public ValidContractIdsAssertion(@NonNull final HapiSpec spec) {
+        this(spec, new String[0]);
+    }
+
+    public ValidContractIdsAssertion(@NonNull final HapiSpec spec, @NonNull final String... specTxnIds) {
+        this.spec = spec;
         this.shard = spec.shard();
         this.realm = spec.realm();
+        this.specTxnIds = specTxnIds;
+    }
+
+    private boolean isScoped() {
+        return specTxnIds.length > 0;
     }
 
     @Override
-    public boolean isApplicableToSidecar(TransactionSidecarRecord sidecar) {
-        return true;
+    public boolean isApplicableTo(@NonNull final RecordStreamItem item) {
+        if (!isScoped()) {
+            return false;
+        }
+        final var observedId = item.getRecord().getTransactionID();
+        for (final var txnName : specTxnIds) {
+            final var maybeTxnId = spec.registry().getMaybeTxnId(txnName);
+            if (maybeTxnId.isPresent() && BaseIdScreenedAssertion.baseFieldsMatch(maybeTxnId.get(), observedId)) {
+                trackedTimestamps.add(item.getRecord().getConsensusTimestamp());
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
-    public boolean testSidecar(TransactionSidecarRecord sidecar) throws AssertionError {
+    public boolean test(@NonNull final RecordStreamItem item) throws AssertionError {
+        // Items are only used to track consensus timestamps for sidecar filtering;
+        // the actual validation happens in testSidecar().
+        return false;
+    }
+
+    @Override
+    public boolean isApplicableToSidecar(@NonNull final TransactionSidecarRecord sidecar) {
+        if (!isScoped()) {
+            return true;
+        }
+        return trackedTimestamps.contains(sidecar.getConsensusTimestamp());
+    }
+
+    @Override
+    public boolean testSidecar(@NonNull final TransactionSidecarRecord sidecar) throws AssertionError {
         switch (sidecar.getSidecarRecordsCase()) {
             case STATE_CHANGES -> validateStateChangeIds(sidecar);
             case ACTIONS -> validateActionIds(sidecar);
