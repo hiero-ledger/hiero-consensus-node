@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_DELETE_TOPIC_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_GET_TOPIC_INFO_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES;
@@ -614,6 +615,15 @@ public class FeesChargingUtils {
         return nodeFee * NETWORK_MULTIPLIER;
     }
 
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTopicCreateNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTopicCreateNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
     // -------- CryptoTransfer simple fees utils ---------//
 
     /**
@@ -976,11 +986,11 @@ public class FeesChargingUtils {
      *         + KEYS_FEE  * max(0, keys - includedKeysService)
      * total   = node + network + service
      */
-    public static double expectedTopicCreateWithCustomFeeFullFeeUsd(long sigs, long keys) {
+    public static double expectedTopicCreateWithCustomFeeFullFeeUsd(long sigs, long keys, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
@@ -992,10 +1002,6 @@ public class FeesChargingUtils {
                 CONS_CREATE_TOPIC_BASE_FEE_USD + CONS_CREATE_TOPIC_WITH_CUSTOM_FEE_USD + serviceExtrasFee;
 
         return nodeFee + networkFee + serviceFee;
-    }
-
-    public static double expectedTopicCreateWithCustomFeeFullFeeUsd(long sigs, long keys, int txnSize) {
-        return addNodeAndNetworkBytes(expectedTopicCreateWithCustomFeeFullFeeUsd(sigs, keys), txnSize);
     }
 
     /**
@@ -1059,14 +1065,23 @@ public class FeesChargingUtils {
     /**
      * Simple fees calculation for ConsensusUpdateTopic with node fee only
      */
-    public static double expectedTopicUpdateNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTopicUpdateNetworkFeeOnlyUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTopicUpdateNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTopicUpdateNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- ConsensusDeleteTopic simple fees utils ---------//
@@ -1078,11 +1093,11 @@ public class FeesChargingUtils {
      * service = CONS_DELETE_TOPIC_BASE (no extras)
      * total   = node + network + service
      */
-    public static double expectedTopicDeleteFullFeeUsd(long sigs) {
+    public static double expectedTopicDeleteFullFeeUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         final double networkFee = nodeFee * NETWORK_MULTIPLIER;
@@ -1091,10 +1106,6 @@ public class FeesChargingUtils {
         final double serviceFee = CONS_DELETE_TOPIC_BASE_FEE_USD;
 
         return nodeFee + networkFee + serviceFee;
-    }
-
-    public static double expectedTopicDeleteFullFeeUsd(long sigs, int txnSize) {
-        return addNodeAndNetworkBytes(expectedTopicDeleteFullFeeUsd(sigs), txnSize);
     }
 
     /**
@@ -1109,14 +1120,23 @@ public class FeesChargingUtils {
     /**
      * Simple fees calculation for ConsensusDeleteTopic with node fee only
      */
-    public static double expectedTopicDeleteNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTopicDeleteNetworkFeeOnlyUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTopicDeleteNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTopicDeleteNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     // -------- ConsensusSubmitMessage simple fees utils ---------//
@@ -1188,14 +1208,56 @@ public class FeesChargingUtils {
     /**
      * Simple fees calculation for ConsensusSubmitMessage with node fee only
      */
-    public static double expectedTopicSubmitMessageNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedTopicSubmitMessageNetworkFeeOnlyUsd(long sigs, int txnSize) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
 
         // ----- network fees -----
         return nodeFee * NETWORK_MULTIPLIER;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTopicSubmitMessageNetworkFeeOnlyUsd(final Map<Extra, Long> extras) {
+        return expectedTopicSubmitMessageNetworkFeeOnlyUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
+    // -------- ConsensusGetTopicInfo simple fees utils ---------//
+
+    /**
+     * Simple fees formula for ConsensusGetTopicInfo:
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
+     * network = node * NETWORK_MULTIPLIER
+     * service = CONS_GET_TOPIC_INFO_BASE
+     * total   = node + network + service
+     */
+    public static double expectedGetTopicInfoFullFeeUsd(long sigs, int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        // ----- service fees -----
+        final double serviceFee = CONS_GET_TOPIC_INFO_BASE_FEE_USD;
+
+        return nodeFee + networkFee + serviceFee;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedGetTopicInfoFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedGetTopicInfoFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
     public static double expectedTopicSubmitMessageServiceOnly(long messageBytes, boolean includesCustomFee) {
