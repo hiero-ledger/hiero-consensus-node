@@ -384,9 +384,7 @@ jobs:
         run: |
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=1
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=1
-          sleep 30
-          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
-          kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
+          sleep 300
           echo "Cluster after BN-1's & BN-2's scale up"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
@@ -539,9 +537,9 @@ jobs:
         run: |          
           # Calculate min and max first available blocks
           min_first_available=${{ env.BN1_FIRST_AVAILABLE_BLOCK }} < ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}
-          min_first_available=min_available < ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}
+          min_first_available=min_first_available < ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? min_first_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}
           max_first_available=${{ env.BN1_FIRST_AVAILABLE_BLOCK }} > ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}
-          max_first_available=min_available > ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}
+          max_first_available=max_first_available > ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? max_first_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}
           
           echo "Minimum first available block among BNs: $min_first_available"
           echo "Maximum first available block among BNs: $max_first_available"
