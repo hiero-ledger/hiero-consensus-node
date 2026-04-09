@@ -32,6 +32,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.NodeInfoImpl;
@@ -225,6 +226,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
@@ -323,6 +325,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
@@ -514,6 +517,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
@@ -540,6 +544,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
@@ -630,6 +635,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                     quiescedHeartbeat,
                     platform,
                     diskWriter,
+                    () -> mock(BlockItemWriter.class),
                     trigger);
         }
 
