@@ -388,7 +388,7 @@ jobs:
         run: |
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=1
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=1
-          sleep 30
+          sleep 60
           echo "Cluster after BN-1's & BN-2's scale up"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
