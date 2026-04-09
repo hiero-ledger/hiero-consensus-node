@@ -2,6 +2,8 @@
 package org.hiero.sloth.fixtures.remote;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_JAVA;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_WORKDIR;
 import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -193,10 +195,10 @@ public class RemoteNode extends AbstractNode implements Node, TimeTickReceiver {
 
         final String command = String.format(
                 "cd '%s' && nohup '%s'"
-                        + " '-Dsloth.workdir=%s'"
+                        + " '-D" + ENV_SLOTH_WORKDIR + "=%s'"
                         + " -Dsloth.control.port=%d"
                         + " -Dsloth.comm.port=%d"
-                        + " '-Dsloth.java=%s'"
+                        + " '-D" + ENV_SLOTH_JAVA + "=%s'"
                         + " -Djdk.attach.allowAttachSelf=true"
                         + " -XX:+StartAttachListener"
                         + " -jar '%sapps/DockerApp.jar'"
@@ -446,7 +448,7 @@ public class RemoteNode extends AbstractNode implements Node, TimeTickReceiver {
         // Kill any Java process using our working directory. Use a single string passed to SSH
         // so the shell on the remote side interprets the entire pipeline correctly.
         final String killCommand =
-                String.format("pkill -9 -f 'sloth.workdir=%s' 2>/dev/null; sleep 1; true", remoteNodeDir);
+                String.format("pkill -9 -f '" + ENV_SLOTH_WORKDIR + "=%s' 2>/dev/null; sleep 1; true", remoteNodeDir);
         sshExecutor.exec(killCommand);
         log.info("Killed remote processes for node {} on {}", selfId, sshExecutor.host());
     }

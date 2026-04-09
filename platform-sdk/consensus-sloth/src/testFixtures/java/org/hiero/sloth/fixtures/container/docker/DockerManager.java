@@ -5,6 +5,8 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static org.hiero.sloth.fixtures.container.docker.ConsensusNodeMain.STARTED_MARKER_FILE;
 import static org.hiero.sloth.fixtures.container.docker.ConsensusNodeMain.STARTED_MARKER_FILE_NAME;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_JAVA;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_WORKDIR;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.getNodeCommunicationDebugPort;
 
 import com.google.protobuf.Empty;
@@ -41,7 +43,8 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
     private static final Logger log = LogManager.getLogger(DockerManager.class);
 
     /** The working directory resolved from system property or default, always ending with '/'. */
-    private static final String WORK_DIR = normalizeDir(System.getProperty("sloth.workdir", CONTAINER_APP_WORKING_DIR));
+    private static final String WORK_DIR =
+            normalizeDir(System.getProperty(ENV_SLOTH_WORKDIR, CONTAINER_APP_WORKING_DIR));
 
     /** The string location of the docker application jar */
     private static final String DOCKER_APP_JAR = WORK_DIR + "apps/DockerApp.jar";
@@ -100,7 +103,7 @@ public final class DockerManager extends ContainerControlServiceGrpc.ContainerCo
 
         // Set the debug port for the node communication service as JVM arguments
         final int debugPort = getNodeCommunicationDebugPort(selfId);
-        final String javaPath = System.getProperty("sloth.java", "java");
+        final String javaPath = System.getProperty(ENV_SLOTH_JAVA, "java");
         final List<String> command = new ArrayList<>(List.of(
                 javaPath,
                 "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:" + debugPort,

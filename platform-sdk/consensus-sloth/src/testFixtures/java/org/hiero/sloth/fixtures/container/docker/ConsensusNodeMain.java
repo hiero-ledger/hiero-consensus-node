@@ -3,6 +3,7 @@ package org.hiero.sloth.fixtures.container.docker;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_WORKDIR;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -32,7 +33,7 @@ public class ConsensusNodeMain {
      * is ready to accept requests.
      */
     public static final Path STARTED_MARKER_FILE = Path.of(
-                    System.getProperty("sloth.workdir", CONTAINER_APP_WORKING_DIR))
+                    System.getProperty(ENV_SLOTH_WORKDIR, CONTAINER_APP_WORKING_DIR))
             .resolve(STARTED_MARKER_FILE_NAME);
 
     /** Port on which the {@link org.hiero.sloth.fixtures.container.proto.NodeCommunicationServiceGrpc} listens. */
@@ -53,7 +54,7 @@ public class ConsensusNodeMain {
         final long id = Long.parseLong(args[0]);
         final NodeId selfId = NodeId.of(id);
 
-        final String workDir = System.getProperty("sloth.workdir", CONTAINER_APP_WORKING_DIR);
+        final String workDir = System.getProperty(ENV_SLOTH_WORKDIR, CONTAINER_APP_WORKING_DIR);
         DockerLogConfigBuilder.configure(Path.of(workDir), selfId);
 
         final NodeCommunicationService nodeCommunicationService = new NodeCommunicationService(selfId);
