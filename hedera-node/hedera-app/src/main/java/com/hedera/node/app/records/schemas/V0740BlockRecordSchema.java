@@ -47,6 +47,7 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
                             .getConfigData(BlockStreamJumpstartConfig.class)
                             .blockNum()
                     > 0) {
+                // We only want to initialize jumpstart voting if valid jumpstart data is present
                 final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
                 blockInfoSingleton.put(existingBlockInfo
                         .copyBuilder()
