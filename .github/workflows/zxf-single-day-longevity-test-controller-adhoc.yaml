@@ -60,7 +60,7 @@ on:
           - "20160"
       add-app-props:
         required: false
-        default: "hedera.recordStream.computeHashesFromWrappedRecordBlocks=true\\nhedera.recordStream.liveWritePrevWrappedRecordHashes=true\\nblockStream.streamMode=BOTH\\nblockStream.writerMode=FILE_AND_GRPC\\nblockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config\\nblockStream.buffer.isBufferPersistenceEnabled=true\\ntss.hintsEnabled=true\\ntss.historyEnabled=true\\ntss.wrapsEnabled=true"
+        default: "tss.forceMockSignatures=false\\nhedera.recordStream.computeHashesFromWrappedRecordBlocks=true\\nhedera.recordStream.liveWritePrevWrappedRecordHashes=true\\nblockStream.streamMode=BOTH\\nblockStream.writerMode=FILE_AND_GRPC\\nblockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config\\nblockStream.buffer.isBufferPersistenceEnabled=true\\ntss.hintsEnabled=true\\ntss.historyEnabled=true\\ntss.wrapsEnabled=true"
         type: string
         description: 'Add props to application.properties, e.g. "blockStream.streamMode=RECORDS". Newline is "\n"'
       add-settings:
