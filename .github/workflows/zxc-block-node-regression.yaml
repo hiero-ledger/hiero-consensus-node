@@ -107,7 +107,7 @@ jobs:
 
           echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
           # freeze at MN 0.149.0 as next versions require TSS by default. Swap out for custom tag when available
-          echo "MIRROR_NODE_TAG=v0.149.0" >> "$GITHUB_ENV"
+          echo "MIRROR_NODE_TAG=v0.152.0" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -194,7 +194,7 @@ jobs:
           echo "Using proto version: ${PROTO_VERSION}"
 
           # Install with the extracted versions
-          pnpm add @hiero-ledger/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
+          pnpm add "@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
           pnpm install
           nohup pnpm start &
           server_pid=$!
@@ -241,6 +241,11 @@ jobs:
                     stream:
                       maxSubscribeAttempts: 10
                       responseTimeout: 10s
+            # custom image to support preview streams hash verification
+            image:
+              registry: docker.io
+              repository: xin323/importer
+              tag: 0.152.0-f5f5faa13
           EOF
 
       - name: Print MN Override Values
@@ -268,6 +273,12 @@ jobs:
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
+
+      - name: Show running pods and services and wait on BN readiness
+        run: |
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --timeout=180s
 
       # port forwards
       - name: Solo Port forwards
@@ -346,12 +357,6 @@ jobs:
           # Export for later steps
           echo "FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
-
-      - name: Show running pods and services
-        run: |
-          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
-          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
-        continue-on-error: true
 
       # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
