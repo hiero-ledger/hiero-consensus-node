@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.event.validation;
+package org.hiero.consensus.event.intake.utils;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.model.event.PlatformEvent;
