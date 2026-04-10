@@ -329,7 +329,7 @@ jobs:
           dependencyResolutionManagement {
             repositories {
               maven("https://artifacts.hashgraph.io/artifactory/hyperledger-besu-maven-external/") {
-                content { includeGroupByRegex("org\\.hyperledger\\..*") }
+                content { includeGroupByRegex("org\\\.hyperledger\\\..*") }
               }
             }
           }
