@@ -6,6 +6,8 @@ module org.hiero.consensus.pcli {
             info.picocli;
     opens org.hiero.consensus.pcli.graph to
             info.picocli;
+    opens org.hiero.consensus.pcli.recovery to
+            info.picocli;
 
     exports org.hiero.consensus.pcli.utility;
     exports org.hiero.consensus.pcli;

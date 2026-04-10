@@ -20,42 +20,42 @@ set -o pipefail
 
 # This script provides a convenient wrapper for launching the platform CLI.
 
-JVM_CLASSPATH=''
+JVM_MODULE_PATH=''
 
-# This function attempts to add a jar file to the classpath, or if given a directory attempts to
-# add all jarfiles inside that directory to the classpath.
-add_to_classpath() {
+# This function attempts to add a jar file to the module path, or if given a directory attempts to
+# add all jar files inside that directory to the module path.
+add_to_module_path() {
   PATH_TO_ADD=$1
   PATH_TO_ADD=$(readlink -f "${PATH_TO_ADD}")
   if [[ -e "$PATH_TO_ADD" ]]; then
     # The file exists.
     if [[ -d $PATH_TO_ADD ]]; then
-      # If the path is a directory, then add all files in that directory tree to the classpath.
+      # If the path is a directory, then add all files in that directory tree to the module path.
       # shellcheck disable=SC2044
       for FILE in $(find "${PATH_TO_ADD}" -name '*.jar'); do
         FILE=$(readlink -f "${FILE}")
-        if [[ "$JVM_CLASSPATH" = '' ]]; then
-          JVM_CLASSPATH="${FILE}"
+        if [[ "$JVM_MODULE_PATH" = '' ]]; then
+          JVM_MODULE_PATH="${FILE}"
         else
-          JVM_CLASSPATH="${JVM_CLASSPATH}:${FILE}"
+          JVM_MODULE_PATH="${JVM_MODULE_PATH}:${FILE}"
         fi
       done
     else
       # Path is not a directory.
       if [[ $PATH_TO_ADD = *.jar ]]; then
         # File is a jar file.
-        if [[ "$JVM_CLASSPATH" = '' ]]; then
-          JVM_CLASSPATH="${PATH_TO_ADD}"
+        if [[ "$JVM_MODULE_PATH" = '' ]]; then
+          JVM_MODULE_PATH="${PATH_TO_ADD}"
         else
-          JVM_CLASSPATH="${JVM_CLASSPATH}:${PATH_TO_ADD}"
+          JVM_MODULE_PATH="${JVM_MODULE_PATH}:${PATH_TO_ADD}"
         fi
       else
-        echo "invalid classpath file, ${PATH_TO_ADD} is not a jar file"
+        echo "invalid module path file, ${PATH_TO_ADD} is not a jar file"
         exit 1
       fi
     fi
   else
-    echo "invalid classpath file, ${PATH_TO_ADD} does not exist"
+    echo "invalid module path file, ${PATH_TO_ADD} does not exist"
     exit 1
   fi
 }
@@ -64,9 +64,9 @@ add_to_classpath() {
 SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 # The entrypoint into the platform CLI (i.e. where the main() method is)
-MAIN_CLASS_NAME='org.hiero.consensus.pcli.Pcli'
+MAIN_MODULE_NAME='org.hiero.consensus.pcli'
 
-# Iterate over arguments and strip out the classpath arguments and JVM arguments.
+# Iterate over arguments and strip out the module path arguments and JVM arguments.
 # This needs to be handled by this bash script and not by the java program,
 # since we need to pass this data directly to the JVM.
 PROGRAM_ARGS=()
@@ -88,13 +88,13 @@ for ((CURRENT_INDEX=1; CURRENT_INDEX<=$#; CURRENT_INDEX++)); do
   elif [[ "$ARG" = '--banner' ]] || [[ "$ARG" = '-B' ]]; then
     # Enable ASCII banner display
     SHOW_BANNER=true
-  elif [[ "$ARG" = '--load' ]] || [[ "$ARG" = '-L' ]] || [[ "$ARG" = '--cp' ]]; then
+  elif [[ "$ARG" = '--load' ]] || [[ "$ARG" = '-L' ]]; then
     # We have found an argument that needs to be handled in this bash script.
 
     # Skip the next argument in the next loop cycle.
     CURRENT_INDEX=$NEXT_INDEX
 
-   add_to_classpath $NEXT_ARG
+   add_to_module_path $NEXT_ARG
 
   elif [[ "$ARG" = '--jvm' ]] || [[ "$ARG" = '-J' ]]; then
     # We have found an argument that needs to be handled in this bash script.
@@ -123,19 +123,19 @@ done
 # Add the main jar
 MAIN_JAR_PATH="${SCRIPT_PATH}/../sdk/swirlds-cli.jar"
 if [[ -e "$MAIN_JAR_PATH" ]]; then
-  add_to_classpath "${MAIN_JAR_PATH}"
+  add_to_module_path "${MAIN_JAR_PATH}"
 fi
 
 # In a development environment, this is the location where jarfiles are compiled to. If this directory
-# exists then add it to the classpath automatically.
+# exists then add it to the module path automatically.
 DEFAULT_LIB_PATH="${SCRIPT_PATH}/../sdk/data/lib"
 if [[ -e "$DEFAULT_LIB_PATH" ]]; then
-  add_to_classpath "${DEFAULT_LIB_PATH}"
+  add_to_module_path "${DEFAULT_LIB_PATH}"
 fi
 
-if [[ "$JVM_CLASSPATH" = '' ]]; then
-  echo 'ERROR: the JVM classpath is empty!'
-  echo 'Try adding jar or directories containing jarfiles to the classpath via the "--load /path/to/my/jars" argument.'
+if [[ "$JVM_MODULE_PATH" = '' ]]; then
+  echo 'ERROR: the JVM module path is empty!'
+  echo 'Try adding jar or directories containing jarfiles to the module path via the "--load /path/to/my/jars" argument.'
   exit 1
 fi
 
@@ -149,7 +149,7 @@ fi
 JVM_ARGS+=("-Dpcli.showBanner=${SHOW_BANNER}")
 
 # Run the CLI
-java "${JVM_ARGS[@]}" -cp "${JVM_CLASSPATH}" $MAIN_CLASS_NAME "${PROGRAM_ARGS[@]}"
+java "${JVM_ARGS[@]}" --module-path "${JVM_MODULE_PATH}" --module $MAIN_MODULE_NAME "${PROGRAM_ARGS[@]}"
 EXIT_CODE=$?
 
 # If help was requested OR if picocli showed usage due to invalid arguments (exit code 2),
