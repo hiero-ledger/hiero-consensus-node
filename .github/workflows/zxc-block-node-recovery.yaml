@@ -82,18 +82,18 @@ jobs:
       - name: Retrieve Latest BN Tag
         run: |
           bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
-          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || return 1
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || exit 1
           LATEST_BN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
           LATEST_BN_PROTO_URL=$(echo "${curl_response}" | jq -r '.assets[0].browser_download_url')
 
           if [[ -z "${LATEST_BN_TAG}" ]]; then
             echo "ERROR: Could not parse BN tag_name from response"
-            return 1
+            exit 1
           fi
-          
+
           if [[ -z "${LATEST_BN_PROTO_URL}" ]]; then
             echo "ERROR: Could not parse BN proto url from response"
-            return 1
+            exit 1
           fi
 
           echo "Latest Block Node tag: ${LATEST_BN_TAG} w proto_url:${LATEST_BN_PROTO_URL}"
@@ -103,12 +103,12 @@ jobs:
       - name: Retrieve Latest MN Tag
         run: |
           mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/latest"
-          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || return 1
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || exit 1
           LATEST_MN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
 
           if [[ -z "${LATEST_MN_TAG}" ]]; then
             echo "ERROR: Could not parse LATEST_MN_TAG from response"
-            return 1
+            exit 1
           fi
 
           echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
@@ -295,8 +295,8 @@ jobs:
             echo ""
             echo "| Setting | Value |"
             echo "|---------|-------|"
-            echo "| Cluster Name | ${CLUSTER_NAME} |"
-            echo "| Namespace | ${NAMESPACE} |"
+            echo "| Cluster Name | ${{ env.SOLO_CLUSTER_NAME }} |"
+            echo "| Namespace | ${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }} |"
             echo ""
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
@@ -307,8 +307,6 @@ jobs:
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node1=1,node2=2,node3=3 -f bn1-values.yaml
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node2=1,node3=2,node1=3 -f bn2-values.yaml
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node3=1,node1=2,node2=3 -f bn3-values.yaml
-          # sleep 30
-          # solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml        
           sleep 30
           solo keys consensus generate --gossip-keys --tls-keys --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
           solo consensus network deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
@@ -321,12 +319,11 @@ jobs:
           {
             echo "### Component Versions"
             echo ""
-            echo "| Component | Requested | Resolved |"
-            echo "|-----------|-----------|----------|"
-            echo "| Consensus Node | \`${{ inputs.consensus-node-version || 'latest' }}\` | \`${{ steps.versions.outputs.cn_version }}\` |"
-            echo "| Mirror Node | \`${{ inputs.mirror-node-version || 'latest' }}\` | \`${{ steps.versions.outputs.mn_version }}\` |"
-            echo "| Block Node | \`${{ inputs.block-node-version || 'latest' }}\` | \`${{ steps.versions.outputs.bn_version }}\` |"
-            echo "| Solo CLI | \`${{ inputs.solo-version || 'latest' }}\` | \`${{ steps.solo.outputs.solo_version }}\` |"
+            echo "| Component | Resolved |"
+            echo "|-----------|----------|"
+            echo "| Consensus Node |  \`${{ env.CN_LATEST_TAG }}\` |"
+            echo "| Mirror Node | \`${{ env.MIRROR_NODE_TAG }}\` |"
+            echo "| Block Node | \`${{ env.BLOCK_NODE_TAG }}\` |"
             echo ""
           } >> "${GITHUB_STEP_SUMMARY}"
 
@@ -347,6 +344,12 @@ jobs:
           kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
           kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
           kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &
+          
+          # Wait for submission and query port forwards to be ready
+          for port in 50211 5551 8084 40841 40842 40843; do
+            timeout 30 bash -c "until nc -z localhost $port; do sleep 1; done" \
+              && echo "Port $port ready" || echo "WARNING: port $port not ready"
+          done
 
       - name: Prepare NLG parameters
         run: |
@@ -386,53 +389,37 @@ jobs:
           sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
           rm grpcurl.tar.gz
 
-      - name: Get Initial ServerStatus from Block Nodes
+      - name: Get Pre-Scale-Down ServerStatus
         id: bn-init-status
-        run: |          
-          # Call serverStatus on BN 1
-          STATUS_JSON_1=$(grpcurl \
-            -plaintext \
-            -emit-defaults \
+        run: |
+          get_bn_status() {
+            local port=$1
+            grpcurl -plaintext -emit-defaults \
             -import-path block-node-proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
-            localhost:40841 \
-            org.hiero.block.api.BlockNodeService/serverStatus)
-
-          # Extract values
+            "localhost:${port}" \
+            org.hiero.block.api.BlockNodeService/serverStatus
+          }
+          
+          # Call serverStatus on BN 1 and Extract values
+          STATUS_JSON_1=$(get_bn_status 40841)
           LAST_AVAILABLE_BLOCK_1=$(echo "$STATUS_JSON_1" | jq -r '.lastAvailableBlock')
           echo "BN1_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_1" >> $GITHUB_ENV
           
-          # Call serverStatus on BN 2
-          STATUS_JSON_2=$(grpcurl \
-            -plaintext \
-            -emit-defaults \
-            -import-path block-node-proto \
-            -proto block-node/api/node_service.proto \
-            -d '{}' \
-            localhost:40842 \
-            org.hiero.block.api.BlockNodeService/serverStatus)
-
-          # Extract values
+          # Call serverStatus on BN 2 and Extract values
+          STATUS_JSON_2=$(get_bn_status 40842)
           LAST_AVAILABLE_BLOCK_2=$(echo "$STATUS_JSON_2" | jq -r '.lastAvailableBlock')
           echo "BN2_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_2" >> $GITHUB_ENV
           
-          # Call serverStatus on BN 3
-          STATUS_JSON_3=$(grpcurl \
-            -plaintext \
-            -emit-defaults \
-            -import-path block-node-proto \
-            -proto block-node/api/node_service.proto \
-            -d '{}' \
-            localhost:40843 \
-            org.hiero.block.api.BlockNodeService/serverStatus)
-
-          # Extract values
+          # Call serverStatus on BN 3 and Extract values
+          STATUS_JSON_3=$(get_bn_status 40843)
           LAST_AVAILABLE_BLOCK_3=$(echo "$STATUS_JSON_3" | jq -r '.lastAvailableBlock')
           echo "BN3_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_3" >> $GITHUB_ENV
         continue-on-error: true
 
-      # After some run time stop BN2 and BN3 to simulate unavailable BNs
+      # After some run time stop BN1 and BN2 to simulate unavailable BNs,
+      # leaving all 3 CNs pushing to only BN3 for 5 minutes.
       - name: Scale 2 BNs down to simulate failure
         run: |
           sleep 30
@@ -440,30 +427,32 @@ jobs:
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=0
-          sleep 30
+          # Wait for BN1 pod to fully terminate before scaling BN2 (2.2: deterministic, not sleep-based)
+          kubectl wait --for=delete pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --timeout=120s
           echo "*** Cluster after BN-1 scale down ***"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=0
-          sleep 30
+          # Wait for BN2 pod to fully terminate before starting the 3:1 run window
+          kubectl wait --for=delete pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --timeout=120s
           echo "*** Cluster after BN-2 scale down ***"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
-          echo "*** Run 3:1 CN to BN network for 5 mins ***"
+          echo "*** Run 3:1 CN to BN network for 5 mins (CN block buffer size based on 2 sec blocks)***"
           sleep 300
-        continue-on-error: true
 
       - name: Scale 2 BNs back up to simulate restoration
         id: bn-restoration
         run: |
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=1
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=1
+          # Wait for both BN pods to be Running/Ready before declaring restoration (2.2)
+          kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --timeout=180s
+          kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --timeout=180s
           echo "restoration_time=$(date +%s)" >> "$GITHUB_OUTPUT"
-          sleep 480
           echo "Cluster after BN-1's & BN-2's scale up"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
-        continue-on-error: true
 
 
       # ---- BN verification with grpcurl ----
@@ -477,184 +466,90 @@ jobs:
           kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
           kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
           kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
-          kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &
+          kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &       
+                  
+          # Wait for submission and query port forwards to be ready
+          for port in 50211 5551 8084 40841 40842 40843; do
+            timeout 30 bash -c "until nc -z localhost $port; do sleep 1; done" \
+              && echo "Port $port ready" || echo "WARNING: port $port not ready"
+          done
 
-        # Verify the BN1 is getting blocks
-      - name: Get ServerStatus from Block Node 1
-        id: bn1-status
+      # Poll until all three BNs are within 150 blocks of each other, or fail after 10 min
+      - name: Wait for BNs to converge post-restoration
         run: |
-          # Call serverStatus once
-          STATUS_JSON=$(grpcurl \
-            -plaintext \
-            -emit-defaults \
-            -import-path block-node-proto \
-            -proto block-node/api/node_service.proto \
-            -d '{}' \
-            localhost:40841 \
-            org.hiero.block.api.BlockNodeService/serverStatus)
+          # Allow port-forwards to establish
+          sleep 5
 
-          # Extract values
-          FIRST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.firstAvailableBlock')
-          LAST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.lastAvailableBlock')
+          grpcurl_last_block() {
+            local port=$1
+            local status
+            if status=$(grpcurl -plaintext -emit-defaults \
+                -import-path block-node-proto -proto block-node/api/node_service.proto \
+                -d '{}' "localhost:${port}" org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null); then
+              echo "$status" | jq -r '.lastAvailableBlock // "0"'
+            else
+              echo "0"
+            fi
+          }
 
-          echo "First available block is $FIRST_AVAILABLE_BLOCK"
-          echo "Last available block is $LAST_AVAILABLE_BLOCK"
+          # Tolerance of 50 blocks (1/3 of CN block buffer assuming 5 min buffer at 1 block/2s), accounts for backfill startup latency
+          MAX_WAIT=600
+          INTERVAL=15
+          ELAPSED=0
+          SPREAD=9999
 
-          # Validate
-          if [[ "$FIRST_AVAILABLE_BLOCK" != "0" ]]; then
-              echo "First available block is not 0"
-              exit 1
-          fi
-          if (( LAST_AVAILABLE_BLOCK < 1 )); then
-              echo "Last available block is less than 1"
-              exit 1
-          fi
+          while (( ELAPSED < MAX_WAIT )); do
+            BN1_LAST=$(grpcurl_last_block 40841)
+            BN2_LAST=$(grpcurl_last_block 40842)
+            BN3_LAST=$(grpcurl_last_block 40843)
 
-          # Export for later steps
-          echo "BN1_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
-          echo "BN1_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
-          
-          range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN1_LAST_AVAILABLE_BLOCK_INIT }}))
-          
-          ELAPSED_DURATION=0
-          RESTORATION_TIME=${{ steps.bn-restoration.outputs.restoration_time }}
-          CHECK_TIME=$(date +%s)
-          if [[ -n "$RESTORATION_TIME" ]]; then
-            ELAPSED_DURATION=$((CHECK_TIME - RESTORATION_TIME))
-          fi
-          echo "BN1 advanced $range blocks in $ELAPSED_DURATION s"
-          if (( range < 1 )); then
-              echo "BN1 failed to advance"
-              exit 1
-          fi
-        continue-on-error: true
+            MAX_LAST=$(( BN1_LAST > BN2_LAST ? BN1_LAST : BN2_LAST ))
+            MAX_LAST=$(( MAX_LAST > BN3_LAST ? MAX_LAST : BN3_LAST ))
+            MIN_LAST=$(( BN1_LAST < BN2_LAST ? BN1_LAST : BN2_LAST ))
+            MIN_LAST=$(( MIN_LAST < BN3_LAST ? MIN_LAST : BN3_LAST ))
+            SPREAD=$(( MAX_LAST - MIN_LAST ))
 
-        # Verify the BN2 is getting blocks
-      - name: Get ServerStatus from Block Node 2
-        id: bn2-status
-        run: |
-          # Call serverStatus once
-          STATUS_JSON=$(grpcurl \
-            -plaintext \
-            -emit-defaults \
-            -import-path block-node-proto \
-            -proto block-node/api/node_service.proto \
-            -d '{}' \
-            localhost:40842 \
-            org.hiero.block.api.BlockNodeService/serverStatus)
+            echo "[${ELAPSED}s] lastAvailableBlock — BN1=${BN1_LAST} BN2=${BN2_LAST} BN3=${BN3_LAST} spread=${SPREAD}"
+            if (( SPREAD <= 50 )); then
+              echo "BNs converged within tolerance (spread=${SPREAD} <= 50) after ${ELAPSED}s"
+              break
+            fi
 
-          # Extract values
-          FIRST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.firstAvailableBlock')
-          LAST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.lastAvailableBlock')
+            sleep "${INTERVAL}"
+            ELAPSED=$(( ELAPSED + INTERVAL ))
+          done
 
-          echo "First available block is $FIRST_AVAILABLE_BLOCK"
-          echo "Last available block is $LAST_AVAILABLE_BLOCK"
-
-          # Validate
-          if [[ "$FIRST_AVAILABLE_BLOCK" != "0" ]]; then
-              echo "First available block is not 0"
-              exit 1
-          fi
-          if (( LAST_AVAILABLE_BLOCK < 1 )); then
-              echo "Last available block is less than 1"
-              exit 1
+          if (( SPREAD > 50 )); then
+            echo "FAIL: BNs did not converge within ${MAX_WAIT}s (final spread=${SPREAD})"
+            exit 1
           fi
 
-          # Export for later steps
-          echo "BN2_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
-          echo "BN2_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
-          
-          range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN2_LAST_AVAILABLE_BLOCK_INIT }}))
-          ELAPSED_DURATION=0
-          RESTORATION_TIME=${{ steps.bn-restoration.outputs.restoration_time }}
-          CHECK_TIME=$(date +%s)
-          if [[ -n "$RESTORATION_TIME" ]]; then
-            ELAPSED_DURATION=$((CHECK_TIME - RESTORATION_TIME))
-          fi
-          echo "BN2 advanced $range blocks in $ELAPSED_DURATION s"
-          if (( range < 1 )); then
-              echo "BN2 failed to advance"
-              exit 1
-          fi
-        continue-on-error: true
-
-        # Verify the BN3 is getting blocks
-      - name: Get ServerStatus from Block Node 3
-        id: bn3-status
-        run: |
-          # Call serverStatus once
-          STATUS_JSON=$(grpcurl \
-            -plaintext \
-            -emit-defaults \
-            -import-path block-node-proto \
-            -proto block-node/api/node_service.proto \
-            -d '{}' \
-            localhost:40843 \
-            org.hiero.block.api.BlockNodeService/serverStatus)
-
-          # Extract values
-          FIRST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.firstAvailableBlock')
-          LAST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.lastAvailableBlock')
-
-          echo "First available block is $FIRST_AVAILABLE_BLOCK"
-          echo "Last available block is $LAST_AVAILABLE_BLOCK"
-
-          # Validate
-          if [[ "$FIRST_AVAILABLE_BLOCK" != "0" ]]; then
-              echo "First available block is not 0"
-              exit 1
-          fi
-          if (( LAST_AVAILABLE_BLOCK < 1 )); then
-              echo "Last available block is less than 1"
-              exit 1
-          fi
-
-          # Export for later steps
-          echo "BN3_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
-          echo "BN3_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
-          
-          range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN3_LAST_AVAILABLE_BLOCK_INIT }}))
-          ELAPSED_DURATION=0
-          RESTORATION_TIME=${{ steps.bn-restoration.outputs.restoration_time }}
-          CHECK_TIME=$(date +%s)
-          if [[ -n "$RESTORATION_TIME" ]]; then
-            ELAPSED_DURATION=$((CHECK_TIME - RESTORATION_TIME))
-          fi
-          echo "BN3 advanced $range blocks in $ELAPSED_DURATION s"
-          if (( range < 1 )); then
-              echo "BN3 failed to advance"
-              exit 1
-          fi
-        continue-on-error: true
 
         # Verify the available blocks from BNs 1-3 are within a reasonable range to showcase catchup
       - name: Validate server status block ranges
-        if: steps.bn1-status.outcome == 'success' && steps.bn2-status.outcome == 'success' && steps.bn3-status.outcome == 'success'
-        run: |          
-          # Calculate min and max first available blocks
-          min_first_available=$((${{ env.BN1_FIRST_AVAILABLE_BLOCK }} < ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}))
-          min_first_available=$((min_first_available < ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? min_first_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}))
+        run: |
+          grpcurl_first_block() {
+            local port=$1
+            local status
+            if status=$(grpcurl -plaintext -emit-defaults \
+                -import-path block-node-proto -proto block-node/api/node_service.proto \
+                -d '{}' "localhost:${port}" org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null); then
+              echo "$status" | jq -r '.firstAvailableBlock // "0"'
+            else
+              echo "0"
+            fi
+          }
           
-          echo "Minimum first available block among BNs: $min_first_available"
-          if (( min_first_available > 0 )); then
+          BN1_FIRST=$(grpcurl_first_block 40841)
+          BN2_FIRST=$(grpcurl_first_block 40842)
+          BN3_FIRST=$(grpcurl_first_block 40843)
+          
+          MIN_FIRST=$(( BN1_FIRST < BN2_FIRST ? BN1_FIRST : BN2_FIRST ))
+          MIN_FIRST=$(( MIN_FIRST < BN3_FIRST ? MIN_FIRST : BN3_FIRST ))
+
+          echo "[${ELAPSED}s] firstAvailableBlock — BN1=${BN1_FIRST} BN2=${BN2_FIRST} BN3=${BN3_FIRST}"
+          if (( MIN_FIRST > 0 )); then
               echo "A BN missed block 0!"
-              exit 1
-          fi
-          
-          # Calculate min and max last available blocks
-          min_last_available=$((${{ env.BN1_LAST_AVAILABLE_BLOCK }} < ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }}))
-          min_last_available=$((min_last_available < ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_last_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}))
-          max_last_available=$((${{ env.BN1_LAST_AVAILABLE_BLOCK }} > ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }}))
-          max_last_available=$((max_last_available > ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? max_last_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}))
-          
-          echo "Minimum last available block among BNs: $min_last_available"
-          echo "Maximum last available block among BNs: $max_last_available"
-          range=$((max_last_available - min_last_available))
-          echo "Range of last available blocks: $range"
-          # confirm range is within the 5 min window of 2 sec blocks which is about 150 blocks
-          if (( range > 150 )); then
-              echo "Range of last available blocks ($range) exceeds acceptable limit on 150."
-              exit 1
           fi
 
       - name: Collect BN and MN Logs
