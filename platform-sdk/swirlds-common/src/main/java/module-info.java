@@ -38,6 +38,7 @@ module com.swirlds.common {
     opens com.swirlds.common.stream.internal to
             com.fasterxml.jackson.databind;
 
+    requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
@@ -48,7 +49,6 @@ module com.swirlds.common {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.reconnect;
     requires transitive org.hiero.consensus.utility;
-    requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;
     requires jdk.httpserver;

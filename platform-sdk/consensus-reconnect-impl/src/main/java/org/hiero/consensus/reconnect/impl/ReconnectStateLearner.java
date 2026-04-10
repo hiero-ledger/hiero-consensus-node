@@ -22,14 +22,15 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.SocketException;
 import java.time.Duration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.gossip.impl.network.Connection;
@@ -188,17 +189,17 @@ public class ReconnectStateLearner {
     }
 
     /**
-     * Get a copy of the state from the other node.
+     * Receive and reconstruct the state from the teacher.
      *
-     * @throws InterruptedException
-     * 		if the current thread is interrupted
+     * @return the signed state received from the teacher
+     * @throws InterruptedException if the current thread is interrupted
      */
     @NonNull
     private ReservedSignedState reconnect() throws InterruptedException {
         statistics.incrementReceiverStartTimes();
 
-        final SerializableDataInputStream in = new SerializableDataInputStream(connection.getDis());
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(connection.getDos());
+        final DataInputStream in = new DataInputStream(connection.getDis());
+        final DataOutputStream out = new DataOutputStream(connection.getDos());
 
         connection.getDis().byteCounter().getAndReset();
 
@@ -207,15 +208,16 @@ public class ReconnectStateLearner {
         final VirtualMap reconnectRoot = currentState.getRoot().newReconnectRoot();
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         // The learner view will be closed by LearningSynchronizer
-        final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
-        final LearningSynchronizer synchronizer = new LearningSynchronizer(
+        final LearnerTreeView<PullVirtualTreeResponse> learnerView =
+                reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
+        final LearningSynchronizer<PullVirtualTreeResponse> synchronizer = new LearningSynchronizer<>(
                 threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
         final long syncStartTime = System.currentTimeMillis();
         try {
             synchronizer.synchronize();
             logger.info(RECONNECT.getMarker(), mapStats::format);
         } catch (final InterruptedException e) {
-            logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
+            logger.warn(RECONNECT.getMarker(), "Reconnect interrupted");
             Thread.currentThread().interrupt();
             reconnectRoot.release();
             throw e;
@@ -225,7 +227,7 @@ public class ReconnectStateLearner {
         }
 
         final long synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;
-        logger.info(RECONNECT.getMarker(), () -> new SynchronizationCompletePayload("Finished synchronization")
+        logger.info(RECONNECT.getMarker(), () -> new SynchronizationCompletePayload("Finished reconnect")
                 .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
                 .toString());
 

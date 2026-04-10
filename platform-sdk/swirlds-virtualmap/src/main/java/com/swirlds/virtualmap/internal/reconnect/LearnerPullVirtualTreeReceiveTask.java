@@ -29,7 +29,7 @@ public class LearnerPullVirtualTreeReceiveTask {
     private static final String NAME = "reconnect-learner-receiver";
 
     private final StandardWorkGroup workGroup;
-    private final AsyncInputStream in;
+    private final AsyncInputStream<PullVirtualTreeResponse> in;
     private final LearnerPullVirtualTreeView view;
 
     // Number of requests sent to teacher / responses expected from the teacher. Increased in
@@ -53,7 +53,7 @@ public class LearnerPullVirtualTreeReceiveTask {
     public LearnerPullVirtualTreeReceiveTask(
             final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
+            final AsyncInputStream<PullVirtualTreeResponse> in,
             final LearnerPullVirtualTreeView view,
             final AtomicLong expectedResponses,
             final Runnable completeListener) {
@@ -66,15 +66,22 @@ public class LearnerPullVirtualTreeReceiveTask {
         this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
     }
 
+    /**
+     * Start the background thread that receives responses from the teacher.
+     */
     public void exec() {
         workGroup.execute(NAME, this::run);
     }
 
+    /**
+     * Main loop for the receiver thread. Reads responses from the async input stream,
+     * tracks reconnect statistics, and delegates to the learner view. Terminates when the
+     * stream signals completion via {@link Path#INVALID_PATH}.
+     */
     private void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                final PullVirtualTreeResponse response =
-                        in.readAnticipatedMessage(() -> new PullVirtualTreeResponse(view));
+                final PullVirtualTreeResponse response = in.readAnticipatedMessage();
                 if (response == null) {
                     if (!in.isAlive()) {
                         break;
@@ -83,6 +90,16 @@ public class LearnerPullVirtualTreeReceiveTask {
                     continue;
                 }
                 final long path = response.getPath();
+                // Track stats for non-root paths (matching previous behavior where
+                // root deserialization returned early before stats tracking)
+                if (path != Path.ROOT_PATH && path != Path.INVALID_PATH) {
+                    final boolean isLeaf = view.isLeaf(path);
+                    if (isLeaf) {
+                        view.getMapStats().incrementLeafHashes(1, response.isClean() ? 1 : 0);
+                    } else {
+                        view.getMapStats().incrementInternalHashes(1, response.isClean() ? 1 : 0);
+                    }
+                }
                 if (path != Path.INVALID_PATH) {
                     view.responseReceived(response);
                 }

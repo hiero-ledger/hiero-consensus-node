@@ -6,7 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.utility.StopWatch;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
@@ -16,14 +16,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * <p>
- * Allows a thread to asynchronously send data over a SerializableDataOutputStream.
+ * Allows a thread to asynchronously send data over a stream.
  * </p>
  *
  * <p>
@@ -43,7 +41,7 @@ public class AsyncOutputStream {
     /**
      * The stream which all data is written to.
      */
-    private final SerializableDataOutputStream outputStream;
+    private final DataOutputStream outputStream;
 
     /**
      * A queue that needs to be written to the output stream. It contains either message
@@ -79,7 +77,7 @@ public class AsyncOutputStream {
     private final AtomicBoolean isDone = new AtomicBoolean(false);
 
     /**
-     * Constructs a new instance using the given underlying {@link SerializableDataOutputStream} and
+     * Constructs a new instance using the given underlying {@link DataOutputStream} and
      * {@link StandardWorkGroup}.
      *
      * @param outputStream the outputStream to which all objects are written
@@ -87,7 +85,7 @@ public class AsyncOutputStream {
      * @param config       the reconnect configuration
      */
     public AsyncOutputStream(
-            @NonNull final SerializableDataOutputStream outputStream,
+            @NonNull final DataOutputStream outputStream,
             @NonNull final StandardWorkGroup workGroup,
             @NonNull final ReconnectConfig config) {
         Objects.requireNonNull(config, "config must not be null");
@@ -108,6 +106,10 @@ public class AsyncOutputStream {
         workGroup.execute("async-output-stream", this::run);
     }
 
+    /**
+     * Background thread loop. Drains the message queue, writes length-prefixed messages to the
+     * underlying stream, and flushes periodically. On termination, writes a {@code -1} marker.
+     */
     public void run() {
         logger.debug(RECONNECT.getMarker(), Thread.currentThread().getName() + " run");
         try {
@@ -143,16 +145,14 @@ public class AsyncOutputStream {
     }
 
     /**
-     * Send a message asynchronously. Messages are guaranteed to be delivered in the order sent.
+     * Send a pre-serialized message asynchronously. Messages are guaranteed to be delivered
+     * in the order sent.
+     *
+     * @param messageBytes the serialized message bytes
+     * @throws InterruptedException if interrupted while waiting to enqueue
      */
-    public void sendAsync(@NonNull final SelfSerializable message) throws InterruptedException {
-        final ByteArrayOutputStream bout = new ByteArrayOutputStream(64);
-        try (final SerializableDataOutputStream dout = new SerializableDataOutputStream(bout)) {
-            serializeMessage(message, dout);
-        } catch (final IOException e) {
-            throw new MerkleSynchronizationException("Can't serialize message", e);
-        }
-        sendAsync(bout.toByteArray());
+    public void sendAsync(@NonNull final byte[] messageBytes) throws InterruptedException {
+        enqueue(messageBytes);
     }
 
     /**
@@ -160,10 +160,18 @@ public class AsyncOutputStream {
      * stream are serialized into the underlying output stream.
      */
     public void whenCurrentMessagesProcessed(final Runnable run) throws InterruptedException {
-        sendAsync(run);
+        enqueue(run);
     }
 
-    private void sendAsync(final Object item) throws InterruptedException {
+    /**
+     * Enqueues an item into the stream queue. Blocks until space is available or the
+     * configured timeout expires.
+     *
+     * @param item the item to enqueue
+     * @throws InterruptedException if interrupted while waiting
+     * @throws MerkleSynchronizationException if the operation times out
+     */
+    private void enqueue(final Object item) throws InterruptedException {
         final boolean success = streamQueue.offer(item, timeout.toMillis(), TimeUnit.MILLISECONDS);
         if (!success) {
             try {
@@ -190,8 +198,7 @@ public class AsyncOutputStream {
                 switch (item) {
                     case Runnable runItem -> runItem.run();
                     case byte[] messageItem -> {
-                        outputStream.writeInt(messageItem.length);
-                        outputStream.write(messageItem);
+                        writeMessage(messageItem);
                         bufferedMessageCount += 1;
                     }
                     default -> throw new RuntimeException("Unknown item type");
@@ -204,12 +211,23 @@ public class AsyncOutputStream {
         return true;
     }
 
-    protected void serializeMessage(
-            @NonNull final SelfSerializable message, @NonNull final SerializableDataOutputStream out)
-            throws IOException {
-        message.serialize(out);
+    /**
+     * Writes a single length-prefixed message to the underlying output stream. Called on
+     * the writer thread for each dequeued message.
+     *
+     * @param messageBytes the serialized message bytes
+     * @throws IOException if writing to the stream fails
+     */
+    protected void writeMessage(@NonNull final byte[] messageBytes) throws IOException {
+        outputStream.writeInt(messageBytes.length);
+        outputStream.write(messageBytes);
     }
 
+    /**
+     * Flushes the underlying output stream if any messages have been written since the last flush.
+     *
+     * @return {@code true} if a flush was performed
+     */
     private boolean flush() {
         timeSinceLastFlush.reset();
         timeSinceLastFlush.start();

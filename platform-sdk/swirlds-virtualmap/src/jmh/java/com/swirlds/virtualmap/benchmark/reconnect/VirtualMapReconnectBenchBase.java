@@ -9,12 +9,8 @@ import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
-import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import java.io.FileNotFoundException;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
@@ -55,11 +51,6 @@ public abstract class VirtualMapReconnectBenchBase {
     protected static void startup() throws ConstructableRegistryException, FileNotFoundException {
         loadLog4jContext();
         ConstructableRegistration.registerAllConstructables();
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructable(
-                new ClassConstructorPair(PullVirtualTreeRequest.class, PullVirtualTreeRequest::new));
-        registry.registerConstructable(
-                new ClassConstructorPair(PullVirtualTreeResponse.class, PullVirtualTreeResponse::new));
     }
 
     protected void reconnect() throws Exception {

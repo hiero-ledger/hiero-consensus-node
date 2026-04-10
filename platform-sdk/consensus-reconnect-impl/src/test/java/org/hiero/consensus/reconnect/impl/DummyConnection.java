@@ -6,11 +6,11 @@ import static org.mockito.Mockito.mock;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketException;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.gossip.impl.network.Connection;
@@ -32,8 +32,8 @@ public class DummyConnection extends SocketConnection {
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final NodeId otherId,
-            @NonNull final SerializableDataInputStream in,
-            @NonNull final SerializableDataOutputStream out) {
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out) {
         this(
                 selfId,
                 otherId,
@@ -44,8 +44,8 @@ public class DummyConnection extends SocketConnection {
 
     public DummyConnection(
             @NonNull final Configuration configuration,
-            @NonNull final SerializableDataInputStream in,
-            @NonNull final SerializableDataOutputStream out) {
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out) {
         this(
                 SyncInputStream.createSyncInputStream(configuration, in, 1024 * 8),
                 SyncOutputStream.createSyncOutputStream(configuration, out, 1024 * 8),

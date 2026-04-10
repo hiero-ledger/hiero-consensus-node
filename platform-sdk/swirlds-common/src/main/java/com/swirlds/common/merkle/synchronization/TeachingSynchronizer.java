@@ -10,75 +10,62 @@ import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationEx
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.net.SocketException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
- * Performs synchronization in the role of the teacher.
+ * Performs reconnect in the role of the teacher.
+ *
+ * @param <T> the type of a message sent to the learner
  */
-public class TeachingSynchronizer {
-
-    private static final String WORK_GROUP_NAME = "teaching-synchronizer";
+public class TeachingSynchronizer<T> {
 
     private static final Logger logger = LogManager.getLogger(TeachingSynchronizer.class);
 
-    private final StandardWorkGroup workGroup;
+    private static final String WORK_GROUP_NAME = "reconnect-teacher";
 
+    private final Time time;
+    private final DataInputStream inputStream;
+    private final DataOutputStream outputStream;
+    private final TeacherTreeView<T> view;
+    private final ReconnectConfig reconnectConfig;
+    private final StandardWorkGroup workGroup;
     private final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
 
     /**
-     * Used to get data from the listener.
-     */
-    private final SerializableDataInputStream inputStream;
-
-    /**
-     * Used to transmit data to the listener.
-     */
-    private final SerializableDataOutputStream outputStream;
-
-    private final TeacherTreeView view;
-
-    protected final ReconnectConfig reconnectConfig;
-
-    private final Time time;
-
-    /**
-     * Create a new teaching synchronizer.
+     * Constructs a new teaching synchronizer.
      *
-     * @param threadManager   responsible for managing thread lifecycles
-     * @param in              the input stream
-     * @param out             the output stream
-     * @param view            the teacher tree view, used to access all tree nodes
-     * @param breakConnection a method that breaks the connection. Used iff an exception is encountered. Prevents
-     *                        deadlock if there is a thread stuck on a blocking IO operation that will never finish due
-     *                        to a failure.
-     * @param reconnectConfig reconnect configuration from platform
+     * @param time the wall clock time
+     * @param threadManager responsible for managing thread lifecycles
+     * @param in the input stream for receiving data from the learner
+     * @param out the output stream for sending data to the learner
+     * @param view the teacher's view into the merkle tree being synchronized
+     * @param breakConnection a callback to disconnect the connection on failure
+     * @param reconnectConfig the reconnect configuration
      */
     public TeachingSynchronizer(
             @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
-            @NonNull final SerializableDataInputStream in,
-            @NonNull final SerializableDataOutputStream out,
-            @NonNull final TeacherTreeView view,
-            @Nullable final Runnable breakConnection,
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out,
+            @NonNull final TeacherTreeView<T> view,
+            @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
 
-        this.time = Objects.requireNonNull(time);
-        inputStream = Objects.requireNonNull(in, "in must not be null");
-        outputStream = Objects.requireNonNull(out, "out must not be null");
-
-        this.view = Objects.requireNonNull(view, "view must not be null");
-
-        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig must not be null");
+        this.time = Objects.requireNonNull(time, "time is null");
+        this.inputStream = Objects.requireNonNull(in, "inputStream is null");
+        this.outputStream = Objects.requireNonNull(out, "outputStream is null");
+        this.view = Objects.requireNonNull(view, "view is null");
+        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
 
         final Function<Throwable, Boolean> reconnectExceptionListener = e -> {
             Throwable cause = e;
@@ -101,10 +88,11 @@ public class TeachingSynchronizer {
     }
 
     /**
-     * Perform synchronization in the role of the teacher.
+     * Perform reconnect in the role of the teacher.
      */
     public void synchronize() throws InterruptedException {
-        final AsyncInputStream in = new AsyncInputStream(inputStream, workGroup, reconnectConfig);
+        final AsyncInputStream<T> in =
+                new AsyncInputStream<>(inputStream, workGroup, reconnectConfig, view.getInputParser());
         in.start();
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
         out.start();
@@ -145,7 +133,7 @@ public class TeachingSynchronizer {
      */
     protected AsyncOutputStream buildOutputStream(
             @NonNull final StandardWorkGroup workGroup,
-            @NonNull final SerializableDataOutputStream out,
+            @NonNull final DataOutputStream out,
             @NonNull final ReconnectConfig reconnectConfig) {
         return new AsyncOutputStream(out, workGroup, reconnectConfig);
     }

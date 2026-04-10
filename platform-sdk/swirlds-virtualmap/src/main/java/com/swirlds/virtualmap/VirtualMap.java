@@ -52,6 +52,8 @@ import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeView;
 import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashLeafFlusher;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectHashListener;
 import com.swirlds.virtualmap.internal.reconnect.ReconnectNodeRemover;
@@ -1255,7 +1257,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *
      * <p>The view will be closed by reconnect teacher, when reconnect is complete or failed.
      */
-    public TeacherTreeView buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
+    public TeacherTreeView<PullVirtualTreeRequest> buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM,
                     VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC,
@@ -1320,7 +1322,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *
      * <p>The view will be closed by reconnect learner, when reconnect is complete or failed.
      */
-    public LearnerTreeView buildLearnerView(
+    public LearnerTreeView<PullVirtualTreeResponse> buildLearnerView(
             @NonNull final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
         assert originalMap != null;
         // During reconnect we want to look up state from the original records

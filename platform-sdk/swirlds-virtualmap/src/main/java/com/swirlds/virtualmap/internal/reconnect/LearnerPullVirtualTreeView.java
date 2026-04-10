@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
@@ -23,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -39,7 +41,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
  * teacher side.
  */
-public final class LearnerPullVirtualTreeView implements LearnerTreeView {
+public final class LearnerPullVirtualTreeView implements LearnerTreeView<PullVirtualTreeResponse> {
 
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeView.class);
 
@@ -111,6 +113,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
+     * @param reconnectConfig
+     *      the reconnect configuration
      * @param map
      * 		The map node of the <strong>reconnect</strong> tree. Cannot be null.
      * @param originalRecords
@@ -123,6 +127,10 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
      * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
      * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
      * 		Cannot be null.
+     * @param nodeRemover
+     *      handles removal of old nodes
+     * @param traversalOrder
+     *      the traversal order defining which paths to request
      * @param mapStats
      *      A ReconnectMapStats object to collect reconnect metrics
      */
@@ -145,10 +153,18 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         this.mapStats = mapStats;
     }
 
+    /** {@inheritDoc} */
+    @Override
+    @NonNull
+    public Function<ReadableSequentialData, PullVirtualTreeResponse> getInputParser() {
+        return PullVirtualTreeResponse::parseFrom;
+    }
+
+    /** {@inheritDoc} */
     @Override
     public void startLearnerTasks(
             final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
+            final AsyncInputStream<PullVirtualTreeResponse> in,
             final AsyncOutputStream out,
             final Runnable completeListener) {
         final AtomicLong expectedResponses = new AtomicLong(0);
@@ -279,7 +295,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     /**
      * Returns the ReconnectMapStats object.
-     * @return the ReconnectMapStats object.
+     *
+     * @return the ReconnectMapStats object
      */
     @NonNull
     public ReconnectMapStats getMapStats() {

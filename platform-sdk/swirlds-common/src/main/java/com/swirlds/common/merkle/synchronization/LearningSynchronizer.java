@@ -8,6 +8,8 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -15,34 +17,30 @@ import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hashable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Performs synchronization in the role of the learner.
+ *
+ * @param <T> the type of a message received from the teacher
  */
-public class LearningSynchronizer {
-
-    private static final String WORK_GROUP_NAME = "learning-synchronizer";
+public class LearningSynchronizer<T> {
 
     private static final Logger logger = LogManager.getLogger(LearningSynchronizer.class);
 
-    private final StandardWorkGroup workGroup;
-
-    private final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
+    private static final String WORK_GROUP_NAME = "reconnect-learner";
 
     /**
      * Used to get data from the teacher.
      */
-    private final SerializableDataInputStream inputStream;
+    private final DataInputStream inputStream;
 
     /**
      * Used to transmit data to the teacher.
      */
-    private final SerializableDataOutputStream outputStream;
+    private final DataOutputStream outputStream;
 
     /**
      * New state root node used to put data from the teacher.
@@ -52,29 +50,29 @@ public class LearningSynchronizer {
     /**
      * Virtual tree view used to access nodes and hashes in the newRoot above.
      */
-    private final LearnerTreeView view;
+    private final LearnerTreeView<T> view;
 
     private final ReconnectConfig reconnectConfig;
+    private final StandardWorkGroup workGroup;
+    private final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
 
     /**
-     * Create a new learning synchronizer.
+     * Constructs a new learning synchronizer.
      *
-     * @param threadManager   responsible for managing thread lifecycles
-     * @param in              the input stream
-     * @param out             the output stream
-     * @param newRoot         the merkle root, which will be used to reconstruct the merkle tree
-     * @param view            the learner tree view
-     * @param breakConnection a method that breaks the connection. Used iff an exception is encountered. Prevents
-     *                        deadlock if there is a thread stuck on a blocking IO operation that will never finish due
-     *                        to a failure.
-     * @param reconnectConfig the configuration for the reconnect
+     * @param threadManager responsible for managing thread lifecycles
+     * @param in the input stream for receiving data from the teacher
+     * @param out the output stream for sending data to the teacher
+     * @param newRoot the root node of the tree being reconstructed
+     * @param view the learner's view into the merkle tree being synchronized
+     * @param breakConnection a callback to disconnect the connection on failure
+     * @param reconnectConfig the reconnect configuration
      */
     public LearningSynchronizer(
             @NonNull final ThreadManager threadManager,
-            @NonNull final SerializableDataInputStream in,
-            @NonNull final SerializableDataOutputStream out,
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out,
             @NonNull final Hashable newRoot,
-            @NonNull final LearnerTreeView view,
+            @NonNull final LearnerTreeView<T> view,
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
         inputStream = Objects.requireNonNull(in, "inputStream is null");
@@ -92,7 +90,7 @@ public class LearningSynchronizer {
     }
 
     /**
-     * Perform synchronization in the role of the learner.
+     * Perform reconnect in the role of the learner.
      */
     public void synchronize() throws InterruptedException {
         logger.info(RECONNECT.getMarker(), "learner calls receiveTree()");
@@ -103,17 +101,21 @@ public class LearningSynchronizer {
     }
 
     /**
-     * Hash the tree.
+     * Compute the hash of the reconstructed tree.
      */
     private void hash() {
-        newRoot.getHash(); // calculate hash
+        newRoot.getHash();
     }
 
     /**
-     * Receive a tree (or subtree) from the teacher
+     * Receive the tree from the teacher by setting up async streams and delegating to the
+     * learner view's tasks.
+     *
+     * @throws InterruptedException if the current thread is interrupted
      */
     private void receiveTree() throws InterruptedException {
-        final AsyncInputStream in = new AsyncInputStream(inputStream, workGroup, reconnectConfig);
+        final AsyncInputStream<T> in =
+                new AsyncInputStream<>(inputStream, workGroup, reconnectConfig, view.getInputParser());
         in.start();
         final AtomicBoolean teacherSentLastRequest = new AtomicBoolean(false);
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
@@ -155,7 +157,7 @@ public class LearningSynchronizer {
      */
     protected AsyncOutputStream buildOutputStream(
             @NonNull final StandardWorkGroup workGroup,
-            @NonNull final SerializableDataOutputStream out,
+            @NonNull final DataOutputStream out,
             @NonNull final ReconnectConfig reconnectConfig) {
         return new AsyncOutputStream(out, workGroup, reconnectConfig);
     }
