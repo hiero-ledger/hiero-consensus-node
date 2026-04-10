@@ -99,4 +99,9 @@ class GetScheduledNonFungibleTokenCreateCallTest extends CallTestBase {
 
         assertEquals(SUCCESS, result.responseCode());
     }
+
+    @Test
+    void allowsStaticCall() {
+        assertTrue(subject.allowsStaticFrame());
+    }
 }
