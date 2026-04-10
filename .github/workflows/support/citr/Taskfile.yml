@@ -9,7 +9,7 @@ vars:
 env:
   SOLO_NETWORK_SIZE: 7
   SOLO_NAMESPACE: %SOLO_NAMESPACE%
-  CONSENSUS_NODE_VERSION: 0.73.0-rc.1
+  #CONSENSUS_NODE_VERSION: 0.73.0-rc.1
   VALUES_FLAG: "--values-file {{.USER_WORKING_DIR}}/init-containers-values7.yaml"
   SETTINGS_FLAG: "--settings-txt {{.USER_WORKING_DIR}}/settings.txt"
   SOLO_HOME: "{{.solo_home_override_dir}}"
@@ -17,7 +17,7 @@ env:
   APPLICATION_PROPERTIES_FLAG: "--application-properties {{.USER_WORKING_DIR}}/application.properties"
   APPLICATION_ENVIRONMENT_FLAG: "--application-env {{.USER_WORKING_DIR}}/application.environment"
   HEDERA_SERVICES_ROOT: "%HEDERA_SERVICES_ROOT%"
-  LOCAL_BUILD_FLAG: "--local-build-path {{.HEDERA_SERVICES_ROOT}}/hedera-node/data"
+  #LOCAL_BUILD_FLAG: "--local-build-path {{.HEDERA_SERVICES_ROOT}}/hedera-node/data"
   NETWORK_DEPLOY_EXTRA_FLAGS: "--wraps --tss"
 
   #ENABLE_EXPLORER_TLS_FLAG: "--enable-hedera-explorer-tls"
