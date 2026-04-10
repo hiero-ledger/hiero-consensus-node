@@ -440,7 +440,7 @@ class AtomicBatchContractSignatureValidationTest {
                 atomicBatchDefaultOperator(contractDelete(contract + suffix)
                                 .payingWith(payer)
                                 .signedBy(payer)
-                                .via("deleteTxn_3")
+                                .via("deleteTxn_4")
                                 .hasKnownStatus(INVALID_SIGNATURE))
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatchDefaultOperator(contractDelete(contract + suffix).payingWith(payer)));
