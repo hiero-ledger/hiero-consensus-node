@@ -466,13 +466,4 @@ public class CryptoBench extends VirtualMapBench {
         finalMap.release();
         finalMap.getDataSource().close();
     }
-
-    public static void main(String[] args) throws Exception {
-        final CryptoBench bench = new CryptoBench();
-        bench.setupTrial();
-        bench.setupInvocation();
-        bench.transferPrefetch();
-        bench.tearDownInvocation();
-        bench.tearDownTrial();
-    }
 }

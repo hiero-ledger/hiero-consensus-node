@@ -219,13 +219,4 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
         verifyMap(teacherData, reconnectedMap);
     }
-
-    public static void main(String[] args) throws Exception {
-        final ReconnectBench bench = new ReconnectBench();
-        bench.setupTrial();
-        bench.setupInvocation();
-        bench.reconnect();
-        bench.tearDownInvocation();
-        bench.tearDownTrial();
-    }
 }

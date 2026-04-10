@@ -36,22 +36,22 @@ public abstract class BaseBench {
     private static final Logger logger = LogManager.getLogger(BaseBench.class);
 
     @Param({"100"})
-    public int numFiles = 500;
+    public int numFiles;
 
     @Param({"100000"})
-    public int numRecords = 10_000;
+    public int numRecords;
 
     @Param({"1000000"})
-    public int maxKey = 10_000_000;
+    public int maxKey;
 
     @Param({"8"})
-    public int keySize = 32;
+    public int keySize;
 
     @Param({"128"})
-    public int recordSize = 1024;
+    public int recordSize;
 
     @Param({"32"})
-    public int numThreads = 32;
+    public int numThreads;
 
     abstract String benchmarkName();
 
