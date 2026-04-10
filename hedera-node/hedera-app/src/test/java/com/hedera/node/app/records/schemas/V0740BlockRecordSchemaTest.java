@@ -52,70 +52,13 @@ class V0740BlockRecordSchemaTest {
     }
 
     @Test
-    void restartDoesNotTouchBlockInfoOnGenesisWhenLiveWriteDisabled() {
+    void restartIsNoopOnGenesis() {
         given(ctx.isGenesis()).willReturn(true);
-        given(ctx.appConfig()).willReturn(configuration);
-        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
-        given(blockStreamJumpstartConfig.blockNum()).willReturn(0L);
-        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
-        given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(false);
 
         subject.restart(ctx);
 
-        verify(ctx, never()).newStates();
-        verifyNoInteractions(writableStates, blockInfoState);
-    }
-
-    @Test
-    void restartLeavesBlockInfoUnchangedOnGenesisWhenJumpstartConfigured() {
-        given(ctx.isGenesis()).willReturn(true);
-        given(ctx.appConfig()).willReturn(configuration);
-        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
-        given(blockStreamJumpstartConfig.blockNum()).willReturn(1L);
-
-        subject.restart(ctx);
-
-        verify(ctx, never()).newStates();
-        verifyNoInteractions(writableStates, blockInfoState);
-    }
-
-    @Test
-    void restartMarksVotingCompleteOnGenesisWhenNoJumpstartAndLiveWriteEnabled() {
-        given(ctx.isGenesis()).willReturn(true);
-        given(ctx.appConfig()).willReturn(configuration);
-        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
-        given(blockStreamJumpstartConfig.blockNum()).willReturn(0L);
-        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
-        given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(true);
-        given(ctx.newStates()).willReturn(writableStates);
-        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
-        given(blockInfoState.get()).willReturn(baseBlockInfo());
-
-        subject.restart(ctx);
-
-        verify(blockInfoState)
-                .put(baseBlockInfo()
-                        .copyBuilder()
-                        .votingComplete(true)
-                        .votingCompletionDeadlineBlockNumber(0)
-                        .build());
-    }
-
-    @Test
-    void restartDoesNotPutOnGenesisWhenBlockInfoSingletonMissing() {
-        given(ctx.isGenesis()).willReturn(true);
-        given(ctx.appConfig()).willReturn(configuration);
-        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
-        given(blockStreamJumpstartConfig.blockNum()).willReturn(0L);
-        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
-        given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(true);
-        given(ctx.newStates()).willReturn(writableStates);
-        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
-        given(blockInfoState.get()).willReturn(null);
-
-        subject.restart(ctx);
-
-        verify(blockInfoState, never()).put(any());
+        verify(ctx, never()).appConfig();
+        verifyNoInteractions(configuration, blockRecordStreamConfig, writableStates, blockInfoState);
     }
 
     @Test
