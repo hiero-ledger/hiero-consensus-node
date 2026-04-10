@@ -444,7 +444,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .type(type)
                             .payingWith(RELAYER)
                             .signingWith(SECP_256K1_SOURCE_KEY)
-                            .gasLimit(1_000_000L)
+                            .gasLimit(1_400_000L /* TODO(Pectra): 1M used to be sufficient */)
                             .hasPrecheck(TRANSACTION_OVERSIZE),
                     getAccountBalance(RELAYER)
                             .exposingBalanceTo(newBalance -> assertTrue(
@@ -479,17 +479,17 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .markAsJumboTxn()
                             .type(EthTxData.EthTransactionType.EIP1559)
-                            .gasLimit(1_000_000L),
+                            .gasLimit(1_400_000L /* TODO(Pectra): 1M used to be sufficient */),
                     sleepFor(1000),
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .markAsJumboTxn()
                             .type(EthTxData.EthTransactionType.EIP1559)
-                            .gasLimit(1_000_000L),
+                            .gasLimit(1_400_000L /* TODO(Pectra): 1M used to be sufficient */),
                     sleepFor(1000),
                     ethereumCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
                             .markAsJumboTxn()
                             .type(EthTxData.EthTransactionType.EIP1559)
-                            .gasLimit(1_000_000L));
+                            .gasLimit(1_400_000L /* TODO(Pectra): 1M used to be sufficient */));
         }
 
         @HapiTest
