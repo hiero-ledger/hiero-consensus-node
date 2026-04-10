@@ -1,0 +1,168 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "200: [USER] Ad Hoc Solo Tests"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Consensus-node branch, tag, or SHA to checkout for local build."
+        required: true
+        type: string
+      solo-version:
+        description: "Solo version to install (defaults to latest)."
+        required: false
+        type: string
+        default: "latest"
+      upgrade-local-version:
+        description: "Solo upgrade-version used by WRB script."
+        required: false
+        type: string
+        default: "v0.73.0-rc.1"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOLO_CLUSTER_NAME: "solo"
+  SOLO_NAMESPACE: "solo"
+  SOLO_DEPLOYMENT: "solo-deployment"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "solo-cluster"
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+
+jobs:
+  solo-jumpstart-wrb:
+    name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
+    runs-on: hl-cn-rpc-relay-lin-lg
+    timeout-minutes: 120
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Checkout Block Node (main)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hiero-ledger/hiero-block-node
+          ref: main
+          path: hiero-block-node
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Setup NodeJS
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.18.0
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        with:
+          cache-read-only: false
+
+      - name: Install Solo
+        run: |
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version }}"
+          solo --version
+
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.32.0
+          version: v0.29.0
+          kubectl_version: v1.32.2
+          verbosity: 3
+          wait: 120s
+
+      - name: Install Helm v3.14.2
+        run: |
+          set -eo pipefail
+          HELM_VERSION="v3.14.2"
+          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
+          install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
+          export PATH="${RUNNER_TEMP}:${PATH}"
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
+          "${RUNNER_TEMP}/helm" version --short
+
+      - name: Verify Solo Dependency Versions
+        run: |
+          set -eo pipefail
+          helm version --short
+          kind --version
+          kubectl version --client=true
+
+      - name: Build Consensus Node Local Artifacts
+        run: ${GRADLE_EXEC} assemble
+
+      - name: Run WRB Solo Jumpstart Scenario
+        run: |
+          set -eo pipefail
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/solo-wrb-jumpstart.sh"
+          chmod +x "${SCRIPT_PATH}"
+          timeout --signal=SIGINT --kill-after=5m 75m \
+            env \
+              BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
+              UPGRADE_LOCAL_VERSION="${{ inputs.upgrade-local-version }}" \
+              KEEP_NETWORK="false" \
+            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/wrb-script.log"
+
+      - name: Collect Diagnostics On Failure
+        if: ${{ !cancelled() && failure() }}
+        run: |
+          set +e
+          OUT_DIR="${RUNNER_TEMP}/wrb-diagnostics"
+          mkdir -p "${OUT_DIR}"
+
+          kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
+          kubectl get svc -A > "${OUT_DIR}/kubectl-services.txt" 2>&1
+          kubectl get events -A --sort-by=.lastTimestamp > "${OUT_DIR}/kubectl-events.txt" 2>&1
+
+          for node in node1 node2 node3 node4; do
+            pod="network-${node}-0"
+            kubectl -n "${SOLO_NAMESPACE}" logs "${pod}" -c root-container --tail=-1 > "${OUT_DIR}/${pod}-root-container.log" 2>&1
+            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+              "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
+              > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
+          done
+
+          if [[ -d "${HOME}/.solo/logs" ]]; then
+            mkdir -p "${OUT_DIR}/solo-logs"
+            cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
+          fi
+
+      - name: Upload WRB Failure Artifacts
+        if: ${{ !cancelled() && failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: WRB Solo Jumpstart Failure Artifacts
+          path: |
+            ${{ runner.temp }}/wrb-script.log
+            ${{ runner.temp }}/wrb-diagnostics/**
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Always Destroy Kind Cluster
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
