@@ -17,6 +17,7 @@ testModuleInfo {
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.assertj.core")
+    requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.apache.logging.log4j.core")
