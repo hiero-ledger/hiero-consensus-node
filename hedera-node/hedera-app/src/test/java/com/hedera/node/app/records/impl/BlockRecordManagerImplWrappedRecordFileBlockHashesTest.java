@@ -781,8 +781,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
                 .commit();
 
-        final var migrationResult =
-                new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, seedPrevHash, seedIntermediateHashes, 1);
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(seedPrevHash, seedIntermediateHashes, 1);
 
         final var state = requireNonNullState(app.workingStateAccessor().getState());
         final var producer = new FakeStreamProducer();

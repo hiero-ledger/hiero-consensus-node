@@ -434,15 +434,17 @@ public class HandleWorkflow {
             if (isFreezeRound(state, round)) {
                 // Persist live wrapped record block hashes to state before the freeze.
                 if (configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockRecordStreamConfig.class)
-                        .liveWritePrevWrappedRecordHashes()) {
+                                .getConfiguration()
+                                .getConfigData(BlockRecordStreamConfig.class)
+                                .liveWritePrevWrappedRecordHashes()
+                        && streamMode != BLOCKS) {
                     blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
                 }
                 if (configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockRecordStreamConfig.class)
-                        .writeWrappedRecordFileBlockHashesToDisk()) {
+                                .getConfiguration()
+                                .getConfigData(BlockRecordStreamConfig.class)
+                                .writeWrappedRecordFileBlockHashesToDisk()
+                        && streamMode != BLOCKS) {
                     blockRecordManager.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
                 }
                 // If this is a freeze round, we need to update the freeze info state

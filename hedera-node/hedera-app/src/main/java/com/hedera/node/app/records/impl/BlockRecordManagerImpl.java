@@ -177,8 +177,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             lastRunningHashes = runningHashState.get();
             assert lastRunningHashes != null : "Cannot be null, because this state is created at genesis";
         }
-        final var votingCompleteAtStartup =
-                initTrigger != InitTrigger.GENESIS && migrationRootHashVotingCompleteAtStartup(state);
+
         // Initialize wrapped record block hash tracking
         if (initTrigger != InitTrigger.GENESIS && liveWritePrevWrappedRecordHashes()) {
             final var intermediateHashes = this.lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
@@ -199,13 +198,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // thrown here, then startup of the node will fail. This is the intended behavior. We MUST be able to produce
         // record streams, or there really is no point to running the node!
         this.streamFileProducer.initRunningHash(lastRunningHashes);
-    }
-
-    private boolean migrationRootHashVotingCompleteAtStartup(@NonNull final State state) {
-        final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
-                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
-                .get();
-        return blockInfo != null && blockInfo.votingComplete();
     }
 
     // =================================================================================================================
@@ -465,19 +457,21 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Bytes previousWrappedRecordBlockRootHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        // Branch 2
+        // Branch 1: previousWrappedRecordBlockRootHash
+        // Branch 2: allPrevBlocksRootHash
         final Bytes depth5Node1 =
                 BlockImplUtils.hashInternalNode(previousWrappedRecordBlockRootHash, allPrevBlocksRootHash);
 
-        // Branches 3/4 (empty)
+        // Branches 3/4 (empty — no state hash or consensus header in wrapped record blocks)
         @SuppressWarnings("UnnecessaryLocalVariable")
         final Bytes depth5Node2 = EMPTY_INT_NODE;
 
-        // Branches 5/6
+        // Branch 5: HASH_OF_ZERO (no inputs tree)
+        // Branch 6: outputItemsTreeRootHash
         final Bytes outputTreeHash = entry.outputItemsTreeRootHash();
         final Bytes depth5Node3 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputTreeHash);
 
-        // Branches 7/8 (empty)
+        // Branches 7/8 (empty — no state changes or trace data in wrapped record blocks)
         @SuppressWarnings("UnnecessaryLocalVariable")
         final Bytes depth5Node4 = EMPTY_INT_NODE;
 
@@ -544,6 +538,22 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private void putLastBlockInfo(@NonNull final State state) {
         final var states = state.getWritableStates(BlockRecordService.NAME);
         final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+
+        final var blockInfoInState = requireNonNull(blockInfoState.get());
+        if (blockInfoInState.cutoverExecuted()) {
+            // If cutover has already executed, preserve the cutover-related fields from state rather than overwriting
+            // with in-memory values. This is necessary to preserve the integrity of the cutover process when stream
+            // mode is still set to both records and block streams.
+            lastBlockInfo = lastBlockInfo
+                    .copyBuilder()
+                    .previousWrappedRecordBlockRootHash(blockInfoInState.previousWrappedRecordBlockRootHash())
+                    .wrappedIntermediatePreviousBlockRootHashes(
+                            blockInfoInState.wrappedIntermediatePreviousBlockRootHashes())
+                    .wrappedIntermediateBlockRootsLeafCount(blockInfoInState.wrappedIntermediateBlockRootsLeafCount())
+                    .cutoverExecuted(blockInfoInState.cutoverExecuted())
+                    .build();
+        }
+
         blockInfoState.put(lastBlockInfo);
     }
 
@@ -764,7 +774,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.votingComplete(),
                 lastBlockInfo.votingCompletionDeadlineBlockNumber(),
                 lastBlockInfo.migrationRootHashVotes(),
-                lastBlockInfo.migrationWrappedHashes());
+                lastBlockInfo.migrationWrappedHashes(),
+                lastBlockInfo.cutoverExecuted());
         updateBlockInfo(newBlockInfo, state);
     }
 
@@ -880,7 +891,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.votingComplete(),
                 lastBlockInfo.votingCompletionDeadlineBlockNumber(),
                 lastBlockInfo.migrationRootHashVotes(),
-                lastBlockInfo.migrationWrappedHashes());
+                lastBlockInfo.migrationWrappedHashes(),
+                lastBlockInfo.cutoverExecuted());
     }
 
     /**
