@@ -1764,6 +1764,18 @@ public class UtilVerbs {
         return ValidContractIdsAssertion::new;
     }
 
+    /**
+     * Returns a sidecar ID validator scoped to only the given spec transaction IDs. When scoped, the
+     * validator only checks sidecars whose consensus timestamps match record stream items for the
+     * specified transactions, preventing cross-test interference on shared networks.
+     *
+     * @param specTxnIds the transaction names (registered via {@code .via()}) to scope validation to
+     * @return the scoped sidecar ID validator factory
+     */
+    public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator(@NonNull final String... specTxnIds) {
+        return spec -> new ValidContractIdsAssertion(spec, specTxnIds);
+    }
+
     public static Function<HapiSpec, RecordStreamAssertion> allVisibleItems(
             @NonNull final VisibleItemsValidator validator) {
         requireNonNull(validator);
