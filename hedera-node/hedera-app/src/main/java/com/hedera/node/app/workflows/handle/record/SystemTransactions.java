@@ -95,7 +95,6 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -114,7 +113,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -130,7 +128,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.SortedMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -507,63 +504,6 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
-    }
-
-    public OptionalLong maybeSetupJumpstartHashVoting(
-            @NonNull final State state, @NonNull final StateChangeStreaming stateChangeStreaming) {
-        if (configProvider
-                .getConfiguration()
-                .getConfigData(BlockRecordStreamConfig.class)
-                .liveWritePrevWrappedRecordHashes()) {
-            final var blockRecordStates = state.getWritableStates(BlockRecordService.NAME);
-
-            final var blockInfoSingleton =
-                    blockRecordStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
-            final var existingBlockInfo = requireNonNull(blockInfoSingleton.get());
-            if (existingBlockInfo.votingCompletionDeadlineBlockNumber() > 0 || existingBlockInfo.votingComplete()) {
-                // A previous upgrade already initialized (or completed) migration voting; don't overwrite the deadline.
-                if (!startupMigrationVoteSubmissionRequested) {
-                    startupMigrationVoteSubmissionRequested = true;
-                    log.info(
-                            "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
-                            existingBlockInfo.votingCompletionDeadlineBlockNumber(),
-                            existingBlockInfo.votingComplete());
-                }
-            } else {
-                final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
-                stateChangeStreaming.doStreamingChanges(blockRecordStates, null, () -> {
-                    blockInfoSingleton.put(existingBlockInfo
-                            .copyBuilder()
-                            .votingComplete(false)
-                            .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
-                            .build());
-                    ((WritableSingletonStateBase<BlockInfo>) blockInfoSingleton).commit();
-                    log.info(
-                            "Initialized wrapped record voting singleton with deadline={}",
-                            votingCompletionDeadlineBlockNumber);
-                });
-
-                // Keep migration result available for asynchronous submission once gossip is active.
-                final var migration = wrappedRecordBlockHashMigration.result();
-                if (migration != null) {
-                    startupMigrationVoteSubmissionRequested = false;
-                    log.info(
-                            "Prepared startup migration root hash vote for node{} (leafCount={}, intermediateHashes={}); will submit vote",
-                            networkInfo.selfNodeInfo().nodeId(),
-                            migration.wrappedIntermediateBlockRootsLeafCount(),
-                            migration
-                                    .wrappedIntermediatePreviousBlockRootHashes()
-                                    .size());
-                } else {
-                    startupMigrationVoteSubmissionRequested = true;
-                    log.info(
-                            "No local startup migration root hash result for node{}",
-                            networkInfo.selfNodeInfo().nodeId());
-                }
-                return OptionalLong.of(votingCompletionDeadlineBlockNumber);
-            }
-        }
-        return OptionalLong.empty();
     }
 
     /**

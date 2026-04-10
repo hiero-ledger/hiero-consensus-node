@@ -582,27 +582,6 @@ class HandleWorkflowTest {
         verify(blockRecordManager).writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
     }
 
-    @Test
-    void handleRoundCallsSetupJumpstartHashVotingOnlyOnce() {
-        final var creatorId = NodeId.of(0);
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
-        given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
-        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
-        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
-
-        // First round should initialize jumpstart hash voting
-        subject.handleRound(state, round, ignored -> {});
-        verify(systemTransactions).maybeSetupJumpstartHashVoting(same(state), any());
-
-        // Second round should not re-initialize jumpstart hash voting
-        org.mockito.Mockito.clearInvocations(systemTransactions);
-        subject.handleRound(state, round, ignored -> {});
-        verify(systemTransactions, never()).maybeSetupJumpstartHashVoting(any(), any());
-    }
-
     private void givenSubjectWith(
             @NonNull final StreamMode mode,
             @NonNull BlockStreamWriterMode streamWriterMode,
