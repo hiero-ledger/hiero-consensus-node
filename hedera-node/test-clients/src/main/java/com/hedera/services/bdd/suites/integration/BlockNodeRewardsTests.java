@@ -28,12 +28,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.TokenService;
@@ -50,7 +48,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.ContextualActionOp;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
-import com.hedera.services.bdd.spec.utilops.embedded.MutateSingletonOp;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
@@ -362,11 +359,12 @@ public final class BlockNodeRewardsTests {
         // This is considered as one transaction submitted, so one round
         ops.add(EmbeddedVerbs.handleAnyRepeatableQueryPayment());
 
-        // configures node activity info based on the configured test context
-        ops.add(forceNodeActivity(ctx));
+        // Override active/inactive classification at the NodeRewardGroups boundary,
+        // bypassing state-based missed-judge propagation entirely.
+        ops.add(EmbeddedVerbs.overrideActiveNodes(ctx.activeNodes));
 
-        // Capture consensus time and register the record-stream listener AFTER the forced
-        // activity has been flushed, so the filter only matches the intended reward payment.
+        // Capture consensus time and register the record-stream listener AFTER the override
+        // is installed, so the filter only matches the intended reward payment.
         ops.add(extractConsensusTime(ctx));
         ops.add(setupRecordStreamListener(ctx));
 
@@ -412,30 +410,9 @@ public final class BlockNodeRewardsTests {
             // delete created block nodes
             LongStream.range(0, ctx.numBlockNodes()).forEach(i -> cleanupOps.add(registeredNodeDelete(BLOCK_NODE + i)));
         }
+        cleanupOps.add(EmbeddedVerbs.resetNodeActivityCriteria());
         cleanupOps.add(mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, _ -> NodeRewards.DEFAULT));
         return cleanupOps;
-    }
-
-    /** Configures node activity levels based on the test context. */
-    private static MutateSingletonOp<NodeRewards> forceNodeActivity(@NonNull final TestContext ctx) {
-        return mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (final NodeRewards nodeRewards) -> {
-            final List<NodeActivity> activities = LongStream.range(0, ctx.numConsensusNodes())
-                    .mapToObj(nodeId -> {
-                        final var isActive = ctx.activeNodes.contains(nodeId);
-                        final var totalRounds = 100;
-                        final var missed = isActive ? 0 : totalRounds;
-                        return NodeActivity.newBuilder()
-                                .nodeId(nodeId)
-                                .numMissedJudgeRounds(missed)
-                                .build();
-                    })
-                    .collect(toList());
-            return nodeRewards
-                    .copyBuilder()
-                    .numRoundsInStakingPeriod(100)
-                    .nodeActivities(activities)
-                    .build();
-        });
     }
 
     /** Associates a consensus node with one or more block nodes in the network. */
