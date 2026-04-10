@@ -335,6 +335,8 @@ jobs:
           }
           EOF
           ./gradlew clean assemble
+          ls -l hedera-node/data/lib/helidon*.jar
+          ls -l ./hedera-node/hedera-app/build/node/data/lib/helidon*.jar
 
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
