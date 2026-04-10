@@ -24,6 +24,7 @@ module org.hiero.consensus.utility {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.logging;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
