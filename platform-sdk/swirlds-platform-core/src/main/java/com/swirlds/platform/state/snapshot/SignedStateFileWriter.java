@@ -11,12 +11,12 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.builder.ConsensusModuleBuilder;
 import com.swirlds.state.StateLifecycleManager;
@@ -30,11 +30,15 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
 
@@ -112,55 +116,81 @@ public final class SignedStateFileWriter {
     /**
      * Write all files that belong in the signed state directory into a directory.
      *
-     * @param platformContext the platform context
-     * @param selfId          the id of the platform
-     * @param directory       the directory where all files should be placed
+     * @param platformContext       the platform context
+     * @param selfId                the id of the platform
+     * @param directory             the directory where all files should be placed
+     * @param reservedSignedState   the state, which should be written to a directory
      * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateFilesToDirectory(
             @Nullable final PlatformContext platformContext,
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
-            @NonNull final SignedState signedState,
+            @NonNull final ReservedSignedState reservedSignedState,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws IOException {
         requireNonNull(platformContext);
         requireNonNull(directory);
-        requireNonNull(signedState);
+        requireNonNull(reservedSignedState);
         requireNonNull(stateLifecycleManager);
 
-        final long round = roundOf(signedState.getState());
-        try {
-            logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", directory, round);
-            stateLifecycleManager.createSnapshot(signedState.getState(), directory);
-            logger.info(
-                    STATE_TO_DISK.getMarker(),
-                    "Successfully created a snapshot on demand in {}  for {}",
-                    directory,
-                    round);
-        } catch (final Throwable e) {
-            logger.error(
-                    EXCEPTION.getMarker(), "Unable to write a snapshot on demand for {} to {}.", round, directory, e);
-        }
+        final Configuration configuration = platformContext.getConfiguration();
+        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
+        final SignedState signedState = reservedSignedState.get();
 
         writeSignatureSetFile(directory, signedState);
         writeHashInfoFile(platformContext, directory, signedState.getState());
         writeMetadataFile(selfId, directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         writeRosterFile(directory, currentRoster);
-        writeSettingsUsed(directory, platformContext.getConfiguration());
+        writeSettingsUsed(directory, configuration);
 
         if (selfId != null) {
             // This is a temporary measure that allows us to move this functionality into the consensus module
             // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
-            final PcesModule pcesModule =
-                    ConsensusModuleBuilder.createModule(PcesModule.class, platformContext.getConfiguration());
+            final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
             pcesModule.copyPcesFilesRetryOnFailure(
-                    platformContext.getConfiguration(),
+                    configuration,
                     selfId,
                     directory,
                     ancientThresholdOf(signedState.getState()),
                     signedState.getRound());
+        }
+
+        try {
+            if (stateConfig.saveStateAsync()
+                    && StateToDiskReason.PERIODIC_SNAPSHOT.equals(signedState.getStateToDiskReason())) {
+                // Creating the snapshot asynchronously is the optimization which allows it to be created faster within
+                // the `VirtualMap#flush`, because it is done without one extra data source snapshot as data source and
+                // cache are already in place, so the only thing needed is an actual data source snapshot.
+                // Sync method would be slower here, and it would block the VirtualPipeline until it is done, causing
+                // the backpressure.
+                // This optimization applies only to PERIODIC_SNAPSHOT states. States saved for other reasons
+                // (e.g., freeze states) may retain additional references and won't be destroyed here, and thus flushed.
+                final Future<Void> snapshotFuture =
+                        stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
+                // Release the state reference so that current snapshot creation can be unblocked in `VirtualMap#flush`,
+                // because the copy becomes destroyed and thus can be flushed.
+                reservedSignedState.close();
+                // Block until the snapshot is created.
+                snapshotFuture.get(90, TimeUnit.SECONDS); // Figure out timeout
+            } else {
+                stateLifecycleManager.createSnapshot(signedState.getState(), directory);
+                reservedSignedState.close();
+            }
+        } catch (final Throwable e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Unexpected error when writing a snapshot for round {} to {}: {}",
+                    signedState.getRound(),
+                    directory,
+                    e);
+        } finally {
+            // Ensures cleanup if an error occurs during snapshot creation. The isClosed() check
+            // prevents double-close since ReservedSignedState can only be closed once.
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
         }
     }
 
@@ -187,6 +217,7 @@ public final class SignedStateFileWriter {
      * @param selfId              the id of the platform
      * @param savedStateDirectory the directory where the state will be stored
      * @param stateToDiskReason   the reason the state is being written to disk
+     * @param reservedSignedState the state, which should be written to a directory
      * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateToDisk(
@@ -194,14 +225,16 @@ public final class SignedStateFileWriter {
             @Nullable final NodeId selfId,
             @NonNull final Path savedStateDirectory,
             @Nullable final StateToDiskReason stateToDiskReason,
-            @NonNull final SignedState signedState,
+            @NonNull final ReservedSignedState reservedSignedState,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager)
             throws IOException {
 
-        requireNonNull(signedState);
+        requireNonNull(reservedSignedState);
         requireNonNull(platformContext);
         requireNonNull(savedStateDirectory);
         requireNonNull(stateLifecycleManager);
+
+        final SignedState signedState = reservedSignedState.get();
 
         try {
             logger.info(
@@ -214,7 +247,7 @@ public final class SignedStateFileWriter {
             executeAndRename(
                     savedStateDirectory,
                     directory -> writeSignedStateFilesToDirectory(
-                            platformContext, selfId, directory, signedState, stateLifecycleManager),
+                            platformContext, selfId, directory, reservedSignedState, stateLifecycleManager),
                     platformContext.getConfiguration());
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(

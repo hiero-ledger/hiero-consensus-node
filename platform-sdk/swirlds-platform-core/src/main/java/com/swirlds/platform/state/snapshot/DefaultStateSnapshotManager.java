@@ -120,8 +120,11 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         final long start = time.nanoTime();
         final StateSavingResult stateSavingResult;
 
-        // the state is reserved before it is handed to this method, and it is released when we are done
-        try (reservedSignedState) {
+        // The state is reserved before it is handed to this method, and it is released in the snapshot
+        // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory).
+        // This try-finally ensures the state is closed on early returns (e.g., already saved to disk)
+        // or if an error occurs before reaching the inner close logic.
+        try {
             final SignedState signedState = reservedSignedState.get();
             if (signedState.hasStateBeenSavedToDisk()) {
                 logger.info(
@@ -131,7 +134,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             checkSignatures(signedState);
-            final boolean success = saveStateTask(signedState, getSignedStateDir(signedState.getRound()));
+            final boolean success = saveStateTask(reservedSignedState, getSignedStateDir(signedState.getRound()));
             if (!success) {
                 return null;
             }
@@ -142,7 +145,12 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                     signedState.isFreezeState(),
                     signedState.getConsensusTimestamp(),
                     minBirthRound);
+        } finally {
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
         }
+
         metrics.getStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
         metrics.getWriteStateToDiskTimeMetric().update(TimeUnit.NANOSECONDS.toMillis(time.nanoTime() - start));
 
@@ -154,17 +162,25 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      */
     @Override
     public void dumpStateTask(@NonNull final StateDumpRequest request) {
-        // the state is reserved before it is handed to this method, and it is released when we are done
-        try (final ReservedSignedState reservedSignedState = request.reservedSignedState()) {
-            final SignedState signedState = reservedSignedState.get();
-            // states requested to be written out-of-band are always written to disk
+        final ReservedSignedState reservedSignedState = request.reservedSignedState();
+        final SignedState signedState = reservedSignedState.get();
+
+        // The state is reserved before it is handed to this method, and it is released in the snapshot
+        // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory);
+        // additionally, this try-finally ensures cleanup if an error occurs before reaching that point.
+        try {
             saveStateTask(
-                    reservedSignedState.get(),
+                    reservedSignedState,
                     signedStateFilePath
                             .getSignedStatesBaseDirectory()
                             .resolve(getReason(signedState).getDescription())
                             .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
+        } finally {
+            if (!reservedSignedState.isClosed()) {
+                reservedSignedState.close();
+            }
         }
+
         request.finishedCallback().run();
     }
 
@@ -173,16 +189,24 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         return Optional.ofNullable(state.getStateToDiskReason()).orElse(UNKNOWN);
     }
 
-    private boolean saveStateTask(@NonNull final SignedState state, @NonNull final Path directory) {
+    private boolean saveStateTask(
+            @NonNull final ReservedSignedState reservedSignedState, @NonNull final Path directory) {
+        final SignedState signedState = reservedSignedState.get();
+
         try {
             SignedStateFileWriter.writeSignedStateToDisk(
-                    platformContext, selfId, directory, getReason(state), state, stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    directory,
+                    getReason(signedState),
+                    reservedSignedState,
+                    stateLifecycleManager);
             return true;
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Unable to write signed state to disk for round {} to {}.",
-                    state.getRound(),
+                    signedState.getRound(),
                     directory,
                     e);
             return false;

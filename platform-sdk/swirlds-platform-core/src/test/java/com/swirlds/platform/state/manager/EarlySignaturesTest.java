@@ -3,7 +3,7 @@ package com.swirlds.platform.state.manager;
 
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignatureBytes;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -138,8 +138,6 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
             }
         }
 
-        int expectedCompletedStateCount = 0;
-
         long lastExpectedCompletedRound = -1;
 
         for (int round = 0; round < count; round++) {
@@ -167,7 +165,6 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
                             manager,
                             roundToSign,
                             NodeId.of(roster.rosterEntries().get(2).nodeId()));
-                    expectedCompletedStateCount++;
                 } else if (roundToSign % 2 != 0) {
                     addSignature(
                             manager,
@@ -177,27 +174,20 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
                             manager,
                             roundToSign,
                             NodeId.of(roster.rosterEntries().get(1).nodeId()));
-                    expectedCompletedStateCount++;
                 }
             }
 
-            final boolean currentRoundShouldBeComplete = round < futureSignatures && round % 2 == 0;
-            if (currentRoundShouldBeComplete) {
-                expectedCompletedStateCount++;
-                lastExpectedCompletedRound = round;
-            } else {
-                lastExpectedCompletedRound = Math.max(lastExpectedCompletedRound, roundToSign);
-            }
-
+            // With the completeStates buffer, the latest complete state visible to the nexus
+            // is the highest round that has been released, not necessarily the highest
+            // round that has completed. Verify that the round never decreases.
             try (final ReservedSignedState lastCompletedState =
                     manager.getLatestSignedState("test get lastCompletedState")) {
-                assertSame(
-                        signedStates.get(lastExpectedCompletedRound),
-                        lastCompletedState.get(),
-                        "unexpected last completed state");
+                final long currentCompleteRound = lastCompletedState.get().getRound();
+                assertTrue(
+                        currentCompleteRound >= lastExpectedCompletedRound,
+                        "latest complete round should never decrease");
+                lastExpectedCompletedRound = currentCompleteRound;
             }
-
-            validateCallbackCounts(0, expectedCompletedStateCount);
         }
 
         // Check reservation counts.
@@ -206,6 +196,7 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
         // We don't expect any further callbacks. But wait a little while longer in case there is something unexpected.
         SECONDS.sleep(1);
 
+        // All states must eventually be output — completeStates only reorders, never drops.
         validateCallbackCounts(0, count - roundAgeToSign);
     }
 }

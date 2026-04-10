@@ -12,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -110,8 +111,9 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
             }
             return Optional.of(purgeOldStates()).filter(l -> !l.isEmpty()).orElse(null);
         }
-        return Stream.concat(Stream.of(reservedSignedState), purgeOldStates().stream())
+        return Stream.concat(purgeOldStates(signedState.getRound()).stream(), Stream.of(reservedSignedState))
                 .filter(Objects::nonNull)
+                .sorted(Comparator.comparingLong(rss -> rss.get().getRound()))
                 .collect(collectingAndThen(toList(), l -> l.isEmpty() ? null : l));
     }
 
@@ -125,6 +127,9 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         return transactions.stream()
                 .map(this::handlePreconsensusSignature)
                 .filter(Objects::nonNull)
+                .flatMap(completed ->
+                        Stream.concat(purgeOldStates(completed.get().getRound()).stream(), Stream.of(completed)))
+                .sorted(Comparator.comparingLong(rss -> rss.get().getRound()))
                 .collect(collectingAndThen(toList(), l -> l.isEmpty() ? null : l));
     }
 
@@ -161,6 +166,9 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
         return transactions.stream()
                 .map(this::handlePostconsensusSignature)
                 .filter(Objects::nonNull)
+                .flatMap(completed ->
+                        Stream.concat(purgeOldStates(completed.get().getRound()).stream(), Stream.of(completed)))
+                .sorted(Comparator.comparingLong(rss -> rss.get().getRound()))
                 .collect(collectingAndThen(toList(), l -> l.isEmpty() ? null : l));
     }
 
@@ -221,21 +229,22 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
     }
 
     /**
-     * Get rid of old states.
+     * Get rid of old states which rounds strictly less than the given round.
      *
+     * @param round the round before which to release states
      * @return a list of states that were purged
      */
-    private @NonNull List<ReservedSignedState> purgeOldStates() {
+    @NonNull
+    private List<ReservedSignedState> purgeOldStates(final long round) {
         final List<ReservedSignedState> purgedStates = new ArrayList<>();
 
         // Any state older than this is unconditionally removed.
-        final long earliestPermittedRound = getEarliestPermittedRound();
         for (final Iterator<ReservedSignedState> iterator =
                         incompleteStates.values().iterator();
                 iterator.hasNext(); ) {
             final ReservedSignedState reservedSignedState = iterator.next();
             final SignedState signedState = reservedSignedState.get();
-            if (signedState.getRound() < earliestPermittedRound) {
+            if (signedState.getRound() < round) {
                 signedStateMetrics.getTotalUnsignedStatesMetric().increment();
                 purgedStates.add(reservedSignedState);
                 iterator.remove();
@@ -244,6 +253,15 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
 
         signedStateMetrics.getUnsignedStatesMetric().update(incompleteStates.size());
         return purgedStates;
+    }
+
+    /**
+     * Get rid of old states.
+     *
+     * @return a list of states that were purged
+     */
+    private @NonNull List<ReservedSignedState> purgeOldStates() {
+        return purgeOldStates(getEarliestPermittedRound());
     }
 
     /**
