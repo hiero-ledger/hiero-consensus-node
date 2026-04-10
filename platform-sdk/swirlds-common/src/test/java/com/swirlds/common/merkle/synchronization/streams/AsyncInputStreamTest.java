@@ -5,10 +5,14 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEq
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.merkle.utility.SerializableLong;
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.common.test.fixtures.merkle.dummy.BlockingInputStream;
 import com.swirlds.common.test.fixtures.merkle.dummy.BlockingOutputStream;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
@@ -16,12 +20,13 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -41,6 +46,24 @@ class AsyncInputStreamTest {
             .getOrCreateConfig();
     private final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
+    /** Serialize a long value into a byte array. */
+    private static byte[] serializeLong(final long value) {
+        final byte[] bytes = new byte[Long.BYTES];
+        BufferedData.wrap(bytes).writeLong(value);
+        return bytes;
+    }
+
+    /** Parse a long value from ReadableSequentialData. */
+    private static long parseLong(final ReadableSequentialData in) {
+        return in.readLong();
+    }
+
+    /** Create an AsyncInputStream with the long parser. */
+    private static AsyncInputStream<Long> newLongInputStream(
+            final DataInputStream stream, final StandardWorkGroup workGroup, final ReconnectConfig config) {
+        return new AsyncInputStream<>(stream, workGroup, config, AsyncInputStreamTest::parseLong);
+    }
+
     @Test
     @Tag(TestComponentTags.RECONNECT)
     @DisplayName("Basic Operation")
@@ -48,8 +71,7 @@ class AsyncInputStreamTest {
         try (final PairedStreams streams = new PairedStreams()) {
             final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
 
-            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
-
+            final AsyncInputStream<Long> in = newLongInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
             final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
 
             in.start();
@@ -58,16 +80,13 @@ class AsyncInputStreamTest {
             final int count = 100;
 
             for (int i = 0; i < count; i++) {
-                out.sendAsync(new SerializableLong(i));
-                final SerializableLong message = in.readAnticipatedMessageSync(SerializableLong::new);
-                assertEquals(i, message.getValue(), "message should match the value that was serialized");
+                out.sendAsync(serializeLong(i));
+                final Long message = in.readAnticipatedMessageSync();
+                assertNotNull(message);
+                assertEquals(i, message, "message should match the value that was serialized");
             }
 
-            // Send reconnect completion marker
-            streams.getLearnerOutput().writeInt(-1);
-            streams.getLearnerOutput().flush();
             out.done();
-
             workGroup.waitForTermination();
         }
     }
@@ -79,8 +98,7 @@ class AsyncInputStreamTest {
         try (final PairedStreams streams = new PairedStreams()) {
             final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
 
-            final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
-
+            final AsyncInputStream<Long> in = newLongInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
             final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
 
             in.start();
@@ -89,16 +107,13 @@ class AsyncInputStreamTest {
             final int count = 100;
 
             for (int i = 0; i < count; i++) {
-                out.sendAsync(new SerializableLong(i));
-                final SerializableLong message = in.readAnticipatedMessageSync(SerializableLong::new);
-                assertEquals(i, message.getValue(), "message should match the value that was serialized");
+                out.sendAsync(serializeLong(i));
+                final Long message = in.readAnticipatedMessageSync();
+                assertNotNull(message);
+                assertEquals(i, message, "message should match the value that was serialized");
             }
 
-            // Send reconnect completion marker
-            streams.getLearnerOutput().writeInt(-1);
-            streams.getLearnerOutput().flush();
             out.done();
-
             workGroup.waitForTermination();
         }
     }
@@ -120,7 +135,7 @@ class AsyncInputStreamTest {
         blockingOut.lock();
 
         final AsyncOutputStream out =
-                new AsyncOutputStream(new SerializableDataOutputStream(blockingOut), workGroup, reconnectConfig);
+                new AsyncOutputStream(new DataOutputStream(blockingOut), workGroup, reconnectConfig);
 
         out.start();
 
@@ -129,7 +144,7 @@ class AsyncInputStreamTest {
                 .setRunnable(() -> {
                     for (int i = 0; i < count; i++) {
                         try {
-                            out.sendAsync(new SerializableLong(i));
+                            out.sendAsync(serializeLong(i));
                             messagesSent.getAndIncrement();
                         } catch (final InterruptedException ex) {
                             Thread.currentThread().interrupt();
@@ -162,12 +177,10 @@ class AsyncInputStreamTest {
 
         // Sanity check, make sure all the messages were written to the stream
         final byte[] bytes = byteOut.toByteArray();
-        final SerializableDataInputStream in = new SerializableDataInputStream(new ByteArrayInputStream(bytes));
+        final DataInputStream dataIn = new DataInputStream(new ByteArrayInputStream(bytes));
         for (int i = 0; i < count; i++) {
-            assertEquals(Long.BYTES, in.readInt()); // SerializableLong length
-            final SerializableLong value = new SerializableLong();
-            value.deserialize(in, value.getVersion());
-            assertEquals(i, value.getValue(), "deserialized value should match expected value");
+            assertEquals(Long.BYTES, dataIn.readInt(), "message length should be Long.BYTES");
+            assertEquals(i, dataIn.readLong(), "deserialized value should match expected value");
         }
     }
 
@@ -180,21 +193,23 @@ class AsyncInputStreamTest {
         final int count = 1_000;
         final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
 
-        // Write a bunch of stuff into the stream
+        // Write messages in the async stream wire format: int32 length prefix + message bytes
         final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
-        final SerializableDataOutputStream out = new SerializableDataOutputStream(byteOut);
+        final DataOutputStream dataOut = new DataOutputStream(byteOut);
         for (int i = 0; i < count; i++) {
-            // This is the way that each object is written by the AsyncOutputStream, mimic that format
-            out.writeInt(Long.BYTES); // size of SerializableLong
-            new SerializableLong(i).serialize(out);
+            dataOut.writeInt(Long.BYTES);
+            dataOut.writeLong(i);
         }
+        // Write the termination marker
+        dataOut.writeInt(-1);
+        dataOut.flush();
         MILLISECONDS.sleep(100);
         final byte[] data = byteOut.toByteArray();
 
         final BlockingInputStream blockingIn = new BlockingInputStream(new ByteArrayInputStream(data));
 
-        final AsyncInputStream in =
-                new AsyncInputStream(new SerializableDataInputStream(blockingIn), workGroup, reconnectConfig);
+        final AsyncInputStream<Long> in =
+                newLongInputStream(new DataInputStream(blockingIn), workGroup, reconnectConfig);
         in.start();
 
         // Give the stream some time to accept as much data as it wants. Stream will stop accepting when queue fills up.
@@ -207,13 +222,10 @@ class AsyncInputStreamTest {
         final Thread inputThread = new ThreadConfiguration(getStaticThreadManager())
                 .setRunnable(() -> {
                     for (int i = 0; i < count; i++) {
-                        try {
-                            final SerializableLong message = in.readAnticipatedMessageSync(SerializableLong::new);
-                            assertEquals(i, message.getValue(), "value does not match expected");
-                            messagesReceived.getAndIncrement();
-                        } catch (final IOException ex) {
-                            throw new UncheckedIOException(ex);
-                        }
+                        final Long message = in.readAnticipatedMessageSync();
+                        assertNotNull(message);
+                        assertEquals(i, message, "value does not match expected");
+                        messagesReceived.getAndIncrement();
                     }
                 })
                 .setThreadName("output-thread")
@@ -232,15 +244,11 @@ class AsyncInputStreamTest {
 
         assertEventuallyEquals(count, messagesReceived::get, Duration.ofSeconds(5), "all messages should be read");
 
-        // Send reconnect completion marker
-        out.writeInt(-1);
-        out.flush();
-
         workGroup.waitForTermination();
     }
 
     /**
-     * This test verifies that a bug that once existed in AsyncInputStream has been fixed. This bug could case the
+     * This test verifies that a bug that once existed in AsyncInputStream has been fixed. This bug could cause the
      * stream to deadlock during an abort.
      */
     @Test()
@@ -256,11 +264,13 @@ class AsyncInputStreamTest {
                     new AsyncOutputStream(pairedStreams.getTeacherOutput(), workGroup, reconnectConfig);
 
             final AsyncInputStream learnerIn =
-                    new AsyncInputStream(pairedStreams.getLearnerInput(), workGroup, reconnectConfig);
+                    new AsyncInputStream(pairedStreams.getLearnerInput(), workGroup, reconnectConfig, in -> {
+                        throw new RuntimeException("Intentional deserialization failure");
+                    });
 
             final Runnable reader = () -> {
                 try {
-                    learnerIn.readAnticipatedMessageSync(ExplodingSelfSerializable::new);
+                    learnerIn.readAnticipatedMessageSync();
                 } catch (final Exception e) {
                     workGroup.handleError(e);
                 }
@@ -270,7 +280,8 @@ class AsyncInputStreamTest {
             learnerIn.start();
             teacherOut.start();
 
-            teacherOut.sendAsync(new ExplodingSelfSerializable());
+            // Send a dummy message to trigger the failing parser
+            teacherOut.sendAsync(serializeLong(42));
             Thread.sleep(100);
 
             workGroup.waitForTermination();
@@ -290,6 +301,148 @@ class AsyncInputStreamTest {
         } catch (final IOException e) {
             e.printStackTrace(System.err);
             fail("exception encountered", e);
+        }
+    }
+
+    @Test
+    @Tag(TestComponentTags.RECONNECT)
+    @DisplayName("readAnticipatedMessage returns null when queue is empty")
+    void readReturnsNullWhenEmpty() throws IOException {
+        try (final PairedStreams streams = new PairedStreams()) {
+            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
+            final AsyncInputStream<Long> in = newLongInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
+            // Don't start the background reader — queue stays empty
+            final Long msg = in.readAnticipatedMessage();
+            assertNull(msg, "Should return null when no messages are queued");
+        }
+    }
+
+    @Test
+    @Tag(TestComponentTags.RECONNECT)
+    @DisplayName("isAlive returns false after termination marker is received")
+    void isAliveAfterTermination() throws IOException, InterruptedException {
+        try (final PairedStreams streams = new PairedStreams()) {
+            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
+
+            final AsyncInputStream in = newLongInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
+            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
+
+            in.start();
+            out.start();
+
+            out.sendAsync(serializeLong(1));
+            out.done();
+
+            workGroup.waitForTermination();
+
+            // Drain the queue
+            in.readAnticipatedMessage();
+
+            assertFalse(in.isAlive(), "Stream should not be alive after termination marker is received");
+        }
+    }
+
+    @Test
+    @Tag(TestComponentTags.RECONNECT)
+    @DisplayName("whenCurrentMessagesProcessed callback fires after messages are written")
+    void whenCurrentMessagesProcessedCallback() throws IOException, InterruptedException {
+        try (final PairedStreams streams = new PairedStreams()) {
+            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
+
+            final AsyncInputStream<Long> in = newLongInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
+            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
+
+            in.start();
+            out.start();
+
+            out.sendAsync(serializeLong(1));
+            out.sendAsync(serializeLong(2));
+
+            final CountDownLatch callbackLatch = new CountDownLatch(1);
+            out.whenCurrentMessagesProcessed(callbackLatch::countDown);
+
+            out.done();
+            workGroup.waitForTermination();
+
+            assertTrue(callbackLatch.await(5, TimeUnit.SECONDS), "Callback should have been called");
+
+            final Long m1 = in.readAnticipatedMessage();
+            final Long m2 = in.readAnticipatedMessage();
+            assertNotNull(m1);
+            assertNotNull(m2);
+            assertEquals(1L, m1);
+            assertEquals(2L, m2);
+        }
+    }
+
+    @Test
+    @Tag(TestComponentTags.RECONNECT)
+    @DisplayName("Empty byte array message round-trips")
+    void emptyMessage() throws IOException, InterruptedException {
+        try (final PairedStreams streams = new PairedStreams()) {
+            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
+
+            final AsyncInputStream<String> in =
+                    new AsyncInputStream<>(streams.getTeacherInput(), workGroup, reconnectConfig, data -> {
+                        assertFalse(data.hasRemaining(), "Empty message should have no remaining bytes");
+                        return "empty";
+                    });
+            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
+
+            in.start();
+            out.start();
+
+            out.sendAsync(new byte[0]);
+            out.done();
+
+            workGroup.waitForTermination();
+
+            final String result = in.readAnticipatedMessage();
+            assertEquals("empty", result);
+        }
+    }
+
+    @Test
+    @Tag(TestComponentTags.RECONNECT)
+    @DisplayName("Parser function receives correctly bounded data per message")
+    void parserReceivesBoundedData() throws IOException, InterruptedException {
+        try (final PairedStreams streams = new PairedStreams()) {
+            final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test", null);
+
+            final AsyncInputStream<byte[]> in =
+                    new AsyncInputStream<>(streams.getTeacherInput(), workGroup, reconnectConfig, data -> {
+                        final byte[] buf = new byte[(int) data.remaining()];
+                        data.readBytes(buf);
+                        return buf;
+                    });
+            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
+
+            in.start();
+            out.start();
+
+            // Send two messages of different sizes
+            final byte[] small = new byte[] {1, 2, 3};
+            final byte[] large = new byte[] {10, 20, 30, 40, 50};
+            out.sendAsync(small);
+            out.sendAsync(large);
+            out.done();
+
+            workGroup.waitForTermination();
+
+            // First message should have exactly 3 bytes
+            final byte[] read1 = in.readAnticipatedMessage();
+            assertNotNull(read1);
+            assertEquals(3, read1.length);
+            assertEquals(1, read1[0]);
+            assertEquals(2, read1[1]);
+            assertEquals(3, read1[2]);
+
+            // Second message should have exactly 5 bytes
+            final byte[] read2 = in.readAnticipatedMessage();
+            assertNotNull(read2);
+            assertEquals(5, read2.length);
+            assertEquals(10, read2[0]);
+            assertEquals(50, read2[4]);
         }
     }
 }

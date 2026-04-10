@@ -16,7 +16,10 @@ import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.SocketException;
 import java.time.Duration;
@@ -24,14 +27,11 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -46,7 +46,7 @@ public class ReconnectStateTeacher {
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
 
-    private final TeacherTreeView teacherView;
+    private final TeacherTreeView<PullVirtualTreeRequest> teacherView;
     private final SigSet signatures;
     private final long signingWeight;
     private final Roster roster;
@@ -193,7 +193,6 @@ public class ReconnectStateTeacher {
                         selfId.id(),
                         otherId.id(),
                         lastRoundReceived));
-        final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         logger.info(RECONNECT.getMarker(), """
                         The following state will be sent to the learner:
                         {}""", () -> getInfoString(signedState.getState()));
@@ -221,11 +220,11 @@ public class ReconnectStateTeacher {
         connection.getDis().byteCounter().getAndReset();
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
+        final TeachingSynchronizer<PullVirtualTreeRequest> synchronizer = new TeachingSynchronizer<>(
                 time,
                 threadManager,
-                new SerializableDataInputStream(connection.getDis()),
-                new SerializableDataOutputStream(connection.getDos()),
+                new DataInputStream(connection.getDis()),
+                new DataOutputStream(connection.getDos()),
                 teacherView,
                 connection::disconnect,
                 reconnectConfig);

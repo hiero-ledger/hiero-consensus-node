@@ -7,16 +7,17 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
+import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * A {@link TeachingSynchronizer} with simulated delay.
  */
-public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
+public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer<PullVirtualTreeRequest> {
 
     private final long randomSeed;
     private final long delayStorageMicroseconds;
@@ -26,18 +27,29 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
 
     /**
      * Create a new teaching synchronizer with simulated latency.
+     *
+     * @param in the input stream for receiving data from the learner
+     * @param out the output stream for sending data to the learner
+     * @param view the teacher's view into the merkle tree
+     * @param randomSeed seed for the delay fuzzers
+     * @param delayStorageMicroseconds base storage delay in microseconds
+     * @param delayStorageFuzzRangePercent fuzz range for storage delay as a percentage
+     * @param delayNetworkMicroseconds base network delay in microseconds
+     * @param delayNetworkFuzzRangePercent fuzz range for network delay as a percentage
+     * @param breakConnection a callback to disconnect the connection on failure
+     * @param reconnectConfig the reconnect configuration
      */
     public BenchmarkSlowTeachingSynchronizer(
-            final SerializableDataInputStream in,
-            final SerializableDataOutputStream out,
-            final TeacherTreeView view,
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out,
+            @NonNull final TeacherTreeView<PullVirtualTreeRequest> view,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,
             final long delayNetworkMicroseconds,
             final double delayNetworkFuzzRangePercent,
-            final Runnable breakConnection,
-            final ReconnectConfig reconnectConfig) {
+            @NonNull final Runnable breakConnection,
+            @NonNull final ReconnectConfig reconnectConfig) {
         super(Time.getCurrent(), getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
@@ -53,7 +65,7 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
     @Override
     protected AsyncOutputStream buildOutputStream(
             @NonNull final StandardWorkGroup workGroup,
-            @NonNull final SerializableDataOutputStream out,
+            @NonNull final DataOutputStream out,
             @NonNull final ReconnectConfig reconnectConfig) {
         return new BenchmarkSlowAsyncOutputStream(
                 out,

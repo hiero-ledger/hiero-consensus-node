@@ -4,6 +4,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.exceptions.MerkleSerializationException;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
@@ -33,7 +34,7 @@ public class TeacherPullVirtualTreeReceiveTask {
     private static final String NAME = "reconnect-teacher-receiver";
 
     private final StandardWorkGroup workGroup;
-    private final AsyncInputStream in;
+    private final AsyncInputStream<PullVirtualTreeRequest> in;
     private final AsyncOutputStream out;
     private final TeacherPullVirtualTreeView view;
     private final AtomicInteger tasksDone;
@@ -55,7 +56,7 @@ public class TeacherPullVirtualTreeReceiveTask {
             @NonNull final Time time,
             @NonNull final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
+            final AsyncInputStream<PullVirtualTreeRequest> in,
             final AsyncOutputStream out,
             final TeacherPullVirtualTreeView view,
             final AtomicInteger tasksDone) {
@@ -104,7 +105,7 @@ public class TeacherPullVirtualTreeReceiveTask {
             final long start = System.currentTimeMillis();
             while (!Thread.currentThread().isInterrupted()) {
                 rateLimit();
-                final PullVirtualTreeRequest request = in.readAnticipatedMessage(PullVirtualTreeRequest::new);
+                final PullVirtualTreeRequest request = in.readAnticipatedMessage();
                 if (request == null) {
                     if (!in.isAlive()) {
                         break;
@@ -131,8 +132,8 @@ public class TeacherPullVirtualTreeReceiveTask {
                 final long firstLeafPath = view.getReconnectState().getFirstLeafPath();
                 final long lastLeafPath = view.getReconnectState().getLastLeafPath();
                 final PullVirtualTreeResponse response =
-                        new PullVirtualTreeResponse(view, path, isClean, firstLeafPath, lastLeafPath, leafData);
-                out.sendAsync(response);
+                        new PullVirtualTreeResponse(path, isClean, firstLeafPath, lastLeafPath, leafData);
+                out.sendAsync(serializeMessage(response));
             }
             final long end = System.currentTimeMillis();
             final double requestRate = (end == start) ? 0.0 : (double) requestCounter / (end - start);
@@ -155,5 +156,18 @@ public class TeacherPullVirtualTreeReceiveTask {
                 out.done();
             }
         }
+    }
+
+    /**
+     * Serializes the given response into a byte array suitable for sending via the async
+     * output stream.
+     *
+     * @param response the response to serialize
+     * @return the serialized bytes
+     */
+    private static byte[] serializeMessage(final PullVirtualTreeResponse response) {
+        final byte[] bytes = new byte[response.getSizeInBytes()];
+        response.writeTo(BufferedData.wrap(bytes));
+        return bytes;
     }
 }

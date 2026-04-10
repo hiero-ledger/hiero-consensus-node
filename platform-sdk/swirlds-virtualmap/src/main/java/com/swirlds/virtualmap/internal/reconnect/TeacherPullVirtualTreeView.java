@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
+import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
@@ -11,8 +12,10 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -20,17 +23,9 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
- * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.
- *
- * <p>This learner tree view creates two tasks running in the provided work group. One task
- * is responsible for sending requests to the teacher, the other one receives responses. Once
- * both tasks are completed, the corresponding virtual map is fully synchronized with the
- * teacher.
- *
- * <p>This implementation is supposed to work with {@link LearnerPullVirtualTreeView} on the
- * learner side.
+ * A teacher tree view for virtual map reconnect.
  */
-public final class TeacherPullVirtualTreeView implements TeacherTreeView {
+public final class TeacherPullVirtualTreeView implements TeacherTreeView<PullVirtualTreeRequest> {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeView.class);
     /**
@@ -58,11 +53,19 @@ public final class TeacherPullVirtualTreeView implements TeacherTreeView {
         this.reconnectState = map.getMetadata();
     }
 
+    /** {@inheritDoc} */
+    @Override
+    @NonNull
+    public Function<ReadableSequentialData, PullVirtualTreeRequest> getInputParser() {
+        return PullVirtualTreeRequest::parseFrom;
+    }
+
+    /** {@inheritDoc} */
     @Override
     public void startTeacherTasks(
             final Time time,
             final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
+            final AsyncInputStream<PullVirtualTreeRequest> in,
             final AsyncOutputStream out) {
         // FUTURE work: pool size config
         final int teacherTasks = 16;
@@ -74,6 +77,12 @@ public final class TeacherPullVirtualTreeView implements TeacherTreeView {
         }
     }
 
+    /**
+     * Determines if a given path refers to a leaf of the teacher's tree.
+     *
+     * @param path the virtual path
+     * @return {@code true} if the path is within the leaf range
+     */
     public boolean isLeaf(final long path) {
         return (path >= reconnectState.getFirstLeafPath())
                 && (path <= reconnectState.getLastLeafPath())
@@ -112,6 +121,11 @@ public final class TeacherPullVirtualTreeView implements TeacherTreeView {
         }
     }
 
+    /**
+     * Returns the metadata for the tree being reconnected on the teacher side.
+     *
+     * @return the reconnect state metadata
+     */
     public VirtualMapMetadata getReconnectState() {
         return reconnectState;
     }
