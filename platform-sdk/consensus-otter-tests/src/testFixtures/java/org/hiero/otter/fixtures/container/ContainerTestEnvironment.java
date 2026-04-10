@@ -5,7 +5,6 @@ import static java.util.Collections.unmodifiableSet;
 import static org.assertj.core.api.Fail.fail;
 import static org.hiero.otter.fixtures.util.EnvironmentUtils.getDefaultOutputDirectory;
 
-import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -74,7 +73,14 @@ public class ContainerTestEnvironment implements TestEnvironment {
 
         try {
             if (Files.exists(rootOutputDirectory)) {
-                FileUtils.deleteDirectory(rootOutputDirectory);
+                int runIndex = 1;
+                Path renamedDir;
+                do {
+                    renamedDir =
+                            rootOutputDirectory.resolveSibling(rootOutputDirectory.getFileName() + "_run" + runIndex);
+                    runIndex++;
+                } while (Files.exists(renamedDir));
+                Files.move(rootOutputDirectory, renamedDir);
             }
             Files.createDirectories(rootOutputDirectory);
         } catch (final IOException ex) {

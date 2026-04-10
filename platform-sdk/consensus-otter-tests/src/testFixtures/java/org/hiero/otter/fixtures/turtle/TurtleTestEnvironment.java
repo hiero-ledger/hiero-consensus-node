@@ -6,7 +6,6 @@ import static org.hiero.otter.fixtures.util.EnvironmentUtils.getDefaultOutputDir
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -91,11 +90,18 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
         try {
             if (Files.exists(rootOutputDirectory)) {
-                FileUtils.deleteDirectory(rootOutputDirectory);
+                int runIndex = 1;
+                Path renamedDir;
+                do {
+                    renamedDir =
+                            rootOutputDirectory.resolveSibling(rootOutputDirectory.getFileName() + "_run" + runIndex);
+                    runIndex++;
+                } while (Files.exists(renamedDir));
+                Files.move(rootOutputDirectory, renamedDir);
             }
             Files.createDirectories(rootOutputDirectory);
         } catch (final IOException ex) {
-            log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
+            log.warn("Failed to prepare directory: {}", rootOutputDirectory, ex);
         }
 
         final Randotron randotron = randomSeed == 0L ? Randotron.create() : Randotron.create(randomSeed);
