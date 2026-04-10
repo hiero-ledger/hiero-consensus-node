@@ -536,7 +536,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                         new TctProbe(
                                 blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
                                 config.getConfigData(StakingConfig.class).periodMins(),
-                                state));
+                                state),
+                        lastQuiescenceCommand);
             }
         }
     }
