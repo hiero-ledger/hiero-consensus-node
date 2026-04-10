@@ -22,8 +22,9 @@ import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
-import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
-import org.hiero.consensus.event.validation.EventFieldValidator;
+import org.hiero.consensus.event.intake.utils.DefaultEventFieldValidator;
+import org.hiero.consensus.event.intake.utils.EventFieldValidator;
+import org.hiero.consensus.event.intake.utils.EventSignatureChecker;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -129,15 +130,10 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
         final EventHasher eventHasher = new DefaultEventHasher();
         final EventFieldValidator eventFieldValidator =
                 new DefaultEventFieldValidator(metrics, time, transactionLimits);
+        final EventSignatureChecker signatureChecker =
+                new EventSignatureChecker(time, SigningFactory::createVerifier, rosterHistory);
         final EventIntakeProcessor processor = new ConcurrentEventIntakeProcessor(
-                metrics,
-                time,
-                eventHasher,
-                eventFieldValidator,
-                SigningFactory::createVerifier,
-                rosterHistory,
-                intakeEventCounter,
-                pipelineTracker);
+                metrics, time, eventHasher, eventFieldValidator, signatureChecker, intakeEventCounter, pipelineTracker);
         processorWiring.bind(processor);
 
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
