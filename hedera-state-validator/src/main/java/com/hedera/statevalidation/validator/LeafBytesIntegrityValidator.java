@@ -5,9 +5,12 @@ import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationErro
 
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -34,6 +37,8 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     private VirtualMap virtualMap;
     private MerkleDbDataSource vds;
     private HalfDiskHashMap keyToPath;
+    private LongList pathToDiskLocationLeafNodes;
+    private MemoryIndexDiskKeyValueStore keyValueStore;
     private long firstLeafPath;
     private long lastLeafPath;
     private int hashChunkHeight;
@@ -44,6 +49,8 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     private final AtomicLong pathMismatchCount = new AtomicLong(0);
     private final AtomicLong valueErrorCount = new AtomicLong(0);
     private final AtomicLong hashMismatchCount = new AtomicLong(0);
+    private final AtomicLong indexMismatchCount = new AtomicLong(0);
+    private final AtomicLong storeMismatchCount = new AtomicLong(0);
 
     // A minor optimization to avoid multiple chunk loads from disk
     private final ThreadLocal<VirtualHashChunk> lastChunk = new ThreadLocal<>();
@@ -75,6 +82,10 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
         this.virtualMap = state.getRoot();
         this.vds = (MerkleDbDataSource) virtualMap.getDataSource();
         this.keyToPath = vds.getKeyToPath();
+
+        this.pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
+        this.keyValueStore = vds.getKeyValueStore();
+
         this.firstLeafPath = vds.getFirstLeafPath();
         this.lastLeafPath = vds.getLastLeafPath();
         this.hashChunkHeight = vds.getHashChunkHeight();
@@ -87,6 +98,8 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes<?> leafBytes) {
         Objects.requireNonNull(virtualMap);
         Objects.requireNonNull(keyToPath);
+        Objects.requireNonNull(pathToDiskLocationLeafNodes);
+        Objects.requireNonNull(keyValueStore);
 
         try {
             final Bytes keyBytes = leafBytes.keyBytes();
@@ -127,6 +140,48 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                 return;
             }
 
+            final long dataLocationFromIndex = pathToDiskLocationLeafNodes.get(p2KvPath);
+            if (dataLocationFromIndex != dataLocation) {
+                indexMismatchCount.incrementAndGet();
+                log.error(
+                        "Index data location mismatch at path={}. diskLocationFromIterator={} vs indexLocation={}",
+                        p2KvPath,
+                        dataLocation,
+                        dataLocationFromIndex);
+                return;
+            }
+
+            final VirtualLeafBytes<?> leafBytesFromStore;
+            try {
+                final BufferedData rawStoreBytes = keyValueStore.get(p2KvPath);
+                if (rawStoreBytes == null) {
+                    storeMismatchCount.incrementAndGet();
+                    log.error("Store cross-check failed: keyValueStore returned null for path={}", p2KvPath);
+                    return;
+                }
+                // read canonical bytes directly from the store and parse
+                leafBytesFromStore = VirtualLeafBytes.parseFrom(rawStoreBytes);
+            } catch (RuntimeException ex) {
+                storeMismatchCount.incrementAndGet();
+                log.error(
+                        "Index cross-check failed: unable to parse bytes from store for path={}.",
+                        p2KvPath,
+                        ex.getMessage());
+                return;
+            }
+
+            if (!leafBytesFromStore.equals(leafBytes)) {
+                storeMismatchCount.incrementAndGet();
+                log.error(
+                        "Index cross-check mismatch at path={}. iteratorBytes vs storeBytes differ (diskValueLen={} storeValueLen={})",
+                        p2KvPath,
+                        valueBytes == null ? -1 : valueBytes.length(),
+                        leafBytesFromStore.valueBytes() == null
+                                ? -1
+                                : leafBytesFromStore.valueBytes().length());
+                return;
+            }
+
             successCount.incrementAndGet();
         } catch (IOException e) {
             exceptionCount.incrementAndGet();
@@ -151,14 +206,17 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                 && pathMismatchCount.get() == 0
                 && valueErrorCount.get() == 0
                 && hashMismatchCount.get() == 0
+                && indexMismatchCount.get() == 0
+                && storeMismatchCount.get() == 0
                 && exceptionCount.get() == 0;
+
         if (!ok) {
             throw new ValidationException(
                     getName(),
                     ("%s validation failed. "
                                     + "successCount=%d vs expectedCount=%d, "
                                     + "pathMismatchCount=%d, valueErrorCount=%d, hashMismatchCount=%d, "
-                                    + "exceptionCount=%d, successCount=%d")
+                                    + "indexMismatchCount=%d, exceptionCount=%d")
                             .formatted(
                                     getName(),
                                     successCount.get(),
@@ -166,8 +224,9 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                                     pathMismatchCount.get(),
                                     valueErrorCount.get(),
                                     hashMismatchCount.get(),
-                                    exceptionCount.get(),
-                                    successCount.get()));
+                                    indexMismatchCount.get(),
+                                    storeMismatchCount.get(),
+                                    exceptionCount.get()));
         }
     }
 
