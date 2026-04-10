@@ -6,7 +6,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -30,7 +29,6 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
     public BenchmarkSlowLearningSynchronizer(
             final SerializableDataInputStream in,
             final SerializableDataOutputStream out,
-            final VirtualMap newRoot,
             final LearnerTreeView view,
             final long randomSeed,
             final long delayStorageMicroseconds,
@@ -40,7 +38,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig) {
 
-        super(getStaticThreadManager(), in, out, newRoot, view, breakConnection, reconnectConfig);
+        super(getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;

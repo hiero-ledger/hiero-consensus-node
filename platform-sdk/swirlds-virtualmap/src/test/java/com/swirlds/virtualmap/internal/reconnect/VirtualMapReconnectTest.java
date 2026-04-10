@@ -103,7 +103,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("Reconnect"), @Tag("VMAP-003"), @Tag("VMAP-003.8")})
     @DisplayName("Teacher and Learner that are the same size but completely different")
-    void equalFullTeacherFullLearner() {
+    void equalSizeFullTeacherFullLearner() {
         teacherMap.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
         teacherMap.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
         teacherMap.put(C_KEY, CUTTLEFISH, TestValueCodec.INSTANCE);
@@ -148,7 +148,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("Reconnect"), @Tag("VMAP-003"), @Tag("VMAP-003.10")})
     @DisplayName("Single leaf teacher and full learner where the leaf is the same")
-    void singleLeafTeacherFullLearner() {
+    void singleLeafTeacherFullLearnerSameLeaf() {
         teacherMap.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
 
         learnerMap.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
@@ -165,7 +165,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("Reconnect"), @Tag("VMAP-003"), @Tag("VMAP-003.11")})
     @DisplayName("Single leaf teacher and full learner where the leaf differs")
-    void singleLeafTeacherFullLearner2() {
+    void singleLeafTeacherFullLearnerDifferentLeaf() {
         teacherMap.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
 
         learnerMap.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
@@ -181,7 +181,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("Reconnect"), @Tag("VMAP-003"), @Tag("VMAP-003.12")})
     @DisplayName("Full teacher and single-leaf learner where the leaf is equivalent")
-    void fullTeacherSingleLeafLearner() {
+    void fullTeacherSingleLeafLearnerSameLeaf() {
         teacherMap.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
         teacherMap.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
         teacherMap.put(C_KEY, CUTTLEFISH, TestValueCodec.INSTANCE);
@@ -197,7 +197,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("Reconnect"), @Tag("VMAP-003"), @Tag("VMAP-003.13")})
     @DisplayName("Full teacher and single-leaf learner where the leaf differs")
-    void fullTeacherSingleLeafLearner2() {
+    void fullTeacherSingleLeafLearnerDifferentLeaf() {
         teacherMap.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
         teacherMap.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
         teacherMap.put(C_KEY, CUTTLEFISH, TestValueCodec.INSTANCE);

@@ -9,12 +9,10 @@ import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationEx
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
@@ -45,12 +43,7 @@ public class LearningSynchronizer {
     private final SerializableDataOutputStream outputStream;
 
     /**
-     * New state root node used to put data from the teacher.
-     */
-    private final Hashable newRoot;
-
-    /**
-     * Virtual tree view used to access nodes and hashes in the newRoot above.
+     * Virtual tree view used to access nodes and hashes.
      */
     private final LearnerTreeView view;
 
@@ -62,7 +55,6 @@ public class LearningSynchronizer {
      * @param threadManager   responsible for managing thread lifecycles
      * @param in              the input stream
      * @param out             the output stream
-     * @param newRoot         the merkle root, which will be used to reconstruct the merkle tree
      * @param view            the learner tree view
      * @param breakConnection a method that breaks the connection. Used iff an exception is encountered. Prevents
      *                        deadlock if there is a thread stuck on a blocking IO operation that will never finish due
@@ -73,7 +65,6 @@ public class LearningSynchronizer {
             @NonNull final ThreadManager threadManager,
             @NonNull final SerializableDataInputStream in,
             @NonNull final SerializableDataOutputStream out,
-            @NonNull final Hashable newRoot,
             @NonNull final LearnerTreeView view,
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
@@ -81,7 +72,6 @@ public class LearningSynchronizer {
         outputStream = Objects.requireNonNull(out, "outputStream is null");
         this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
 
-        this.newRoot = Objects.requireNonNull(newRoot, "newRoot is null");
         this.view = Objects.requireNonNull(view, "view is null");
 
         final Function<Throwable, Boolean> reconnectExceptionListener = ex -> {
@@ -97,16 +87,7 @@ public class LearningSynchronizer {
     public void synchronize() throws InterruptedException {
         logger.info(RECONNECT.getMarker(), "learner calls receiveTree()");
         receiveTree();
-        logger.info(RECONNECT.getMarker(), "learner calls hash()");
-        hash();
         logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
-    }
-
-    /**
-     * Hash the tree.
-     */
-    private void hash() {
-        newRoot.getHash(); // calculate hash
     }
 
     /**
@@ -115,13 +96,12 @@ public class LearningSynchronizer {
     private void receiveTree() throws InterruptedException {
         final AsyncInputStream in = new AsyncInputStream(inputStream, workGroup, reconnectConfig);
         in.start();
-        final AtomicBoolean teacherSentLastRequest = new AtomicBoolean(false);
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
         out.start();
 
         InterruptedException interruptException = null;
-        try (view) {
-            view.startLearnerTasks(workGroup, in, out, () -> teacherSentLastRequest.set(true));
+        try {
+            view.startLearnerTasks(workGroup, in, out);
             workGroup.waitForTermination();
         } catch (final InterruptedException e) { // NOSONAR: Exception is rethrown below after cleanup.
             interruptException = e;
@@ -138,6 +118,8 @@ public class LearningSynchronizer {
             }
             throw new MerkleSynchronizationException(
                     "Synchronization failed with exceptions", firstReconnectException.get());
+        } else {
+            view.onSuccessfulComplete();
         }
 
         logger.info(RECONNECT.getMarker(), "Finished receiving tree");
