@@ -495,8 +495,10 @@ jobs:
           # Tolerance of 50 blocks (1/3 of CN block buffer assuming 5 min buffer at 1 block/2s), accounts for backfill startup latency
           MAX_WAIT=600
           INTERVAL=15
-          ELAPSED=${{ steps.bn-restoration.outputs.restoration_time }}
+          CURRENT_TIME=$(date +%s)
           SPREAD=9999
+          ELAPSED=$((CURRENT_TIME - ${{ steps.bn-restoration.outputs.restoration_time }}))
+          echo "Elapsed time before polling ${ELAPSED} s"
 
           while (( ELAPSED < MAX_WAIT )); do
             BN1_LAST=$(grpcurl_last_block 40841)
@@ -511,7 +513,7 @@ jobs:
 
             echo "[${ELAPSED}s] lastAvailableBlock — BN1=${BN1_LAST} BN2=${BN2_LAST} BN3=${BN3_LAST} spread=${SPREAD}"
             if (( SPREAD <= 50 )); then
-              echo "BNs converged within tolerance (spread=${SPREAD} <= 50) after ${ELAPSED}s"
+              echo "BNs converged within tolerance (spread=${SPREAD} <= 50) after ${ELAPSED} s"
               break
             fi
 
