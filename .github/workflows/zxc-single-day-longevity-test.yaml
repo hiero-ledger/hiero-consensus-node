@@ -229,13 +229,6 @@ jobs:
           cd "${HOME}"
           tar xfz cobertura-assembly-2.1.2-SNAPSHOT.tgz
 
-      - name: Setup Helm
-        shell: bash
-        run: |
-          sudo ln -s $(find /home/runner/_work/_tool/helm/ -type f -path '*/linux-amd64/*' -name 'helm') /usr/bin/helm
-          which helm
-          helm version
-
       - name: OS check procedure
         id: setup
         shell: bash
