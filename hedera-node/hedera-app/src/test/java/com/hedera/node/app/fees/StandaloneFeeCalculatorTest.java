@@ -3,6 +3,8 @@ package com.hedera.node.app.fees;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -12,12 +14,15 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
+import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -32,6 +37,7 @@ public class StandaloneFeeCalculatorTest {
     static final long TINY_CENTS = 100_000_000L;
     static final long CREATE_TOPIC_BASE = 99_000_000L;
     static final long SUBMIT_MESSAGE_BASE = 700_000L;
+    static final long SUBMIT_MESSAGE_CUSTOM_FEE_EXTRA = 498_300_000;
     static final long NODE_BASE = 100000;
     static final long SIG_EXTRA = 100000;
 
@@ -353,5 +359,77 @@ public class StandaloneFeeCalculatorTest {
         assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE);
         assertThat(result.totalTinycents())
                 .isEqualTo(SUBMIT_MESSAGE_BASE + 1_000_000L); // add in the node + network fee
+    }
+
+    @Test
+    public void testSubmitMessageStatefulNullPasses() throws ParseException {
+        final StandaloneFeeCalculator calc = setupCalculator();
+
+        final long topicEntityNum = 1L;
+        final TopicID topicId = TopicID.newBuilder().topicNum(topicEntityNum).build();
+        final var body = TransactionBody.newBuilder()
+                .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.newBuilder()
+                        .topicID(topicId)
+                        .message(Bytes.wrap("some message"))
+                        .build())
+                .build();
+        final var sigMap = SignatureMap.newBuilder().build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .sigMap(sigMap)
+                .build();
+        final Transaction txn = Transaction.newBuilder()
+                .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
+                .build();
+
+        final FeeResult result = calc.calculateStateful(txn, null, null);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(NODE_BASE);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(NODE_BASE * 9);
+        assertThat(result.totalTinycents()).isEqualTo(NODE_BASE * 10 + SUBMIT_MESSAGE_BASE);
+    }
+
+    @Test
+    public void testSubmitMessageStatefulImplPasses() throws ParseException {
+        final long topicEntityNum = 1L;
+        final TopicID topicId = TopicID.newBuilder().topicNum(topicEntityNum).build();
+        final AccountID anotherPayer = AccountID.newBuilder().accountNum(13257).build();
+        final FixedCustomFee hbarCustomFee = FixedCustomFee.newBuilder()
+                .fixedFee(FixedFee.newBuilder().amount(1).build())
+                .feeCollectorAccountId(anotherPayer)
+                .build();
+        ReadableTopicStore readableStore = mock(ReadableTopicStore.class);
+        given(readableStore.getTopic(topicId))
+                .willReturn(Topic.newBuilder()
+                        .runningHash(Bytes.wrap(new byte[48]))
+                        .sequenceNumber(1L)
+                        .customFees(hbarCustomFee)
+                        .build());
+
+        final var feeContext = mock(FeeContext.class);
+        given(feeContext.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+
+        final StandaloneFeeCalculator calc = setupCalculator();
+        final var body = TransactionBody.newBuilder()
+                .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.newBuilder()
+                        .topicID(topicId)
+                        .message(Bytes.wrap("some message"))
+                        .build())
+                .build();
+        final var sigMap = SignatureMap.newBuilder().build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .sigMap(sigMap)
+                .build();
+        final Transaction txn = Transaction.newBuilder()
+                .signedTransactionBytes(SignedTransaction.PROTOBUF.toBytes(signedTx))
+                .build();
+
+        final FeeResult result = calc.calculateStateful(txn, feeContext, null);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE + SUBMIT_MESSAGE_CUSTOM_FEE_EXTRA);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(NODE_BASE);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(NODE_BASE * 9);
+        assertThat(result.totalTinycents())
+                .isEqualTo(NODE_BASE * 10 + SUBMIT_MESSAGE_BASE + SUBMIT_MESSAGE_CUSTOM_FEE_EXTRA);
     }
 }
