@@ -156,6 +156,7 @@ jobs:
       # Prepare Hiero Solo
       - name: Prepare Hiero Solo
         id: solo-action
+        timeout-minutes: 20
         uses: hiero-ledger/hiero-solo-action@8cda77e13916d1ed8f80eb07361a474a264be005 # latest on `main` currently
         with:
           installMirrorNode: true

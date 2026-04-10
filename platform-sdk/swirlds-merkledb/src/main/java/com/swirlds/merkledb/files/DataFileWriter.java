@@ -113,7 +113,8 @@ public final class DataFileWriter {
             throws IOException {
         this.dataBufferSize = dataBufferSize;
 
-        path = createDataFilePath(filePrefix, dataFileDir, index, creationTime, DataFileCommon.FILE_EXTENSION);
+        path = createDataFilePath(
+                filePrefix, dataFileDir, index, creationTime, compactionLevel, DataFileCommon.FILE_EXTENSION);
         Files.createFile(path);
         fileChannel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE);
         metadata = new DataFileMetadata(index, creationTime, compactionLevel, itemsCount);

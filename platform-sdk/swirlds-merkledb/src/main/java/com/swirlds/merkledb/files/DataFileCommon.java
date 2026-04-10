@@ -94,6 +94,8 @@ public final class DataFileCommon {
      * @param dataFileDir the files parent directory
      * @param index the file index
      * @param creationInstant the date and time the file was created
+     * @param compactionLevel the compaction level of the file
+     * @param extension the file extension to use, usually ".pbj"
      * @return path to file
      */
     static Path createDataFilePath(
@@ -101,10 +103,13 @@ public final class DataFileCommon {
             final Path dataFileDir,
             final int index,
             final Instant creationInstant,
+            final int compactionLevel,
             final String extension) {
         return dataFileDir.resolve(filePrefix
                 + "_"
                 + DATE_FORMAT.format(creationInstant)
+                + "_L"
+                + compactionLevel
                 + "_"
                 + ALIGNED_RIGHT.pad(Integer.toString(index), '_', PRINTED_INDEX_FIELD_WIDTH, false)
                 + extension);
