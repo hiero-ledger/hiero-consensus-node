@@ -6,9 +6,11 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Represents a grouping of reward-eligible nodes categorized into active and inactive groups
@@ -23,6 +25,68 @@ import java.util.List;
 public record NodeRewardGroups(
         @NonNull List<NodeRewardActivity> activeNodeActivities,
         @NonNull List<NodeRewardActivity> inactiveNodeActivities) {
+
+    /**
+     * The criteria currently used to determine whether a node is active.
+     */
+    private static final AtomicReference<NodeActivityCriteria> activityCriteria =
+            new AtomicReference<>(NodeActivityCriteria.DEFAULT);
+
+    /**
+     * Strategy that decides whether a {@link NodeRewardActivity} represents an active node. The {@link #DEFAULT}
+     * implementation checks whether the number of missed rounds falls within the allowed threshold derived from the
+     * node's {@code minJudgeRoundPercentage}.
+     *
+     * <p>The active criteria can be temporarily replaced for testing via {@link #setActivityCriteria};
+     * {@link #resetActivityCriteria} restores the default. These methods are thread-safe: the
+     * replacement is published via an {@link AtomicReference} and is immediately visible to
+     * concurrent callers of {@link #from}.
+     */
+    @FunctionalInterface
+    public interface NodeActivityCriteria {
+
+        /**
+         * The production criteria: a node is active when its missed rounds do not exceed the allowed threshold.
+         */
+        NodeActivityCriteria DEFAULT = activity -> {
+            final long maxMissed = BigInteger.valueOf(activity.roundsInPeriod())
+                    .multiply(BigInteger.valueOf(100 - activity.minJudgeRoundPercentage()))
+                    .divide(BigInteger.valueOf(100))
+                    .longValueExact();
+            return activity.numMissedRounds() <= maxMissed;
+        };
+
+        /**
+         * Returns {@code true} if the given activity should be classified as active.
+         *
+         * @param activity the node reward activity to evaluate
+         * @return whether the node is considered active
+         */
+        boolean isActive(@NonNull NodeRewardActivity activity);
+    }
+
+    /**
+     * Replaces the activity criteria used to determine whether a node is active.
+     *
+     * <p>This method is thread-safe. The new criteria is immediately visible to any subsequent
+     * caller of {@link #from}. Intended for test use only; production code should rely on
+     * {@link NodeActivityCriteria#DEFAULT}.
+     *
+     * @param criteria the new criteria; must not be {@code null}
+     */
+    public static void setActivityCriteria(@NonNull final NodeActivityCriteria criteria) {
+        activityCriteria.set(requireNonNull(criteria));
+    }
+
+    /**
+     * Restores the {@link NodeActivityCriteria#DEFAULT default} activity criteria.
+     *
+     * <p>This method is thread-safe. Should be called in test teardown to undo any override
+     * installed by {@link #setActivityCriteria}.
+     */
+    public static void resetActivityCriteria() {
+        activityCriteria.set(NodeActivityCriteria.DEFAULT);
+    }
 
     /**
      * Creates a new instance of {@code NodeRewardGroups} and ensures the activity sets are
@@ -41,6 +105,9 @@ public record NodeRewardGroups(
      * reward-eligible activities into active and inactive groups. Declining nodes must
      * be excluded from {@code eligibleActivities} before calling this method.
      *
+     * <p>The current {@link NodeActivityCriteria} (set via {@link #setActivityCriteria}) is
+     * used to classify each node. By default, this checks the missed-rounds threshold.
+     *
      * @param eligibleActivities the reward-eligible node activities (declining nodes excluded).
      * @return a {@code NodeRewardGroups} instance partitioning nodes into active and inactive
      */
@@ -56,7 +123,7 @@ public record NodeRewardGroups(
         final var inactive = new ArrayList<NodeRewardActivity>(sortedActivities.size());
 
         for (final var activity : sortedActivities) {
-            if (activity.isActive()) {
+            if (activityCriteria.get().isActive(activity)) {
                 active.add(activity);
             } else {
                 inactive.add(activity);

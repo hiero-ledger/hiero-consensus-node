@@ -28,12 +28,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.TokenService;
@@ -50,7 +48,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.ContextualActionOp;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
-import com.hedera.services.bdd.spec.utilops.embedded.MutateSingletonOp;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
@@ -330,6 +327,36 @@ public final class BlockNodeRewardsTests {
     }
 
     /**
+     * Scenario 8: mirrors scenario 6 (3 CNs, 2 BNs, node 2 active with both BNs associated)
+     * but uses the DEFAULT {@link com.hedera.node.app.service.token.NodeRewardGroups.NodeActivityCriteria}
+     * instead of overriding it. This exercises the state-reading code path in
+     * {@code NodeRewardManager.buildNodeActivities} and the default activity classification logic.
+     * <p>
+     * {@code nodes.activeRoundsPercent} is set to 0 so the threshold is maximally permissive
+     * (maxMissed = roundsInPeriod), making the classification deterministic regardless of the
+     * actual round count accumulated by the embedded node.
+     */
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
+            overrides = {NODES_ACTIVE_ROUNDS_PERCENT})
+    @Order(8)
+    Stream<DynamicTest> activeNodeWithMultipleBlockNodesGetsRewardViaStateCriteria() {
+        long expectedYearlyReward = CONSENSUS_NODE_YEARLY_REWARD_USD + BLOCK_NODE_YEARLY_REWARD_USD;
+        final var ctx = new TestContext.Builder()
+                .numConsensusNodes(3)
+                .numBlockNodes(2)
+                .nodesDecliningReward(NODE_0_ID, NODE_1_ID)
+                .consensusToBlockNodeAssociations(NODE_2_ID, BLOCK_NODE_0_INDEX)
+                .consensusToBlockNodeAssociations(NODE_2_ID, BLOCK_NODE_1_INDEX)
+                .useDefaultActivityCriteria()
+                .expectTransfersFromYearlyValue(
+                        Transfer.to(NODE_2_ID).amount(expectedYearlyReward),
+                        Transfer.to(NODE_REWARD_ACCOUNT_NUM).amount(-expectedYearlyReward))
+                .build();
+        return blockNodeRewardScenario(ctx);
+    }
+
+    /**
      * Runs a complete block node reward test scenario using the provided context.
      */
     private static Stream<DynamicTest> blockNodeRewardScenario(@NonNull final TestContext ctx) {
@@ -362,11 +389,20 @@ public final class BlockNodeRewardsTests {
         // This is considered as one transaction submitted, so one round
         ops.add(EmbeddedVerbs.handleAnyRepeatableQueryPayment());
 
-        // configures node activity info based on the configured test context
-        ops.add(forceNodeActivity(ctx));
+        if (ctx.useDefaultActivityCriteria()) {
+            // Let the DEFAULT NodeActivityCriteria read from state. Set the threshold to 0 so
+            // that every non-declining node passes (maxMissed = roundsInPeriod, which is always
+            // >= numMissedRounds), making the classification deterministic regardless of how
+            // many rounds the embedded node actually ran.
+            ops.add(overriding(NODES_ACTIVE_ROUNDS_PERCENT, "0"));
+        } else {
+            // Override active/inactive classification at the NodeRewardGroups boundary,
+            // bypassing state-based missed-judge propagation entirely.
+            ops.add(EmbeddedVerbs.overrideActiveNodes(ctx.activeNodes));
+        }
 
-        // Capture consensus time and register the record-stream listener AFTER the forced
-        // activity has been flushed, so the filter only matches the intended reward payment.
+        // Capture consensus time and register the record-stream listener AFTER the override
+        // is installed, so the filter only matches the intended reward payment.
         ops.add(extractConsensusTime(ctx));
         ops.add(setupRecordStreamListener(ctx));
 
@@ -412,30 +448,9 @@ public final class BlockNodeRewardsTests {
             // delete created block nodes
             LongStream.range(0, ctx.numBlockNodes()).forEach(i -> cleanupOps.add(registeredNodeDelete(BLOCK_NODE + i)));
         }
+        cleanupOps.add(EmbeddedVerbs.resetNodeActivityCriteria());
         cleanupOps.add(mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, _ -> NodeRewards.DEFAULT));
         return cleanupOps;
-    }
-
-    /** Configures node activity levels based on the test context. */
-    private static MutateSingletonOp<NodeRewards> forceNodeActivity(@NonNull final TestContext ctx) {
-        return mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (final NodeRewards nodeRewards) -> {
-            final List<NodeActivity> activities = LongStream.range(0, ctx.numConsensusNodes())
-                    .mapToObj(nodeId -> {
-                        final var isActive = ctx.activeNodes.contains(nodeId);
-                        final var totalRounds = 100;
-                        final var missed = isActive ? 0 : totalRounds;
-                        return NodeActivity.newBuilder()
-                                .nodeId(nodeId)
-                                .numMissedJudgeRounds(missed)
-                                .build();
-                    })
-                    .collect(toList());
-            return nodeRewards
-                    .copyBuilder()
-                    .numRoundsInStakingPeriod(100)
-                    .nodeActivities(activities)
-                    .build();
-        });
     }
 
     /** Associates a consensus node with one or more block nodes in the network. */
@@ -551,6 +566,7 @@ public final class BlockNodeRewardsTests {
         private final Map<Long, List<Long>> consensusToBlockNodeAssociations = new LinkedHashMap<>();
         private final long minPerPeriodNodeRewardUsd;
         private final Map<Long, Long> expectedRewards = new LinkedHashMap<>();
+        private final boolean useDefaultActivityCriteria;
 
         /** Private constructor for {@link TestContext}. */
         private TestContext(
@@ -560,7 +576,8 @@ public final class BlockNodeRewardsTests {
                 @NonNull final Set<Long> activeNodes,
                 @NonNull final Map<Long, List<Long>> consensusToBlockNodeAssociations,
                 final long minPerPeriodNodeRewardUsd,
-                @NonNull final Map<Long, Long> expectedRewards) {
+                @NonNull final Map<Long, Long> expectedRewards,
+                final boolean useDefaultActivityCriteria) {
             this.numConsensusNodes = numConsensusNodes;
             this.numBlockNodes = numBlockNodes;
             for (int i = 0; i < numBlockNodes; i++) {
@@ -571,6 +588,11 @@ public final class BlockNodeRewardsTests {
             this.consensusToBlockNodeAssociations.putAll(consensusToBlockNodeAssociations);
             this.minPerPeriodNodeRewardUsd = minPerPeriodNodeRewardUsd;
             this.expectedRewards.putAll(expectedRewards);
+            this.useDefaultActivityCriteria = useDefaultActivityCriteria;
+        }
+
+        private boolean useDefaultActivityCriteria() {
+            return useDefaultActivityCriteria;
         }
 
         private List<AtomicLong> blockNodeIds() {
@@ -615,6 +637,7 @@ public final class BlockNodeRewardsTests {
             private final Map<Long, List<Long>> consensusToBlockNodeAssociations = new LinkedHashMap<>();
             private long minPerPeriodNodeRewardUsd = 0L;
             private final Map<Long, Long> expectedRewards = new LinkedHashMap<>();
+            private boolean useDefaultActivityCriteria = false;
 
             public Builder numConsensusNodes(final int numConsensusNodes) {
                 this.numConsensusNodes = numConsensusNodes;
@@ -653,6 +676,11 @@ public final class BlockNodeRewardsTests {
                 return this;
             }
 
+            public Builder useDefaultActivityCriteria() {
+                this.useDefaultActivityCriteria = true;
+                return this;
+            }
+
             public Builder expectTransfersInUSD(@NonNull final Transfer... transfers) {
                 for (final var transfer : transfers) {
                     this.expectedRewards.put(transfer.nodeId(), toTinyDollarsInPeriod(transfer.amount(), 1));
@@ -676,7 +704,8 @@ public final class BlockNodeRewardsTests {
                         activeNodes,
                         consensusToBlockNodeAssociations,
                         minPerPeriodNodeRewardUsd,
-                        expectedRewards);
+                        expectedRewards,
+                        useDefaultActivityCriteria);
             }
 
             /** Converts USD to tinybars per period. */
