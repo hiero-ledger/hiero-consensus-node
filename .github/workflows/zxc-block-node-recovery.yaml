@@ -429,7 +429,6 @@ jobs:
           # Extract values
           LAST_AVAILABLE_BLOCK_3=$(echo "$STATUS_JSON_3" | jq -r '.lastAvailableBlock')
           echo "BN3_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_3" >> $GITHUB_ENV
-          echo "last_status_check_time=$(date +%s)" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
       # After some run time stop BN2 and BN3 to simulate unavailable BNs
@@ -454,10 +453,12 @@ jobs:
         continue-on-error: true
 
       - name: Scale 2 BNs back up to simulate restoration
+        id: bn-restoration
         run: |
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=1
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=1
-          sleep 300
+          echo "restoration_time=$(date +%s)" >> "$GITHUB_OUTPUT"
+          sleep 480
           echo "Cluster after BN-1's & BN-2's scale up"
           kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
           kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
@@ -515,12 +516,12 @@ jobs:
           range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN1_LAST_AVAILABLE_BLOCK_INIT }}))
           
           ELAPSED_DURATION=0
-          LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
+          RESTORATION_TIME=${{ steps.bn-restoration.outputs.restoration_time }}
           CHECK_TIME=$(date +%s)
-          if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
-            ELAPSED_DURATION=$((CHECK_TIME - LAST_STATUS_CHECK_TIME))
+          if [[ -n "$RESTORATION_TIME" ]]; then
+            ELAPSED_DURATION=$((CHECK_TIME - RESTORATION_TIME))
           fi
-          echo "BN1 advanced $range blocks in $ELAPSED_DURATION ns"
+          echo "BN1 advanced $range blocks in $ELAPSED_DURATION s"
           if (( range < 1 )); then
               echo "BN1 failed to advance"
               exit 1
@@ -564,12 +565,12 @@ jobs:
           
           range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN2_LAST_AVAILABLE_BLOCK_INIT }}))
           ELAPSED_DURATION=0
-          LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
+          RESTORATION_TIME=${{ steps.bn-restoration.outputs.restoration_time }}
           CHECK_TIME=$(date +%s)
-          if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
-            ELAPSED_DURATION=$((CHECK_TIME - LAST_STATUS_CHECK_TIME))
+          if [[ -n "$RESTORATION_TIME" ]]; then
+            ELAPSED_DURATION=$((CHECK_TIME - RESTORATION_TIME))
           fi
-          echo "BN2 advanced $range blocks in $ELAPSED_DURATION ns"
+          echo "BN2 advanced $range blocks in $ELAPSED_DURATION s"
           if (( range < 1 )); then
               echo "BN2 failed to advance"
               exit 1
@@ -613,12 +614,12 @@ jobs:
           
           range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN3_LAST_AVAILABLE_BLOCK_INIT }}))
           ELAPSED_DURATION=0
-          LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
+          RESTORATION_TIME=${{ steps.bn-restoration.outputs.restoration_time }}
           CHECK_TIME=$(date +%s)
-          if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
-            ELAPSED_DURATION=$((CHECK_TIME - LAST_STATUS_CHECK_TIME))
+          if [[ -n "$RESTORATION_TIME" ]]; then
+            ELAPSED_DURATION=$((CHECK_TIME - RESTORATION_TIME))
           fi
-          echo "BN3 advanced $range blocks in $ELAPSED_DURATION ns"
+          echo "BN3 advanced $range blocks in $ELAPSED_DURATION s"
           if (( range < 1 )); then
               echo "BN3 failed to advance"
               exit 1
