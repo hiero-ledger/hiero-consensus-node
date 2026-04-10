@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip1299;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_FIRST_NODE_ACCOUNT_NUM;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -62,7 +63,7 @@ public class UpdateNodeAccountTestSubprocess {
             final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
             final AtomicReference<AccountID> oldNodeAccountId = new AtomicReference<>();
             final String nodeToUpdate = "3";
-            final String baseDir = "build/hapi-test/node" + nodeToUpdate + "/data/recordStreams/";
+            final String baseDir = workingDirFor(Long.parseLong(nodeToUpdate), null) + "/data/recordStreams/";
 
             return hapiTest(
                     cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
