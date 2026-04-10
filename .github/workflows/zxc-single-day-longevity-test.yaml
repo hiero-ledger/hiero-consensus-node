@@ -212,7 +212,7 @@ jobs:
       - name: Install Task
         uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
         with:
-          version: 3.39.2
+          version: 3.49.1
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
@@ -229,12 +229,12 @@ jobs:
           cd "${HOME}"
           tar xfz cobertura-assembly-2.1.2-SNAPSHOT.tgz
 
-      - name: Install Helm
+      - name: Setup Helm
         shell: bash
         run: |
-          gcloud --no-user-output-enabled storage cp gs://performance-engineering-reports/permanent/helm-v4.1.1-linux-amd64.tar.gz ./helm-v4.1.1-linux-amd64.tar.gz
-          tar xfz helm-v4.1.1-linux-amd64.tar.gz
-          sudo mv linux-amd64/helm /usr/bin/helm
+          sudo ln -s $(find /home/runner/_work/_tool/helm/ -type f -path '*/linux-amd64/*' -name 'helm') /usr/bin/helm
+          which helm
+          helm version
 
       - name: OS check procedure
         id: setup
