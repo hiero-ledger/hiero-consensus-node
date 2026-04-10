@@ -122,11 +122,11 @@ val copyNodeData =
         into("data/onboard") { from(layout.projectDirectory.dir("../data/onboard")) }
         into("data/keys") { from(layout.projectDirectory.dir("../data/keys")) }
 
-        // Copy hedera-node/configuration/dev as hedera-node/hedera-app/build/node/data/config  }
-        from(layout.projectDirectory.dir("../configuration/dev")) { into("data/config") }
+        from(layout.projectDirectory.dir("../configuration/small-memory")) { into("data/config") }
         from(layout.projectDirectory.file("../config.txt"))
         from(layout.projectDirectory.file("../log4j2.xml"))
-        from(layout.projectDirectory.file("../configuration/dev/settings.txt"))
+        from(layout.projectDirectory.file("../configuration/small-memory/settings.txt"))
+        from(layout.projectDirectory.file("../docker/start-small-memory.sh"))
     }
 
 tasks.assemble {
@@ -141,7 +141,38 @@ tasks.register<JavaExec>("run") {
     description = "Run a Hedera consensus node instance."
     dependsOn(tasks.assemble)
     workingDir = nodeWorkingDir.get().asFile
-    jvmArgs = listOf("-cp", "data/lib/*:data/apps/*")
+    val jfcFile = rootProject.file("hedera-node/configuration/small-memory/MemoryLowOverhead.jfc")
+    val jfrFile = rootProject.file("hedera-node/hedera-app/data/recording-low-memory.jfr")
+
+    jvmArgs =
+        listOf(
+            "-cp",
+            "data/lib/*:data/apps/*",
+            "-server",
+            "-Djava.awt.headless=true",
+            "-Djava.util.concurrent.ForkJoinPool.common.parallelism=2",
+            "--limit-modules=java.base,java.compiler,java.desktop,java.logging,java.management," +
+                    "java.naming,java.net.http,java.prefs,java.rmi,java.scripting,java.security.jgss," +
+                    "java.security.sasl,java.sql,java.transaction.xa,java.xml,java.xml.crypto," +
+                    "jdk.crypto.cryptoki,jdk.crypto.ec,jdk.httpserver,jdk.jfr,jdk.management,jdk.management.jfr," +
+                    "jdk.naming.dns,jdk.net,jdk.unsupported,jdk.zipfs",
+            "-XX:+UseSerialGC",
+            //"-XX:+UseParallelGC",
+            "-Xms196M",
+            "-Xmx196M",
+            "-XX:+AlwaysPreTouch",
+            "-XX:MaxMetaspaceSize=84M",
+            "-XX:CompressedClassSpaceSize=48M",
+            "-Xss256K",
+            "-XX:-TieredCompilation",
+            "-XX:CICompilerCount=1",
+            "-XX:ReservedCodeCacheSize=24M",
+            "-XX:MaxDirectMemorySize=16M",
+            "-XX:NativeMemoryTracking=summary",
+            "-Dio.netty.allocator.type=unpooled",
+            "-XX:StartFlightRecording=dumponexit=true,settings=$jfcFile,filename=$jfrFile",
+        )
+
     mainClass.set("com.hedera.node.app.ServicesMain")
 
     // Add arguments for the application to run a local node
