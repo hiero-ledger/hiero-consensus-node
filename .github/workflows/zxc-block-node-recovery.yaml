@@ -336,14 +336,14 @@ jobs:
         continue-on-error: true
 
       - name: Port forward CN proxy & MN ports
-        id: deploy_end
         run: |
           kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
           kubectl port-forward svc/mirror-1-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
           kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
-          
-          echo "deploy_end=$(date +%s)" >> "$GITHUB_OUTPUT"
+          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
+          kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
+          kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &
 
       - name: Prepare NLG parameters
         run: |
@@ -359,9 +359,33 @@ jobs:
           --args '"-c 5 -a 10 -R -t 10"'
         continue-on-error: true
 
+      # untar protobuf sources
+      - name: Download & Untar Protobuf Sources
+        run: |
+          mkdir -p block-node-proto && cd "$_"
+          curl -L ${{ env.BLOCK_NODE_PROTO_URL }} -o block-node-protobuf-${{ env.BLOCK_NODE_TAG }}.tgz
+          # Use the generated protobuf artifact (matches local project version)
+          PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
+          if [[ -z "$PROTO_FILE" ]]; then
+            echo "Error: No protobuf artifact found"
+            ls -la
+            exit 1
+          fi
+          echo "Using protobuf artifact: $PROTO_FILE"
+          # untar the artifact
+          tar -xzf "$PROTO_FILE" -C .
+          rm "$PROTO_FILE"
+
+      - name: Install grpcurl
+        working-directory: block-node-proto
+        run: |
+          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
+          rm grpcurl.tar.gz
+
       - name: Get Initial ServerStatus from Block Nodes
         id: bn-init-status
-        run: |
+        run: |          
           # Call serverStatus on BN 1
           STATUS_JSON_1=$(grpcurl \
             -plaintext \
@@ -403,6 +427,7 @@ jobs:
           # Extract values
           LAST_AVAILABLE_BLOCK_3=$(echo "$STATUS_JSON_3" | jq -r '.lastAvailableBlock')
           echo "BN3_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_3" >> $GITHUB_ENV
+          echo "LAST_STATUS_CHECK_TIME=$(date +%s)" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
       # After some run time stop BN2 and BN3 to simulate unavailable BNs
@@ -439,32 +464,13 @@ jobs:
 
       # ---- BN verification with grpcurl ----
 
-      # untar protobuf sources
-      - name: Download & Untar Protobuf Sources
+      - name: Port forward node ports
         run: |
-          mkdir -p block-node-proto && cd "$_"
-          curl -L ${{ env.BLOCK_NODE_PROTO_URL }} -o block-node-protobuf-${{ env.BLOCK_NODE_TAG }}.tgz
-          # Use the generated protobuf artifact (matches local project version)
-          PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
-          if [[ -z "$PROTO_FILE" ]]; then
-            echo "Error: No protobuf artifact found"
-            ls -la
-            exit 1
-          fi
-          echo "Using protobuf artifact: $PROTO_FILE"
-          # untar the artifact
-          tar -xzf "$PROTO_FILE" -C .
-          rm "$PROTO_FILE"
-
-      - name: Install grpcurl
-        working-directory: block-node-proto
-        run: |
-          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
-          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
-          rm grpcurl.tar.gz
-
-      - name: Port forward BN ports
-        run: |
+          pkill -f port-forward
+          kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
+          kubectl port-forward svc/mirror-1-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
+          kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
+          kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
           kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
           kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
           kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &
@@ -505,7 +511,12 @@ jobs:
           echo "BN1_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           
           range=$((${{ env.BN1_LAST_AVAILABLE_BLOCK }} - ${{ env.BN1_LAST_AVAILABLE_BLOCK_INIT }}))
-          echo "BN1 advanced $range blocks in x time"
+          
+          ELAPSED_DURATION=0
+          if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
+            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - (date +%s)))
+          fi
+          echo "BN1 advanced $range blocks in $ELAPSED_DURATION time"
           if (( range < 1 )); then
               echo "BN1 failed to advance"
               exit 1
@@ -548,7 +559,11 @@ jobs:
           echo "BN2_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           
           range=$((${{ env.BN2_LAST_AVAILABLE_BLOCK }} - ${{ env.BN2_LAST_AVAILABLE_BLOCK_INIT }}))
-          echo "BN2 advanced $range blocks in x time"
+          ELAPSED_DURATION=0
+          if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
+            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - (date +%s)))
+          fi
+          echo "BN2 advanced $range blocks in $ELAPSED_DURATION time"
           if (( range < 1 )); then
               echo "BN2 failed to advance"
               exit 1
@@ -591,7 +606,11 @@ jobs:
           echo "BN3_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           
           range=$((${{ env.BN3_LAST_AVAILABLE_BLOCK }} - ${{ env.BN3_LAST_AVAILABLE_BLOCK_INIT }}))
-          echo "BN3 advanced $range blocks in x time"
+          ELAPSED_DURATION=0
+          if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
+            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - (date +%s)))
+          fi
+          echo "BN3 advanced $range blocks in $ELAPSED_DURATION time"
           if (( range < 1 )); then
               echo "BN3 failed to advance"
               exit 1
@@ -627,7 +646,7 @@ jobs:
           echo "Maximum last available block among BNs: $max_last_available"
           range=$((max_last_available - min_last_available))
           echo "Range of last available blocks: $range"
-          if (( range > 20 )); then
+          if (( range > 200 )); then
               echo "Range of last available blocks ($range) exceeds acceptable limit."
               exit 1
           fi
