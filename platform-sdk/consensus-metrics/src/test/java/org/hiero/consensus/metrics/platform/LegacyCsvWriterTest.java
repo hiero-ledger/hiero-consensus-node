@@ -52,7 +52,7 @@ class LegacyCsvWriterTest {
     void setStandardSettings() {
         configuration = new TestConfigBuilder()
                 .withValue(MetricsConfig_.CSV_OUTPUT_FOLDER, tempDir.toString())
-                .withValue(MetricsConfig_.CSV_APPEND, "false")
+                .withValue(MetricsConfig_.CSV_OVERWRITE, "true")
                 .withValue(BasicCommonConfig_.SHOW_INTERNAL_STATS, "false")
                 .withValue(BasicCommonConfig_.VERBOSE_STATISTICS, "false")
                 .getOrCreateConfig();
@@ -236,7 +236,7 @@ class LegacyCsvWriterTest {
         // given
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(MetricsConfig_.CSV_OUTPUT_FOLDER, tempDir.toString())
-                .withValue(MetricsConfig_.CSV_APPEND, "true")
+                .withValue(MetricsConfig_.CSV_OVERWRITE, "false")
                 .getOrCreateConfig();
         final LegacyCsvWriter writer = new LegacyCsvWriter(NODE_ID, tempDir, configuration);
         final Path csvFilePath = writer.getCsvFilePath();
@@ -271,8 +271,17 @@ class LegacyCsvWriterTest {
                                 ,,Counter,DoubleGauge,
                                 ,,1,2.0,
                                 ,,11,12.0,
+                                """);
 
+        final String content2 = Files.readString(
+                csvFilePath.resolveSibling(csvFilePath.getFileName().toString().replace(".csv", "") + "_1.csv"));
+        assertThat(content2).matches("""
+                                filename:,.*,
+                                Counter:,Counter,
+                                DoubleGauge:,DoubleGauge,
 
+                                ,,platform,platform,
+                                ,,Counter,DoubleGauge,
                                 ,,0,0.0,
                                 """);
     }
@@ -282,7 +291,7 @@ class LegacyCsvWriterTest {
         // given
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(MetricsConfig_.CSV_OUTPUT_FOLDER, tempDir.toString())
-                .withValue(MetricsConfig_.CSV_APPEND, "true")
+                .withValue(MetricsConfig_.CSV_OVERWRITE, "false")
                 .getOrCreateConfig();
         final LegacyCsvWriter writer = new LegacyCsvWriter(NODE_ID, tempDir, configuration);
         final Path csvFilePath = writer.getCsvFilePath();

@@ -280,13 +280,6 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         try {
             final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
             validatePayloadLength(hevmTransaction);
-
-            if (hevmTransaction.isEthereumTransaction()) {
-                final var sender = rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId());
-                if (sender != null && hevmTransaction.nonce() != sender.getNonce()) {
-                    throw new HandleException(WRONG_NONCE);
-                }
-            }
             return hevmTransaction;
         } catch (IllegalArgumentException e1) {
             return hevmTransactionFactory.fromContractTxException(

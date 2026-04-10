@@ -74,6 +74,7 @@ open module com.hedera.node.test.clients {
     provides LauncherSessionListener with
             SharedNetworkLauncherSessionListener;
 
+    requires com.hedera.cryptography.hints;
     requires com.hedera.cryptography.wraps;
     requires com.hedera.node.app.hapi.fees;
     requires com.hedera.node.app.hapi.utils;
@@ -112,6 +113,7 @@ open module com.hedera.node.test.clients {
     requires org.hiero.base.utility;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.pces.impl.test.fixtures;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;

@@ -61,6 +61,7 @@ on:
 permissions:
   id-token: write
   actions: read
+  issues: write
   pull-requests: write
   statuses: write
   checks: write
@@ -86,11 +87,13 @@ jobs:
       enable-hapi-tests-time-consuming: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-hapi-tests-simplefees: "${{ inputs.enable-hapi-tests || 'false' }}"
+      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests || 'false' }}"
+      enable-hapi-tests-smart-contract: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-otter-tests: "${{ inputs.enable-otter-tests || 'false' }}"
       enable-snyk-scan: "${{ inputs.enable-snyk-scan || 'false' }}"
       enable-gradle-determinism: "${{ inputs.enable-gradle-determinism || 'false' }}"
       enable-docker-determinism: "${{ inputs.enable-docker-determinism || 'false' }}"
-      java-version: "21.0.6"
+      java-version: "25"
       java-distribution: "temurin"
       custom-job-label: "${{ inputs.custom-job-label || 'MATS (dry-run):' }}"
     secrets:
@@ -100,3 +103,14 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
+
+  report-flaky-tests:
+    name: Report Flaky Tests
+    needs:
+      - mats-tests
+    if: ${{ !cancelled() && always() }}
+    uses: ./.github/workflows/800-call-report-flaky-test.yaml
+    with:
+      workflow-context: dry-run
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}

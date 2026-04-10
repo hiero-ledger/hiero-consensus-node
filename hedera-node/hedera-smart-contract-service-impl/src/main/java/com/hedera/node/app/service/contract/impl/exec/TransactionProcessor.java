@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.resourceExhaustionFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
@@ -298,6 +299,9 @@ public class TransactionProcessor {
             } else {
                 parties = partiesWhenContractRequired(to, sender, relayer, transaction, updater);
             }
+        }
+        if (transaction.isEthereumTransaction()) {
+            validateTrue(transaction.nonce() == parties.sender().getNonce(), WRONG_NONCE);
         }
         return parties;
     }

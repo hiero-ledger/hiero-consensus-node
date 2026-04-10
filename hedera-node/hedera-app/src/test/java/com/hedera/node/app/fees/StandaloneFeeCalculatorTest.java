@@ -30,8 +30,8 @@ import org.junit.jupiter.api.Test;
 
 public class StandaloneFeeCalculatorTest {
     static final long TINY_CENTS = 100_000_000L;
-    static final long CREATE_TOPIC_BASE = 99000000L;
-    static final long SUBMIT_MESSAGE_BASE = 7000000L;
+    static final long CREATE_TOPIC_BASE = 99_000_000L;
+    static final long SUBMIT_MESSAGE_BASE = 700_000L;
     static final long NODE_BASE = 100000;
     static final long SIG_EXTRA = 100000;
 
@@ -290,8 +290,9 @@ public class StandaloneFeeCalculatorTest {
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(7_000_000L);
-        assertThat(result.totalTinycents()).isEqualTo(7_000_000 + 1_000_000L); // add in the node + network fee
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE);
+        assertThat(result.totalTinycents())
+                .isEqualTo(SUBMIT_MESSAGE_BASE + 1_000_000L); // add in the node + network fee
     }
 
     @Test
@@ -330,5 +331,27 @@ public class StandaloneFeeCalculatorTest {
         assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE);
         // 1 sig included, so only one charged
         assertThat(result.getNodeTotalTinycents()).isEqualTo(NODE_BASE + SIG_EXTRA);
+    }
+
+    @Test
+    public void testUnsignedTransaction() throws ParseException {
+
+        final StandaloneFeeCalculator calc = setupCalculator();
+        // 0.01000
+        final long topicEntityNum = 1L;
+        final TopicID topicId = TopicID.newBuilder().topicNum(topicEntityNum).build();
+        final var body = TransactionBody.newBuilder()
+                .consensusSubmitMessage(ConsensusSubmitMessageTransactionBody.newBuilder()
+                        .topicID(topicId)
+                        .message(Bytes.wrap("some message"))
+                        .build())
+                .build();
+        final Transaction txn = Transaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                .build();
+        final FeeResult result = calc.calculateIntrinsic(txn);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE);
+        assertThat(result.totalTinycents())
+                .isEqualTo(SUBMIT_MESSAGE_BASE + 1_000_000L); // add in the node + network fee
     }
 }

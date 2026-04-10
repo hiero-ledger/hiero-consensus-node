@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.subprocess;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
@@ -14,6 +15,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.generateNe
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.CANDIDATE_ROSTER_JSON;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.WAITING_FOR_LEDGER_ID;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
@@ -35,7 +37,6 @@ import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
-import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.hedera.utils.NetworkUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
@@ -44,6 +45,7 @@ import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
+import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -69,6 +71,8 @@ import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A network of Hedera nodes started in subprocesses and accessed via gRPC. Unlike
@@ -76,8 +80,11 @@ import org.apache.logging.log4j.Logger;
  * stopping and restarting.
  */
 public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetwork {
-    public static final String SHARED_NETWORK_NAME = "SHARED_NETWORK";
     private static final Logger log = LogManager.getLogger(SubProcessNetwork.class);
+
+    public static final String SHARED_NETWORK_NAME = "SHARED_NETWORK";
+    public static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
+    private static final Duration LEDGER_ID_RETRY_BACKOFF = Duration.ofMillis(100);
 
     // 3 gRPC ports, 2 gossip ports, 1 Prometheus
     private static final int PORTS_PER_NODE = 6;
@@ -102,14 +109,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     private long maxNodeId;
     private Network network;
-    private final Network genesisNetwork;
+    private Map<NodeId, KeysAndCerts> nodeKeys;
     private final long shard;
     private final long realm;
 
     private final List<Consumer<HederaNode>> postInitWorkingDirActions = new ArrayList<>();
     private final List<Consumer<HederaNetwork>> onReadyListeners = new ArrayList<>();
     private BlockNodeMode blockNodeMode = BlockNodeMode.NONE;
-    private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
@@ -178,8 +184,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
-        this.network = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
-        this.genesisNetwork = network;
+        final var networkWithKeys = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        this.network = networkWithKeys.network();
+        this.nodeKeys = networkWithKeys.keysAndCerts();
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
         this.postInitWorkingDirActions.add(SubProcessNetwork::configurePlatformSettings);
     }
@@ -218,6 +225,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void start() {
         nodes.forEach(node -> {
             node.initWorkingDir(network);
+            writeNodeSigningKey(node);
             executePostInitWorkingDirActions(node);
             node.start();
         });
@@ -264,6 +272,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 final var deadline = Instant.now().plus(timeout);
                 // Block until all nodes are ACTIVE and ready to handle transactions
                 nodes.forEach(node -> awaitStatus(node, Duration.between(Instant.now(), deadline), ACTIVE));
+                // Even when restarting a HapiTest network, it will have always gone through genesis in the test
+                // lifecycle
                 nodes.forEach(node -> node.logFuture(HandleWorkflow.SYSTEM_ENTITIES_CREATED_MSG)
                         .orTimeout(10, TimeUnit.SECONDS)
                         .join());
@@ -275,6 +285,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         .orTimeout(30, TimeUnit.MINUTES))
                         .join());
                 this.clients = HapiClients.clientsFor(this);
+                awaitLedgerIdReady(deadline);
             });
             // We only need one thread to wait for readiness
             if (ready.compareAndSet(null, deferredRun)) {
@@ -284,6 +295,42 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             }
         }
         ready.get().futureOrThrow().join();
+    }
+
+    /**
+     * Wait for the ledger id to be set on the target network.
+     * @param timeout the maximum time to wait for the ledger id to be set
+     */
+    public void awaitLedgerId(@NonNull final Duration timeout) {
+        awaitLedgerIdReady(Instant.now().plus(timeout));
+    }
+
+    private void awaitLedgerIdReady(@NonNull final Instant deadline) {
+        final var accountId = fromPbj(nodes.getFirst().getAccountId());
+        final var ledgerIdDeadline = earlierOf(deadline, Instant.now().plus(LEDGER_ID_TIMEOUT));
+        var status = WAITING_FOR_LEDGER_ID;
+        while (!Instant.now().isAfter(ledgerIdDeadline)) {
+            try {
+                status = requireNonNull(this.clients)
+                        .getCryptoSvcStub(accountId, false, false)
+                        .cryptoTransfer(Transaction.getDefaultInstance())
+                        .getNodeTransactionPrecheckCode();
+            } catch (Throwable t) {
+                throw new IllegalStateException("Unable to probe ledger-id readiness for network '" + name() + "'", t);
+            }
+            if (status != WAITING_FOR_LEDGER_ID) {
+                return;
+            }
+            abortAndThrowIfInterrupted(
+                    () -> TimeUnit.MILLISECONDS.sleep(LEDGER_ID_RETRY_BACKOFF.toMillis()),
+                    "Interrupted while waiting for ledger id readiness");
+        }
+        throw new IllegalStateException(
+                "Network '" + name() + "' remained in " + WAITING_FOR_LEDGER_ID + " until " + ledgerIdDeadline);
+    }
+
+    private static @NonNull Instant earlierOf(@NonNull final Instant first, @NonNull final Instant second) {
+        return first.isBefore(second) ? first : second;
     }
 
     /**
@@ -329,7 +376,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             nextPrometheusPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
-        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        final var nwk =
+                NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        network = nwk.network();
+        nodeKeys = nwk.keysAndCerts();
         refreshOverrideNetworks(ReassignPorts.YES);
     }
 
@@ -352,8 +402,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var node = getRequiredNode(selector);
         node.stopFuture();
         nodes.remove(node);
-        network = NetworkUtils.generateNetworkConfig(
+        final var nwk = NetworkUtils.generateNetworkConfig(
                 nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = nwk.network();
+        nodeKeys = nwk.keysAndCerts();
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -391,9 +443,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             node.reassignNodeAccountIdFrom(accountId);
         }
         nodes.add(insertionPoint, node);
-        network = NetworkUtils.generateNetworkConfig(
+        final var nwk = NetworkUtils.generateNetworkConfig(
                 nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = nwk.network();
+        nodeKeys = nwk.keysAndCerts();
         nodes.get(insertionPoint).initWorkingDir(network);
+        writeNodeSigningKey(nodes.get(insertionPoint));
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);
         }
@@ -623,6 +678,14 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             }
         }
         throw new RuntimeException("Could not find available port after 100 attempts");
+    }
+
+    private void writeNodeSigningKey(@NonNull final HederaNode node) {
+        final var nodeId = NodeId.of(node.getNodeId());
+        final var kac = nodeKeys.get(nodeId);
+        if (kac != null) {
+            WorkingDirUtils.writeSigningKey(node.metadata().workingDirOrThrow(), node.getNodeId(), kac);
+        }
     }
 
     public void configureApplicationProperties(HederaNode node) {

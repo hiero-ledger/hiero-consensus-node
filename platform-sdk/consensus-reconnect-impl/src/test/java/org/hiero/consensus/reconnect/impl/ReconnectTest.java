@@ -13,7 +13,6 @@ import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestStateUtils;
@@ -37,7 +36,6 @@ import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,12 +62,6 @@ final class ReconnectTest {
         ConstructableRegistration.registerSyncConstructables();
     }
 
-    @AfterAll
-    static void tearDown() {
-        RandomSignedStateGenerator.releaseAllBuiltSignedStates();
-        MerkleDbTestUtils.assertAllDatabasesClosed();
-    }
-
     @Test
     @DisplayName("Successfully reconnects multiple times and stats are updated")
     void statsTrackSuccessfulReconnect() throws IOException, InterruptedException {
@@ -87,7 +79,6 @@ final class ReconnectTest {
     }
 
     private void executeReconnect(final ReconnectMetrics reconnectMetrics) throws InterruptedException, IOException {
-
         final long weightPerNode = 100L;
         final int numNodes = 4;
         final List<NodeId> nodeIds =

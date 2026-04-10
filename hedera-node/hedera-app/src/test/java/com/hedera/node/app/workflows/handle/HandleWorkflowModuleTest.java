@@ -17,6 +17,7 @@ import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.handlers.HistoryProofKeyPublicationHandler;
 import com.hedera.node.app.history.handlers.HistoryProofSignatureHandler;
 import com.hedera.node.app.history.handlers.HistoryProofVoteHandler;
+import com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
@@ -120,6 +121,9 @@ class HandleWorkflowModuleTest {
 
     @Mock
     private HistoryProofKeyPublicationHandler proofKeyPublicationHandler;
+
+    @Mock
+    private MigrationRootHashVoteHandler migrationRootHashVoteHandler;
 
     @Mock
     private HistoryProofSignatureHandler proofSignatureHandler;
@@ -360,7 +364,8 @@ class HandleWorkflowModuleTest {
                 utilHandlers,
                 addressBookHandlers,
                 hintsHandlers,
-                historyHandlers);
+                historyHandlers,
+                migrationRootHashVoteHandler);
         assertInstanceOf(TransactionHandlers.class, handlers);
     }
 }

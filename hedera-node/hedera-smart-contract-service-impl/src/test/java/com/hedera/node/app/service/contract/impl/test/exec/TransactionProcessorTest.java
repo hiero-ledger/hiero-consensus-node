@@ -204,6 +204,7 @@ class TransactionProcessorTest {
     @Test
     void lazyCreationAttemptWithValidAddress() {
         givenSenderAccount();
+        given(senderAccount.getNonce()).willReturn(NONCE);
         givenRelayerAccount();
         givenAccessTracker(mock(StorageAccessTracker.class));
         final var transaction = new HederaEvmTransaction(
@@ -262,6 +263,7 @@ class TransactionProcessorTest {
     @Test
     void lazyCreationAttemptCanCallNotExistingFeatureFlagOn() {
         givenSenderAccount();
+        given(senderAccount.getNonce()).willReturn(NONCE);
         givenRelayerAccount();
         given(tracker.getJustReads()).willReturn(List.of());
         givenAccessTracker(tracker);
@@ -363,6 +365,7 @@ class TransactionProcessorTest {
                         List.of()))
                 .willReturn(initialFrame);
         given(senderAccount.hederaId()).willReturn(SENDER_ID);
+        given(senderAccount.getNonce()).willReturn(NONCE);
         given(frameRunner.runToCompletion(
                         transaction.gasLimit(),
                         SENDER_ID,
@@ -620,6 +623,7 @@ class TransactionProcessorTest {
                 inOrder(worldUpdater, frameBuilder, frameRunner, gasCharging, messageCallProcessor, senderAccount);
 
         givenSenderAccount();
+        given(senderAccount.getNonce()).willReturn(NONCE);
         givenRelayerAccount();
         givenReceiverAccount();
         givenAccessTracker(mock(StorageAccessTracker.class));
@@ -702,6 +706,7 @@ class TransactionProcessorTest {
                 inOrder(worldUpdater, frameBuilder, frameRunner, gasCharging, messageCallProcessor, senderAccount);
 
         givenSenderAccount();
+        given(senderAccount.getNonce()).willReturn(NONCE);
         givenRelayerAccount();
         givenReceiverAccount();
         givenAccessTracker(mock(StorageAccessTracker.class));
@@ -794,6 +799,7 @@ class TransactionProcessorTest {
         given(gasCharging.chargeForGas(senderAccount, relayerAccount, context, worldUpdater, transaction))
                 .willReturn(CHARGING_RESULT);
         given(senderAccount.getAddress()).willReturn(EIP_1014_ADDRESS);
+        given(senderAccount.getNonce()).willReturn(NONCE);
         given(receiverAccount.getAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
         given(frameBuilder.buildInitialFrameWith(
                         transaction,
