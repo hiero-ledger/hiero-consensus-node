@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.systemFileDelete;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
@@ -15,6 +14,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_DELETE_ADMIN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -108,12 +108,13 @@ public class CannotDeleteSystemEntitiesSuite {
                                 .distributing(GENESIS, SYSTEM_ADMIN, SYSTEM_DELETE_ADMIN))
                         .payingWith(GENESIS),
                 inParallel(IntStream.rangeClosed(firstAccount, lastAccount)
-                        .mapToObj(id -> cryptoDelete("0.0." + id)
-                                .transfer("unluckyReceiver")
-                                .payingWith(sysUser)
-                                .signedBy(sysUser)
-                                .hasPrecheckFrom(ENTITY_NOT_ALLOWED_TO_DELETE))
-                        .toArray(HapiSpecOperation[]::new)));
+                                .mapToObj(id -> cryptoDelete(String.valueOf(id))
+                                        .transfer("unluckyReceiver")
+                                        .payingWith(sysUser)
+                                        .signedBy(sysUser)
+                                        .hasKnownStatus(ENTITY_NOT_ALLOWED_TO_DELETE))
+                                .toArray(HapiSpecOperation[]::new))
+                        .failOnErrors());
     }
 
     final Stream<DynamicTest> normalUserCannotDeleteSystemAccounts(int firstAccount, int lastAccount) {
@@ -122,12 +123,13 @@ public class CannotDeleteSystemEntitiesSuite {
                 cryptoCreate("unluckyReceiver").balance(0L),
                 cryptoCreate("normalUser").key("normalKey").balance(1_000_000_000L),
                 inParallel(IntStream.rangeClosed(firstAccount, lastAccount)
-                        .mapToObj(id -> cryptoDelete("0.0." + id)
-                                .transfer("unluckyReceiver")
-                                .payingWith("normalUser")
-                                .signedBy("normalKey")
-                                .hasPrecheck(ENTITY_NOT_ALLOWED_TO_DELETE))
-                        .toArray(HapiSpecOperation[]::new)));
+                                .mapToObj(id -> cryptoDelete(String.valueOf(id))
+                                        .transfer("unluckyReceiver")
+                                        .payingWith("normalUser")
+                                        .signedBy("normalKey")
+                                        .hasKnownStatus(ENTITY_NOT_ALLOWED_TO_DELETE))
+                                .toArray(HapiSpecOperation[]::new))
+                        .failOnErrors());
     }
 
     final Stream<DynamicTest> systemUserCannotDeleteSystemFiles(int[] fileIds, String sysUser) {
@@ -136,11 +138,12 @@ public class CannotDeleteSystemEntitiesSuite {
                                 .distributing(GENESIS, SYSTEM_ADMIN, SYSTEM_DELETE_ADMIN))
                         .payingWith(GENESIS),
                 inParallel(Arrays.stream(fileIds)
-                        .mapToObj(id -> cryptoDelete("0.0." + id)
-                                .payingWith(sysUser)
-                                .signedBy(sysUser)
-                                .hasPrecheck(ENTITY_NOT_ALLOWED_TO_DELETE))
-                        .toArray(HapiSpecOperation[]::new)));
+                                .mapToObj(id -> systemFileDelete(String.valueOf(id))
+                                        .payingWith(sysUser)
+                                        .signedBy(sysUser)
+                                        .hasKnownStatus(ENTITY_NOT_ALLOWED_TO_DELETE))
+                                .toArray(HapiSpecOperation[]::new))
+                        .failOnErrors());
     }
 
     final Stream<DynamicTest> normalUserCannotDeleteSystemFiles(int[] fileIds) {
@@ -148,11 +151,12 @@ public class CannotDeleteSystemEntitiesSuite {
                 newKeyNamed("normalKey"),
                 cryptoCreate("normalUser").key("normalKey").balance(1_000_000_000L),
                 inParallel(Arrays.stream(fileIds)
-                        .mapToObj(id -> fileDelete("0.0." + id)
-                                .payingWith("normalUser")
-                                .signedBy("normalKey")
-                                .hasPrecheck(ENTITY_NOT_ALLOWED_TO_DELETE))
-                        .toArray(HapiSpecOperation[]::new)));
+                                .mapToObj(id -> systemFileDelete(String.valueOf(id))
+                                        .payingWith("normalUser")
+                                        .signedBy("normalKey")
+                                        .hasPrecheck(NOT_SUPPORTED))
+                                .toArray(HapiSpecOperation[]::new))
+                        .failOnErrors());
     }
 
     final Stream<DynamicTest> systemDeleteCannotDeleteSystemFiles(int[] fileIds, String sysUser) {
@@ -161,10 +165,11 @@ public class CannotDeleteSystemEntitiesSuite {
                                 .distributing(GENESIS, SYSTEM_ADMIN, SYSTEM_DELETE_ADMIN))
                         .payingWith(GENESIS),
                 inParallel(Arrays.stream(fileIds)
-                        .mapToObj(id -> systemFileDelete("0.0." + id)
-                                .payingWith(sysUser)
-                                .signedBy(sysUser)
-                                .hasPrecheck(ENTITY_NOT_ALLOWED_TO_DELETE))
-                        .toArray(HapiSpecOperation[]::new)));
+                                .mapToObj(id -> systemFileDelete(String.valueOf(id))
+                                        .payingWith(sysUser)
+                                        .signedBy(sysUser)
+                                        .hasKnownStatus(ENTITY_NOT_ALLOWED_TO_DELETE))
+                                .toArray(HapiSpecOperation[]::new))
+                        .failOnErrors());
     }
 }
