@@ -43,10 +43,7 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
                         "BlockInfo wrapped record migration voting state already present (deadlineBlock={}, votingComplete={})",
                         existingBlockInfo.votingCompletionDeadlineBlockNumber(),
                         existingBlockInfo.votingComplete());
-            } else if (ctx.appConfig()
-                            .getConfigData(BlockStreamJumpstartConfig.class)
-                            .blockNum()
-                    > 0) {
+            } else if (hasJumpstartData(ctx)) {
                 // We only want to initialize jumpstart voting if valid jumpstart data is present
                 final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
                 blockInfoSingleton.put(existingBlockInfo
@@ -58,6 +55,26 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
                         "Initialized wrapped record voting singleton with deadline={}",
                         votingCompletionDeadlineBlockNumber);
             }
+        } else if (ctx.isGenesis()
+                && !hasJumpstartData(ctx)
+                && ctx.appConfig().getConfigData(BlockRecordStreamConfig.class).liveWritePrevWrappedRecordHashes()) {
+            final var blockInfoSingleton = ctx.newStates().<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+            final var existingBlockInfo = blockInfoSingleton.get();
+            log.info("Genesis initialization of wrapped record block voting set to complete (no migration)");
+            if (existingBlockInfo != null) {
+                blockInfoSingleton.put(existingBlockInfo
+                        .copyBuilder()
+                        .votingComplete(true)
+                        .votingCompletionDeadlineBlockNumber(0)
+                        .build());
+            } else {
+                log.warn(
+                        "Genesis initialization of wrapped record block voting failed because BlockInfo singleton does not exist");
+            }
         }
+    }
+
+    private static boolean hasJumpstartData(@NonNull MigrationContext ctx) {
+        return ctx.appConfig().getConfigData(BlockStreamJumpstartConfig.class).blockNum() > 0;
     }
 }
