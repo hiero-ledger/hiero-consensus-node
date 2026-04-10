@@ -39,6 +39,7 @@ import com.hedera.hapi.streams.SidecarFile;
 import com.hedera.hapi.streams.SidecarMetadata;
 import com.hedera.hapi.streams.SidecarType;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
+import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.fixtures.AppTestBase;
@@ -120,6 +121,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -182,6 +184,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
 
             final var creationTime = new Timestamp(10, 1);
@@ -333,6 +336,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             // Trigger a block boundary immediately; since no endUserTransaction was called, there are no captured
             // items.
@@ -391,6 +395,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -454,6 +459,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -519,6 +525,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -590,6 +597,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -655,6 +663,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -715,6 +724,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             // Trigger a block boundary without any endUserTransaction calls (empty items)
             final var t1 = InstantUtils.instant(13, 1);
@@ -798,6 +808,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART)) {
             // Drive a block boundary: start block 0 (EPOCH path), add items, cross period
             final var t0 = InstantUtils.instant(10, 1);
@@ -886,6 +897,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART)) {
             // First boundary: freeze-restart with null currentBlockStartRunningHash (preserves state)
             final var t0 = InstantUtils.instant(200, 0);
@@ -954,6 +966,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             // Open block 0 via EPOCH path
             final var t0 = InstantUtils.instant(10, 1);
@@ -1020,6 +1033,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -1082,6 +1096,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
         }
@@ -1136,6 +1151,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
@@ -1198,6 +1214,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART)) {
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, syncedIntermediate, 1);
             // Freeze persistence should use the synced in-memory wrapped hash state.
@@ -1266,6 +1283,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART)) {
             // Open first block
             final var t0 = InstantUtils.instant(200, 1);
@@ -1342,6 +1360,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART)) {
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, List.of(Bytes.wrap(new byte[48])), 1);
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
@@ -1423,6 +1442,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RESTART)) {
             // First boundary after restart: freeze-restart with null currentBlockStartRunningHash
             final var t0 = InstantUtils.instant(200, 0);
@@ -1487,6 +1507,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             // Open block 0 (EPOCH path), add items, cross period
             final var t0 = InstantUtils.instant(10, 1);
@@ -1555,6 +1576,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 heartbeat,
                 app.platform(),
                 diskWriter,
+                () -> mock(BlockItemWriter.class),
                 InitTrigger.RECONNECT)) {
             // Open block 0 (EPOCH path), add items, cross period boundary
             final var t0 = InstantUtils.instant(10, 1);
@@ -1656,5 +1678,162 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         private static java.time.Instant instant(final long seconds, final int nanos) {
             return java.time.Instant.ofEpochSecond(seconds, nanos);
         }
+    }
+
+    @Test
+    void streamsWrappedRecordBlocksThroughGrpcWriterWhenFlagEnabled() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.streamWrappedRecordBlocks", true)
+                .build();
+
+        seedRequiredState(app);
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+
+        // Capture every writer the supplier hands out so we can assert against each one individually
+        final java.util.List<BlockItemWriter> handedOutWriters = new java.util.ArrayList<>();
+        final java.util.function.Supplier<BlockItemWriter> capturingSupplier = () -> {
+            final var w = mock(BlockItemWriter.class);
+            handedOutWriters.add(w);
+            return w;
+        };
+
+        // Construct without try-with-resources so we can assert on the writers BEFORE close() drains them
+        final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                capturingSupplier,
+                InitTrigger.RECONNECT);
+
+        // Block 0: emit one record at t0
+        final var t0 = InstantUtils.instant(10, 1);
+        mgr.startUserTransaction(t0, state);
+        mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+
+        // Cross the 2-second log period boundary -> finalizes block 0, opens block 1
+        final var t1 = InstantUtils.instant(13, 1);
+        mgr.startUserTransaction(t1, state);
+        mgr.endUserTransaction(Stream.of(sampleTxnRecord(t1, List.of())), state);
+
+        // Cross another boundary -> finalizes block 1
+        final var t2 = InstantUtils.instant(16, 1);
+        mgr.startUserTransaction(t2, state);
+
+        // Two block boundaries crossed => two writer instances
+        assertEquals(2, handedOutWriters.size(), "expected one writer per WRB block boundary");
+
+        // Each writer must have received: openBlock -> writePbjItem(header) -> writePbjItem(recordFile),
+        // and must NOT have been closed (block proof / footer is produced by a follow-up).
+        for (final var w : handedOutWriters) {
+            final var inOrder = org.mockito.Mockito.inOrder(w);
+            inOrder.verify(w).openBlock(org.mockito.ArgumentMatchers.anyLong());
+            inOrder.verify(w, org.mockito.Mockito.times(2)).writePbjItem(org.mockito.ArgumentMatchers.any());
+            inOrder.verifyNoMoreInteractions();
+            verify(w, never()).closeCompleteBlock();
+            verify(w, never())
+                    .flushPendingBlock(
+                            org.mockito.ArgumentMatchers.any(com.hedera.node.internal.network.PendingProof.class));
+        }
+
+        // The two items written to each writer must be a BlockHeader followed by a RecordFile
+        for (final var w : handedOutWriters) {
+            final var captor = ArgumentCaptor.forClass(BlockItem.class);
+            verify(w, org.mockito.Mockito.times(2)).writePbjItem(captor.capture());
+            final var items = captor.getAllValues();
+            assertNotNull(items.get(0).blockHeader(), "first item must be a BlockHeader");
+            assertNotNull(items.get(1).recordFile(), "second item must be a RecordFile");
+        }
+
+        mgr.close();
+    }
+
+    @Test
+    void closeFlushesPendingWrbWritersWhenFlagEnabled() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.streamWrappedRecordBlocks", true)
+                .build();
+
+        seedRequiredState(app);
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+
+        final java.util.List<BlockItemWriter> handedOutWriters = new java.util.ArrayList<>();
+        final java.util.function.Supplier<BlockItemWriter> capturingSupplier = () -> {
+            final var w = mock(BlockItemWriter.class);
+            handedOutWriters.add(w);
+            return w;
+        };
+
+        final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                capturingSupplier,
+                InitTrigger.RECONNECT);
+
+        final var t0 = InstantUtils.instant(10, 1);
+        mgr.startUserTransaction(t0, state);
+        mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+        // Trigger one block boundary so a writer is parked
+        final var t1 = InstantUtils.instant(13, 1);
+        mgr.startUserTransaction(t1, state);
+
+        assertEquals(1, handedOutWriters.size(), "one writer should have been handed out");
+
+        // Closing the manager must drain the parked writer via flushPendingBlock(PendingProof.DEFAULT)
+        mgr.close();
+
+        verify(handedOutWriters.get(0)).flushPendingBlock(com.hedera.node.internal.network.PendingProof.DEFAULT);
+    }
+
+    private void seedRequiredState(final com.hedera.node.app.fixtures.AppTestBase.App app) {
+        app.stateMutator(BlockRecordService.NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(-1)
+                                .firstConsTimeOfLastBlock(EPOCH)
+                                .blockHashes(Bytes.EMPTY)
+                                .consTimeOfLastHandledTxn(EPOCH)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(EPOCH)
+                                .lastUsedConsTime(EPOCH)
+                                .lastIntervalProcessTime(EPOCH)
+                                .votingComplete(true)
+                                .build())
+                .withSingletonState(
+                        RUNNING_HASHES_STATE_ID,
+                        RunningHashes.newBuilder()
+                                .runningHash(Bytes.wrap(new byte[48]))
+                                .build())
+                .commit();
+        app.stateMutator(PlatformStateService.NAME)
+                .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, PlatformState.DEFAULT)
+                .commit();
     }
 }
