@@ -270,6 +270,15 @@ jobs:
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
+          solo relay node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
+
+
+      - name: Show running pods and services and wait on BN readiness
+        run: |
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --timeout=180s
+        continue-on-error: true
 
       # port forwards
       - name: Solo Port forwards
@@ -279,6 +288,8 @@ jobs:
           kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
           kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
+          kubectl port-forward svc/relay-node-1 -n "${{ env.SOLO_NAMESPACE }}" 8544:8544 &
+        continue-on-error: true
 
       # ---- BN verification with grpcurl ----
 
@@ -348,12 +359,6 @@ jobs:
           # Export for later steps
           echo "FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
-
-      - name: Show running pods and services
-        run: |
-          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
-          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
-        continue-on-error: true
 
       # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
