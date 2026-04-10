@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -74,16 +75,6 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         this.clientFactory = requireNonNull(clientFactory, "client factory is required");
     }
 
-    /**
-     * @return the timeout out duration for async operations
-     */
-    private Duration operationTimeout() {
-        return configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .pipelineOperationTimeout();
-    }
-
     @Override
     void initialize() {
         if (currentState() != ConnectionState.UNINITIALIZED) {
@@ -95,7 +86,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         try {
             future = blockingIoExecutor.submit(new CreateClientTask());
-            future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
             logger.warn("{} Error initializing connection", this, e);
 
@@ -131,8 +122,8 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
             final long clientId = clientCtr.incrementAndGet();
             logger.debug("{} Creating new client (clientId: {})", BlockNodeServiceConnection.this, clientId);
-            final BlockNodeServiceClient client =
-                    clientFactory.createServiceClient(configuration(), timeout, connectionId());
+            final BlockNodeServiceClient client = clientFactory.createServiceClient(
+                    configuration(), timeout, connectionId().toString());
             if (clientRef.compareAndSet(null, new BlockNodeServiceConnection.ServiceClientHolder(clientId, client))) {
                 // unlike the streaming connection, these connections don't really have an intermediate state between
                 // UNINITIALIZED and ACTIVE, so just set the state to ACTIVE
@@ -158,7 +149,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             logger.debug("{} Silently closing client (clientId: {})", BlockNodeServiceConnection.this, holder.clientId);
             try {
                 final Future<?> future = blockingIoExecutor.submit(new CloseClientTask(holder));
-                future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
             } catch (final Exception e) {
                 logger.debug(
                         "{} Attempted to close a client (clientId: {}), but it failed; ignoring failure",
@@ -210,7 +201,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         try {
             future = blockingIoExecutor.submit(new CloseClientTask(clientHolder));
-            future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
             // the connection is being closed... don't propagate the exception
             logger.warn("{} Error occurred while closing connection; it will be suppressed", this, e);
@@ -244,14 +235,13 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
 
         final long startMillis = System.currentTimeMillis();
-        final String correlationId = connectionId();
         Future<ServerStatusResponse> future = null;
         final ServerStatusResponse response;
         final long durationMillis;
 
         try {
             future = blockingIoExecutor.submit(new GetBlockNodeStatusTask(clientHolder.client));
-            response = future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            response = future.get(bncConfig().pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
             durationMillis = System.currentTimeMillis() - startMillis;
         } catch (final Exception e) {
             final GrpcException grpcException = findGrpcException(e);
@@ -275,7 +265,6 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         logger.debug(
                 "{} Received the following block node server status: lastAvailableBlock={} (latency: {}ms)",
                 this,
-                correlationId,
                 response.lastAvailableBlock(),
                 durationMillis);
 
@@ -296,7 +285,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         GetBlockNodeStatusTask(@NonNull final BlockNodeServiceClient client) {
             this.client = requireNonNull(client, "client is required");
-            this.correlationId = connectionId();
+            this.correlationId = connectionId().toString();
         }
 
         @Override

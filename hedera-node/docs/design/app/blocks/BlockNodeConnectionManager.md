@@ -41,6 +41,9 @@ blocks.
 <dt>BlockNodeStats</dt>
 <dd>Maintains health and performance metrics for each block node including EndOfStream counts, block acknowledgement latency, and consecutive high-latency events.</dd>
 
+<dt>BlockNodeConfigService</dt>
+<dd>Service that monitors changes to the block-nodes.json file so new configurations can be dynamically loaded</dd>
+
 <dt>Priority-based Selection</dt>
 <dd>Algorithm for selecting the next block node to connect to based on configured priority values. Lower priority numbers indicate higher preference.</dd>
 </dl>
@@ -48,10 +51,7 @@ blocks.
 ## Component Responsibilities
 
 - Maintain a registry of active connection instances.
-- Track the latest verified block for each connection.
 - Select the most appropriate connection for streaming blocks based on priority.
-- Retry failed connections with exponential backoff (configurable multiplier and max delay).
-- Track retry state and health statistics per node across connection lifecycles.
 - Remove or replace failed connections.
 - Support lifecycle control and dynamic configuration updates.
 
@@ -61,11 +61,46 @@ blocks.
 - Calls `BlockBufferService` to get the blocks/requests to send and to also notify the buffer when blocks are acknowledged.
 - Updates connection state and retry schedule based on feedback from connections.
 
-## Block Node Selection
+## Connection Monitor and Block Node Selection
 
-When the consensus node wants to connect to a block node to start streaming data to, potential block nodes are loaded
-from `block-nodes.json`. Nodes are grouped by configured priority (lower number = higher priority), and each group is
-evaluated in ascending priority order.
+The connection manager uses a pull-based connection monitor to determine if and when a new block node streaming connection
+should be established. Periodically (as controlled by the `blockNode.connectionMonitorCheckIntervalMillis` configuration)
+the monitor will check the following inputs:
+- Is there no primary active streaming connection?
+- Is there a new configuration that needs to be applied?
+- Is the block buffer at an action stage?
+- The action stage is the level at which the buffer saturation is elevated and we want to take preemptive measures
+before the buffer fills entirely and becomes fully saturated (at which point back pressure is enabled).
+- Is there a higher priority block node available than the current one we are streaming to?
+- Is the primary active streaming connection stalled?
+- As part of the connection monitor, the active connection's last heartbeat (i.e. the last time the connection attempted
+to do any work) will be compared against the current time. If the duration between these times is above the stall
+detection threshold (managed by `blockNode.connectionStallThresholdMillis`) then the connection is considered stalled.
+- Is the primary active streaming connection ready to be auto-reset?
+- The auto-reset is process where a healthy connection is periodically reset (e.g. every 24 hours)
+
+If any of these are true, then the monitor will begin the process of selecting a new block node to stream to after closing
+the existing primary connection, if one exists. However, to avoid too frequent of connection switching, a global cool down
+period is used. This cool down, in the simplest terms, is just a time in the future (managed by `blockNode.globalCoolDownSeconds`)
+tha is the earliest we can switch connections again. For example, if this time is 30 seconds then it means at most we
+can switch connection once per every 30 seconds. Note: This global cool down period will be overruled when there is no
+active primary connection.
+
+If a new connection is being forced (e.g. no active primary connection) or otherwise required, then the active primary
+connection will be closed at the next block boundary. After this, based on the configuration in `block-nodes.json` a
+set of block nodes will be selected for streaming and the best candidate will be chosen. Aside from what entries exist
+in the `block-node.json` file, past connection history can influence whether a block node can be retried quickly.
+
+When a connection is closed, a close reason is associated with the event. Some close reasons, such as those related to
+connection errors or a block node being too far behind, will cause the associated block node to itself enter a cool down
+period. This cool down period is similar to the previously mentioned global cool down that prevents reconnecting too
+frequently, but it is scoped to just a specific block node. Depending on the close reason, a basic or an extended cool
+down period may be used. These periods are configured by `blockNode.basicNodeCoolDownSeconds` and
+`blockNode.extendedNodeCoolDownSeconds`, respectively.
+
+Thus, for selecting which block node to connect to, we first read which block nodes are configured in the `block-nodes.json`
+file and then filter out block nodes that are in a cool down. Once a set of candidates nodes is chosen, these nodes are
+grouped by configured priority (lower number = higher priority), and each group is evaluated in ascending priority order.
 
 For each node in a priority group, a service connection is used to retrieve status (`lastAvailableBlock`). For each
 reachable node, the manager derives:
@@ -176,41 +211,5 @@ sequenceDiagram
 
 ## Error Handling
 
-- Implements backoff-based retry scheduling when connections fail.
 - Detects and cleans up errored or stalled connections.
 - If `getLastVerifiedBlock()` or other state is unavailable, logs warnings and may skip the connection.
-
-### Retry and Exponential Backoff Mechanism
-
-The connection manager implements two distinct retry strategies based on the type of failure:
-
-#### Fixed Delay Retry
-
-Used when the consensus node should immediately connect to a different block node:
-- **Scenarios**: `SUCCESS`, `ERROR`, `PERSISTENCE_FAILED`, `UNKNOWN`, `BEHIND` (without block in buffer), EndOfStream rate limit exceeded
-- **Delay**: Fixed 30 seconds
-- **Behavior**: Failed node is rescheduled for retry while the manager immediately selects a new priority node
-
-#### Exponential Backoff Retry
-
-Used when retrying the same block node after transient issues:
-- **Scenarios**: `TIMEOUT`, `DUPLICATE_BLOCK`, `BAD_BLOCK_PROOF`, `INVALID_REQUEST`, `BEHIND` (with block in buffer)
-- **Initial Delay**: 1 second (`INITIAL_RETRY_DELAY`)
-- **Multiplier**: 2x (`RETRY_BACKOFF_MULTIPLIER`)
-- **Jitter**: Applied as `delay/2 + random(0, delay/2)` to spread out retry attempts and avoid multiple nodes retrying simultaneously
-- **Max Backoff**: Configurable via `maxBackoffDelay` (defaults to 10 seconds)
-- **Reset**: Retry count resets if no retry occurs within `protocolExpBackoffTimeframeReset` duration
-- **Behavior**: Connection retries the same node without selecting a new one
-
-#### Forced Connection Switch Retry Delay
-
-When another block node should be selected and forced to become active, the previous active connection
-is closed and scheduled for retry after a fixed delay of 180s (`blockNode.forcedSwitchRescheduleDelay`).
-This may happen when the block buffer saturation action stage is triggered and the manager force switches to a different node.
-
-#### Retry State Management
-
-- `RetryState` tracks retry attempts and last retry time per node configuration
-- State persists across individual connection instances
-- Automatic reset of retry counter after configurable idle period
-- Nodes are excluded from selection only while they have an active connection in the `connections` map
