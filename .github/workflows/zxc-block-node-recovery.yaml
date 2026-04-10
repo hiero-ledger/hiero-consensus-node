@@ -196,6 +196,7 @@ jobs:
             config:
               BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
               BACKFILL_FETCH_BATCH_SIZE: "10"
+              BACKFILL_GREEDY: "true"
             backfill:
               path: "/opt/hiero/block-node/backfill"
               filename: "block-node-sources.json"
@@ -633,15 +634,10 @@ jobs:
           # Calculate min and max first available blocks
           min_first_available=$((${{ env.BN1_FIRST_AVAILABLE_BLOCK }} < ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}))
           min_first_available=$((min_first_available < ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? min_first_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}))
-          max_first_available=$((${{ env.BN1_FIRST_AVAILABLE_BLOCK }} > ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}))
-          max_first_available=$((max_first_available > ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? max_first_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}))
           
           echo "Minimum first available block among BNs: $min_first_available"
-          echo "Maximum first available block among BNs: $max_first_available"
-          range=$((max_first_available - min_first_available))
-          echo "Range of first available blocks: $range"
-          if (( range > 20 )); then
-              echo "Range of first available blocks ($range) exceeds acceptable limit."
+          if (( min_first_available > 0 )); then
+              echo "A BN missed block 0!"
               exit 1
           fi
           
@@ -655,6 +651,7 @@ jobs:
           echo "Maximum last available block among BNs: $max_last_available"
           range=$((max_last_available - min_last_available))
           echo "Range of last available blocks: $range"
+          # confirm range is within the 5 min window of 2 sec blocks which is about 150 blocks
           if (( range > 150 )); then
               echo "Range of last available blocks ($range) exceeds acceptable limit on 150."
               exit 1
