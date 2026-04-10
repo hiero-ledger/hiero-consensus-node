@@ -427,7 +427,7 @@ jobs:
           # Extract values
           LAST_AVAILABLE_BLOCK_3=$(echo "$STATUS_JSON_3" | jq -r '.lastAvailableBlock')
           echo "BN3_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_3" >> $GITHUB_ENV
-          echo "LAST_STATUS_CHECK_TIME=$(date +%s)" >> "$GITHUB_OUTPUT"
+          echo "last_status_check_time=$(date +%s)" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
       # After some run time stop BN2 and BN3 to simulate unavailable BNs
@@ -510,9 +510,10 @@ jobs:
           echo "BN1_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "BN1_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           
-          range=$((${{ env.BN1_LAST_AVAILABLE_BLOCK }} - ${{ env.BN1_LAST_AVAILABLE_BLOCK_INIT }}))
+          range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN1_LAST_AVAILABLE_BLOCK_INIT }}))
           
           ELAPSED_DURATION=0
+          $LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
           if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
             ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - (date +%s)))
           fi
@@ -558,8 +559,9 @@ jobs:
           echo "BN2_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "BN2_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           
-          range=$((${{ env.BN2_LAST_AVAILABLE_BLOCK }} - ${{ env.BN2_LAST_AVAILABLE_BLOCK_INIT }}))
+          range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN2_LAST_AVAILABLE_BLOCK_INIT }}))
           ELAPSED_DURATION=0
+          $LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
           if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
             ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - (date +%s)))
           fi
@@ -605,8 +607,9 @@ jobs:
           echo "BN3_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           echo "BN3_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
           
-          range=$((${{ env.BN3_LAST_AVAILABLE_BLOCK }} - ${{ env.BN3_LAST_AVAILABLE_BLOCK_INIT }}))
+          range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN3_LAST_AVAILABLE_BLOCK_INIT }}))
           ELAPSED_DURATION=0
+          $LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
           if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
             ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - (date +%s)))
           fi
