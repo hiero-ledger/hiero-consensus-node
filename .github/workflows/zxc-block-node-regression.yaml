@@ -191,7 +191,7 @@ jobs:
           echo "Using proto version: ${PROTO_VERSION}"
 
           # Install with the extracted versions
-          pnpm add "@hashgraph/sdk@npm:@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hashgraph/proto@npm:@hiero-ledger/proto@${PROTO_VERSION}"
+          pnpm add "@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
           pnpm install
           nohup pnpm start &
           server_pid=$!
@@ -270,8 +270,6 @@ jobs:
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
-          solo relay node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }}
-
 
       - name: Show running pods and services and wait on BN readiness
         run: |
@@ -288,7 +286,6 @@ jobs:
           kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
           kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
-          kubectl port-forward svc/relay-node-1 -n "${{ env.SOLO_NAMESPACE }}" 8544:8544 &
         continue-on-error: true
 
       # ---- BN verification with grpcurl ----
