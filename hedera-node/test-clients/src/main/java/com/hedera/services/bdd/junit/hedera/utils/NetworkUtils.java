@@ -16,7 +16,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -30,6 +29,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -89,7 +89,7 @@ public class NetworkUtils {
         final Map<Long, Bytes> certsMap = new HashMap<>();
         final Map<NodeId, KeysAndCerts> kacMap;
         try {
-            kacMap = CryptoStatic.generateKeysAndCerts(
+            kacMap = KeysAndCertsGenerator.generateKeysAndCerts(
                     nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList());
             for (final Entry<NodeId, KeysAndCerts> entry : kacMap.entrySet()) {
                 certsMap.put(

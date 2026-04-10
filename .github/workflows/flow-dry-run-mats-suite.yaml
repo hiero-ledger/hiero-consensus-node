@@ -7,11 +7,6 @@ on:
         description: "The git ref (branch or tag) to checkout"
         required: false
         default: ""
-      enable-spotless-check:
-        description: "Spotless Check Enabled"
-        type: boolean
-        required: false
-        default: true
       enable-dependency-check:
         description: "Dependency Check Enabled"
         type: boolean
@@ -77,7 +72,6 @@ jobs:
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      enable-spotless-check: "${{ inputs.enable-spotless-check || 'false' }}"
       enable-dependency-check: "${{ inputs.enable-dependency-check || 'false' }}"
       enable-unit-tests: "${{ inputs.enable-unit-tests || 'false' }}"
       enable-integration-tests: "${{ inputs.enable-integration-tests || 'false' }}"

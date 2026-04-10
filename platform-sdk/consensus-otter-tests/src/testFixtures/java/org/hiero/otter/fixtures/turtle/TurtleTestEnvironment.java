@@ -3,14 +3,13 @@ package org.hiero.otter.fixtures.turtle;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.hiero.otter.fixtures.util.EnvironmentUtils.getDefaultOutputDirectory;
+import static org.hiero.otter.fixtures.util.EnvironmentUtils.prepareOutputDirectory;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.EnumSet;
@@ -90,12 +89,9 @@ public class TurtleTestEnvironment implements TestEnvironment {
         this.rootOutputDirectory = rootOutputDirectory;
 
         try {
-            if (Files.exists(rootOutputDirectory)) {
-                FileUtils.deleteDirectory(rootOutputDirectory);
-            }
-            Files.createDirectories(rootOutputDirectory);
+            prepareOutputDirectory(rootOutputDirectory);
         } catch (final IOException ex) {
-            log.warn("Failed to delete directory: {}", rootOutputDirectory, ex);
+            log.warn("Failed to prepare directory: {}", rootOutputDirectory, ex);
         }
 
         final Randotron randotron = randomSeed == 0L ? Randotron.create() : Randotron.create(randomSeed);

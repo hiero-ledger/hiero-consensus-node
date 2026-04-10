@@ -43,7 +43,8 @@ public class YahcliVerbs {
             Pattern.compile("freeze scheduled for (\\d{4}-\\d{2}-\\d{2}\\.\\d{2}:\\d{2}:\\d{2})");
     private static final Pattern ABORT_FREEZE_PATTERN =
             Pattern.compile("freeze aborted and/or staged upgrade discarded");
-    private static final Pattern SCHEDULE_ID_PATTERN = Pattern.compile(" with schedule ID (\\d+\\.\\d+\\.\\d+)");
+    private static final Pattern SCHEDULE_ID_PATTERN =
+            Pattern.compile(" (?:with|and) schedule ID (\\d+\\.\\d+\\.\\d+)");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -474,7 +475,7 @@ public class YahcliVerbs {
             if (m.find()) {
                 cb.accept(m.group(1));
             } else {
-                Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_PATTERN.pattern() + "'");
+                Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_ID_PATTERN.pattern() + "'");
             }
         };
     }
