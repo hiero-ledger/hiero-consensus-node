@@ -6,6 +6,7 @@ import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
+import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import dagger.BindsInstance;
 import dagger.Subcomponent;
@@ -25,6 +26,8 @@ public interface TransactionComponent {
     ContextTransactionProcessor contextTransactionProcessor();
 
     HederaOperations hederaOperations();
+
+    RootProxyWorldUpdater rootProxyWorldUpdater();
 
     @Nullable
     HydratedEthTxData hydratedEthTxData();

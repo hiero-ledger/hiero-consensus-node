@@ -12,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
-import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -26,6 +25,29 @@ import org.hyperledger.besu.datatypes.Address;
  * Provides the Hedera operations that only a {@link ProxyWorldUpdater} needs (but not a {@link DispatchingEvmFrameState}.
  */
 public interface HederaOperations {
+    /**
+     * An event that occurs when charging gas.
+     * @param action the action that occurred
+     * @param accountId the account that was charged or refunded
+     * @param amount the amount of gas charged or refunded
+     * @param withNonceIncrement whether the account's nonce was incremented
+     */
+    record GasChargingEvent(GasChargingAction action, AccountID accountId, long amount, boolean withNonceIncrement) {}
+
+    /**
+     * The types of events that occur when charging gas.
+     */
+    enum GasChargingAction {
+        /**
+         * An account is charged for gas.
+         */
+        CHARGE,
+        /**
+         * An account is refunded for unused gas.
+         */
+        REFUND,
+    }
+
     /**
      * A contract id to indicate that a given ContractId has a mismatch with the config.
      */
@@ -163,9 +185,9 @@ public interface HederaOperations {
     void refundGasFee(@NonNull AccountID payerId, long amount);
 
     /**
-     * Replays gas charging (and possible refunding) in the given context.
+     * Returns the recorded gas charging events.
      */
-    void replayGasChargingIn(FeeCharging.Context feeChargingContext);
+    List<GasChargingEvent> gasChargingEvents();
 
     /**
      * Attempts to charge the given {@code amount} of rent to the given {@code contractNumber}, with

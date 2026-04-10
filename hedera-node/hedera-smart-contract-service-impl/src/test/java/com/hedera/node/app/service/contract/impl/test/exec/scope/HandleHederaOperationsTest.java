@@ -16,29 +16,22 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_DURATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
-import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -63,9 +56,7 @@ import com.hedera.node.app.service.contract.impl.state.WritableContractStateStor
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -79,15 +70,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
-import org.hyperledger.besu.datatypes.Address;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -133,15 +121,6 @@ class HandleHederaOperationsTest {
 
     @Mock
     private ContractMetrics contractMetrics;
-
-    @Mock
-    private AccountID accountID;
-
-    @Mock
-    private AccountID payerID;
-
-    @Mock
-    private DispatchOptions dispatchOptions;
 
     private HandleHederaOperations subject;
 
@@ -275,36 +254,6 @@ class HandleHederaOperationsTest {
     void valueInTinybarsDelegates() {
         given(tinybarValues.asTinybars(1L)).willReturn(2L);
         assertEquals(2L, subject.valueInTinybars(1L));
-    }
-
-    @Test
-    void collectHtsFeeUsesTheContextAndDoesNotReplay() {
-        subject.collectHtsFee(NON_SYSTEM_ACCOUNT_ID, 123L);
-
-        verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
-
-        subject.replayGasChargingIn(feeChargingContext);
-        verifyNoInteractions(feeChargingContext);
-    }
-
-    @Test
-    void collectAndRefundGasFeesUseTheContextAndReplay() {
-        subject.collectGasFee(RELAYER_ID, 69L, false);
-        subject.collectGasFee(NON_SYSTEM_ACCOUNT_ID, 123L, true);
-        subject.refundGasFee(RELAYER_ID, 12L);
-        subject.refundGasFee(NON_SYSTEM_ACCOUNT_ID, 42L);
-
-        verify(context).tryToCharge(RELAYER_ID, 69L);
-        verify(context).tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L);
-        verify(context).refundBestEffort(RELAYER_ID, 12L);
-        verify(context).refundBestEffort(NON_SYSTEM_ACCOUNT_ID, 42L);
-        given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-
-        subject.replayGasChargingIn(feeChargingContext);
-        verify(feeChargingContext).charge(RELAYER_ID, new Fees(0, 69L - 12L, 0L), null);
-        verify(feeChargingContext).charge(NON_SYSTEM_ACCOUNT_ID, new Fees(0, 123L - 42L, 0L), null);
-        verify(tokenServiceApi).incrementSenderNonce(NON_SYSTEM_ACCOUNT_ID);
     }
 
     @Test
@@ -629,61 +578,5 @@ class HandleHederaOperationsTest {
         // then
         verify(contractCreateRecordBuilder).createdContractID(contractId);
         verify(contractCreateRecordBuilder).contractCreateResult(any(ContractFunctionResult.class));
-    }
-
-    @Test
-    void setAccountCodeDelegationReturnsTrueOnSuccess() {
-        final var delegationAddress = Address.fromHexString("0x0000000000000000000000000000000000000042");
-
-        when(context.payer()).thenReturn(payerID);
-
-        final var streamBuilder = mock(CryptoUpdateStreamBuilder.class);
-        when(streamBuilder.status()).thenReturn(ResponseCodeEnum.SUCCESS);
-
-        try (MockedStatic<DispatchOptions> icd = Mockito.mockStatic(DispatchOptions.class)) {
-            icd.when(() -> DispatchOptions.stepDispatch(
-                            eq(payerID),
-                            any(TransactionBody.class),
-                            eq(CryptoUpdateStreamBuilder.class),
-                            eq(NOOP_SIGNED_TX_CUSTOMIZER)))
-                    .thenReturn(dispatchOptions);
-
-            when(context.dispatch(any())).thenReturn(streamBuilder);
-
-            final var result = subject.setAccountCodeDelegation(accountID, delegationAddress);
-
-            assertTrue(result);
-            verify(context).dispatch(any());
-            verify(streamBuilder).status();
-        }
-    }
-
-    @Test
-    void setAccountCodeDelegationReturnsFalseOnNonSuccess() {
-        final var delegationAddress = Address.fromHexString("0x0000000000000000000000000000000000000042");
-
-        when(context.payer()).thenReturn(payerID);
-
-        final var streamBuilder = mock(CryptoUpdateStreamBuilder.class);
-        when(streamBuilder.status()).thenReturn(ResponseCodeEnum.INVALID_ACCOUNT_ID);
-
-        try (MockedStatic<DispatchOptions> icd = Mockito.mockStatic(DispatchOptions.class)) {
-            icd.when(() -> DispatchOptions.stepDispatch(
-                            eq(payerID),
-                            any(TransactionBody.class),
-                            eq(CryptoUpdateStreamBuilder.class),
-                            eq(NOOP_SIGNED_TX_CUSTOMIZER)))
-                    .thenReturn(dispatchOptions);
-
-            when(context.dispatch(any())).thenReturn(streamBuilder);
-
-            // Act
-            final var result = subject.setAccountCodeDelegation(accountID, delegationAddress);
-
-            // Assert
-            assertFalse(result);
-            verify(context).dispatch(any());
-            verify(streamBuilder).status();
-        }
     }
 }

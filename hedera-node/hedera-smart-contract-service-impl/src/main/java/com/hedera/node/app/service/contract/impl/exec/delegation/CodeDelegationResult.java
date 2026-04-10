@@ -4,14 +4,17 @@ package com.hedera.node.app.service.contract.impl.exec.delegation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
+import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 
 public record CodeDelegationResult(
+        long gasInitiallyAvailableForLazyCreations,
         long totalLazyCreationGasCharged,
         int numAuthorizationsEligibleForRefund,
         int successfullyProcessedAuthorizations,
         @NonNull Map<EntryIgnoreReason, Integer> numIgnoredEntriesByReason,
-        @NonNull List<Address> accessedAddresses) {
+        @NonNull List<Address> accessedAddresses,
+        @NonNull List<ValidDelegation> validDelegations) {
     public enum EntryIgnoreReason {
         ChainIdMismatch,
         NonceMismatch,
@@ -20,8 +23,10 @@ public record CodeDelegationResult(
         Other
     }
 
+    public record ValidDelegation(Bytes authorityEcdsaPublicKey, Address authorityAddress, Address delegationTarget) {}
+
     public static CodeDelegationResult empty() {
-        return new CodeDelegationResult(0, 0, 0, Map.of(), List.of());
+        return new CodeDelegationResult(0, 0, 0, 0, Map.of(), List.of(), List.of());
     }
 
     public int ignoredCodeDelegations() {
