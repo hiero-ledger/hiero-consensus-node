@@ -151,7 +151,7 @@ jobs:
           echo "${COMMIT_LIST}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Increment Build Promotion Index
-        uses: step-security/increment@f07ae8bfe2d5ddd67e68f0eb153010db6e5fdbd1 # v2.14.0
+        uses: step-security/increment@a148e6a4a843bfb1318895ad95998cc80da3a184 # v2.15.0
         id: increment
         with:
           name: "XTS_BUILD_PROMOTION_INDEX"
