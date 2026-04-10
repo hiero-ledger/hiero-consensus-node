@@ -1,0 +1,716 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: Block Node Recovery"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag, or SHA to checkout:"
+        required: false
+        type: string
+      custom-job-name:
+        description: "The custom job name to use for the job:"
+        required: false
+        type: string
+      solo-version:
+        description: "The version of solo to install (if not specified, latest will be used):"
+        required: false
+        type: string
+    secrets:
+      access-token:
+        description: "GitHub Access Token with write permissions to the repository."
+        required: true
+      slack-detailed-report-webhook:
+        description: "Slack Webhook URL for Detailed Test Reporting."
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  checks: write
+  contents: read
+  actions: write
+  statuses: write
+  id-token: write
+
+env:
+  SOLO_CLUSTER_NAME: "solo-block-node-e2e"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
+  SOLO_DEPLOYMENT: "solo-block-node-deployment"
+  SOLO_NAMESPACE: "solo-block-node-e2e"
+  SOLO_NETWORK_SIZE: "3"
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  NODE_IDENTIFIERS: "node1,node2,node3"
+
+jobs:
+  # Execute Block Node Tests using specified version of hiero-consensus-node
+  block-node-recovery:
+    timeout-minutes: 60
+    name: ${{ inputs.custom-job-name || 'Standard' }}
+    runs-on: hl-cn-bn-regression-lin-lg
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      #  Check out the specified hiero-consensus-node reference
+      - name: Checkout Consensus Node
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || '' }}
+          fetch-depth: 0
+
+      # Get latest tag for the checked out hiero-consensus-node
+      - name: Get Latest Stable CN Tag
+        run: |
+          git fetch --tags
+          LATEST_STABLE=$(git for-each-ref 'refs/tags/v*' --sort=-version:refname --format='%(refname:strip=2)' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          if [[ -z "${LATEST_STABLE:-}" ]]; then
+            echo "No stable v*.*.* tags found."; exit 1
+          fi
+          echo "Latest stable tag: ${LATEST_STABLE}"
+          echo "CN_LATEST_TAG=${LATEST_STABLE}" >> "$GITHUB_ENV"
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # assumes BN release has single asset
+      - name: Retrieve Latest BN Tag
+        run: |
+          bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${bn_url}") || exit 1
+          LATEST_BN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
+          LATEST_BN_PROTO_URL=$(echo "${curl_response}" | jq -r '.assets[0].browser_download_url')
+
+          if [[ -z "${LATEST_BN_TAG}" ]]; then
+            echo "ERROR: Could not parse BN tag_name from response"
+            exit 1
+          fi
+
+          if [[ -z "${LATEST_BN_PROTO_URL}" ]]; then
+            echo "ERROR: Could not parse BN proto url from response"
+            exit 1
+          fi
+
+          echo "Latest Block Node tag: ${LATEST_BN_TAG} w proto_url:${LATEST_BN_PROTO_URL}"
+          echo "BLOCK_NODE_TAG=${LATEST_BN_TAG}" >> "$GITHUB_ENV"
+          echo "BLOCK_NODE_PROTO_URL=${LATEST_BN_PROTO_URL}" >> "$GITHUB_ENV"
+
+      - name: Retrieve Latest MN Tag
+        run: |
+          mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/latest"
+          curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || exit 1
+          LATEST_MN_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
+
+          if [[ -z "${LATEST_MN_TAG}" ]]; then
+            echo "ERROR: Could not parse LATEST_MN_TAG from response"
+            exit 1
+          fi
+
+          echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
+          echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
+
+      # Set up Java Environment
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 25
+
+      # Set up the node environment
+      # Version 20.18.0 is the recommended version for solo.
+      - name: Setup NodeJS Environment
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20.18.0
+
+      - name: Setup PNPM
+        run: |
+          npm install -g pnpm
+
+      # Set up the gradle environment
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        with:
+          cache-read-only: false
+
+      # Build the hiero-consensus-node artifacts
+      - name: Build hiero-consensus-node
+        run: ${GRADLE_EXEC} assemble
+
+      # Install solo and configure to use the artifacts from
+      # the hiero-consensus-node build
+      - name: Install Solo
+        run: npm install -g @hashgraph/solo@latest
+
+      # Set up kind; needed for configuring the solo environment
+      - name: Setup Kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
+          version: v0.26.0
+          kubectl_version: v1.31.4
+          verbosity: 3
+          wait: 120s
+
+      # Create Mirror Values Override File (uses BN service)
+      - name: Create Mirror Values Override File
+        run: |
+          cat <<EOF > mirror-bn-values.yaml
+          importer:
+            config:
+              hiero:
+                mirror:
+                  importer:
+                    block:
+                      enabled: true
+                      nodes:
+                        - host: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                          port: 40840
+                        - host: block-node-2.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                          port: 40840
+                        - host: block-node-3.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                          port: 40840
+                      sourceType: BLOCK_NODE
+                    downloader:
+                      record:
+                        enabled: false
+                    startDate: 1970-01-01T00:00:00Z
+                    stream:
+                      maxSubscribeAttempts: 10
+                      responseTimeout: 10s
+          EOF
+
+      - name: Print MN Override Values
+        run: cat mirror-bn-values.yaml
+
+      - name: Create BN1 Values Override File
+        run: |
+          cat <<EOF > bn1-values.yaml
+          blockNode:
+            config:
+              BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+              BACKFILL_FETCH_BATCH_SIZE: "10"
+              BACKFILL_GREEDY: "true"
+            backfill:
+              path: "/opt/hiero/block-node/backfill"
+              filename: "block-node-sources.json"
+              sources:
+                - address: block-node-2.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 1
+                - address: block-node-3.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 2
+            logs:
+              level: "INFO"
+              loggingProperties:
+                org.hiero.block.level: "FINEST"
+                java.util.logging.ConsoleHandler.level: "FINEST"
+                java.util.logging.FileHandler.level: "FINEST"
+          EOF
+
+      - name: Print BN1 Override Values
+        run: cat bn1-values.yaml
+
+      - name: Create BN2 Values Override File
+        run: |
+          cat <<EOF > bn2-values.yaml
+          blockNode:
+            config:
+              BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+              BACKFILL_FETCH_BATCH_SIZE: "10"
+              BACKFILL_GREEDY: "true"
+            backfill:
+              path: "/opt/hiero/block-node/backfill"
+              filename: "block-node-sources.json"
+              sources:
+                - address: block-node-3.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 1
+                - address: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 2
+            logs:
+              level: "INFO"
+              loggingProperties:
+                org.hiero.block.level: "FINEST"
+                java.util.logging.ConsoleHandler.level: "FINEST"
+                java.util.logging.FileHandler.level: "FINEST"
+          EOF
+
+      - name: Print BN2 Override Values
+        run: cat bn2-values.yaml
+
+      - name: Create BN3 Values Override File
+        run: |
+          cat <<EOF > bn3-values.yaml
+          blockNode:
+            config:
+              BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+              BACKFILL_FETCH_BATCH_SIZE: "10"
+              BACKFILL_GREEDY: "true"
+            backfill:
+              path: "/opt/hiero/block-node/backfill"
+              filename: "block-node-sources.json"
+              sources:
+                - address: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 1
+                - address: block-node-2.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 2
+            logs:
+              level: "INFO"
+              loggingProperties:
+                org.hiero.block.level: "FINEST"
+                java.util.logging.ConsoleHandler.level: "FINEST"
+                java.util.logging.FileHandler.level: "FINEST"
+          EOF
+
+      - name: Print BN3 Override Values
+        run: cat bn3-values.yaml
+
+      # ---- Solo with BN Section ----
+
+      # cluster setup
+      - name: Cluster setup (Kind + Solo)
+        run: |
+          kind create cluster -n "${{ env.SOLO_CLUSTER_NAME }}"
+          sleep 10
+          solo init
+          solo cluster-ref config connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
+          solo deployment config create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo deployment cluster attach --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes "${{ env.SOLO_NETWORK_SIZE }}"
+          solo cluster-ref config setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
+
+          # Add to step summary
+          {
+            echo "### Cluster Configuration"
+            echo ""
+            echo "| Setting | Value |"
+            echo "|---------|-------|"
+            echo "| Cluster Name | ${{ env.SOLO_CLUSTER_NAME }} |"
+            echo "| Namespace | ${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }} |"
+            echo ""
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      # node deployment - BN first, MN second, then CNs
+      - name: Solo Nodes deployment (BN/CN/MN)
+        run: |
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node1=1,node2=2,node3=3 -f bn1-values.yaml
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node2=1,node3=2,node1=3 -f bn2-values.yaml
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"  --priority-mapping node3=1,node1=2,node2=3 -f bn3-values.yaml
+          sleep 30
+          solo keys consensus generate --gossip-keys --tls-keys --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
+          solo consensus network deploy --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
+          solo consensus node setup --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo consensus node start --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml        
+          
+          
+          # Add to step summary - comprehensive version summary
+          {
+            echo "### Component Versions"
+            echo ""
+            echo "| Component | Resolved |"
+            echo "|-----------|----------|"
+            echo "| Consensus Node |  \`${{ env.CN_LATEST_TAG }}\` |"
+            echo "| Mirror Node | \`${{ env.MIRROR_NODE_TAG }}\` |"
+            echo "| Block Node | \`${{ env.BLOCK_NODE_TAG }}\` |"
+            echo ""
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Show running pods and services
+        run: |
+          echo "### k8s pods"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          echo "### k8s services"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+        continue-on-error: true
+
+      - name: Port forward CN proxy & MN ports
+        run: |
+          kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
+          kubectl port-forward svc/mirror-1-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
+          kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
+          kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
+          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
+          kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
+          kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &
+          
+          # Wait for submission and query port forwards to be ready
+          for port in 50211 5551 8084 40841 40842 40843; do
+            timeout 30 bash -c "until nc -z localhost $port; do sleep 1; done" \
+              && echo "Port $port ready" || echo "WARNING: port $port not ready"
+          done
+
+      - name: Prepare NLG parameters
+        run: |
+          # Generate the nlg-values.yaml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
+
+      - name: Run NLG Crypto-Transfer
+        run: |
+          # Run the NLG crypto-transfer rapid-fire command
+          echo "Starting NLG crypto-transfer rapid-fire..."
+
+          solo rapid-fire load start --test CryptoTransferLoadTest --deployment ${{ env.SOLO_DEPLOYMENT }} \
+          --args '"-c 5 -a 10 -R -t 10"'
+        continue-on-error: true
+
+      # untar protobuf sources
+      - name: Download & Untar Protobuf Sources
+        run: |
+          mkdir -p block-node-proto && cd "$_"
+          curl -L ${{ env.BLOCK_NODE_PROTO_URL }} -o block-node-protobuf-${{ env.BLOCK_NODE_TAG }}.tgz
+          # Use the generated protobuf artifact (matches local project version)
+          PROTO_FILE=$(ls block-node-protobuf-*.tgz 2>/dev/null | head -1)
+          if [[ -z "$PROTO_FILE" ]]; then
+            echo "Error: No protobuf artifact found"
+            ls -la
+            exit 1
+          fi
+          echo "Using protobuf artifact: $PROTO_FILE"
+          # untar the artifact
+          tar -xzf "$PROTO_FILE" -C .
+          rm "$PROTO_FILE"
+
+      - name: Install grpcurl
+        working-directory: block-node-proto
+        run: |
+          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
+          rm grpcurl.tar.gz
+
+      - name: Get Pre-Scale-Down ServerStatus
+        id: bn-init-status
+        run: |
+          get_bn_status() {
+            local port=$1
+            grpcurl -plaintext -emit-defaults \
+            -import-path block-node-proto \
+            -proto block-node/api/node_service.proto \
+            -d '{}' \
+            "localhost:${port}" \
+            org.hiero.block.api.BlockNodeService/serverStatus
+          }
+          
+          # Call serverStatus on BN 1 and Extract values
+          STATUS_JSON_1=$(get_bn_status 40841)
+          LAST_AVAILABLE_BLOCK_1=$(echo "$STATUS_JSON_1" | jq -r '.lastAvailableBlock')
+          echo "BN1_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_1" >> $GITHUB_ENV
+          
+          # Call serverStatus on BN 2 and Extract values
+          STATUS_JSON_2=$(get_bn_status 40842)
+          LAST_AVAILABLE_BLOCK_2=$(echo "$STATUS_JSON_2" | jq -r '.lastAvailableBlock')
+          echo "BN2_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_2" >> $GITHUB_ENV
+          
+          # Call serverStatus on BN 3 and Extract values
+          STATUS_JSON_3=$(get_bn_status 40843)
+          LAST_AVAILABLE_BLOCK_3=$(echo "$STATUS_JSON_3" | jq -r '.lastAvailableBlock')
+          echo "BN3_LAST_AVAILABLE_BLOCK_INIT=$LAST_AVAILABLE_BLOCK_3" >> $GITHUB_ENV
+        continue-on-error: true
+
+      # After some run time stop BN1 and BN2 to simulate unavailable BNs,
+      # leaving all 3 CNs pushing to only BN3 for 5 minutes.
+      - name: Scale 2 BNs down to simulate failure
+        run: |
+          sleep 30
+          echo "*** Cluster before BN scaling ***"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=0
+          # Wait for BN1 pod to fully terminate before scaling BN2 (2.2: deterministic, not sleep-based)
+          kubectl wait --for=delete pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --timeout=120s
+          echo "*** Cluster after BN-1 scale down ***"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=0
+          # Wait for BN2 pod to fully terminate before starting the 3:1 run window
+          kubectl wait --for=delete pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --timeout=120s
+          echo "*** Cluster after BN-2 scale down ***"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+          echo "*** Run 3:1 CN to BN network for 5 mins (CN block buffer size based on 2 sec blocks)***"
+          sleep 300
+
+      - name: Scale 2 BNs back up to simulate restoration
+        id: bn-restoration
+        run: |
+          kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=1
+          kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=1
+          # Wait for both BN pods to be Running/Ready before declaring restoration
+          echo "restoration_time=$(date +%s)" >> "$GITHUB_OUTPUT"
+          kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --timeout=180s
+          kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --timeout=180s
+          echo "Cluster after BN-1's & BN-2's scale up"
+          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
+          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
+
+
+      # ---- BN verification with grpcurl ----
+
+      - name: Port forward node ports
+        run: |
+          pkill -f port-forward
+          kubectl port-forward svc/haproxy-node1-svc -n "${{ env.SOLO_NAMESPACE }}" 50211:non-tls-grpc-client-port &
+          kubectl port-forward svc/mirror-1-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
+          kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
+          kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
+          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
+          kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
+          kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &       
+                  
+          # Wait for submission and query port forwards to be ready
+          for port in 50211 5551 8084 40841 40842 40843; do
+            timeout 30 bash -c "until nc -z localhost $port; do sleep 1; done" \
+              && echo "Port $port ready" || echo "WARNING: port $port not ready"
+          done
+
+      # Poll until all three BNs are within 150 blocks of each other, or fail after 10 min
+      - name: Wait for BNs to converge post-restoration
+        run: |
+          # Allow port-forwards to establish
+          sleep 5
+
+          grpcurl_last_block() {
+            local port=$1
+            local status
+            if status=$(grpcurl -plaintext -emit-defaults \
+                -import-path block-node-proto -proto block-node/api/node_service.proto \
+                -d '{}' "localhost:${port}" org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null); then
+              echo "$status" | jq -r '.lastAvailableBlock // "0"'
+            else
+              echo "0"
+            fi
+          }
+
+          # Tolerance of 50 blocks (1/3 of CN block buffer assuming 5 min buffer at 1 block/2s), accounts for backfill startup latency
+          MAX_WAIT=600
+          INTERVAL=15
+          CURRENT_TIME=$(date +%s)
+          SPREAD=9999
+          ELAPSED=$((CURRENT_TIME - ${{ steps.bn-restoration.outputs.restoration_time }}))
+          echo "Elapsed time before polling ${ELAPSED} s"
+
+          while (( ELAPSED < MAX_WAIT )); do
+            BN1_LAST=$(grpcurl_last_block 40841)
+            BN2_LAST=$(grpcurl_last_block 40842)
+            BN3_LAST=$(grpcurl_last_block 40843)
+
+            MAX_LAST=$(( BN1_LAST > BN2_LAST ? BN1_LAST : BN2_LAST ))
+            MAX_LAST=$(( MAX_LAST > BN3_LAST ? MAX_LAST : BN3_LAST ))
+            MIN_LAST=$(( BN1_LAST < BN2_LAST ? BN1_LAST : BN2_LAST ))
+            MIN_LAST=$(( MIN_LAST < BN3_LAST ? MIN_LAST : BN3_LAST ))
+            SPREAD=$(( MAX_LAST - MIN_LAST ))
+
+            echo "[${ELAPSED}s] lastAvailableBlock — BN1=${BN1_LAST} BN2=${BN2_LAST} BN3=${BN3_LAST} spread=${SPREAD}"
+            if (( SPREAD <= 50 )); then
+              echo "BNs converged within tolerance (spread=${SPREAD} <= 50) after ${ELAPSED} s"
+              break
+            fi
+
+            sleep "${INTERVAL}"
+            ELAPSED=$(( ELAPSED + INTERVAL ))
+          done
+
+          if (( SPREAD > 50 )); then
+            echo "FAIL: BNs did not converge within ${MAX_WAIT}s (final spread=${SPREAD})"
+            exit 1
+          fi
+
+
+        # Verify the available blocks from BNs 1-3 are within a reasonable range to showcase catchup
+      - name: Validate server status block ranges
+        run: |
+          grpcurl_first_block() {
+            local port=$1
+            local status
+            if status=$(grpcurl -plaintext -emit-defaults \
+                -import-path block-node-proto -proto block-node/api/node_service.proto \
+                -d '{}' "localhost:${port}" org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null); then
+              echo "$status" | jq -r '.firstAvailableBlock // "0"'
+            else
+              echo "0"
+            fi
+          }
+          
+          BN1_FIRST=$(grpcurl_first_block 40841)
+          BN2_FIRST=$(grpcurl_first_block 40842)
+          BN3_FIRST=$(grpcurl_first_block 40843)
+          
+          MIN_FIRST=$(( BN1_FIRST < BN2_FIRST ? BN1_FIRST : BN2_FIRST ))
+          MIN_FIRST=$(( MIN_FIRST < BN3_FIRST ? MIN_FIRST : BN3_FIRST ))
+
+          echo "[${ELAPSED}s] firstAvailableBlock — BN1=${BN1_FIRST} BN2=${BN2_FIRST} BN3=${BN3_FIRST}"
+          if (( MIN_FIRST > 0 )); then
+              echo "A BN missed block 0!"
+          fi
+
+      - name: Collect BN and MN Logs
+        if: always()
+        run: |
+          # Get BN Logs
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-1" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn1-recovery-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-2" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn2-recovery-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-3" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn3-recovery-logs.log
+
+          # Get MN Logs
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror-1,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-recovery-logs.log
+
+      - name: Collect CN Logs
+        if: always()
+        run: |
+          # Get CN Logs
+          solo deployment diagnostics all -d ${{ env.SOLO_DEPLOYMENT }} --dev -q
+          LOG_FOLDER="${HOME}/.solo/logs/${SOLO_NAMESPACE}"
+          echo "CN_LOG_FOLDER=$LOG_FOLDER" >> $GITHUB_ENV
+          ls -lR "$LOG_FOLDER"
+
+      - name: Upload BN and MN Logs
+        if: always()
+        id: update_bn_mn_logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bn-mn-recovery-logs
+          path: |
+            bn1-recovery-logs.log
+            bn2-recovery-logs.log
+            bn3-recovery-logs.log
+            mn0-recovery-logs.log
+
+      - name: Upload CN Logs
+        id: upload_cn_logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cn-recovery-logs
+          path: ${{ env.CN_LOG_FOLDER }}/*.zip
+
+      - name: Add Logs to Summary
+        if: always()
+        run: |
+          {
+            echo "### 📜 Logs"
+            echo ""
+            echo "You can download the logs from this run here:"
+            echo "- [Download bn-mn-logs](${{ steps.update_bn_mn_logs.outputs.artifact-url }})"
+            echo "- [Download cn-logs](${{ steps.upload_cn_logs.outputs.artifact-url }})"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Stop the solo nodes
+      - name: Stop solo
+        if: ${{ always() }}
+        run: |
+          kind delete cluster -n ${{ env.SOLO_CLUSTER_NAME }}
+
+  report-block-node-recovery-status:
+    name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    runs-on: hiero-citr-linux-medium
+    needs: block-node-recovery
+    if: ${{ always() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Build Slack Payload Message
+        id: payload
+        run: |
+          COLOR="#FF0000"
+          if [[ "${{ needs.block-node-recovery.result }}" == "success" ]]; then
+            COLOR="#00FF00"
+          elif [[ "${{ needs.block-node-recovery.result }}" == "cancelled" ]]; then
+            COLOR="#555555"
+          fi
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "${COLOR}",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": ":vertical_traffic_light: Hiero Consensus Node - Block Node Regression Test Report",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Block Node Regression Panel was executed. See status below.*"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Block Node Regression Panel Result"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "${{ needs.block-node-recovery.result }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Report Status to Detailed Test Reports Channel
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.slack-detailed-report-webhook }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
