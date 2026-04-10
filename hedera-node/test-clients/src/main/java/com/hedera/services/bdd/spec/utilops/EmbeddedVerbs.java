@@ -29,6 +29,7 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -55,6 +56,7 @@ import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.UnaryOperator;
@@ -330,6 +332,34 @@ public final class EmbeddedVerbs {
             final var embeddedHedera = spec.repeatableEmbeddedHederaOrThrow();
             embeddedHedera.tick(Duration.between(spec.consensusTime(), then));
         });
+    }
+
+    /**
+     * Returns an operation that sets a {@link NodeRewardGroups.NodeActivityCriteria} which forces the
+     * given node IDs to be classified as active, moving all other reward-eligible nodes to the
+     * inactive group. The criteria is applied inside {@link NodeRewardGroups#from}, completely
+     * bypassing state-based missed-judge calculations.
+     *
+     * <p>Must be paired with {@link #resetNodeActivityCriteria()} in cleanup to restore the
+     * default criteria and avoid leaking into subsequent tests.
+     *
+     * @param activeNodeIds the node IDs that should be classified as active
+     * @return the operation that sets the criteria
+     */
+    public static SpecOperation overrideActiveNodes(@NonNull final Set<Long> activeNodeIds) {
+        requireNonNull(activeNodeIds);
+        return doingContextual(
+                spec -> NodeRewardGroups.setActivityCriteria(activity -> activeNodeIds.contains(activity.nodeId())));
+    }
+
+    /**
+     * Returns an operation that restores the default {@link NodeRewardGroups.NodeActivityCriteria},
+     * undoing any override previously installed by {@link #overrideActiveNodes(Set)}.
+     *
+     * @return the operation that resets the criteria
+     */
+    public static SpecOperation resetNodeActivityCriteria() {
+        return doingContextual(spec -> NodeRewardGroups.resetActivityCriteria());
     }
 
     /**
