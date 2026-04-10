@@ -72,6 +72,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -634,20 +635,14 @@ public class RepeatableHip1064Tests {
                 sleepForBlockPeriod(),
                 // This is considered as one transaction submitted, so one round
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-                // Start a new period and leave only node1 as inactive
-                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
+                // Verify state is as expected before the next staking period
+                EmbeddedVerbs.<NodeRewards>viewSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, nodeRewards -> {
                     assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
-                    // Update node 1 to have missed more than 10% of rounds
-                    return nodeRewards
-                            .copyBuilder()
-                            .nodeActivities(NodeActivity.newBuilder()
-                                    .nodeId(1)
-                                    .numMissedJudgeRounds(3)
-                                    .build())
-                            .build();
                 }),
+                // Override classification so only node1 is inactive (node0 declines, nodes 2 & 3 active)
+                EmbeddedVerbs.overrideActiveNodes(Set.of(2L, 3L)),
                 getAccountBalance(NODE_REWARD)
                         .exposingBalanceTo(nodeRewardBalance::set)
                         .logged(),
@@ -655,6 +650,7 @@ public class RepeatableHip1064Tests {
                 // Trigger another round with a transaction with no fees (superuser payer)
                 // so the network should pay rewards
                 cryptoCreate("nobody").payingWith(GENESIS),
+                EmbeddedVerbs.resetNodeActivityCriteria(),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 

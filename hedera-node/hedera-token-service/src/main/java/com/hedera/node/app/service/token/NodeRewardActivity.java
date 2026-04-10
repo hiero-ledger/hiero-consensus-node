@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 
 /**
  * Represents the reward activity of a specific node over a staking period.
@@ -32,23 +31,5 @@ public record NodeRewardActivity(
     public double activePercent() {
         final var activeRounds = Math.max(roundsInPeriod - numMissedRounds, 0);
         return roundsInPeriod == 0 ? 0 : ((double) (activeRounds * 100)) / roundsInPeriod;
-    }
-
-    /**
-     * Determines if the node is considered active based on the missed rounds count
-     * and the required judge round percentage.
-     *
-     * @return true if the node is active, false otherwise
-     */
-    public boolean isActive() {
-        return numMissedRounds <= calcMaxMissedJudgesAmount();
-    }
-
-    // Calculate the maximum number of missed judges allowed for a node to be considered active.
-    private long calcMaxMissedJudgesAmount() {
-        return BigInteger.valueOf(this.roundsInPeriod)
-                .multiply(BigInteger.valueOf(100 - minJudgeRoundPercentage))
-                .divide(BigInteger.valueOf(100))
-                .longValueExact();
     }
 }
