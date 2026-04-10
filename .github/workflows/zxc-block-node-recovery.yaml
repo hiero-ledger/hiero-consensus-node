@@ -446,7 +446,7 @@ jobs:
         run: |
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --replicas=1
           kubectl scale statefulsets -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --replicas=1
-          # Wait for both BN pods to be Running/Ready before declaring restoration (2.2)
+          # Wait for both BN pods to be Running/Ready before declaring restoration
           kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --timeout=180s
           kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-2" --timeout=180s
           echo "restoration_time=$(date +%s)" >> "$GITHUB_OUTPUT"

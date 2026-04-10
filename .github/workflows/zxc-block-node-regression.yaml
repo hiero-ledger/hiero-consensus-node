@@ -140,9 +140,7 @@ jobs:
           git fetch --tags
           LATEST_TAG=$(git describe --tags --abbrev=0)
           echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          # Pinned to v2.81.0: v2.82.0+ bumped @hiero-ledger/proto to 2.27.0 which was never published to npm
-          # Update this pin once the upstream issue is resolved.
-          git checkout v2.81.0
+          git checkout ${LATEST_TAG}
 
       # Set up Java Environment
       - name: Setup Java
@@ -193,7 +191,7 @@ jobs:
           echo "Using proto version: ${PROTO_VERSION}"
 
           # Install with the extracted versions
-          pnpm add @hiero-ledger/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
+          pnpm add "@hashgraph/sdk@npm:@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hashgraph/proto@npm:@hiero-ledger/proto@${PROTO_VERSION}"
           pnpm install
           nohup pnpm start &
           server_pid=$!
@@ -365,6 +363,8 @@ jobs:
         run: |
           solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
           cp .env.custom_node .env
+          npm run test:file src/tests/crypto-service/test-transfer-hbar-transaction.ts
+          npm run test:file src/tests/contract-service/test-contract-delete-transaction.ts
           npm run test
         working-directory: sdk-tck/regression # required
 
