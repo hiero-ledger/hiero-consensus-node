@@ -37,8 +37,6 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void update() throws Exception {
-        setTestDir("update");
-
         logger.info(RUN_DELIMITER);
 
         final long[] map = new long[verify ? maxKey : 0];
@@ -92,8 +90,6 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void create() throws Exception {
-        setTestDir("create");
-
         logger.info(RUN_DELIMITER);
 
         final long[] map = new long[verify ? maxKey : 0];
@@ -132,8 +128,6 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void delete() throws Exception {
-        setTestDir("delete");
-
         logger.info(RUN_DELIMITER);
 
         final long[] map = new long[verify ? maxKey : 0];
@@ -199,9 +193,6 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void read() {
-        setTestDir("read");
-        preserveTestDir();
-
         logger.info(RUN_DELIMITER);
 
         if (virtualMapP == null) {
