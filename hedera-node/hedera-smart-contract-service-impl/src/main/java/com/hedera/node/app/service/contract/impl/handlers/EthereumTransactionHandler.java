@@ -13,7 +13,6 @@ import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.getTransactionTy
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -36,6 +35,7 @@ import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStreamBuilder;
+import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -199,6 +199,9 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 .getBaseBuilder(EthereumTransactionStreamBuilder.class)
                 .ethereumHash(Bytes.wrap(ethTxData.getEthereumHash()));
         if (outcome.hasNewSenderNonce()) {
+            // TODO(Pectra): refactor this piece for atomic batches,
+            // so that it's compatible with EthereumTransactionRollbackHandler
+            // (which itself updates the nonces of authorities, including if it's the sender)
             final var nonceCallback =
                     context.dispatchMetadata().getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class);
             final var newNonce = outcome.newSenderNonceOrThrow();
@@ -208,12 +211,16 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         if (ethTxData.hasToAddress()) {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
             outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
-            throwIfUnsuccessfulCall(outcome, component.hederaOperations(), streamBuilder);
         } else {
             final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
             outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
-            throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
         }
+        final var rollbackHandler = new EthereumTransactionRollbackHandler(
+                outcome,
+                component.rootProxyWorldUpdater(),
+                component.hederaOperations().gasChargingEvents(),
+                context);
+        throwIfUnsuccessfulCall(outcome, rollbackHandler);
     }
 
     /**

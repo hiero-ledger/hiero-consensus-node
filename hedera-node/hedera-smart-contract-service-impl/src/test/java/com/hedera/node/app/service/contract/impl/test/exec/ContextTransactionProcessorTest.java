@@ -170,6 +170,7 @@ class ContextTransactionProcessorTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
+                null,
                 null);
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
         assertEquals(expectedResult, subject.call());
@@ -223,6 +224,7 @@ class ContextTransactionProcessorTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
+                null,
                 null);
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
@@ -269,6 +271,7 @@ class ContextTransactionProcessorTest {
                 List.of(),
                 SUCCESS_RESULT.asEvmTxResultOf(null, rootProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
+                null,
                 null,
                 null);
         assertEquals(expectedResult, subject.call());
