@@ -11,6 +11,7 @@ import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.records.schemas.V0560BlockRecordSchema;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -71,7 +72,14 @@ public final class BlockRecordService implements Service {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
-        writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID).put(GENESIS_BLOCK_INFO);
+        var genesisBlockInfo = GENESIS_BLOCK_INFO;
+        // When live wrapping is enabled from genesis, mark migration voting as complete immediately — there is no
+        // jumpstart data, so no vote is needed
+        if (configuration.getConfigData(BlockRecordStreamConfig.class).liveWritePrevWrappedRecordHashes()) {
+            genesisBlockInfo =
+                    genesisBlockInfo.copyBuilder().votingComplete(true).build();
+        }
+        writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID).put(genesisBlockInfo);
         writableStates.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID).put(GENESIS_RUNNING_HASHES);
         return true;
     }
