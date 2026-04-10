@@ -17,6 +17,8 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
@@ -42,6 +44,7 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
  * Default implementation of the {@link EventCreationManager}.
  */
 public class DefaultEventCreationManager implements EventCreationManager {
+    private static final Logger logger = LogManager.getLogger(DefaultEventCreationManager.class);
 
     private static final DoubleGauge.Config SYNC_ROUND_LAG_METRIC_CONFIG = new DoubleGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "syncRoundLag")
@@ -75,10 +78,21 @@ public class DefaultEventCreationManager implements EventCreationManager {
 
     private final DoubleGauge syncLagBehind;
 
+    private final Duration maximumPermissibleUnhealthyDuration;
+
+    private final int maxAllowedSyncLag;
+
     /**
      * Utility class for computing median lag for sync.
      */
     private final SyncLagCalculator syncLagCalculator;
+
+    @Nullable
+    private PlatformStatus currentPlatformStatus;
+
+    private QuiescenceCommand currentQuiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
+
+    private EventCreationStatus lastStableStatus = IDLE;
 
     /**
      * Constructor of the event creation manager.
@@ -102,14 +116,16 @@ public class DefaultEventCreationManager implements EventCreationManager {
         this.creator = Objects.requireNonNull(eventCreator);
         this.syncLagCalculator = new SyncLagCalculator(selfId, roster);
         final EventCreationConfig config = configuration.getConfigData(EventCreationConfig.class);
+        maximumPermissibleUnhealthyDuration = config.maximumPermissibleUnhealthyDuration();
+        maxAllowedSyncLag = config.maxAllowedSyncLag();
 
         platformStatusRule = new PlatformStatusRule(signatureTransactionCheck);
         quiescenceRule = new QuiescenceRule();
         final List<EventCreationRule> rules = new ArrayList<>();
         rules.add(new MaximumRateRule(configuration, time));
         rules.add(platformStatusRule);
-        rules.add(new PlatformHealthRule(config.maximumPermissibleUnhealthyDuration(), this::getUnhealthyDuration));
-        rules.add(new SyncLagRule(config.maxAllowedSyncLag(), this::getSyncRoundLag));
+        rules.add(new PlatformHealthRule(maximumPermissibleUnhealthyDuration, this::getUnhealthyDuration));
+        rules.add(new SyncLagRule(maxAllowedSyncLag, this::getSyncRoundLag));
         rules.add(quiescenceRule);
 
         eventCreationRules = AggregateEventCreationRules.of(rules);
@@ -132,7 +148,9 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Nullable
     public PlatformEvent maybeCreateEvent() {
         if (!eventCreationRules.isEventCreationPermitted()) {
-            phase.activatePhase(eventCreationRules.getEventCreationStatus());
+            final EventCreationStatus blockedStatus = eventCreationRules.getEventCreationStatus();
+            phase.activatePhase(blockedStatus);
+            logStableStatusChange(blockedStatus);
             return null;
         }
 
@@ -143,13 +161,17 @@ public class DefaultEventCreationManager implements EventCreationManager {
             // The only reason why the event creator may choose not to create an event
             // is if there are no eligible parents.
             phase.activatePhase(NO_ELIGIBLE_PARENTS);
+            logStableStatusChange(NO_ELIGIBLE_PARENTS);
         } else {
             eventCreationRules.eventWasCreated();
             // After an event was created we check the status to update the right phase
             if (!eventCreationRules.isEventCreationPermitted()) {
-                phase.activatePhase(eventCreationRules.getEventCreationStatus());
+                final EventCreationStatus blockedStatus = eventCreationRules.getEventCreationStatus();
+                phase.activatePhase(blockedStatus);
+                logStableStatusChange(blockedStatus);
             } else {
                 phase.activatePhase(IDLE);
+                logStableStatusChange(IDLE);
             }
         }
 
@@ -182,6 +204,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         Objects.requireNonNull(quiescenceCommand);
+        currentQuiescenceCommand = quiescenceCommand;
         quiescenceRule.quiescenceCommand(quiescenceCommand);
         creator.quiescenceCommand(quiescenceCommand);
     }
@@ -193,6 +216,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
     public void clear() {
         creator.clear();
         phase.activatePhase(IDLE);
+        lastStableStatus = IDLE;
         futureEventBuffer.clear();
         final EventWindow eventWindow = EventWindow.getGenesisEventWindow();
         futureEventBuffer.updateEventWindow(eventWindow);
@@ -203,7 +227,8 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        this.platformStatusRule.setPlatformStatus(Objects.requireNonNull(platformStatus));
+        currentPlatformStatus = Objects.requireNonNull(platformStatus);
+        this.platformStatusRule.setPlatformStatus(platformStatus);
     }
 
     /**
@@ -240,5 +265,44 @@ public class DefaultEventCreationManager implements EventCreationManager {
         final double clampedMedianLag = syncLagCalculator.getSyncRoundLag();
         syncLagBehind.set(clampedMedianLag);
         return clampedMedianLag;
+    }
+
+    private void logStableStatusChange(@NonNull final EventCreationStatus newStatus) {
+        if (newStatus == lastStableStatus) {
+            return;
+        }
+
+        final EventCreationStatus previousStatus = lastStableStatus;
+        final double syncRoundLag = getSyncRoundLag();
+
+        if (newStatus == IDLE) {
+            logger.info(
+                    "Event creation recovered from {} to {} [platformStatus={}, unhealthyDuration={}, "
+                            + "maximumPermissibleUnhealthyDuration={}, syncRoundLag={}, maxAllowedSyncLag={}, "
+                            + "quiescenceCommand={}]",
+                    previousStatus,
+                    newStatus,
+                    currentPlatformStatus,
+                    unhealthyDuration,
+                    maximumPermissibleUnhealthyDuration,
+                    syncRoundLag,
+                    maxAllowedSyncLag,
+                    currentQuiescenceCommand);
+        } else {
+            logger.warn(
+                    "Event creation status changed from {} to {} [platformStatus={}, unhealthyDuration={}, "
+                            + "maximumPermissibleUnhealthyDuration={}, syncRoundLag={}, maxAllowedSyncLag={}, "
+                            + "quiescenceCommand={}]",
+                    previousStatus,
+                    newStatus,
+                    currentPlatformStatus,
+                    unhealthyDuration,
+                    maximumPermissibleUnhealthyDuration,
+                    syncRoundLag,
+                    maxAllowedSyncLag,
+                    currentQuiescenceCommand);
+        }
+
+        lastStableStatus = newStatus;
     }
 }

@@ -71,12 +71,18 @@ public class HealthMonitorLogger {
         final RateLimitedLogger rateLimitedLogger = schedulerLoggers.get(scheduler.getName());
         final String formattedDuration =
                 UNIT_NANOSECONDS.buildFormatter(unhealthyDuration.toNanos()).render();
+        final String formattedThreshold =
+                UNIT_NANOSECONDS.buildFormatter(healthLogThreshold.toNanos()).render();
         rateLimitedLogger.warn(
                 STARTUP.getMarker(),
-                "Task scheduler {} has been unhealthy for {}. It currently has {}/{} unhandled tasks.",
+                "Task scheduler {} [{}] has been unhealthy for {} (threshold {}). It currently has {}/{} "
+                        + "unhandled tasks; insertionIsBlocking={}.",
                 scheduler.getName(),
+                scheduler.getType(),
                 formattedDuration,
+                formattedThreshold,
                 scheduler.getUnprocessedTaskCount(),
-                scheduler.getCapacity());
+                scheduler.getCapacity(),
+                scheduler.isInsertionBlocking());
     }
 }
