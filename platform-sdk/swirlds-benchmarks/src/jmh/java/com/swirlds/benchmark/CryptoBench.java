@@ -112,8 +112,6 @@ public class CryptoBench extends VirtualMapBench {
      */
     @Benchmark
     public void transferSerial() throws Exception {
-        setTestDir("transferSerial");
-
         logger.info(RUN_DELIMITER);
 
         if (getBenchmarkConfig().enableSnapshots()) {
@@ -195,8 +193,6 @@ public class CryptoBench extends VirtualMapBench {
 
     @Benchmark
     public void transferPrefetch() throws Exception {
-        setTestDir("transferPrefetch");
-
         logger.info(RUN_DELIMITER);
 
         if (getBenchmarkConfig().enableSnapshots()) {
@@ -398,8 +394,6 @@ public class CryptoBench extends VirtualMapBench {
      */
     @Benchmark
     public void transferParallel() throws Exception {
-        setTestDir("transferParallel");
-
         logger.info(RUN_DELIMITER);
 
         if (getBenchmarkConfig().enableSnapshots()) {

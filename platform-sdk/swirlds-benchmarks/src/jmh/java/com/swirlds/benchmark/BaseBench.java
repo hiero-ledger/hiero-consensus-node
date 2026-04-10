@@ -60,12 +60,10 @@ public abstract class BaseBench {
 
     /* Directory for the entire benchmark */
     private static Path benchDir;
-    /* Directory for each iteration */
-    private Path testDir;
+    /* Directory for storing data files. */
+    private Path storeDir;
     /* Verify benchmark results */
     protected boolean verify;
-
-    private boolean keepTestDir;
 
     protected static Configuration configuration;
 
@@ -207,8 +205,7 @@ public abstract class BaseBench {
 
     /**
      * JMH invocation-level teardown. Calls {@link #onInvocationTearDown()}, does base invocation
-     * teardown, and deletes the test directory (unless {@link #preserveTestDir()}
-     * was called during the invocation).
+     * teardown, and deletes the store directory.
      *
      * <p><b>Important:</b> see {@link #setupTrial()} for why subclasses must not add
      * their own {@code @TearDown} annotations.
@@ -227,11 +224,10 @@ public abstract class BaseBench {
             Utils.printClassHistogram(15);
         }
 
-        // Always clean up testDir at the end unless explicitly preserved
-        if (!keepTestDir && testDir != null) {
-            Utils.deleteRecursively(testDir);
+        // Clean up storeDir at the end of each invocation
+        if (storeDir != null) {
+            Utils.deleteRecursively(storeDir);
         }
-        keepTestDir = false;
     }
 
     /**
@@ -248,26 +244,18 @@ public abstract class BaseBench {
         // no-op by default
     }
 
-    // ── Test directory utilities ─────────────────────────────────────
-
-    /**
-     * Call from a @Benchmark method to preserve the test directory for this invocation.
-     * Useful for benchmarks like {@code read()} where data is reused across invocations.
-     */
-    protected void preserveTestDir() {
-        this.keepTestDir = true;
-    }
+    // ── Benchmark directory utilities ─────────────────────────────────────
 
     public static Path getBenchDir() {
         return benchDir;
     }
 
-    public Path getTestDir() {
-        return testDir;
+    public Path getStoreDir() {
+        return storeDir;
     }
 
-    public void setTestDir(String name) {
-        testDir = benchDir.resolve(name);
+    public void setStoreDir(String name) {
+        storeDir = benchDir.resolve(name);
     }
 
     // ── Misc ─────────────────────────────────────

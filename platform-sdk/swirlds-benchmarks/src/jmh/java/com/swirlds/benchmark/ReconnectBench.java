@@ -93,8 +93,6 @@ public class ReconnectBench extends VirtualMapBaseBench {
     protected void onTrialSetup() {
         super.onTrialSetup();
 
-        setTestDir("reconnect");
-
         final Random random = new Random(randomSeed);
 
         if (getBenchmarkConfig().saveDataDirectory()) {
