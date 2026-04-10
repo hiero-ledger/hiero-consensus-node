@@ -37,19 +37,13 @@ import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperat
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameStateFactory;
-import com.hedera.node.app.service.contract.impl.state.PendingCreation;
-import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.*;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Optional;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.account.Account;
-import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
@@ -72,13 +66,13 @@ class ProxyWorldUpdaterTest {
     private static final Address ADDRESS_6 = Address.fromHexString("0x6");
 
     @Mock
-    private Account anImmutableAccount;
+    private AbstractMutableEvmAccount anImmutableAccount;
 
     @Mock
-    private Account anotherImmutableAccount;
+    private AbstractMutableEvmAccount anotherImmutableAccount;
 
     @Mock
-    private MutableAccount mutableAccount;
+    private AbstractMutableEvmAccount mutableAccount;
 
     @Mock
     private ProxyEvmContract proxyEvmContract;

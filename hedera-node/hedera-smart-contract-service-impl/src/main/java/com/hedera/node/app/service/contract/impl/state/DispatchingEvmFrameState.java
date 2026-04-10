@@ -54,8 +54,6 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.account.Account;
-import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -79,7 +77,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
 
     private final HederaNativeOperations nativeOperations;
-    private final ContractStateStore contractStateStore;
+    final ContractStateStore contractStateStore;
     private final CodeFactory codeFactory;
 
     /**
@@ -445,7 +443,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         final var status = nativeOperations.transferWithReceiverSigCheck(
                 amount,
                 from.hederaId(),
-                ((AbstractProxyEvmAccount) to).hederaId(),
+                to.hederaId(),
                 new ActiveContractVerificationStrategy(
                         from.hederaContractId(),
                         tuweniToPbjBytes(from.getAddress()),
@@ -521,8 +519,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         if (deletedAccount.numPositiveTokenBalances() > 0) {
             return Optional.of(CONTRACT_STILL_OWNS_NFTS);
         }
-        nativeOperations.trackSelfDestructBeneficiary(
-                deletedAccount.hederaId(), ((AbstractProxyEvmAccount) beneficiaryAccount).hederaId(), frame);
+        nativeOperations.trackSelfDestructBeneficiary(deletedAccount.hederaId(), beneficiaryAccount.hederaId(), frame);
         return Optional.empty();
     }
 
@@ -538,15 +535,14 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         final var beneficiaryAccount = getAccount(beneficiary);
         final var deletedAccount = (AbstractProxyEvmAccount) requireNonNull(getAccount(deleted));
 
-        nativeOperations.trackSelfDestructBeneficiary(
-                deletedAccount.hederaId(), ((AbstractProxyEvmAccount) beneficiaryAccount).hederaId(), frame);
+        nativeOperations.trackSelfDestructBeneficiary(deletedAccount.hederaId(), beneficiaryAccount.hederaId(), frame);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public @Nullable Account getAccount(@NonNull final Address address) {
+    public @Nullable AbstractMutableEvmAccount getAccount(@NonNull Address address) {
         return getMutableAccount(address);
     }
 
@@ -554,7 +550,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public @Nullable MutableAccount getMutableAccount(@NonNull final Address address) {
+    public @Nullable AbstractMutableEvmAccount getMutableAccount(@NonNull Address address) {
         final var number = maybeMissingNumberOf(address, nativeOperations);
         if (number == MISSING_ENTITY_NUMBER) {
             return null;

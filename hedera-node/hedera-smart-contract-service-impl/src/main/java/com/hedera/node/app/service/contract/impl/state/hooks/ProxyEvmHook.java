@@ -10,7 +10,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
+import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
@@ -39,7 +39,7 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     private final EntityIdFactory entityIdFactory;
 
     public ProxyEvmHook(
-            @NonNull final EvmFrameState state,
+            @NonNull final DispatchingEvmFrameState state,
             @NonNull final EvmHookState hookState,
             @NonNull final CodeFactory codeFactory,
             @NonNull final EntityIdFactory entityIdFactory) {

@@ -55,6 +55,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.ActionStack;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.ActionsHelper;
 import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
@@ -69,7 +70,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogBuilder;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
@@ -84,7 +84,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ActionStackTest {
     @Mock
-    private Account account;
+    private AbstractMutableEvmAccount account;
 
     @Mock
     private HederaEvmAccount evmAccount;
