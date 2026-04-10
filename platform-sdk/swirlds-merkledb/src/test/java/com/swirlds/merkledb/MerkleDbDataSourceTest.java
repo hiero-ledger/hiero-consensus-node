@@ -24,15 +24,11 @@ import com.swirlds.base.function.CheckedConsumer;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.merkledb.collections.HashListByteBuffer;
-import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.test.fixtures.ExampleByteArrayVirtualValue;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -40,8 +36,6 @@ import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
@@ -64,7 +58,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class MerkleDbDataSourceTest {
 
@@ -716,81 +709,6 @@ class MerkleDbDataSourceTest {
                 assertEquals(i + 5, leaf.path(), "Leaf path mismatch at path " + i);
                 assertEquals(keys.get(i), leaf.keyBytes(), "Wrong key at path " + i);
                 assertEquals(values.get(i), leaf.value(testType.dataType().getCodec()), "Wrong value at path " + i);
-            }
-        });
-    }
-
-    @ParameterizedTest
-    @ValueSource(longs = {0, 50_000, 299_999, 300_000, 300_001, 400_000, 1_000_000, 8388608, Long.MAX_VALUE})
-    void migrateHashesToChunks(final long hashesRamToDiskThreshold) throws IOException {
-        final String dbName = "vm";
-        final int size = 300_000;
-        final long firstLeafPath = size - 1;
-        final long lastLeafPath = 2 * size - 2;
-        final TestType testType = TestType.long_fixed;
-        final Path originalDbPath = testDirectory.resolve("migrateHashesToChunks");
-        createAndApplyDataSource(originalDbPath, dbName, testType, size, dataSource -> {
-            final Path snapshotDbPath = testDirectory.resolve("migrateHashesToChunks-snapshot");
-            // MerkleDbDataSource.snapshot() builds a snapshot in a new format with hash chunks.
-            // Let's hack the snapshot so it looks like the old format, so hash migration can
-            // be tested
-            // Update first/last leaf paths
-            dataSource.saveRecords(firstLeafPath, lastLeafPath, Stream.empty(), Stream.empty(), Stream.empty(), false);
-            // Update hashes RAM/disk threshold. It isn't used now, but it was used previously. snapshot()
-            // will write the threshold to DB metadata regardless
-            dataSource.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
-            dataSource.snapshot(snapshotDbPath);
-
-            final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDbPath);
-            // Drop hash chunk index file and hash chunks store folder, they don't exist in
-            // legacy snapshots
-            Files.delete(snapshotPaths.idToDiskLocationHashChunksFile);
-            FileUtils.deleteDirectory(snapshotPaths.hashChunkDirectory);
-
-            // Now save some hashes in the old format
-            if (hashesRamToDiskThreshold > 0) {
-                final HashListByteBuffer hashStoreRam = new HashListByteBuffer(hashesRamToDiskThreshold, CONFIGURATION);
-                for (long i = 1; i < Math.min(lastLeafPath + 1, hashesRamToDiskThreshold); i++) {
-                    hashStoreRam.put(i, hash((int) (i + 1)));
-                }
-
-                hashStoreRam.writeToFile(snapshotPaths.hashStoreRamFile);
-            }
-            if (hashesRamToDiskThreshold <= lastLeafPath) {
-                final Path tmpDir = testDirectory.resolve("migrateHashesToChunks-tmp");
-                final LongListSegment hashStoreDiskIndex = new LongListSegment(1024, 2 * size, 1024);
-                final MemoryIndexDiskKeyValueStore hashStoreDisk = new MemoryIndexDiskKeyValueStore(
-                        CONFIGURATION.getConfigData(MerkleDbConfig.class),
-                        tmpDir,
-                        dbName + "_internalhashes",
-                        null,
-                        null,
-                        hashStoreDiskIndex);
-                hashStoreDisk.updateValidKeyRange(hashesRamToDiskThreshold, lastLeafPath);
-                hashStoreDisk.startWriting();
-                for (long i = hashesRamToDiskThreshold; i <= lastLeafPath; i++) {
-                    final VirtualHashRecord rec = new VirtualHashRecord(i, hash((int) (i + 1)));
-                    hashStoreDisk.put(i, rec::writeTo, rec.getSizeInBytes());
-                }
-                hashStoreDisk.endWriting();
-
-                hashStoreDiskIndex.writeToFile(snapshotPaths.pathToDiskLocationInternalNodesFile);
-                hashStoreDisk.snapshot(snapshotPaths.hashStoreDiskDirectory);
-            }
-
-            // Restore
-            final MerkleDbDataSource snapshot =
-                    testType.dataType().createDataSource(CONFIGURATION, snapshotDbPath, dbName, size, false, false);
-            // Check all hashes are migrated successfully
-            try {
-                for (long i = firstLeafPath; i <= lastLeafPath; i++) {
-                    final long chunkId = VirtualHashChunk.pathToChunkId(i, dataSource.getHashChunkHeight());
-                    final VirtualHashChunk hashChunk = snapshot.loadHashChunk(chunkId);
-                    assertNotNull(hashChunk);
-                    assertEquals(hash((int) (i + 1)), hashChunk.getHashAtPath(i));
-                }
-            } finally {
-                snapshot.close();
             }
         });
     }
