@@ -537,19 +537,7 @@ jobs:
           export NODE_COPY_CONCURRENT=1
 
           task
-          task_code=${?}
-          task solo:node:logs
-          if [[ ${task_code} -ne 0 ]]
-          then
-             echo "ERROR! log:"
-             tail -n 100 "${HOME}"/.solo/logs/solo.log
-          fi
 
-          sleep 30
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
-          cd "${{ github.workspace }}"
-
-          exit "${task_code}"
 
       - name: Add BlockNodes
         run: |
@@ -597,6 +585,11 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
+          task solo:node:logs
+
+          sleep 30
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
+          cd "${{ github.workspace }}"
           mkdir solo_deploy
           cp -r "${HOME}"/.solo/logs solo_deploy/
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
