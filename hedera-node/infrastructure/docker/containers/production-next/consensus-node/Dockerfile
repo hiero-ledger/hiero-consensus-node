@@ -274,8 +274,8 @@ ENV PATH ${JAVA_HOME}/bin:${PATH}
 ENV JAVA_HEAP_MIN ""
 ENV JAVA_HEAP_MAX ""
 ENV JAVA_OPTS ""
-ENV JAVA_MAIN_CLASS "com.hedera.node.app.ServicesMain"
-ENV JAVA_CLASS_PATH "data/lib/*:data/apps/*"
+ENV JAVA_MAIN_MODULE "com.hedera.node.app"
+ENV JAVA_MODULE_PATH "data/lib:data/apps"
 
 ## Consensus Node Configuration
 ENV CONSENSUS_NODE_ID=""

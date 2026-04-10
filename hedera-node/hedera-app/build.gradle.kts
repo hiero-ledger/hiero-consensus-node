@@ -77,10 +77,17 @@ jmhModuleInfo {
     requires("org.hiero.base.crypto")
 }
 
+val entryPoint = "com.hedera.node.app.ServicesMain"
+
+tasks.compileJava {
+    // bake the default main class into 'module-info.class' to start the application with --module
+    options.javaModuleMainClass = entryPoint
+}
+
 // Add all the libs dependencies into the jar manifest!
 tasks.jar {
     inputs.files(configurations.runtimeClasspath)
-    manifest { attributes("Main-Class" to "com.hedera.node.app.ServicesMain") }
+    manifest { attributes("Main-Class" to entryPoint) }
     doFirst {
         manifest.attributes(
             "Class-Path" to
