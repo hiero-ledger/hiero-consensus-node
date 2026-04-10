@@ -1,20 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto.internal;
 
-import com.goterl.lazysodium.LazySodiumJava;
-import com.goterl.lazysodium.SodiumJava;
-import com.goterl.lazysodium.interfaces.Sign;
+import org.hiero.base.crypto.engine.LibSodiumEd25519;
 
 /**
- * Internal class to hold the JNI interface to the native libSodium library.
+ * Internal class to hold the interface to the native libSodium library.
  */
 final class SodiumJni {
     private SodiumJni() {
         // Prevent instantiation
     }
     /**
-     * The JNI interface to the underlying native libSodium dynamic library. This variable is initialized when this
-     * class is loaded and initialized by the {@link ClassLoader}.
+     * The interface to the underlying native libSodium dynamic library via Panama FFM.
      */
-    static final Sign.Native SODIUM = new LazySodiumJava(new SodiumJava());
+    static final LibSodiumEd25519 SODIUM = LibSodiumEd25519.INSTANCE;
 }

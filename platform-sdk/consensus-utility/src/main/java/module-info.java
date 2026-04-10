@@ -7,7 +7,6 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.config;
     exports org.hiero.consensus.crypto;
     exports org.hiero.consensus.event;
-    exports org.hiero.consensus.event.validation;
     exports org.hiero.consensus.exceptions;
     exports org.hiero.consensus.io;
     exports org.hiero.consensus.node;
@@ -25,9 +24,7 @@ module org.hiero.consensus.utility {
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.logging;
     requires org.hiero.base.utility;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.metrics;
-    requires com.goterl.lazysodium;
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;

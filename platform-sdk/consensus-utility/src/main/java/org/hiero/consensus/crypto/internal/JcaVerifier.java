@@ -44,4 +44,15 @@ public class JcaVerifier implements BytesSignatureVerifier {
             throw new CryptographyException(e);
         }
     }
+
+    @Override
+    public boolean verifyRaw(
+            @NonNull final byte[] data, final int dataLen, @NonNull final byte[] signature, final int signatureLen) {
+        try {
+            verifier.update(data, 0, dataLen);
+            return verifier.verify(signature, 0, signatureLen);
+        } catch (final SignatureException e) {
+            throw new CryptographyException(e);
+        }
+    }
 }
