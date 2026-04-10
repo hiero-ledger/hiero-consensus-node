@@ -319,13 +319,21 @@ jobs:
           fi
 
       - name: Compile
-        if: false
         run: |
           set +e
           set +x
           cd "${{ github.workspace }}"/target_consensus_node
 
           echo "0.73.0-rc.1" > version.txt
+          cat << EOF >> settings.gradle.kts
+          dependencyResolutionManagement {
+            repositories {
+              maven("https://artifacts.hashgraph.io/artifactory/hyperledger-besu-maven-external/") {
+                content { includeGroupByRegex("org\\.hyperledger\\..*") }
+              }
+            }
+          }
+          EOF
           ./gradlew clean assemble
 
           if [ "${{ inputs.perf_analysis }}" == "true" ]
@@ -530,7 +538,7 @@ jobs:
           fi
           export NODE_COPY_CONCURRENT=1
 
-          export CONSENSUS_NODE_VERSION=${{ inputs.ref }}
+          #export CONSENSUS_NODE_VERSION=${{ inputs.ref }}
           task
 
 
@@ -542,7 +550,7 @@ jobs:
 
           mv block-node-values.yaml block-node-values.yaml.orig
           export BLOCK_NODE_VERSION="${{ inputs.bnref }}"  #"${{ env.BlockNode_version }}"
-          export CONSENSUS_NODE_VERSION=${{ inputs.ref }}
+          #export CONSENSUS_NODE_VERSION=${{ inputs.ref }}
 
           #create local-path-storage
           #sed -i -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
@@ -570,7 +578,7 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace}}"/solo
-          export CONSENSUS_NODE_VERSION=${{ inputs.ref }}
+          #export CONSENSUS_NODE_VERSION=${{ inputs.ref }}
           task installCNs
 
       - name: Solo logs
