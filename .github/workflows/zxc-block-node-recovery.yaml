@@ -513,9 +513,10 @@ jobs:
           range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN1_LAST_AVAILABLE_BLOCK_INIT }}))
           
           ELAPSED_DURATION=0
-          $LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
+          LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
+          CHECK_TIME=$(date +%s)
           if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
-            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - (date +%s)))
+            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - CHECK_TIME))
           fi
           echo "BN1 advanced $range blocks in $ELAPSED_DURATION time"
           if (( range < 1 )); then
@@ -561,9 +562,10 @@ jobs:
           
           range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN2_LAST_AVAILABLE_BLOCK_INIT }}))
           ELAPSED_DURATION=0
-          $LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
+          LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
+          CHECK_TIME=$(date +%s)
           if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
-            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - (date +%s)))
+            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - CHECK_TIME))
           fi
           echo "BN2 advanced $range blocks in $ELAPSED_DURATION time"
           if (( range < 1 )); then
@@ -609,9 +611,10 @@ jobs:
           
           range=$((LAST_AVAILABLE_BLOCK - ${{ env.BN3_LAST_AVAILABLE_BLOCK_INIT }}))
           ELAPSED_DURATION=0
-          $LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
+          LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
+          CHECK_TIME=$(date +%s)
           if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
-            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - (date +%s)))
+            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - CHECK_TIME))
           fi
           echo "BN3 advanced $range blocks in $ELAPSED_DURATION time"
           if (( range < 1 )); then
