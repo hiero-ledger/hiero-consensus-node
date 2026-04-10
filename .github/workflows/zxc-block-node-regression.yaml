@@ -106,7 +106,7 @@ jobs:
           fi
 
           echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
-          # freeze at MN 0.149.0 as next versions require TSS by default. Swap out for custom tag when available
+          # Use version matching solo applied custom image supporting preview block verification by hash
           echo "MIRROR_NODE_TAG=v0.152.0" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
@@ -141,9 +141,7 @@ jobs:
           git fetch --tags
           LATEST_TAG=$(git describe --tags --abbrev=0)
           echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          # Pinned to v2.81.0: v2.82.0+ bumped @hiero-ledger/proto to 2.27.0 which was never published to npm
-          # Update this pin once the upstream issue is resolved.
-          git checkout v2.81.0
+          git checkout ${LATEST_TAG}
 
       # Set up Java Environment
       - name: Setup Java
