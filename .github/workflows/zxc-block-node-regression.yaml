@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Block Node Regression"
+name: "ZXC: Block Node Explorer Regression"
 on:
   workflow_call:
     inputs:
@@ -42,9 +42,8 @@ env:
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
 
 jobs:
-  # Execute Block Node Regression Tests using specified version of hiero-consensus-node
+  # Execute Block Node Explorer Regression Tests using specified version of hiero-consensus-node
   block-node-regression:
-    timeout-minutes: 60
     name: ${{ inputs.custom-job-name || 'Standard' }}
     runs-on: hl-cn-bn-regression-lin-lg
     steps:
@@ -106,7 +105,7 @@ jobs:
           fi
 
           echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
-          echo "MIRROR_NODE_TAG=v0.152.0" >> "$GITHUB_ENV"
+          echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -154,7 +153,7 @@ jobs:
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: 20.18.0
 
       - name: Setup PNPM
         run: |
@@ -191,7 +190,7 @@ jobs:
           echo "Using proto version: ${PROTO_VERSION}"
 
           # Install with the extracted versions
-          pnpm add "@hiero-ledger/sdk@^${SDK_VERSION}" "long@${LONG_VERSION}" "@hiero-ledger/proto@${PROTO_VERSION}"
+          pnpm add @hiero-ledger/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
           pnpm install
           nohup pnpm start &
           server_pid=$!
@@ -238,11 +237,6 @@ jobs:
                     stream:
                       maxSubscribeAttempts: 10
                       responseTimeout: 10s
-            # custom image to support preview streams hash verification
-            image:
-              registry: docker.io
-              repository: xin323/importer
-              tag: 0.152.0-f5f5faa13
           EOF
 
       - name: Print MN Override Values
@@ -267,16 +261,9 @@ jobs:
           solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
           solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
-
-      - name: Show running pods and services and wait on BN readiness
-        run: |
-          kubectl get pods -n "${{ env.SOLO_NAMESPACE }}"
-          kubectl get svc -n "${{ env.SOLO_NAMESPACE }}"
-          kubectl wait --for=condition=Ready pod -n "${{ env.SOLO_NAMESPACE }}" -l "app.kubernetes.io/name=block-node-1" --timeout=180s
-        continue-on-error: true
 
       # port forwards
       - name: Solo Port forwards
@@ -286,7 +273,6 @@ jobs:
           kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
           kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
-        continue-on-error: true
 
       # ---- BN verification with grpcurl ----
 
@@ -359,7 +345,6 @@ jobs:
 
       # Start the TCK client. Run a subset of the service tests expanding over time.
       - name: Start tck-client
-        timeout-minutes: 45
         env:
           OPERATOR_ACCOUNT_ID: "0.0.2"
           OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
@@ -372,7 +357,6 @@ jobs:
           cp .env.custom_node .env
           npm run test:file src/tests/crypto-service/test-transfer-hbar-transaction.ts
           npm run test:file src/tests/contract-service/test-contract-delete-transaction.ts
-          npm run test
         working-directory: sdk-tck/regression # required
 
       - name: BN Based - SDK TCK Regression Test Report
@@ -416,7 +400,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: cn-logs
+          name: cn-log
           path: ${{ env.CN_LOG_FOLDER }}/*.zip
 
       - name: Add Logs to Summary
