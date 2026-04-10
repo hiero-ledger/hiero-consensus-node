@@ -26,24 +26,27 @@ class LongListAdHocTest {
     @ParameterizedTest
     @MethodSource("provideLongLists")
     void test4089(final AbstractLongList<?> list) {
-        list.updateValidRange(0, list.capacity() - 1);
-        // Issue #4089: ArrayIndexOutOfBoundsException from VirtualMap.put()
-        final long maxLongs = list.capacity();
-        final int defaultValue = -1;
-        final AtomicBoolean done = new AtomicBoolean();
+        try (list) {
+            list.updateValidRange(0, list.capacity() - 1);
+            // Issue #4089: ArrayIndexOutOfBoundsException from VirtualMap.put()
+            final long maxLongs = list.capacity();
+            final int defaultValue = -1;
+            final AtomicBoolean done = new AtomicBoolean();
 
-        IntStream.range(0, 2).parallel().forEach(thread -> {
-            if (thread == 0) {
-                // Getter
-                while (!done.get()) {
-                    assertEquals(defaultValue, list.get(maxLongs - 2, defaultValue), "Value should be whats expected.");
+            IntStream.range(0, 2).parallel().forEach(thread -> {
+                if (thread == 0) {
+                    // Getter
+                    while (!done.get()) {
+                        assertEquals(
+                                defaultValue, list.get(maxLongs - 2, defaultValue), "Value should be whats expected.");
+                    }
+                } else {
+                    // Putter
+                    list.put(maxLongs - 1, 1);
+                    done.set(true);
                 }
-            } else {
-                // Putter
-                list.put(maxLongs - 1, 1);
-                done.set(true);
-            }
-        });
+            });
+        }
     }
 
     static Stream<LongList> provideLongLists() {

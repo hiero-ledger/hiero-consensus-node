@@ -31,12 +31,10 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-@SuppressWarnings("SameParameterValue")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class DataFileLowLevelTest {
 
     /** Temporary directory provided by JUnit */
-    @SuppressWarnings("unused")
     @TempDir
     static Path tempFileDir;
 

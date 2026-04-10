@@ -21,13 +21,12 @@ import org.junit.jupiter.api.Test;
 class DataFileCompactorSingleLevelTest {
 
     private DataFileCollection dataFileCollection;
-    private CASableLongIndex index;
     private TestDataFileCompactor compactor;
 
     @BeforeEach
     void setUp() {
         dataFileCollection = mock(DataFileCollection.class);
-        index = mock(CASableLongIndex.class);
+        CASableLongIndex index = mock(CASableLongIndex.class);
         when(dataFileCollection.getAllCompletedFiles()).thenReturn(List.of());
 
         final MerkleDbConfig config = CONFIGURATION.getConfigData(MerkleDbConfig.class);

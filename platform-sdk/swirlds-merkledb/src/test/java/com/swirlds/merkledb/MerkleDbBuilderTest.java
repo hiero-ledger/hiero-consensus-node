@@ -2,6 +2,7 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -9,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,8 +20,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class MerkleDbBuilderTest {
@@ -35,7 +36,7 @@ class MerkleDbBuilderTest {
     @AfterEach
     public void afterCheckNoDbLeftOpen() {
         // check db count
-        assertEquals(0, MerkleDbDataSource.getCountOfOpenDatabases(), "Expected no open dbs");
+        assertAllDatabasesClosed();
     }
 
     final MerkleDbDataSourceBuilder createDefaultBuilder() {
@@ -43,20 +44,17 @@ class MerkleDbBuilderTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"100", "1000000"})
+    @ValueSource(longs = {100L, 1000000L})
     @DisplayName("Test table config is passed to data source")
     public void testTableConfig(final long initialCapacity) throws IOException {
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, initialCapacity);
-        VirtualDataSource dataSource = null;
+        VirtualDataSource dataSource = builder.build("test1", null, false, false);
         try {
-            dataSource = builder.build("test1", null, false, false);
-            assertTrue(dataSource instanceof MerkleDbDataSource);
+            assertInstanceOf(MerkleDbDataSource.class, dataSource);
             MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
             assertEquals(initialCapacity, merkleDbDataSource.getInitialCapacity());
         } finally {
-            if (dataSource != null) {
-                dataSource.close();
-            }
+            dataSource.close(false);
         }
     }
 
@@ -65,53 +63,46 @@ class MerkleDbBuilderTest {
     @DisplayName("Test compaction flag is passed to data source")
     public void testCompactionConfig(final boolean compactionEnabled) throws IOException {
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 1024);
-        VirtualDataSource dataSource = null;
+        VirtualDataSource dataSource = builder.build("test2", null, compactionEnabled, false);
         try {
-            dataSource = builder.build("test2", null, compactionEnabled, false);
             assertInstanceOf(MerkleDbDataSource.class, dataSource);
             MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
             assertEquals(compactionEnabled, merkleDbDataSource.isCompactionEnabled());
         } finally {
-            dataSource.close();
+            dataSource.close(false);
         }
     }
 
     @Test
-    void testSnapshot() throws IOException {
+    void testSnapshot(@TempDir Path tmpDir) throws IOException {
+        final String label = "testSnapshot";
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 1024);
-        VirtualDataSource dataSource = null;
+        VirtualDataSource dataSource = builder.build(label, null, false, false);
         try {
-            final String label = "testSnapshot";
-            dataSource = builder.build(label, null, false, false);
-            final Path tmpDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
             builder.snapshot(tmpDir, dataSource);
             assertTrue(Files.isDirectory(tmpDir.resolve("data").resolve(label)));
         } finally {
-            dataSource.close();
+            dataSource.close(false);
         }
     }
 
     @Test
-    void testSnapshotRestore() throws IOException {
+    void testSnapshotRestore(@TempDir Path tmpDir) throws IOException {
+        final String label = "testSnapshotRestore";
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 10_000);
-        VirtualDataSource dataSource = null;
+        VirtualDataSource dataSource = builder.build(label, null, false, false);
         try {
-            final String label = "testSnapshotRestore";
-            dataSource = builder.build(label, null, false, false);
-            final Path tmpDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
             builder.snapshot(tmpDir, dataSource);
             assertTrue(Files.isDirectory(tmpDir.resolve("data").resolve(label)));
-            VirtualDataSource restored = null;
+            VirtualDataSource restored = builder.build(label, tmpDir, false, false);
             try {
-                restored = builder.build(label, tmpDir, false, false);
                 assertNotNull(restored);
                 assertInstanceOf(MerkleDbDataSource.class, restored);
-                final MerkleDbDataSource merkleDbRestored = (MerkleDbDataSource) restored;
             } finally {
-                restored.close();
+                restored.close(false);
             }
         } finally {
-            dataSource.close();
+            dataSource.close(false);
         }
     }
 
@@ -123,7 +114,7 @@ class MerkleDbBuilderTest {
      * round N, and that old signed state is finally written to disk.
      */
     @Test
-    void testSnapshotAfterReconnect() throws Exception {
+    void testSnapshotAfterReconnect(@TempDir Path snapshotDir, @TempDir Path oldSnapshotDir) throws Exception {
         final MerkleDbDataSourceBuilder dsBuilder = createDefaultBuilder();
         final VirtualDataSource original = dsBuilder.build("vm", null, false, false);
         // Simulate reconnect as a learner
@@ -131,15 +122,12 @@ class MerkleDbBuilderTest {
         final VirtualDataSource copy = dsBuilder.build("vm", snapshotPath, true, false);
 
         try {
-            final Path snapshotDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshot", CONFIGURATION);
             dsBuilder.snapshot(snapshotDir, copy);
-
-            final Path oldSnapshotDir =
-                    LegacyTemporaryFileBuilder.buildTemporaryDirectory("oldSnapshot", CONFIGURATION);
             assertDoesNotThrow(() -> dsBuilder.snapshot(oldSnapshotDir, original));
         } finally {
-            original.close();
-            copy.close();
+            original.close(false);
+            copy.close(false);
+            FileUtils.deleteDirectory(snapshotPath);
         }
     }
 }

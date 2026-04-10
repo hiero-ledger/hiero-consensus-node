@@ -5,6 +5,6 @@ final class ReusableParsedBucketPoolTest extends ReusableBucketPoolTestBase {
 
     @Override
     protected ReusableBucketPool createPool(final int size) {
-        return new ReusableBucketPool(size, pool -> new ParsedBucket(pool));
+        return new ReusableBucketPool(size, ParsedBucket::new);
     }
 }

@@ -3,7 +3,6 @@ package com.swirlds.merkledb.test.fixtures;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -60,7 +59,6 @@ import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 
-@SuppressWarnings("unused")
 public class MerkleDbTestUtils {
 
     /**
@@ -97,15 +95,9 @@ public class MerkleDbTestUtils {
         executorService.shutdown();
         // Check we did not leak direct memory now that the thread is shut down so thread locals
         // should be released
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
         // check db count
-        assertEquals(0, MerkleDbDataSource.getCountOfOpenDatabases(), "Expected no open dbs");
+        assertAllDatabasesClosed();
     }
 
     /** Dump the Java heap to a file in current working directory */
@@ -132,11 +124,12 @@ public class MerkleDbTestUtils {
      *     started
      * @return True if more than base usage of direct memory is being used after 20 gc() calls.
      */
-    public static boolean checkDirectMemoryIsCleanedUpToLessThanBaseUsage(final long directMemoryBytesBefore) {
+    public static void checkDirectMemoryIsCleanedUpToLessThanBaseUsage(final long directMemoryBytesBefore) {
         final long limit = directMemoryBytesBefore + DIRECT_MEMORY_BASE_USAGE;
         if (getDirectMemoryUsedBytes() < limit) {
-            return true;
+            return;
         }
+
         for (int i = 0; i < 5 && getDirectMemoryUsedBytes() > limit; i++) {
             System.gc();
             try {
@@ -145,7 +138,13 @@ public class MerkleDbTestUtils {
                 throw new RuntimeException(e);
             }
         }
-        return getDirectMemoryUsedBytes() < limit;
+
+        assertTrue(
+                getDirectMemoryUsedBytes() < limit,
+                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
+                        + (directMemoryBytesBefore * UnitConstants.BYTES_TO_MEBIBYTES) + "MB and is now "
+                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
+                        + "MB");
     }
 
     private static final BufferPoolMXBean DIRECT_MEMORY_POOL;

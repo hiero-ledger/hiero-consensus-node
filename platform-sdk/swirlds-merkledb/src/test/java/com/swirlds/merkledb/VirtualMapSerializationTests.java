@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
@@ -26,11 +25,15 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("VirtualMap Serialization Test")
 class VirtualMapSerializationTests {
+
+    @TempDir
+    private Path tmpDir;
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
@@ -117,25 +120,21 @@ class VirtualMapSerializationTests {
     /**
      * Test serialization of a map. Does not release any resources created by caller.
      */
-    @SuppressWarnings("resource")
     private void testMapSerialization(final VirtualMap map) throws IOException {
-
-        final Path savedStateDirectory =
-                LegacyTemporaryFileBuilder.buildTemporaryDirectory("saved-state", CONFIGURATION);
 
         // Make sure the map is hashed
         map.getHash();
 
-        map.createSnapshot(savedStateDirectory);
+        map.createSnapshot(tmpDir);
 
-        try (final Stream<Path> filesInDirectory = Files.list(savedStateDirectory)) {
+        try (final Stream<Path> filesInDirectory = Files.list(tmpDir)) {
             List<Path> list = filesInDirectory.toList();
             assertNotNull(list, "saved state directory is not a valid directory");
             assertFalse(list.isEmpty(), "there should be a non-zero number of files created");
         }
 
         final VirtualMap deserializedMap =
-                VirtualMap.loadFromDirectory(savedStateDirectory, CONFIGURATION, () -> constructBuilder(CONFIGURATION));
+                VirtualMap.loadFromDirectory(tmpDir, CONFIGURATION, () -> constructBuilder(CONFIGURATION));
 
         assertVmsAreEqual(map, deserializedMap);
 

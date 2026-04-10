@@ -13,8 +13,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -25,9 +27,13 @@ class DataFileWriterTest {
     private DataFileWriter dataFileWriter;
 
     @BeforeEach
-    public void setUp() throws Exception {
-        Path dataFileWriterPath = Files.createTempDirectory("dataFileWriter");
-        dataFileWriter = new DataFileWriter("test", dataFileWriterPath, 1, Instant.now(), 1, BUFFER_SIZE);
+    void setUp(@TempDir Path tempDir) throws Exception {
+        dataFileWriter = new DataFileWriter("test", tempDir, 1, Instant.now(), 1, BUFFER_SIZE);
+    }
+
+    @AfterEach
+    void close() throws IOException {
+        dataFileWriter.close();
     }
 
     @Test

@@ -21,11 +21,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedConsumer;
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -62,13 +60,13 @@ import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class MerkleDbDataSourceTest {
 
-    private static final int COUNT = 10_000;
     private static final Random RANDOM = new Random(1234);
 
     private Path testDirectory;
@@ -85,20 +83,14 @@ class MerkleDbDataSourceTest {
     }
 
     @BeforeEach
-    void setupDatabaseDir() throws IOException {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("MerkleDbDataSourceTest", CONFIGURATION);
+    void setupDatabaseDir(@TempDir Path tmpDir) throws IOException {
+        testDirectory = tmpDir.resolve("MerkleDbDataSourceTest");
     }
 
     @AfterEach
     void checkDirectMemoryForLeaks() {
         // check all memory is freed after DB is closed
-        assertTrue(
-                checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart),
-                "Direct Memory used is more than base usage even after 20 gc() calls. At start was "
-                        + (directMemoryUsedAtStart * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB and is now "
-                        + (getDirectMemoryUsedBytes() * UnitConstants.BYTES_TO_MEBIBYTES)
-                        + "MB");
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
     }
 
     // =================================================================================================================
@@ -265,7 +257,7 @@ class MerkleDbDataSourceTest {
 
     @ParameterizedTest
     @EnumSource(TestType.class)
-    void updateLeaves(final TestType testType) throws IOException, InterruptedException {
+    void updateLeaves(final TestType testType) throws IOException {
         final int firstLeafPath = 499;
         final int lastLeafPath = 998;
 
@@ -859,7 +851,7 @@ class MerkleDbDataSourceTest {
     }
 
     @Test
-    void copyStatisticsTest() throws Exception {
+    void copyStatisticsTest(@TempDir Path copyPath) throws Exception {
         // This test simulates what happens on reconnect and makes sure that MerkleDb stats are reported
         // for the copy correctly
         final String label = "copyStatisticsTest";
@@ -886,7 +878,6 @@ class MerkleDbDataSourceTest {
             // Now save some dirty leaves
             dataSource.saveRecords(15, 30, Stream.empty(), dirtyLeaves.stream(), Stream.empty(), false);
             assertEquals(1L, sourceCounter.get());
-            final Path copyPath = LegacyTemporaryFileBuilder.buildTemporaryFile("copyStatisticsTest", CONFIGURATION);
             dataSource.snapshot(copyPath);
             final MerkleDbDataSource copy =
                     testType.dataType().getDataSource(copyPath, dataSource.getTableName(), true);

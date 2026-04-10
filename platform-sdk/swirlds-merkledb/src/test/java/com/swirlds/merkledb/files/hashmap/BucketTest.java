@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-@SuppressWarnings({"RedundantCast", "unchecked", "rawtypes"})
 class BucketTest {
 
     private enum KeyType {
@@ -173,7 +172,7 @@ class BucketTest {
 
     @ParameterizedTest
     @EnumSource(KeyType.class)
-    void testBucketImportExportClear(KeyType keyType) throws IOException {
+    void testBucketImportExportClear(KeyType keyType) {
         // create some keys to test with
         final Bytes[] testKeys = new Bytes[50];
         for (int i = 0; i < testKeys.length; i++) {
@@ -241,7 +240,7 @@ class BucketTest {
 
     @ParameterizedTest
     @EnumSource(KeyType.class)
-    void emptyParsedBucketToBucketIndexZero(final KeyType keyType) throws IOException {
+    void emptyParsedBucketToBucketIndexZero(final KeyType keyType) {
         final Bucket inBucket = new ParsedBucket();
         final Bytes key1 = keyType.keyConstructor.apply(1L);
         final Bytes key2 = keyType.keyConstructor.apply(2L);

@@ -30,11 +30,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-@SuppressWarnings({"SameParameterValue"})
 class HalfDiskHashMapTest {
 
     /** Temporary directory provided by JUnit */
-    @SuppressWarnings("unused")
     @TempDir
     Path tempDirPath;
 
@@ -601,9 +599,8 @@ class HalfDiskHashMapTest {
                 .withConfigDataType(MerkleDbConfig.class)
                 .withValue("merkleDb.maxNumOfKeys", "500")
                 .build();
-        final HalfDiskHashMap hdhm = new HalfDiskHashMap(
-                config, 100, tempDirPath.resolve("test"), "testResizeRespectsBucketIndexCapacity", null, false);
-        try {
+        try (final HalfDiskHashMap hdhm = new HalfDiskHashMap(
+                config, 100, tempDirPath.resolve("test"), "testResizeRespectsBucketIndexCapacity", null, false)) {
             final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
             // 500 / 32 / 0.7, rounded up -> 32
             assertEquals(32, bucketIndex.capacity());
@@ -623,8 +620,6 @@ class HalfDiskHashMapTest {
             // And again. This time resizeIfNeeded() should stay at 32 buckets to respect bucket index capacity
             hdhm.resizeIfNeeded(800, 1600);
             assertEquals(32, hdhm.getNumOfBuckets());
-        } finally {
-            hdhm.close();
         }
     }
 
