@@ -224,6 +224,7 @@ jobs:
             config:
               BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
               BACKFILL_FETCH_BATCH_SIZE: "10"
+              BACKFILL_GREEDY: "true"
             backfill:
               path: "/opt/hiero/block-node/backfill"
               filename: "block-node-sources.json"
@@ -252,6 +253,7 @@ jobs:
             config:
               BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
               BACKFILL_FETCH_BATCH_SIZE: "10"
+              BACKFILL_GREEDY: "true"
             backfill:
               path: "/opt/hiero/block-node/backfill"
               filename: "block-node-sources.json"
@@ -516,9 +518,9 @@ jobs:
           LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
           CHECK_TIME=$(date +%s)
           if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
-            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - CHECK_TIME))
+            ELAPSED_DURATION=$((CHECK_TIME - LAST_STATUS_CHECK_TIME))
           fi
-          echo "BN1 advanced $range blocks in $ELAPSED_DURATION time"
+          echo "BN1 advanced $range blocks in $ELAPSED_DURATION ns"
           if (( range < 1 )); then
               echo "BN1 failed to advance"
               exit 1
@@ -565,9 +567,9 @@ jobs:
           LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
           CHECK_TIME=$(date +%s)
           if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
-            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - CHECK_TIME))
+            ELAPSED_DURATION=$((CHECK_TIME - LAST_STATUS_CHECK_TIME))
           fi
-          echo "BN2 advanced $range blocks in $ELAPSED_DURATION time"
+          echo "BN2 advanced $range blocks in $ELAPSED_DURATION ns"
           if (( range < 1 )); then
               echo "BN2 failed to advance"
               exit 1
@@ -614,9 +616,9 @@ jobs:
           LAST_STATUS_CHECK_TIME=${{ steps.bn-init-status.outputs.last_status_check_time }}
           CHECK_TIME=$(date +%s)
           if [[ -n "$LAST_STATUS_CHECK_TIME" ]]; then
-            ELAPSED_DURATION=$((LAST_STATUS_CHECK_TIME - CHECK_TIME))
+            ELAPSED_DURATION=$((CHECK_TIME - LAST_STATUS_CHECK_TIME))
           fi
-          echo "BN3 advanced $range blocks in $ELAPSED_DURATION time"
+          echo "BN3 advanced $range blocks in $ELAPSED_DURATION ns"
           if (( range < 1 )); then
               echo "BN3 failed to advance"
               exit 1
@@ -652,8 +654,8 @@ jobs:
           echo "Maximum last available block among BNs: $max_last_available"
           range=$((max_last_available - min_last_available))
           echo "Range of last available blocks: $range"
-          if (( range > 200 )); then
-              echo "Range of last available blocks ($range) exceeds acceptable limit."
+          if (( range > 150 )); then
+              echo "Range of last available blocks ($range) exceeds acceptable limit on 150."
               exit 1
           fi
 
