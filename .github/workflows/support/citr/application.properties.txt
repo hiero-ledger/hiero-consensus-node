@@ -5,3 +5,12 @@ bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
 networkAdmin.exportCandidateRoster=true
 addressBook.useRosterLifecycle=true
 nodes.gossipFqdnRestricted=false
+
+tss.forceMockSignatures=false
+hedera.recordStream.computeHashesFromWrappedRecordBlocks=true
+hedera.recordStream.liveWritePrevWrappedRecordHashes=true
+blockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config
+blockStream.buffer.isBufferPersistenceEnabled=true
+tss.hintsEnabled=true
+tss.historyEnabled=true
+tss.wrapsEnabled=true

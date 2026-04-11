@@ -585,30 +585,6 @@ jobs:
           echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
           cd "${{ github.workspace}}"
 
-      - name: Update CNs with BNs
-        if: false
-        run: |
-          set +x
-          set +e
-          #create block-nodes.json for CNs
-          for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
-          do
-
-            echo "{\"nodes\": [" > block-nodes_${i}.json
-            echo "{ \"address\": \"block-node-${i}.${{ steps.set-namespace.outputs.namespace }}.svc.cluster.local\", \
-                    \"streamingPort\": 40840, \
-                    \"servicePort\": 40840, \
-                    \"priority\": 1, \
-                    \"messageSizeSoftLimitBytes\": 4194304, \
-                    \"messageSizeHardLimitBytes\": 37748736 \
-                     }],\"blockItemBatchSize\": 256 }" >> block-nodes_${i}.json
-
-            echo "DEBUG: block-nodes_${i}.json is:"
-            cat block-nodes_${i}.json
-            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp block-nodes_${i}.json network-node${i}-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/config/block-nodes.json
-          done
-
-
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
 
