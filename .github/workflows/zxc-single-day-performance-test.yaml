@@ -929,8 +929,8 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
 
-          echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
+          #echo "Truncating logs for next test..."
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
 
       - name: Start test
         run: |
@@ -1366,8 +1366,8 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
 
-          echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
+          #echo "Truncating logs for next test..."
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
 
       - name: Records logs of CryptoBenchMerkleDb
         if: false
@@ -1422,8 +1422,8 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
 
-          echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
+          #echo "Truncating logs for next test..."
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
 
   performance-HCSLoadTest:
     needs:

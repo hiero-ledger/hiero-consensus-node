@@ -385,5 +385,5 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive report "${{ steps.gs-dir-url.outputs.url }}"
           echo Done: see results in "${{ steps.gs-https-url.outputs.url }}"
 
-          echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
+          #echo "Truncating logs for next test..."
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
