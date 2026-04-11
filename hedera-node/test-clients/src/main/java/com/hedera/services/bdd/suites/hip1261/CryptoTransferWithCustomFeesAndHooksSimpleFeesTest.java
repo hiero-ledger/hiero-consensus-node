@@ -14,7 +14,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
-import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -32,6 +31,7 @@ import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
+
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -81,8 +81,10 @@ public class CryptoTransferWithCustomFeesAndHooksSimpleFeesTest {
     @DisplayName("Crypto Transfer with Custom Fees and Hooks - Simple Fees Test")
     class PositiveTests {
         @HapiTest
-        @DisplayName("Crypto Transfer FT and NFT with custom fees and with hook execution - extra hooks, tokens and accounts full charging")
-        final Stream<DynamicTest> cryptoTransferHBARAndFtAndNFTWithTwoHooksExtraHooksAndTokensAndAccountsFullCharging() {
+        @DisplayName(
+                "Crypto Transfer FT and NFT with custom fees and with hook execution - extra hooks, tokens and accounts full charging")
+        final Stream<DynamicTest>
+                cryptoTransferHBARAndFtAndNFTWithTwoHooksExtraHooksAndTokensAndAccountsFullCharging() {
             return hapiTest(flattened(
                     createAccountsAndKeysWithHooks(),
                     createFungibleTokenWithAdminKey(DENOM_TOKEN, 100, DENOM_TREASURY, adminKey),
@@ -94,14 +96,16 @@ public class CryptoTransferWithCustomFeesAndHooksSimpleFeesTest {
                             moving(10, DENOM_TOKEN).between(DENOM_TREASURY, PAYER_WITH_TWO_HOOKS),
                             moving(10, DENOM_TOKEN).between(DENOM_TREASURY, RECEIVER_ASSOCIATED_FIRST),
                             moving(10, DENOM_TOKEN).between(DENOM_TREASURY, RECEIVER_ASSOCIATED_THIRD)),
-                    createFungibleTokenWithFixedHtsFee(FT_WITH_HTS_FIXED_FEE, 100L, PAYER_WITH_TWO_HOOKS, adminKey, HTS_FEE),
+                    createFungibleTokenWithFixedHtsFee(
+                            FT_WITH_HTS_FIXED_FEE, 100L, PAYER_WITH_TWO_HOOKS, adminKey, HTS_FEE),
                     tokenAssociate(HTS_COLLECTOR, FT_WITH_HTS_FIXED_FEE),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_WITH_HTS_FIXED_FEE),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_WITH_HTS_FIXED_FEE),
                     tokenAssociate(RECEIVER_ASSOCIATED_THIRD, FT_WITH_HTS_FIXED_FEE),
                     cryptoTransfer(
                             moving(10L, FT_WITH_HTS_FIXED_FEE).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST),
-                            moving(10L, FT_WITH_HTS_FIXED_FEE).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD)),
+                            moving(10L, FT_WITH_HTS_FIXED_FEE)
+                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD)),
                     createNFTWithFixedFee(NFT_WITH_HTS_FEE, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey, HTS_FEE),
                     mintNFT(NFT_WITH_HTS_FEE, 0, 5),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_WITH_HTS_FEE),
@@ -109,7 +113,8 @@ public class CryptoTransferWithCustomFeesAndHooksSimpleFeesTest {
                     tokenAssociate(RECEIVER_ASSOCIATED_THIRD, NFT_WITH_HTS_FEE),
                     cryptoTransfer(
                             moving(20L, FT_WITH_HTS_FIXED_FEE).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST),
-                            movingUnique(NFT_WITH_HTS_FEE, 1L, 2L, 3L).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD)),
+                            movingUnique(NFT_WITH_HTS_FEE, 1L, 2L, 3L)
+                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD)),
                     cryptoTransfer(
                                     moving(10L, FT_WITH_HTS_FIXED_FEE)
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_SECOND),
@@ -176,14 +181,16 @@ public class CryptoTransferWithCustomFeesAndHooksSimpleFeesTest {
                             moving(10, DENOM_TOKEN).between(DENOM_TREASURY, PAYER_WITH_TWO_HOOKS),
                             moving(10, DENOM_TOKEN).between(DENOM_TREASURY, RECEIVER_ASSOCIATED_FIRST),
                             moving(10, DENOM_TOKEN).between(DENOM_TREASURY, RECEIVER_ASSOCIATED_THIRD)),
-                    createFungibleTokenWithFixedHtsFee(FT_WITH_HTS_FIXED_FEE, 100L, PAYER_WITH_TWO_HOOKS, adminKey, HTS_FEE),
+                    createFungibleTokenWithFixedHtsFee(
+                            FT_WITH_HTS_FIXED_FEE, 100L, PAYER_WITH_TWO_HOOKS, adminKey, HTS_FEE),
                     tokenAssociate(HTS_COLLECTOR, FT_WITH_HTS_FIXED_FEE),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FT_WITH_HTS_FIXED_FEE),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FT_WITH_HTS_FIXED_FEE),
                     tokenAssociate(RECEIVER_ASSOCIATED_THIRD, FT_WITH_HTS_FIXED_FEE),
                     cryptoTransfer(
                             moving(10L, FT_WITH_HTS_FIXED_FEE).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST),
-                            moving(10L, FT_WITH_HTS_FIXED_FEE).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD)),
+                            moving(10L, FT_WITH_HTS_FIXED_FEE)
+                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD)),
                     createNFTWithFixedFee(NFT_WITH_HTS_FEE, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey, HTS_FEE),
                     mintNFT(NFT_WITH_HTS_FEE, 0, 5),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NFT_WITH_HTS_FEE),
@@ -191,7 +198,8 @@ public class CryptoTransferWithCustomFeesAndHooksSimpleFeesTest {
                     tokenAssociate(RECEIVER_ASSOCIATED_THIRD, NFT_WITH_HTS_FEE),
                     cryptoTransfer(
                             moving(20L, FT_WITH_HTS_FIXED_FEE).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST),
-                            movingUnique(NFT_WITH_HTS_FEE, 1L, 2L, 3L).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD)),
+                            movingUnique(NFT_WITH_HTS_FEE, 1L, 2L, 3L)
+                                    .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD)),
                     cryptoTransfer(
                                     moving(10L, FT_WITH_HTS_FIXED_FEE)
                                             .between(RECEIVER_ASSOCIATED_FIRST, RECEIVER_ASSOCIATED_SECOND),
@@ -242,7 +250,11 @@ public class CryptoTransferWithCustomFeesAndHooksSimpleFeesTest {
     }
 
     private HapiTokenCreate createFungibleTokenWithFixedHtsFee(
-            final String tokenName, final long supply, final String treasury, final String adminKey, final long htsFee) {
+            final String tokenName,
+            final long supply,
+            final String treasury,
+            final String adminKey,
+            final long htsFee) {
         return tokenCreate(tokenName)
                 .initialSupply(supply)
                 .treasury(treasury)
@@ -253,7 +265,11 @@ public class CryptoTransferWithCustomFeesAndHooksSimpleFeesTest {
     }
 
     private HapiTokenCreate createNFTWithFixedFee(
-            final String tokenName, final String treasury, final String supplyKey, final String adminKey, final long htsFee) {
+            final String tokenName,
+            final String treasury,
+            final String supplyKey,
+            final String adminKey,
+            final long htsFee) {
         return tokenCreate(tokenName)
                 .initialSupply(0)
                 .treasury(treasury)

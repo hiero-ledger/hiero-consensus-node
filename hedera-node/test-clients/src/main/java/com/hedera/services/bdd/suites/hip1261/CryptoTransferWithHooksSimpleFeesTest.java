@@ -41,6 +41,7 @@ import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
+
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -173,7 +174,8 @@ public class CryptoTransferWithHooksSimpleFeesTest {
                     createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, PAYER_WITH_HOOK, supplyKey, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
                     mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
-                    cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST))
+                    cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 1L)
+                                    .between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST))
                             .withNftSenderPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000L, "")
                             .payingWith(PAYER_WITH_HOOK)
                             .signedBy(PAYER_WITH_HOOK)
@@ -202,7 +204,8 @@ public class CryptoTransferWithHooksSimpleFeesTest {
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, FUNGIBLE_TOKEN),
                     cryptoTransfer(
                                     movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
-                                    moving(10L, FUNGIBLE_TOKEN).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST))
+                                    moving(10L, FUNGIBLE_TOKEN)
+                                            .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_FIRST))
                             .withPreHookFor(PAYER_WITH_HOOK, 1L, 5_000_000L, "")
                             .withPreHookFor(PAYER_WITH_TWO_HOOKS, 2L, 5_000_000L, "")
                             .payingWith(PAYER_WITH_HOOK)
@@ -228,7 +231,8 @@ public class CryptoTransferWithHooksSimpleFeesTest {
         final Stream<DynamicTest> cryptoTransferHBARAndNFtWithOneHookExtraHookFullCharging() {
             return hapiTest(flattened(
                     createAccountsAndKeysWithHooks(),
-                    createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
+                    createNonFungibleTokenWithoutCustomFees(
+                            NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_FIRST, NON_FUNGIBLE_TOKEN),
                     mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
                     cryptoTransfer(
@@ -262,12 +266,14 @@ public class CryptoTransferWithHooksSimpleFeesTest {
                     createAccountsAndKeysWithHooks(),
                     createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_TWO_HOOKS, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
-                    createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
+                    createNonFungibleTokenWithoutCustomFees(
+                            NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_THIRD, NON_FUNGIBLE_TOKEN),
                     mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
                     cryptoTransfer(
                                     movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
-                                    moving(10L, FUNGIBLE_TOKEN).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_SECOND),
+                                    moving(10L, FUNGIBLE_TOKEN)
+                                            .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_SECOND),
                                     movingUnique(NON_FUNGIBLE_TOKEN, 1L)
                                             .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD))
                             .withPreHookFor(PAYER_WITH_TWO_HOOKS, 1L, 5_000_000L, "")
@@ -294,18 +300,22 @@ public class CryptoTransferWithHooksSimpleFeesTest {
         }
 
         @HapiTest
-        @DisplayName("Crypto Transfer HBAR, FT and NFT with hook execution - extra hooks, tokens and accounts full charging")
-        final Stream<DynamicTest> cryptoTransferHBARAndFtAndNFTWithTwoHooksExtraHooksAndTokensAndAccountsFullCharging() {
+        @DisplayName(
+                "Crypto Transfer HBAR, FT and NFT with hook execution - extra hooks, tokens and accounts full charging")
+        final Stream<DynamicTest>
+                cryptoTransferHBARAndFtAndNFTWithTwoHooksExtraHooksAndTokensAndAccountsFullCharging() {
             return hapiTest(flattened(
                     createAccountsAndKeysWithHooks(),
                     createFungibleTokenWithoutCustomFees(FUNGIBLE_TOKEN, 100L, PAYER_WITH_TWO_HOOKS, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_SECOND, FUNGIBLE_TOKEN),
-                    createNonFungibleTokenWithoutCustomFees(NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
+                    createNonFungibleTokenWithoutCustomFees(
+                            NON_FUNGIBLE_TOKEN, PAYER_WITH_TWO_HOOKS, supplyKey, adminKey),
                     tokenAssociate(RECEIVER_ASSOCIATED_THIRD, NON_FUNGIBLE_TOKEN),
                     mintNFT(NON_FUNGIBLE_TOKEN, 1, 5),
                     cryptoTransfer(
                                     movingHbar(1L).between(PAYER_WITH_HOOK, RECEIVER_ASSOCIATED_FIRST),
-                                    moving(10L, FUNGIBLE_TOKEN).between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_SECOND),
+                                    moving(10L, FUNGIBLE_TOKEN)
+                                            .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_SECOND),
                                     movingUnique(NON_FUNGIBLE_TOKEN, 1L)
                                             .between(PAYER_WITH_TWO_HOOKS, RECEIVER_ASSOCIATED_THIRD))
                             .withPreHookFor(PAYER_WITH_TWO_HOOKS, 1L, 5_000_000L, "")
@@ -332,7 +342,8 @@ public class CryptoTransferWithHooksSimpleFeesTest {
         }
 
         @HapiTest
-        @DisplayName("Crypto Transfer - Auto Create Accounts with FT moving and with hook execution - extra hook full charging")
+        @DisplayName(
+                "Crypto Transfer - Auto Create Accounts with FT moving and with hook execution - extra hook full charging")
         final Stream<DynamicTest> cryptoTransferFTAutoAccountCreationWithOneHookExtraHookFullCharging() {
             return hapiTest(flattened(
                     createAccountsAndKeysWithHooks(),
@@ -356,7 +367,10 @@ public class CryptoTransferWithHooksSimpleFeesTest {
                             0.001),
                     getAliasedAccountInfo(VALID_ALIAS_ED25519)
                             .hasToken(relationshipWith(FUNGIBLE_TOKEN))
-                            .has(accountWith().key(VALID_ALIAS_ED25519).alias(VALID_ALIAS_ED25519).maxAutoAssociations(-1)),
+                            .has(accountWith()
+                                    .key(VALID_ALIAS_ED25519)
+                                    .alias(VALID_ALIAS_ED25519)
+                                    .maxAutoAssociations(-1)),
                     getAccountBalance(PAYER_WITH_HOOK).hasTokenBalance(FUNGIBLE_TOKEN, 90L)));
         }
     }
