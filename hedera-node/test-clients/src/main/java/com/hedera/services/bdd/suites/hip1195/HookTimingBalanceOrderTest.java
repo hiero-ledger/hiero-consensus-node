@@ -24,6 +24,7 @@ import com.hedera.hapi.node.base.HookCall;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -38,8 +39,9 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 
-// Hooks are enabled by default so it is safe to run this concurrently
+// This class uses class-scoped hook overrides and must not share a concurrent subprocess network.
 @HapiTestLifecycle
+@OrderedInIsolation
 public class HookTimingBalanceOrderTest {
     private static final String OWNER = "owner";
     private static final String RECEIVER = "receiver";

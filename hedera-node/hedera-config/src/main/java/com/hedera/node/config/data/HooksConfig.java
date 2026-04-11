@@ -13,7 +13,7 @@ public record HooksConfig(
         @ConfigProperty(defaultValue = "10") @NetworkProperty
         int maxHookInvocationsPerTransaction,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean hooksEnabled,
 
         @ConfigProperty(defaultValue = "5000000") @NetworkProperty
