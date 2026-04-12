@@ -92,8 +92,6 @@ public class IsAuthorizedTest {
     private static final String HRC632_CONTRACT = "HRC632Contract";
     private static final String CONTRACTS_SYSTEM_CONTRACT_ACCOUNT_SERVICE_IS_AUTHORIZED_RAW_ENABLED =
             "contracts.systemContract.accountService.isAuthorizedRawEnabled";
-    private static final String CONTRACTS_SYSTEM_CONTRACT_ACCOUNT_SERVICE_IS_AUTHORIZED_ENABLED =
-            "contracts.systemContract.accountService.isAuthorizedRawEnabled";
 
     @Nested
     @DisplayName("IsAuthorizedRaw")
