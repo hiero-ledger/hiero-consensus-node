@@ -344,9 +344,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (writer == null) {
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
-            lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
             final var blockStreamInfo = blockStreamInfoFrom(state, HASH_OF_ZERO.equals(lastBlockHash));
+            lastUsedTime = blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
