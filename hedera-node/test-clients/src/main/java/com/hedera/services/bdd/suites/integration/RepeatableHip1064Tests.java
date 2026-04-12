@@ -90,8 +90,6 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Order(6)
 @Tag(INTEGRATION)
@@ -99,8 +97,6 @@ import org.slf4j.LoggerFactory;
 @TargetEmbeddedMode(REPEATABLE)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RepeatableHip1064Tests {
-    private static final Logger log = LoggerFactory.getLogger(RepeatableHip1064Tests.class);
-
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
