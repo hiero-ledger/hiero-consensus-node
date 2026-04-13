@@ -4,6 +4,8 @@ package com.swirlds.virtualmap.internal.reconnect;
 import static com.hedera.pbj.runtime.ProtoParserTools.readBytes;
 import static com.hedera.pbj.runtime.ProtoParserTools.readFixed64;
 import static com.hedera.pbj.runtime.ProtoParserTools.readInt32;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfDelimited;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfTag;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeBytes;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 
@@ -11,7 +13,6 @@ import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
-import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -71,11 +72,12 @@ public record PullVirtualTreeRequest(
      */
     public int getSizeInBytes() {
         int size = 0;
-        size += ProtoWriterTools.sizeOfTag(FIELD_PULLREQUEST_PATH);
-        size += Long.BYTES;
+        if (path != 0) {
+            size += sizeOfTag(FIELD_PULLREQUEST_PATH) + Long.BYTES;
+        }
         if (hash != null) {
             final int hashLen = DigestType.SHA_384.digestLength();
-            size += ProtoWriterTools.sizeOfDelimited(FIELD_PULLREQUEST_HASH, hashLen);
+            size += sizeOfDelimited(FIELD_PULLREQUEST_HASH, hashLen);
         }
         return size;
     }
@@ -86,7 +88,7 @@ public record PullVirtualTreeRequest(
      * @param out the sequential data to write to
      */
     public void writeTo(@NonNull final WritableSequentialData out) {
-        writeLong(out, FIELD_PULLREQUEST_PATH, path, false);
+        writeLong(out, FIELD_PULLREQUEST_PATH, path);
         if (hash != null) {
             try {
                 writeBytes(out, FIELD_PULLREQUEST_HASH, hash.getBytes(), false);

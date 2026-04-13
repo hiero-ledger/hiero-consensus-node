@@ -92,18 +92,19 @@ public record PullVirtualTreeResponse(
      */
     public int getSizeInBytes() {
         int size = 0;
-        // Path (FIXED64) - always written
-        size += sizeOfTag(FIELD_PULLRESPONSE_PATH);
-        size += Long.BYTES;
-        // isClean (BOOL) - always written
-        size += sizeOfTag(FIELD_PULLRESPONSE_IS_CLEAN);
-        size += 1;
-        // firstLeafPath / lastLeafPath - only for root
+        if (path != 0) {
+            size += sizeOfTag(FIELD_PULLRESPONSE_PATH) + Long.BYTES;
+        }
+        if (isClean) { // false is default, only count when true
+            size += sizeOfTag(FIELD_PULLRESPONSE_IS_CLEAN) + 1;
+        }
         if (path == Path.ROOT_PATH) {
-            size += sizeOfTag(FIELD_PULLRESPONSE_FIRST_LEAF_PATH);
-            size += Long.BYTES;
-            size += sizeOfTag(FIELD_PULLRESPONSE_LAST_LEAF_PATH);
-            size += Long.BYTES;
+            if (firstLeafPath != 0) {
+                size += sizeOfTag(FIELD_PULLRESPONSE_FIRST_LEAF_PATH) + Long.BYTES;
+            }
+            if (lastLeafPath != 0) {
+                size += sizeOfTag(FIELD_PULLRESPONSE_LAST_LEAF_PATH) + Long.BYTES;
+            }
         }
         // Leaf data - only for dirty leaves
         if (leafData != null) {
@@ -123,12 +124,12 @@ public record PullVirtualTreeResponse(
      * @param out the sequential data to write to
      */
     public void writeTo(@NonNull final WritableSequentialData out) {
-        writeLong(out, FIELD_PULLRESPONSE_PATH, path, false);
-        writeBoolean(out, FIELD_PULLRESPONSE_IS_CLEAN, isClean, false);
+        writeLong(out, FIELD_PULLRESPONSE_PATH, path);
+        writeBoolean(out, FIELD_PULLRESPONSE_IS_CLEAN, isClean);
         // First/last leaf paths - only for root
         if (path == Path.ROOT_PATH) {
-            writeLong(out, FIELD_PULLRESPONSE_FIRST_LEAF_PATH, firstLeafPath, false);
-            writeLong(out, FIELD_PULLRESPONSE_LAST_LEAF_PATH, lastLeafPath, false);
+            writeLong(out, FIELD_PULLRESPONSE_FIRST_LEAF_PATH, firstLeafPath);
+            writeLong(out, FIELD_PULLRESPONSE_LAST_LEAF_PATH, lastLeafPath);
         }
         // Leaf data - only for dirty leaves
         if (leafData != null) {
@@ -155,8 +156,8 @@ public record PullVirtualTreeResponse(
     public static PullVirtualTreeResponse parseFrom(@NonNull final ReadableSequentialData in) {
         long path = 0;
         boolean isClean = false;
-        long firstLeafPath = -1;
-        long lastLeafPath = -1;
+        long firstLeafPath = 0;
+        long lastLeafPath = 0;
         Bytes keyBytes = null;
         Bytes valueBytes = null;
 

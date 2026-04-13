@@ -63,8 +63,8 @@ class PullVirtualTreeResponseTest {
         assertNotNull(deserialized);
         assertEquals(3, deserialized.path());
         assertTrue(deserialized.isClean());
-        assertEquals(-1, deserialized.firstLeafPath());
-        assertEquals(-1, deserialized.lastLeafPath());
+        assertEquals(0, deserialized.firstLeafPath());
+        assertEquals(0, deserialized.lastLeafPath());
         assertNull(deserialized.leafData());
     }
 
