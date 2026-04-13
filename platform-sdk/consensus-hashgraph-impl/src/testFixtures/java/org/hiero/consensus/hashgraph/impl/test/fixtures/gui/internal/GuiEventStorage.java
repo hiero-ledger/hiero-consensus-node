@@ -10,7 +10,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,7 +20,6 @@ import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
-import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -42,16 +40,7 @@ public class GuiEventStorage {
     private final ConsensusLinker linker;
     private final Configuration configuration;
     private ConsensusRound lastConsensusRound;
-    private final Map<GossipEvent, BranchedEventMetadata> branchedEventsMetadata = new HashMap<>();
-
-    /** Tracks the most recent event per creator, for branch detection. */
-    private final Map<NodeId, EventDescriptorWrapper> mostRecentPerCreator = new HashMap<>();
-
-    /** Tracks the next branch index to assign per creator, for branch visualization. */
-    private final Map<NodeId, Integer> nextBranchIndexPerCreator = new HashMap<>();
-
-    /** The current event window, used to avoid false positive branch detection on ancient parents. */
-    private EventWindow currentEventWindow = EventWindow.getGenesisEventWindow();
+    private final GuiBranchDetector branchDetector = new GuiBranchDetector();
 
     /**
      * Creates an empty instance
@@ -105,19 +94,9 @@ public class GuiEventStorage {
     public synchronized void handlePreconsensusEvent(@NonNull final PlatformEvent event) {
         maxGeneration = Math.max(maxGeneration, event.getNGen());
 
-        // Detect branches before linking. Mirrors DefaultBranchDetector.checkForBranches().
+        // Detect branches before linking
         final NodeId creator = event.getCreatorId();
-        final EventDescriptorWrapper previous = mostRecentPerCreator.get(creator);
-        final EventDescriptorWrapper selfParent = event.getSelfParent();
-
-        if (previous != null
-                && !previous.equals(selfParent)
-                && (selfParent == null || !currentEventWindow.isAncient(selfParent))) {
-            final int branchIndex = nextBranchIndexPerCreator.merge(creator, 0, (old, v) -> old + 1);
-            branchedEventsMetadata.put(
-                    event.getGossipEvent(), new BranchedEventMetadata(branchIndex, event.getNGen()));
-        }
-        mostRecentPerCreator.put(creator, event.getDescriptor());
+        branchDetector.detectBranches(creator, event);
 
         // since the gui will modify the event, we need to copy it
         final EventImpl eventImpl = linker.linkEvent(event.copyGossipedData());
@@ -133,7 +112,8 @@ public class GuiEventStorage {
         }
         lastConsensusRound = rounds.getLast();
 
-        currentEventWindow = rounds.getLast().getEventWindow();
+        final EventWindow currentEventWindow = rounds.getLast().getEventWindow();
+        branchDetector.setEventWindow(currentEventWindow);
         linker.setEventWindow(currentEventWindow);
     }
 
@@ -146,15 +126,11 @@ public class GuiEventStorage {
     public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
         consensus.loadSnapshot(snapshot);
         linker.clear();
-        currentEventWindow = EventWindowUtils.createEventWindow(
+        final EventWindow currentEventWindow = EventWindowUtils.createEventWindow(
                 snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient());
         linker.setEventWindow(currentEventWindow);
         lastConsensusRound = null;
-
-        // Clear branch detection state
-        mostRecentPerCreator.clear();
-        nextBranchIndexPerCreator.clear();
-        branchedEventsMetadata.clear();
+        branchDetector.clear();
     }
 
     /**
@@ -188,7 +164,6 @@ public class GuiEventStorage {
      */
     @NonNull
     public Map<GossipEvent, BranchedEventMetadata> getBranchedEventsMetadata() {
-        return branchedEventsMetadata;
+        return branchDetector.getBranchedEvents();
     }
-
 }
