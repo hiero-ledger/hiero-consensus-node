@@ -139,7 +139,12 @@ public final class NetworkUtils {
 
         try {
             return new TlsFactory(
-                    ownKeysAndCerts.agrCert(), ownKeysAndCerts.agrKeyPair().getPrivate(), peers, selfId, configuration);
+                    ownKeysAndCerts.agrCert(),
+                    ownKeysAndCerts.sigCert(),
+                    ownKeysAndCerts.agrKeyPair().getPrivate(),
+                    peers,
+                    selfId,
+                    configuration);
         } catch (final NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException e) {
             throw new PlatformConstructionException("A problem occurred while creating the SocketFactory", e);
         }

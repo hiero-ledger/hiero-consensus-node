@@ -31,6 +31,7 @@ module org.hiero.consensus.utility {
     requires org.apache.logging.log4j;
     requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
+    requires org.bouncycastle.tls;
     requires static transitive com.github.spotbugs.annotations;
 
     provides ConfigurationExtension with
