@@ -35,8 +35,8 @@ public class KeyValueStoreBench extends BaseBench {
 
     @Benchmark
     public void merge() throws Exception {
-        String storeName = "mergeBench";
-        setTestDir(storeName);
+        final String storeName = "mergeBench";
+        setStoreDir(storeName);
 
         logger.info(RUN_DELIMITER);
 
@@ -44,7 +44,7 @@ public class KeyValueStoreBench extends BaseBench {
         LongListSegment keyToDiskLocationIndex = new LongListSegment(1024 * 1024, maxKey, 256 * 1024);
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final var store = new MemoryIndexDiskKeyValueStore(
-                dbConfig, getTestDir(), storeName, null, (dataLocation, dataValue) -> {}, keyToDiskLocationIndex);
+                dbConfig, getStoreDir(), storeName, null, (dataLocation, dataValue) -> {}, keyToDiskLocationIndex);
         final DataFileCompactor compactor = new DataFileCompactor(
                 storeName, store.getFileCollection(), keyToDiskLocationIndex, null, null, null, null);
 
