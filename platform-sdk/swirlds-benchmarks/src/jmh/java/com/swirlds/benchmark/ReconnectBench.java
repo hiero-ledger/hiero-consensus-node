@@ -16,6 +16,8 @@ import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @BenchmarkMode(Mode.AverageTime)
 @Fork(value = 1)
@@ -218,5 +220,13 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 configuration);
 
         verifyMap(teacherData, reconnectedMap);
+    }
+
+    static void main() throws Exception {
+        new Runner(new OptionsBuilder()
+                        .include(ReconnectBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
+                .run();
     }
 }
