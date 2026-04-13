@@ -17,12 +17,13 @@ gradle.allprojects {
             }
             reports.junitXml.mergeReruns.set(true)
 
-            // Write a marker when tests actually execute (not on cache restore)
+            // Write a marker when tests actually execute (not on cache restore).
+            // Resolve eagerly to avoid capturing Project in the doLast closure (configuration
+            // cache).
+            val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
             doLast {
-                layout.buildDirectory.file("test-executed/${name}.marker").get().asFile.apply {
-                    parentFile.mkdirs()
-                    writeText(java.time.Instant.now().toString())
-                }
+                markerFile.parentFile.mkdirs()
+                markerFile.writeText(java.time.Instant.now().toString())
             }
         }
     }
