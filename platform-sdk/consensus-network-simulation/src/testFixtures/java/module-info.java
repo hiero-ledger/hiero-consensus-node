@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 open module org.hiero.consensus.network.simulation.test.fixtures {
-    exports org.hiero.consensus.network.simulation;
+    exports org.hiero.consensus.network.simulation.fixtures;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
@@ -18,4 +18,5 @@ open module org.hiero.consensus.network.simulation.test.fixtures {
     requires org.hiero.consensus.roster.test.fixtures;
     requires org.hiero.consensus.utility;
     requires org.hiero.consensus.utility.test.fixtures;
+    requires org.hiero.consensus.hashgraph.impl;
 }
