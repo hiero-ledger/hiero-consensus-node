@@ -94,14 +94,6 @@ public class LearnerPullVirtualTreeReceiveTask {
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
                 final long path = response.path();
                 // Track stats for non-root paths
-                if (path != Path.ROOT_PATH && path != Path.INVALID_PATH) {
-                    final boolean isLeaf = view.isLeaf(path);
-                    if (isLeaf) {
-                        view.getMapStats().incrementLeafHashes(1, response.isClean() ? 1 : 0);
-                    } else {
-                        view.getMapStats().incrementInternalHashes(1, response.isClean() ? 1 : 0);
-                    }
-                }
                 if (path != Path.INVALID_PATH) {
                     view.responseReceived(response);
                 }

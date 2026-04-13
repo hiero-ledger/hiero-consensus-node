@@ -258,6 +258,15 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                 anticipatedLeafPaths.remove();
             }
         }
+
+        if (responsePath != Path.ROOT_PATH) {
+            final boolean isLeaf = isLeaf(responsePath);
+            if (isLeaf) {
+                mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
+            } else {
+                mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
+            }
+        }
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
