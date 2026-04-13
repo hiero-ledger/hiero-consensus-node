@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -57,7 +58,8 @@ class VirtualLeafBytesTest {
         final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(102, key, value, TestValueCodec.INSTANCE);
         assertEquals(key, leafBytes.keyBytes(), "key should match original");
         assertEquals(value.toBytes(), leafBytes.valueBytes(), "value bytes should match original");
-        assertEquals(value, leafBytes.value(TestValueCodec.INSTANCE), "value should match original");
+        assertEquals(
+                value, leafBytes.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE), "value should match original");
         assertEquals(102, leafBytes.path(), "path should match value set");
     }
 
@@ -71,7 +73,8 @@ class VirtualLeafBytesTest {
         final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(103, key, valueBytes);
         assertEquals(key, leafBytes.keyBytes(), "key should match original");
         assertEquals(valueBytes, leafBytes.valueBytes(), "value bytes should match original");
-        assertEquals(value, leafBytes.value(TestValueCodec.INSTANCE), "value should match original");
+        assertEquals(
+                value, leafBytes.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE), "value should match original");
         assertEquals(103, leafBytes.path(), "path should match value set");
     }
 
@@ -83,7 +86,7 @@ class VirtualLeafBytesTest {
         final VirtualLeafBytes<TestValue> leafBytes = new VirtualLeafBytes<>(104, key, null);
         assertEquals(key, leafBytes.keyBytes(), "key should match original");
         assertNull(leafBytes.valueBytes(), "value bytes should be null");
-        assertNull(leafBytes.value(TestValueCodec.INSTANCE), "value should be null");
+        assertNull(leafBytes.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE), "value should be null");
         assertEquals(104, leafBytes.path(), "path should match value set");
     }
 

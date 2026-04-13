@@ -42,8 +42,6 @@ import java.util.Objects;
  * </pre>
  */
 public class VirtualLeafBytes<V> {
-    private static final int VALUE_PARSE_MAX_SIZE = 36 * 1024 * 1024;
-
     public static final FieldDefinition FIELD_LEAFRECORD_PATH =
             new FieldDefinition("path", FieldType.FIXED64, false, true, false, 1);
     public static final FieldDefinition FIELD_LEAFRECORD_KEY =
@@ -133,7 +131,7 @@ public class VirtualLeafBytes<V> {
         return keyBytes;
     }
 
-    public V value(final Codec<V> valueCodec) {
+    public V value(final Codec<V> valueCodec, final int maxSize) {
         if (value == null) {
             // No synchronization here. In the worst case, value will be initialized multiple
             // times, but always to the same object
@@ -142,11 +140,7 @@ public class VirtualLeafBytes<V> {
                 this.valueCodec = valueCodec;
                 try {
                     value = valueCodec.parse(
-                            valueBytes.toReadableSequentialData(),
-                            false,
-                            false,
-                            Codec.DEFAULT_MAX_DEPTH,
-                            VALUE_PARSE_MAX_SIZE);
+                            valueBytes.toReadableSequentialData(), false, false, Codec.DEFAULT_MAX_DEPTH, maxSize);
                 } catch (final ParseException e) {
                     throw new RuntimeException("Failed to deserialize a value from bytes", e);
                 }

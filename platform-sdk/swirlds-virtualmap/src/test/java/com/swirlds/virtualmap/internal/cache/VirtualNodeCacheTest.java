@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedFunction;
 import com.swirlds.base.state.MutabilityException;
@@ -2973,7 +2974,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @SuppressWarnings("unchecked")
     private TestValue lookupValue(final VirtualNodeCache cache, final Bytes key) {
         final VirtualLeafBytes<TestValue> leaf = cache.lookupLeafByKey(key);
-        return leaf == null ? null : leaf.value(TestValueCodec.INSTANCE);
+        return leaf == null ? null : leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE);
     }
 
     private Hash lookupHash(final VirtualNodeCache cache, final long path) {
