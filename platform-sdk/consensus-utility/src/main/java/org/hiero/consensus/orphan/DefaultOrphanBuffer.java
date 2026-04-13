@@ -11,6 +11,7 @@ import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.metrics.FunctionGauge;
@@ -64,9 +65,17 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     private final SequenceMap<EventDescriptorWrapper, List<OrphanedEvent>> missingParentMap;
 
     /**
+     * Tracks a monotonically increasing sequence number for events in the buffer.
+     * <p>
+     * This variable is used to assign a unique, sequential identifier to each event as it is released from the orphan
+     * buffer. The sequence number ensures that events can be ordered consistently, even if they arrive out of order.
+     */
+    private final AtomicLong eventSequenceNumber = new AtomicLong(0);
+
+    /**
      * Constructor
      *
-     * @param metrics the metrics instance to use
+     * @param metrics            the metrics instance to use
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultOrphanBuffer(@NonNull final Metrics metrics, @NonNull final IntakeEventCounter intakeEventCounter) {
@@ -212,6 +221,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
             unorphanedEvents.add(nonOrphan);
             eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
             assignNGen(nonOrphan, eventsWithParents);
+            nonOrphan.setSequenceNumber(eventSequenceNumber.incrementAndGet());
 
             // since this event is no longer an orphan, we need to recheck all of its children to see if any might
             // not be orphans anymore

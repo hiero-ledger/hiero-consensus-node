@@ -352,6 +352,7 @@ class GeneratorEventGraphSourceTest {
 
         for (final PlatformEvent event : events) {
             assertTrue(event.hasNGen(), "every event should have ngen set when populateNgen is enabled");
+            assertTrue(event.hasSequenceNumber(), "every event should have sequence number assigned");
             assertTrue(
                     event.getNGen() >= NonDeterministicGeneration.FIRST_GENERATION,
                     "ngen should be at least FIRST_GENERATION");

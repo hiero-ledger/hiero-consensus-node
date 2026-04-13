@@ -85,4 +85,19 @@ class OrphanBufferEventGraphSourceTest {
                     "orphanBuffer events should have ngen computed");
         }
     }
+
+    @Test
+    void eventsHaveSequenceNumberComputed() {
+        final ListEventGraphSource rawSource = new ListEventGraphSource(() -> rawEvents);
+        final OrphanBufferEventGraphSource orphanBufferSource = new OrphanBufferEventGraphSource(rawSource, context);
+
+        final List<PlatformEvent> allEvents = new ArrayList<>();
+        orphanBufferSource.forEachRemaining(allEvents::add);
+        assertNotNull(allEvents);
+
+        // All orphanBuffer events should have sequence number assigned
+        for (final PlatformEvent event : allEvents) {
+            assertTrue(event.hasSequenceNumber(), "orphanBuffer events should have sequence number assigned");
+        }
+    }
 }
