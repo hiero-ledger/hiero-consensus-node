@@ -15,6 +15,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS
 import static com.hedera.node.app.service.contract.impl.test.handlers.ContractCallHandlerTest.INTRINSIC_GAS_FOR_0_ARG_METHOD;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ETHEREUM_NONCE_INCREMENT_CALLBACK;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -36,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
@@ -64,7 +66,6 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
@@ -73,7 +74,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Optional;
+import java.util.function.BiConsumer;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -258,7 +260,7 @@ class EthereumTransactionHandlerTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
                 null,
-                null);
+                CodeDelegationResult.empty());
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
@@ -316,7 +318,7 @@ class EthereumTransactionHandlerTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
                 null,
-                null);
+                CodeDelegationResult.empty());
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
@@ -596,7 +598,7 @@ class EthereumTransactionHandlerTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
                 null,
-                null);
+                CodeDelegationResult.empty());
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);
@@ -608,15 +610,18 @@ class EthereumTransactionHandlerTest {
         givenSenderAccountWithNonce(SIGNER_NONCE);
 
         // Mock the dispatch metadata with a callback
+        final var nonceCallback = mock(BiConsumer.class);
         final var dispatchMetadata = mock(HandleContext.DispatchMetadata.class);
-        final AtomicReference<HandleException.OnRollback> rollbackCallback = new AtomicReference<>();
+        final var optionalCallback = Optional.of(nonceCallback);
         given(context.dispatchMetadata()).willReturn(dispatchMetadata);
+        given(dispatchMetadata.getMetadata(ETHEREUM_NONCE_INCREMENT_CALLBACK, BiConsumer.class))
+                .willReturn(optionalCallback);
 
         // Execute the handler
         assertDoesNotThrow(() -> subject.handle(context));
 
-        // Verify that the rollback callback was provided
-        assertNotNull(rollbackCallback.get());
+        // Verify the callback was called with the expected arguments
+        verify(nonceCallback).accept(SENDER_ID, SIGNER_NONCE);
         // Verify the stream builder was updated with the new nonce
         verify(recordBuilder).newSenderNonce(SIGNER_NONCE);
     }
