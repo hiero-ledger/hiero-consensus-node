@@ -22,7 +22,6 @@ import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -208,16 +207,15 @@ public class ReconnectStateLearner {
         final VirtualMap reconnectRoot = currentState.getRoot().newReconnectRoot();
         final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
         // The learner view will be closed by LearningSynchronizer
-        final LearnerTreeView<PullVirtualTreeResponse> learnerView =
-                reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
-        final LearningSynchronizer<PullVirtualTreeResponse> synchronizer = new LearningSynchronizer<>(
+        final LearnerTreeView learnerView = reconnectRoot.buildLearnerView(reconnectConfig, mapStats);
+        final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager, in, out, reconnectRoot, learnerView, connection::disconnect, reconnectConfig);
         final long syncStartTime = System.currentTimeMillis();
         try {
             synchronizer.synchronize();
             logger.info(RECONNECT.getMarker(), mapStats::format);
         } catch (final InterruptedException e) {
-            logger.warn(RECONNECT.getMarker(), "Reconnect interrupted");
+            logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
             Thread.currentThread().interrupt();
             reconnectRoot.release();
             throw e;
@@ -227,7 +225,7 @@ public class ReconnectStateLearner {
         }
 
         final long synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;
-        logger.info(RECONNECT.getMarker(), () -> new SynchronizationCompletePayload("Finished reconnect")
+        logger.info(RECONNECT.getMarker(), () -> new SynchronizationCompletePayload("Finished synchronization")
                 .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
                 .toString());
 

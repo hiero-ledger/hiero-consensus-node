@@ -21,8 +21,6 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapIterator;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
-import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashSet;
@@ -126,17 +124,16 @@ public final class MerkleTestUtils {
         }
         try (PairedStreams streams = new PairedStreams()) {
 
-            final LearningSynchronizer<PullVirtualTreeResponse> learner;
-            final TeachingSynchronizer<PullVirtualTreeRequest> teacher;
+            final LearningSynchronizer learner;
+            final TeachingSynchronizer teacher;
 
             final VirtualMap newRoot = startingMap.newReconnectRoot();
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView<PullVirtualTreeResponse> learnerView =
-                    newRoot.buildLearnerView(reconnectConfig, mapStats);
+            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
 
             if (latencyMilliseconds == 0) {
                 learner =
-                        new LearningSynchronizer<>(
+                        new LearningSynchronizer(
                                 getStaticThreadManager(),
                                 streams.getLearnerInput(),
                                 streams.getLearnerOutput(),
@@ -159,7 +156,7 @@ public final class MerkleTestUtils {
                             }
                         };
                 teacher =
-                        new TeachingSynchronizer<>(
+                        new TeachingSynchronizer(
                                 Time.getCurrent(),
                                 getStaticThreadManager(),
                                 streams.getTeacherInput(),
@@ -182,7 +179,7 @@ public final class MerkleTestUtils {
                         };
             } else {
                 learner =
-                        new LaggingLearningSynchronizer<>(
+                        new LaggingLearningSynchronizer(
                                 streams.getLearnerInput(),
                                 streams.getLearnerOutput(),
                                 newRoot,
@@ -204,7 +201,7 @@ public final class MerkleTestUtils {
                             }
                         };
                 teacher =
-                        new LaggingTeachingSynchronizer<>(
+                        new LaggingTeachingSynchronizer(
                                 streams.getTeacherInput(),
                                 streams.getTeacherOutput(),
                                 desiredMap.buildTeacherView(reconnectConfig),

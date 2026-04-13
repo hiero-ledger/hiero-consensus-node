@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
@@ -24,7 +23,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -41,7 +39,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
  * teacher side.
  */
-public final class LearnerPullVirtualTreeView implements LearnerTreeView<PullVirtualTreeResponse> {
+public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeView.class);
 
@@ -132,7 +130,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView<PullVir
      * @param traversalOrder
      *      the traversal order defining which paths to request
      * @param mapStats
-     *      A ReconnectMapStats object to collect reconnect metrics
+     *      a ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPullVirtualTreeView(
             @NonNull final ReconnectConfig reconnectConfig,
@@ -155,16 +153,9 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView<PullVir
 
     /** {@inheritDoc} */
     @Override
-    @NonNull
-    public Function<ReadableSequentialData, PullVirtualTreeResponse> getInputParser() {
-        return PullVirtualTreeResponse::parseFrom;
-    }
-
-    /** {@inheritDoc} */
-    @Override
     public void startLearnerTasks(
             final StandardWorkGroup workGroup,
-            final AsyncInputStream<PullVirtualTreeResponse> in,
+            final AsyncInputStream in,
             final AsyncOutputStream out,
             final Runnable completeListener) {
         final AtomicLong expectedResponses = new AtomicLong(0);
@@ -195,6 +186,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView<PullVir
 
     /**
      * Determines if a given path refers to a leaf of the tree.
+     *
      * @param path a path
      * @return true if leaf, false if internal
      */
@@ -233,11 +225,11 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView<PullVir
 
     // This method is called concurrently from multiple threads
     void responseReceived(final PullVirtualTreeResponse response) {
-        final long responsePath = response.getPath();
+        final long responsePath = response.path();
         if (responsePath == 0) {
             logger.info(RECONNECT.getMarker(), "Root response received from the teacher");
-            final long firstLeafPath = response.getFirstLeafPath();
-            final long lastLeafPath = response.getLastLeafPath();
+            final long firstLeafPath = response.firstLeafPath();
+            final long lastLeafPath = response.lastLeafPath();
             assert firstNodeResponse.compareAndSet(true, false)
                     : "Root node must be the first node received from the teacher";
             reconnectState.setPaths(firstLeafPath, lastLeafPath);
@@ -270,7 +262,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView<PullVir
 
     private void handleResponse(final PullVirtualTreeResponse response) {
         assert !firstNodeResponse.get() : "Root node must be the first node received from the teacher";
-        final long path = response.getPath();
+        final long path = response.path();
         if (reconnectState.getLastLeafPath() <= 0) {
             return;
         }
@@ -281,7 +273,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView<PullVir
 
         if (isLeaf) {
             if (!isClean) {
-                final VirtualLeafBytes<?> leaf = response.getLeafData();
+                final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null;
                 assert path == leaf.path();
                 nodeRemover.newLeafNode(path, leaf.keyBytes());

@@ -3,10 +3,9 @@ package com.swirlds.common.merkle.synchronization.streams;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.time.Duration;
@@ -16,7 +15,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -24,20 +22,22 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * <p>
- * Allows a thread to asynchronously read data from a stream.
+ * Allows a thread to asynchronously read length-prefixed byte array messages from a stream.
  * </p>
  *
  * <p>
- * Only one type of message is allowed to be read using an instance of this class. The message
- * parser is provided at construction time and cannot be changed.
+ * A background thread continuously reads messages from the underlying {@link DataInputStream}
+ * and enqueues them as raw {@code byte[]} arrays. Consumers retrieve messages via
+ * {@link #readAnticipatedMessage()} (non-blocking) or {@link #readAnticipatedMessageSync()}
+ * (blocking with timeout). Callers are responsible for parsing the raw bytes into domain objects.
  * </p>
  *
  * <p>
- * This object is not thread safe. Only one thread should attempt to read data from stream at any point in time.
+ * This object is not thread safe. Only one thread should attempt to read messages at any point
+ * in time.
  * </p>
- * @param <T> the type of message that is read from the stream
  */
-public class AsyncInputStream<T> {
+public class AsyncInputStream {
 
     private static final Logger logger = LogManager.getLogger(AsyncInputStream.class);
 
@@ -50,8 +50,6 @@ public class AsyncInputStream<T> {
     // Checking queue size on every received message may be expensive. Instead, track the
     // size manually using an atomic
     private final AtomicInteger inputQueueSize = new AtomicInteger(0);
-
-    private final Function<ReadableSequentialData, T> parser;
 
     private final Duration pollTimeout;
 
@@ -72,18 +70,15 @@ public class AsyncInputStream<T> {
      * @param inputStream the base stream to read from
      * @param workGroup the work group that is managing this stream's thread
      * @param reconnectConfig the configuration to use
-     * @param parser a function that parses a message from {@link ReadableSequentialData}
      */
     public AsyncInputStream(
             @NonNull final DataInputStream inputStream,
             @NonNull final StandardWorkGroup workGroup,
-            @NonNull final ReconnectConfig reconnectConfig,
-            @NonNull final Function<ReadableSequentialData, T> parser) {
+            @NonNull final ReconnectConfig reconnectConfig) {
         Objects.requireNonNull(reconnectConfig, "reconnectConfig must not be null");
 
         this.inputStream = Objects.requireNonNull(inputStream, "inputStream must not be null");
         this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
-        this.parser = Objects.requireNonNull(parser, "parser must not be null");
         this.finishedLatch = new CountDownLatch(1);
         this.pollTimeout = reconnectConfig.asyncStreamTimeout();
         this.sharedQueueSizeThreshold = reconnectConfig.asyncStreamBufferSize();
@@ -121,7 +116,6 @@ public class AsyncInputStream<T> {
                 }
             }
         } catch (final IOException e) {
-            alive.set(false);
             logger.warn(RECONNECT.getMarker(), "Async input stream failed due to I/O error", e);
             workGroup.handleError(e);
         } finally {
@@ -141,30 +135,29 @@ public class AsyncInputStream<T> {
     }
 
     /**
-     * Read the next message from the queue (non-blocking). Returns {@code null} if no message
-     * is currently available.
+     * Read the next raw message bytes from the queue (non-blocking).
      *
-     * @return the parsed message, or {@code null} if no message is available
+     * @return the message bytes, or {@code null} if no message is available
      */
-    @SuppressWarnings("unchecked")
-    public T readAnticipatedMessage() {
+    @Nullable
+    public byte[] readAnticipatedMessage() {
         final byte[] itemBytes = inputQueue.poll();
         if (itemBytes != null) {
             inputQueueSize.decrementAndGet();
-            return parser.apply(BufferedData.wrap(itemBytes));
         }
-        return null;
+        return itemBytes;
     }
 
     /**
-     * Read the next message from the queue, blocking until one is available or the configured
-     * timeout expires.
+     * Read the next raw message bytes from the queue, blocking until one is available or the
+     * configured timeout expires.
      *
-     * @return the parsed message, or {@code null} if the stream is no longer alive
+     * @return the message bytes, or {@code null} if the stream is no longer alive
      * @throws MerkleSynchronizationException if the operation times out
      */
-    public T readAnticipatedMessageSync() {
-        T message = readAnticipatedMessage();
+    @Nullable
+    public byte[] readAnticipatedMessageSync() {
+        byte[] message = readAnticipatedMessage();
         if (message != null) {
             return message;
         }

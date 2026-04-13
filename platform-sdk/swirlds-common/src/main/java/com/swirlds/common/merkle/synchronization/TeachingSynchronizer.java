@@ -24,10 +24,8 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
  * Performs reconnect in the role of the teacher.
- *
- * @param <T> the type of a message sent to the learner
  */
-public class TeachingSynchronizer<T> {
+public class TeachingSynchronizer {
 
     private static final Logger logger = LogManager.getLogger(TeachingSynchronizer.class);
 
@@ -36,7 +34,7 @@ public class TeachingSynchronizer<T> {
     private final Time time;
     private final DataInputStream inputStream;
     private final DataOutputStream outputStream;
-    private final TeacherTreeView<T> view;
+    private final TeacherTreeView view;
     private final ReconnectConfig reconnectConfig;
     private final StandardWorkGroup workGroup;
     private final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
@@ -57,7 +55,7 @@ public class TeachingSynchronizer<T> {
             @NonNull final ThreadManager threadManager,
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
-            @NonNull final TeacherTreeView<T> view,
+            @NonNull final TeacherTreeView view,
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
 
@@ -91,8 +89,7 @@ public class TeachingSynchronizer<T> {
      * Perform reconnect in the role of the teacher.
      */
     public void synchronize() throws InterruptedException {
-        final AsyncInputStream<T> in =
-                new AsyncInputStream<>(inputStream, workGroup, reconnectConfig, view.getInputParser());
+        final AsyncInputStream in = new AsyncInputStream(inputStream, workGroup, reconnectConfig);
         in.start();
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);
         out.start();

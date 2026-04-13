@@ -22,15 +22,13 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
- * Performs synchronization in the role of the learner.
- *
- * @param <T> the type of a message received from the teacher
+ * Performs reconnect in the role of the learner.
  */
-public class LearningSynchronizer<T> {
+public class LearningSynchronizer {
 
     private static final Logger logger = LogManager.getLogger(LearningSynchronizer.class);
 
-    private static final String WORK_GROUP_NAME = "reconnect-learner";
+    private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
     /**
      * Used to get data from the teacher.
@@ -50,7 +48,7 @@ public class LearningSynchronizer<T> {
     /**
      * Virtual tree view used to access nodes and hashes in the newRoot above.
      */
-    private final LearnerTreeView<T> view;
+    private final LearnerTreeView view;
 
     private final ReconnectConfig reconnectConfig;
     private final StandardWorkGroup workGroup;
@@ -72,7 +70,7 @@ public class LearningSynchronizer<T> {
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
             @NonNull final Hashable newRoot,
-            @NonNull final LearnerTreeView<T> view,
+            @NonNull final LearnerTreeView view,
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
         inputStream = Objects.requireNonNull(in, "inputStream is null");
@@ -90,7 +88,7 @@ public class LearningSynchronizer<T> {
     }
 
     /**
-     * Perform reconnect in the role of the learner.
+     * Perform synchronization in the role of the learner.
      */
     public void synchronize() throws InterruptedException {
         logger.info(RECONNECT.getMarker(), "learner calls receiveTree()");
@@ -114,8 +112,7 @@ public class LearningSynchronizer<T> {
      * @throws InterruptedException if the current thread is interrupted
      */
     private void receiveTree() throws InterruptedException {
-        final AsyncInputStream<T> in =
-                new AsyncInputStream<>(inputStream, workGroup, reconnectConfig, view.getInputParser());
+        final AsyncInputStream in = new AsyncInputStream(inputStream, workGroup, reconnectConfig);
         in.start();
         final AtomicBoolean teacherSentLastRequest = new AtomicBoolean(false);
         final AsyncOutputStream out = buildOutputStream(workGroup, outputStream, reconnectConfig);

@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
@@ -12,10 +11,8 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -25,7 +22,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 /**
  * A teacher tree view for virtual map reconnect.
  */
-public final class TeacherPullVirtualTreeView implements TeacherTreeView<PullVirtualTreeRequest> {
+public final class TeacherPullVirtualTreeView implements TeacherTreeView {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeView.class);
     /**
@@ -55,17 +52,10 @@ public final class TeacherPullVirtualTreeView implements TeacherTreeView<PullVir
 
     /** {@inheritDoc} */
     @Override
-    @NonNull
-    public Function<ReadableSequentialData, PullVirtualTreeRequest> getInputParser() {
-        return PullVirtualTreeRequest::parseFrom;
-    }
-
-    /** {@inheritDoc} */
-    @Override
     public void startTeacherTasks(
             final Time time,
             final StandardWorkGroup workGroup,
-            final AsyncInputStream<PullVirtualTreeRequest> in,
+            final AsyncInputStream in,
             final AsyncOutputStream out) {
         // FUTURE work: pool size config
         final int teacherTasks = 16;

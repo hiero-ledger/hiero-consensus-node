@@ -16,9 +16,8 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 /**
  * A {@link TeachingSynchronizer} with simulated latency.
  *
- * @param <T> the type of a message sent to the learner
  */
-public class LaggingTeachingSynchronizer<T> extends TeachingSynchronizer<T> {
+public class LaggingTeachingSynchronizer extends TeachingSynchronizer {
 
     private final int latencyMilliseconds;
 
@@ -35,7 +34,7 @@ public class LaggingTeachingSynchronizer<T> extends TeachingSynchronizer<T> {
     public LaggingTeachingSynchronizer(
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
-            @NonNull final TeacherTreeView<T> view,
+            @NonNull final TeacherTreeView view,
             final int latencyMilliseconds,
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {

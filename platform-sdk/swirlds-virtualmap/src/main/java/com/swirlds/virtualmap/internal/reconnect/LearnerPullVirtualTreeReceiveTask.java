@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.virtualmap.internal.Path;
@@ -29,7 +30,7 @@ public class LearnerPullVirtualTreeReceiveTask {
     private static final String NAME = "reconnect-learner-receiver";
 
     private final StandardWorkGroup workGroup;
-    private final AsyncInputStream<PullVirtualTreeResponse> in;
+    private final AsyncInputStream in;
     private final LearnerPullVirtualTreeView view;
 
     // Number of requests sent to teacher / responses expected from the teacher. Increased in
@@ -53,7 +54,7 @@ public class LearnerPullVirtualTreeReceiveTask {
     public LearnerPullVirtualTreeReceiveTask(
             final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
-            final AsyncInputStream<PullVirtualTreeResponse> in,
+            final AsyncInputStream in,
             final LearnerPullVirtualTreeView view,
             final AtomicLong expectedResponses,
             final Runnable completeListener) {
@@ -81,17 +82,18 @@ public class LearnerPullVirtualTreeReceiveTask {
     private void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                final PullVirtualTreeResponse response = in.readAnticipatedMessage();
-                if (response == null) {
+                final byte[] responseBytes = in.readAnticipatedMessage();
+                if (responseBytes == null) {
                     if (!in.isAlive()) {
                         break;
                     }
                     Thread.sleep(0, 1);
                     continue;
                 }
-                final long path = response.getPath();
-                // Track stats for non-root paths (matching previous behavior where
-                // root deserialization returned early before stats tracking)
+                final PullVirtualTreeResponse response =
+                        PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
+                final long path = response.path();
+                // Track stats for non-root paths
                 if (path != Path.ROOT_PATH && path != Path.INVALID_PATH) {
                     final boolean isLeaf = view.isLeaf(path);
                     if (isLeaf) {

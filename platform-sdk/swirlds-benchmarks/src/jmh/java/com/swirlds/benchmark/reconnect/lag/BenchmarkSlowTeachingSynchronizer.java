@@ -7,7 +7,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -17,7 +16,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 /**
  * A {@link TeachingSynchronizer} with simulated delay.
  */
-public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer<PullVirtualTreeRequest> {
+public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
 
     private final long randomSeed;
     private final long delayStorageMicroseconds;
@@ -42,7 +41,7 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer<Pull
     public BenchmarkSlowTeachingSynchronizer(
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
-            @NonNull final TeacherTreeView<PullVirtualTreeRequest> view,
+            @NonNull final TeacherTreeView view,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,

@@ -27,11 +27,11 @@ class PullVirtualTreeResponseTest {
         final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(Path.ROOT_PATH, deserialized.getPath());
+        assertEquals(Path.ROOT_PATH, deserialized.path());
         assertFalse(deserialized.isClean());
-        assertEquals(10, deserialized.getFirstLeafPath());
-        assertEquals(99, deserialized.getLastLeafPath());
-        assertNull(deserialized.getLeafData());
+        assertEquals(10, deserialized.firstLeafPath());
+        assertEquals(99, deserialized.lastLeafPath());
+        assertNull(deserialized.leafData());
     }
 
     @Test
@@ -46,8 +46,8 @@ class PullVirtualTreeResponseTest {
 
         assertNotNull(deserialized);
         assertTrue(deserialized.isClean());
-        assertEquals(5, deserialized.getFirstLeafPath());
-        assertEquals(20, deserialized.getLastLeafPath());
+        assertEquals(5, deserialized.firstLeafPath());
+        assertEquals(20, deserialized.lastLeafPath());
     }
 
     @Test
@@ -61,11 +61,11 @@ class PullVirtualTreeResponseTest {
         final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(3, deserialized.getPath());
+        assertEquals(3, deserialized.path());
         assertTrue(deserialized.isClean());
-        assertEquals(-1, deserialized.getFirstLeafPath());
-        assertEquals(-1, deserialized.getLastLeafPath());
-        assertNull(deserialized.getLeafData());
+        assertEquals(-1, deserialized.firstLeafPath());
+        assertEquals(-1, deserialized.lastLeafPath());
+        assertNull(deserialized.leafData());
     }
 
     @Test
@@ -79,9 +79,9 @@ class PullVirtualTreeResponseTest {
         final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(2, deserialized.getPath());
+        assertEquals(2, deserialized.path());
         assertFalse(deserialized.isClean());
-        assertNull(deserialized.getLeafData());
+        assertNull(deserialized.leafData());
     }
 
     @Test
@@ -99,18 +99,18 @@ class PullVirtualTreeResponseTest {
         final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(15, deserialized.getPath());
+        assertEquals(15, deserialized.path());
         assertFalse(deserialized.isClean());
-        assertNotNull(deserialized.getLeafData());
-        assertEquals(key, deserialized.getLeafData().keyBytes());
-        assertEquals(value, deserialized.getLeafData().valueBytes());
+        assertNotNull(deserialized.leafData());
+        assertEquals(key, deserialized.leafData().keyBytes());
+        assertEquals(value, deserialized.leafData().valueBytes());
     }
 
     @Test
     @DisplayName("Round-trip: dirty leaf with key and null value")
     void roundTripDirtyLeafWithNullValue() {
         final Bytes key = Bytes.wrap("key-only".getBytes());
-        final VirtualLeafBytes<?> leafData = new VirtualLeafBytes<>(20, key, (Bytes) null);
+        final VirtualLeafBytes<?> leafData = new VirtualLeafBytes<>(20, key, null);
 
         final PullVirtualTreeResponse original = new PullVirtualTreeResponse(20, false, -1, -1, leafData);
 
@@ -120,9 +120,9 @@ class PullVirtualTreeResponseTest {
         final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertNotNull(deserialized.getLeafData());
-        assertEquals(key, deserialized.getLeafData().keyBytes());
-        assertNull(deserialized.getLeafData().valueBytes());
+        assertNotNull(deserialized.leafData());
+        assertEquals(key, deserialized.leafData().keyBytes());
+        assertNull(deserialized.leafData().valueBytes());
     }
 
     @Test
@@ -139,9 +139,9 @@ class PullVirtualTreeResponseTest {
         final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertNotNull(deserialized.getLeafData());
-        assertEquals(key, deserialized.getLeafData().keyBytes());
-        assertEquals(Bytes.EMPTY, deserialized.getLeafData().valueBytes());
+        assertNotNull(deserialized.leafData());
+        assertEquals(key, deserialized.leafData().keyBytes());
+        assertEquals(Bytes.EMPTY, deserialized.leafData().valueBytes());
     }
 
     @Test
@@ -155,9 +155,9 @@ class PullVirtualTreeResponseTest {
         final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(50, deserialized.getPath());
+        assertEquals(50, deserialized.path());
         assertTrue(deserialized.isClean());
-        assertNull(deserialized.getLeafData());
+        assertNull(deserialized.leafData());
     }
 
     @Test
@@ -189,7 +189,7 @@ class PullVirtualTreeResponseTest {
             assertEquals(
                     response.getSizeInBytes(),
                     out.position(),
-                    "Size mismatch for response with path=" + response.getPath());
+                    "Size mismatch for response with path=" + response.path());
         }
     }
 
@@ -226,8 +226,8 @@ class PullVirtualTreeResponseTest {
         final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertNotNull(deserialized.getLeafData());
-        assertEquals(key, deserialized.getLeafData().keyBytes());
-        assertEquals(value, deserialized.getLeafData().valueBytes());
+        assertNotNull(deserialized.leafData());
+        assertEquals(key, deserialized.leafData().keyBytes());
+        assertEquals(value, deserialized.leafData().valueBytes());
     }
 }

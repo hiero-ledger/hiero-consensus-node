@@ -7,7 +7,6 @@ import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -17,7 +16,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
 /**
  * A {@link LearningSynchronizer} with simulated delay.
  */
-public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer<PullVirtualTreeResponse> {
+public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
 
     private final long randomSeed;
     private final long delayStorageMicroseconds;
@@ -44,7 +43,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer<Pull
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
             @NonNull final VirtualMap newRoot,
-            @NonNull final LearnerTreeView<PullVirtualTreeResponse> view,
+            @NonNull final LearnerTreeView view,
             final long randomSeed,
             final long delayStorageMicroseconds,
             final double delayStorageFuzzRangePercent,

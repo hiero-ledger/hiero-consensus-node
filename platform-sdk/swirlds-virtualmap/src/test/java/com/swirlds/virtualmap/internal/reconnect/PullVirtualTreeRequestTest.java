@@ -29,10 +29,9 @@ class PullVirtualTreeRequestTest {
         final PullVirtualTreeRequest deserialized = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(original.getPath(), deserialized.getPath());
-        assertNotNull(deserialized.getHash());
-        assertArrayEquals(
-                original.getHash().copyToByteArray(), deserialized.getHash().copyToByteArray());
+        assertEquals(original.path(), deserialized.path());
+        assertNotNull(deserialized.hash());
+        assertArrayEquals(original.hash().copyToByteArray(), deserialized.hash().copyToByteArray());
     }
 
     @Test
@@ -47,8 +46,8 @@ class PullVirtualTreeRequestTest {
         final PullVirtualTreeRequest deserialized = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(Path.ROOT_PATH, deserialized.getPath());
-        assertNotNull(deserialized.getHash());
+        assertEquals(Path.ROOT_PATH, deserialized.path());
+        assertNotNull(deserialized.hash());
     }
 
     @Test
@@ -62,8 +61,8 @@ class PullVirtualTreeRequestTest {
         final PullVirtualTreeRequest deserialized = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(Path.INVALID_PATH, deserialized.getPath());
-        assertNull(deserialized.getHash());
+        assertEquals(Path.INVALID_PATH, deserialized.path());
+        assertNull(deserialized.hash());
     }
 
     @Test
@@ -104,6 +103,6 @@ class PullVirtualTreeRequestTest {
 
         final PullVirtualTreeRequest deserialized = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(bytes));
 
-        assertEquals(largePath, deserialized.getPath());
+        assertEquals(largePath, deserialized.path());
     }
 }

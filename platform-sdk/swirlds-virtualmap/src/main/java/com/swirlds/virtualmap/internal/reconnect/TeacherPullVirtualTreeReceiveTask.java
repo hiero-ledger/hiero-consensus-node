@@ -34,7 +34,7 @@ public class TeacherPullVirtualTreeReceiveTask {
     private static final String NAME = "reconnect-teacher-receiver";
 
     private final StandardWorkGroup workGroup;
-    private final AsyncInputStream<PullVirtualTreeRequest> in;
+    private final AsyncInputStream in;
     private final AsyncOutputStream out;
     private final TeacherPullVirtualTreeView view;
     private final AtomicInteger tasksDone;
@@ -56,7 +56,7 @@ public class TeacherPullVirtualTreeReceiveTask {
             @NonNull final Time time,
             @NonNull final ReconnectConfig reconnectConfig,
             final StandardWorkGroup workGroup,
-            final AsyncInputStream<PullVirtualTreeRequest> in,
+            final AsyncInputStream in,
             final AsyncOutputStream out,
             final TeacherPullVirtualTreeView view,
             final AtomicInteger tasksDone) {
@@ -105,21 +105,23 @@ public class TeacherPullVirtualTreeReceiveTask {
             final long start = System.currentTimeMillis();
             while (!Thread.currentThread().isInterrupted()) {
                 rateLimit();
-                final PullVirtualTreeRequest request = in.readAnticipatedMessage();
-                if (request == null) {
+                final byte[] requestBytes = in.readAnticipatedMessage();
+                if (requestBytes == null) {
                     if (!in.isAlive()) {
                         break;
                     }
                     Thread.sleep(0, 1);
                     continue;
                 }
+                final PullVirtualTreeRequest request =
+                        PullVirtualTreeRequest.parseFrom(BufferedData.wrap(requestBytes));
                 requestCounter++;
-                if (request.getPath() == Path.INVALID_PATH) {
+                if (request.path() == Path.INVALID_PATH) {
                     logger.info(RECONNECT.getMarker(), "Teaching is complete as requested by the learner");
                     break;
                 }
-                final long path = request.getPath();
-                final Hash learnerHash = request.getHash();
+                final long path = request.path();
+                final Hash learnerHash = request.hash();
                 assert learnerHash != null;
                 final Hash teacherHash = view.loadHash(path);
                 // The only valid scenario, when teacherHash may be null, is the empty tree

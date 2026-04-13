@@ -156,14 +156,6 @@ public class AsyncOutputStream {
     }
 
     /**
-     * Schedule to run a given runnable, when all messages currently scheduled in this async
-     * stream are serialized into the underlying output stream.
-     */
-    public void whenCurrentMessagesProcessed(final Runnable run) throws InterruptedException {
-        enqueue(run);
-    }
-
-    /**
      * Enqueues an item into the stream queue. Blocks until space is available or the
      * configured timeout expires.
      *

@@ -2,8 +2,8 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.readBytes;
+import static com.hedera.pbj.runtime.ProtoParserTools.readFixed64;
 import static com.hedera.pbj.runtime.ProtoParserTools.readInt32;
-import static com.hedera.pbj.runtime.ProtoParserTools.readInt64;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeBytes;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 
@@ -24,7 +24,7 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 
 /**
- * Used during the reconnect protocol to send data needed to reconstruct a single virtual node.
+ * Used during the synchronization protocol to send data needed to reconstruct a single virtual node.
  *
  * <p>On the learner side, a request is created with a path and a hash in the old learner
  * tree (if exists), then sent to the teacher. On the teacher side, requests are deserialized
@@ -34,23 +34,21 @@ import org.hiero.base.crypto.Hash;
  *
  * <pre>
  * message PullVirtualTreeRequest {
- *     int64 path = 1;
+ *     fixed64 path = 1;
  *     bytes hash = 2;
  * }
  * </pre>
  */
-public final class PullVirtualTreeRequest {
+public record PullVirtualTreeRequest(
+        // Virtual node path. If the path is Path.INVALID_PATH, it indicates that the learner will
+        // not send any more node requests to the teacher
+        long path,
+        // Virtual node hash. If a node with the given path does not exist on the learner (path is
+        // outside of range), NULL_HASH is used. If the path is Path.INVALID_PATH, the hash is null
+        Hash hash) {
 
-    static final FieldDefinition FIELD_PATH = new FieldDefinition("path", FieldType.INT64, false, 1);
-    static final FieldDefinition FIELD_HASH = new FieldDefinition("hash", FieldType.BYTES, false, 2);
-
-    // Virtual node path. If the path is Path.INVALID_PATH, it indicates that the learner will
-    // not send any more node requests to the teacher
-    private final long path;
-
-    // Virtual node hash. If a node with the given path does not exist on the learner (path is
-    // outside of range), NULL_HASH is used. If the path is Path.INVALID_PATH, the hash is null
-    private final Hash hash;
+    static final FieldDefinition FIELD_PULLREQUEST_PATH = new FieldDefinition("path", FieldType.FIXED64, false, 1);
+    static final FieldDefinition FIELD_PULLREQUEST_HASH = new FieldDefinition("hash", FieldType.BYTES, false, 2);
 
     /**
      * This constructor is used by the learner to send requests to the teacher.
@@ -67,36 +65,17 @@ public final class PullVirtualTreeRequest {
     }
 
     /**
-     * Returns the virtual node path.
-     *
-     * @return the path, or {@link Path#INVALID_PATH} for terminating requests
-     */
-    public long getPath() {
-        return path;
-    }
-
-    /**
-     * Returns the virtual node hash.
-     *
-     * @return the hash, or {@code null} for terminating requests
-     */
-    @Nullable
-    public Hash getHash() {
-        return hash;
-    }
-
-    /**
      * Computes the serialized size in bytes.
      *
      * @return the number of bytes this message will occupy when serialized
      */
     public int getSizeInBytes() {
         int size = 0;
-        size += ProtoWriterTools.sizeOfTag(FIELD_PATH);
-        size += ProtoWriterTools.sizeOfVarInt64(path);
+        size += ProtoWriterTools.sizeOfTag(FIELD_PULLREQUEST_PATH);
+        size += Long.BYTES;
         if (hash != null) {
             final int hashLen = DigestType.SHA_384.digestLength();
-            size += ProtoWriterTools.sizeOfDelimited(FIELD_HASH, hashLen);
+            size += ProtoWriterTools.sizeOfDelimited(FIELD_PULLREQUEST_HASH, hashLen);
         }
         return size;
     }
@@ -107,10 +86,10 @@ public final class PullVirtualTreeRequest {
      * @param out the sequential data to write to
      */
     public void writeTo(@NonNull final WritableSequentialData out) {
-        writeLong(out, FIELD_PATH, path, false);
+        writeLong(out, FIELD_PULLREQUEST_PATH, path, false);
         if (hash != null) {
             try {
-                writeBytes(out, FIELD_HASH, hash.getBytes(), false);
+                writeBytes(out, FIELD_PULLREQUEST_HASH, hash.getBytes(), false);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -131,13 +110,12 @@ public final class PullVirtualTreeRequest {
         while (in.hasRemaining()) {
             final int field = readInt32(in);
             final int tag = field >> ProtoParserTools.TAG_FIELD_OFFSET;
-            if (tag == FIELD_PATH.number()) {
-                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK)
-                        != ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal()) {
+            if (tag == FIELD_PULLREQUEST_PATH.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
                     throw new IllegalArgumentException("Wrong wire type for path field: " + field);
                 }
-                path = readInt64(in);
-            } else if (tag == FIELD_HASH.number()) {
+                path = readFixed64(in);
+            } else if (tag == FIELD_PULLREQUEST_HASH.number()) {
                 if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
                     throw new IllegalArgumentException("Wrong wire type for hash field: " + field);
                 }
