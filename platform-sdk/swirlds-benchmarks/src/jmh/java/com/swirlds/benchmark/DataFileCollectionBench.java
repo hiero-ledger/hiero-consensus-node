@@ -39,8 +39,8 @@ public class DataFileCollectionBench extends BaseBench {
 
     @Benchmark
     public void compaction() throws Exception {
-        String storeName = "compactionBench";
-        setTestDir(storeName);
+        final String storeName = "compactionBench";
+        setStoreDir(storeName);
 
         logger.info(RUN_DELIMITER);
 
@@ -49,7 +49,7 @@ public class DataFileCollectionBench extends BaseBench {
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final var store =
-                new DataFileCollection(dbConfig, getTestDir(), storeName, null, (dataLocation, dataValue) -> {}) {
+                new DataFileCollection(dbConfig, getStoreDir(), storeName, null, (dataLocation, dataValue) -> {}) {
                     BenchmarkRecord read(long dataLocation) throws IOException {
                         final BufferedData recordData = readDataItem(dataLocation);
                         if (recordData == null) {
