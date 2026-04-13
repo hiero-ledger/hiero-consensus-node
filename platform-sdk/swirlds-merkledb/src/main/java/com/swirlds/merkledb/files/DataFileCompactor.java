@@ -275,15 +275,9 @@ public class DataFileCompactor {
             return Collections.emptyList();
         }
 
-        // create a merge time stamp, this timestamp is the newest time of the set of files we are
-        // merging
-        final Instant startTime = filesToCompact.stream()
-                .map(file -> file.getMetadata().getCreationDate())
-                .max(Instant::compareTo)
-                .orElseGet(Instant::now);
         snapshotCompactionLock.lock();
         try {
-            currentCompactionStartTime.set(startTime);
+            currentCompactionStartTime.set(Instant.now());
             newCompactedFiles.clear();
             startNewCompactionFile(targetCompactionLevel);
         } finally {
@@ -491,6 +485,7 @@ public class DataFileCompactor {
                 compactionWasInProgress = false;
                 assert currentWriter.get() == null;
                 assert currentReader.get() == null;
+                currentCompactionStartTime.set(Instant.now());
                 startNewCompactionFile(compactionLevelInProgress);
                 compactionLevelInProgress = 0;
             }

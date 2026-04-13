@@ -53,7 +53,7 @@ final class TurtleSwirdsLogTest {
             network.start();
 
             // Let the nodes run for a bit to establish initial state
-            timeManager.waitFor(Duration.ofSeconds(5));
+            timeManager.waitFor(Duration.ofSeconds(10));
 
             // Get nodes and their log paths
             final Node node0 = nodes.get(0);
