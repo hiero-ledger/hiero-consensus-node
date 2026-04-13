@@ -30,6 +30,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -81,6 +82,7 @@ public class AccessListTest {
                             TARGET_CONTRACT_ADDRESS_BYTES.set(
                                     Bytes.fromHexString(address.startsWith("0x") ? address : "0x" + address));
                         })));
+        lifecycle.overrideInClass(Map.of("contracts.codeDelegations.enabled", "true"));
     }
 
     // ------------------------------- Utils -------------------------------

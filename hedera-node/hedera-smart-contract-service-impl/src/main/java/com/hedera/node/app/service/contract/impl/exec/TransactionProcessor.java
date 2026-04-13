@@ -148,7 +148,7 @@ public class TransactionProcessor {
 
         final var lazyCreationGasAvailable = transaction.gasLimit() - gasCharges.intrinsicGas();
         final CodeDelegationResult codeDelegationResult;
-        if (hasCodeDelegations && contractsConfig.evmPectraEnabled()) {
+        if (hasCodeDelegations && contractsConfig.codeDelegationsEnabled()) {
             // Gas amount available for charging Hedera-specific hollow account creation cost
             // when processing code delegations.
             // Note that the base EIP-7702 gas cost for authorizations is already deducted in `intrinsicGas`.

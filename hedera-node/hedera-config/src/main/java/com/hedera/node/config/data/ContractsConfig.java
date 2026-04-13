@@ -157,8 +157,8 @@ public record ContractsConfig(
         @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
         boolean nativeLibVerificationHaltEnabled,
 
-        @ConfigProperty(value = "evm.pectra.enabled", defaultValue = "true") @NetworkProperty
-        boolean evmPectraEnabled,
+        @ConfigProperty(value = "codeDelegations.enabled", defaultValue = "false") @NetworkProperty
+        boolean codeDelegationsEnabled,
 
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
         boolean metricsSmartContractPrimaryEnabled,

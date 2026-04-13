@@ -66,7 +66,11 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
+        // spotless:off
+        testLifecycle.overrideInClass(Map.of(
+                "hooks.hooksEnabled", "true",
+                "contracts.codeDelegations.enabled", "true"));
+        // spotless:on
     }
 
     @HapiTest
