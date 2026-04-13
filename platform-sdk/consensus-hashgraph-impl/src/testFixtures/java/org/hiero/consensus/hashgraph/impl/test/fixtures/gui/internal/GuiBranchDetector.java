@@ -38,9 +38,15 @@ public class GuiBranchDetector {
         final EventDescriptorWrapper previous = mostRecentPerCreator.get(creator);
         final EventDescriptorWrapper selfParent = event.getSelfParent();
 
-        if (previous != null
-                && !previous.equals(selfParent)
-                && (selfParent == null || !currentEventWindow.isAncient(selfParent))) {
+        // If this is the first event we've seen from this creator, or if the self parent is null (which can happen
+        // for genesis events), or if the self parent is the same as the previous event, then this cannot be a branch.
+        // We record the event and skip the rest of the logic
+        if (previous == null || selfParent == null || previous.equals(selfParent)) {
+            mostRecentPerCreator.put(creator, event.getDescriptor());
+            return;
+        }
+
+        if (!currentEventWindow.isAncient(selfParent)) {
             final int branchIndex = nextBranchIndexPerCreator.merge(creator, 0, (old, v) -> old + 1);
             branchedEventsMetadata.put(event.getGossipEvent(), new BranchedEventMetadata(branchIndex, event.getNGen()));
         }

@@ -131,6 +131,7 @@ public class GuiEventStorage {
         linker.setEventWindow(currentEventWindow);
         lastConsensusRound = null;
         branchDetector.clear();
+        branchDetector.setEventWindow(currentEventWindow);
     }
 
     /**
