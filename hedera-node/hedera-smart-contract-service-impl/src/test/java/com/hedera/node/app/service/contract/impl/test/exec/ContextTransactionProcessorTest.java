@@ -35,7 +35,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
-import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
@@ -89,7 +89,7 @@ class ContextTransactionProcessorTest {
     private TransactionBody transactionBody;
 
     @Mock
-    private HederaEvmAccount senderAccount;
+    private AbstractMutableEvmAccount senderAccount;
 
     @Mock
     private EntityIdFactory entityIdFactory;
