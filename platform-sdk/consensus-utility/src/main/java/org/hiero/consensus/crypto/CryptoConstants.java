@@ -35,8 +35,8 @@ public final class CryptoConstants {
     public static final String TRUST_MANAGER_FACTORY_PROVIDER = "BCJSSE";
     public static final String SSL_VERSION = "TLSv1.3";
     public static final String SSL_PROVIDER = "BCJSSE";
-    // TLS 1.3 named groups: x25519 for key exchange, secp384r1 for ECDSA signature scheme activation
-    public static final String[] TLS_NAMED_GROUPS = {"x25519", "secp384r1"};
+    // TLS 1.3 named groups: X25519MLKEM768 hybrid PQ key exchange, secp384r1 for ECDSA signature scheme activation
+    public static final String[] TLS_NAMED_GROUPS = {"X25519MLKEM768", "secp384r1"};
     public static final String[] TLS_SIGNATURE_SCHEMES = {
             "ecdsa_secp384r1_sha384",
             "ecdsa_secp256r1_sha256",
@@ -51,10 +51,14 @@ public final class CryptoConstants {
 
     private CryptoConstants() {}
 
-    /* Ensure BouncyCastle providers are added before the names are used */
+    /* Ensure BouncyCastle providers are added before the names are used.
+     * BC provider must be passed explicitly to BCJSSE so its JcaTlsCrypto uses BC for ML-KEM.
+     * Without this, BCJSSE's DefaultJcaJceHelper finds JDK 25's SunJCE ML-KEM which rejects
+     * BC's MLKEMParameterSpec, causing all ML-KEM named groups to be silently disabled. */
     private static String getBCProviderName() {
-        Security.addProvider(new BouncyCastleProvider());
-        Security.addProvider(new BouncyCastleJsseProvider());
+        final BouncyCastleProvider bcProv = new BouncyCastleProvider();
+        Security.addProvider(bcProv);
+        Security.addProvider(new BouncyCastleJsseProvider(bcProv));
         return BouncyCastleProvider.PROVIDER_NAME;
     }
 }
