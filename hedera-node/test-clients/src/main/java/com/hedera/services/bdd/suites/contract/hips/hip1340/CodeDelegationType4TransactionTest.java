@@ -35,6 +35,7 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
@@ -56,6 +57,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                 uploadInitCode(CODE_DELEGATION_CONTRACT),
                 contractCreate(CODE_DELEGATION_CONTRACT).exposingAddressTo(DELEGATION_TARGET::set),
                 cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS));
+        lifecycle.overrideInClass(Map.of("contracts.codeDelegations.enabled", "true"));
     }
 
     @HapiTest
