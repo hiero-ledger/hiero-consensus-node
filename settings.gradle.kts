@@ -16,6 +16,14 @@ gradle.allprojects {
                 failOnPassedAfterRetry.set(false)
             }
             reports.junitXml.mergeReruns.set(true)
+
+            // Write a marker when tests actually execute (not on cache restore)
+            doLast {
+                layout.buildDirectory.file("test-executed/${name}.marker").get().asFile.apply {
+                    parentFile.mkdirs()
+                    writeText(java.time.Instant.now().toString())
+                }
+            }
         }
     }
 }
