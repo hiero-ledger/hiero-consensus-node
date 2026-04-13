@@ -18,7 +18,6 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
@@ -943,8 +942,18 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Create a mock Future that will throw InterruptedException when get() is called
         @SuppressWarnings("unchecked")
         final Future<Object> mockFuture = mock(Future.class);
-        when(mockFuture.get(anyLong(), any(TimeUnit.class)))
-                .thenThrow(new InterruptedException("Simulated interruption"));
+        final AtomicBoolean isFirstCall = new AtomicBoolean(true);
+        doAnswer(_ -> {
+                    // for the first call, let it pass - this is the sending of EndStream.RESET
+                    if (isFirstCall.compareAndSet(true, false)) {
+                        return null;
+                    } else {
+                        // subsequent calls are for the close operation and should fail
+                        throw new InterruptedException("Simulated interruption");
+                    }
+                })
+                .when(mockFuture)
+                .get(anyLong(), any(TimeUnit.class));
 
         // Set up the pipelineExecutor to return mock future
         doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
@@ -965,7 +974,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
 
         // Verify interruption was handled gracefully
-        verify(mockFuture).get(anyLong(), any(TimeUnit.class));
+        verify(mockFuture, times(2)).get(anyLong(), any(TimeUnit.class));
         verify(metrics).recordConnectionClosed();
 
         // Connection should still be CLOSED despite interruption

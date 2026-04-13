@@ -104,7 +104,7 @@ public class BlockBufferService {
     /**
      * The most recent buffer pruning result.
      */
-    private PruneResult lastPruningResult = PruneResult.NIL;
+    private final AtomicReference<PruneResult> lastPruningResultRef = new AtomicReference<>(PruneResult.NIL);
     /**
      * Flag indicating whether the buffer transitioned from fully saturated to not, but we are still waiting to reach
      * the recovery threshold.
@@ -159,7 +159,7 @@ public class BlockBufferService {
      * @return the most recent block buffer check result, else null if a check hasn't been performed yet
      */
     public @Nullable BlockBufferStatus latestBufferStatus() {
-        final PruneResult latestResult = lastPruningResult;
+        final PruneResult latestResult = lastPruningResultRef.get();
 
         if (latestResult == null) {
             return null;
@@ -210,7 +210,7 @@ public class BlockBufferService {
         highestAckedBlockNumber.set(Long.MIN_VALUE);
         lastProducedBlockNumber.set(-1);
         earliestBlockNumber.set(Long.MIN_VALUE);
-        lastPruningResult = PruneResult.NIL;
+        lastPruningResultRef.set(PruneResult.NIL);
         awaitingRecovery = false;
 
         logger.info("Block buffer service shutdown complete");
@@ -683,8 +683,7 @@ public class BlockBufferService {
         }
 
         final PruneResult pruningResult = pruneBuffer();
-        final PruneResult previousPruneResult = lastPruningResult;
-        lastPruningResult = pruningResult;
+        final PruneResult previousPruneResult = lastPruningResultRef.getAndSet(pruningResult);
 
         // create a list of ranges of contiguous blocks in the buffer
         if (logger.isDebugEnabled()) {

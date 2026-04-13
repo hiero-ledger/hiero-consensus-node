@@ -78,24 +78,21 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle execSvcHandle;
     private static final VarHandle blockBufferHandle;
     private static final VarHandle backPressureFutureRefHandle;
-    private static final VarHandle lastPruningResultHandle;
+    private static final VarHandle lastPruningResultRefHandle;
     private static final VarHandle isStartedHandle;
     private static final MethodHandle checkBufferHandle;
     private static final MethodHandle persistBufferHandle;
 
     static {
         try {
-            final Lookup lookup = MethodHandles.lookup();
-            blockBufferHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "blockBuffer", ConcurrentMap.class);
-            execSvcHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "execSvc", ScheduledExecutorService.class);
-            backPressureFutureRefHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
-            lastPruningResultHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "lastPruningResult", PruneResult.class);
-            isStartedHandle = MethodHandles.privateLookupIn(BlockBufferService.class, lookup)
-                    .findVarHandle(BlockBufferService.class, "isStarted", AtomicBoolean.class);
+            final Lookup lookup = MethodHandles.privateLookupIn(BlockBufferService.class, MethodHandles.lookup());
+            blockBufferHandle = lookup.findVarHandle(BlockBufferService.class, "blockBuffer", ConcurrentMap.class);
+            execSvcHandle = lookup.findVarHandle(BlockBufferService.class, "execSvc", ScheduledExecutorService.class);
+            backPressureFutureRefHandle = lookup.findVarHandle(
+                    BlockBufferService.class, "backpressureCompletableFutureRef", AtomicReference.class);
+            lastPruningResultRefHandle =
+                    lookup.findVarHandle(BlockBufferService.class, "lastPruningResultRef", AtomicReference.class);
+            isStartedHandle = lookup.findVarHandle(BlockBufferService.class, "isStarted", AtomicBoolean.class);
 
             final Method checkBufferMethod = BlockBufferService.class.getDeclaredMethod("checkBuffer");
             checkBufferMethod.setAccessible(true);
@@ -409,7 +406,11 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         // prune the buffer, nothing should be removed since nothing is acked and we are not yet saturated
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isFalse();
+
+        PruneResult lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+
+        assertThat(lastPruningResult.isSaturated).isFalse();
         verify(blockStreamMetrics).recordBufferSaturation(80.0); // the buffer is 80% saturated
         verify(blockStreamMetrics).recordLatestBlockOpened(1L);
         verify(blockStreamMetrics).recordLatestBlockOpened(2L);
@@ -433,7 +434,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.closeBlock(5L);
         checkBufferHandle.invoke(blockBufferService);
         // the buffer is now marked as saturated because multiple blocks have not been acked yet and they are expired
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isTrue();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isTrue();
 
         verify(blockStreamMetrics).recordLatestBlockOpened(5L);
         verify(blockStreamMetrics).recordBlockOpened();
@@ -455,7 +458,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(6L);
         blockBufferService.closeBlock(6L);
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isTrue();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isTrue();
         verify(blockStreamMetrics).recordBufferSaturation(120.0); // the buffer is 120% saturated
         verify(blockStreamMetrics).recordLatestBlockOpened(6L);
         verify(blockStreamMetrics).recordBlockOpened();
@@ -481,7 +486,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         // now that multiple blocks are acked, run pruning again and verify we are no longer saturated
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isFalse();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isFalse();
         verify(blockStreamMetrics).recordBufferSaturation(60.0); // the buffer is 60% saturated
         verify(blockStreamMetrics).recordLatestBlockAcked(3L);
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(1);
@@ -498,7 +505,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // ack up to block 6, run pruning, and verify the buffer is not saturated
         blockBufferService.setLatestAcknowledgedBlock(6L);
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isFalse();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isFalse();
         verify(blockStreamMetrics).recordBufferSaturation(0.0); // the buffer is 0% saturated
         verify(blockStreamMetrics).recordLatestBlockAcked(6L);
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
@@ -517,7 +526,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         blockBufferService.openBlock(7L);
         blockBufferService.closeBlock(7L);
         checkBufferHandle.invoke(blockBufferService);
-        assertThat(lastPruningResult(blockBufferService).isSaturated).isFalse();
+        lastPruningResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(lastPruningResult).isNotNull();
+        assertThat(lastPruningResult.isSaturated).isFalse();
         verify(blockStreamMetrics).recordLatestBlockOpened(7L);
         verify(blockStreamMetrics).recordBlockOpened();
         verify(blockStreamMetrics).recordBlockClosed();
@@ -773,7 +784,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult initialPruningResult = lastPruningResult(blockBufferService);
+        final PruneResult initialPruningResult =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(initialPruningResult).isNotNull();
         assertThat(initialPruningResult.isSaturated).isTrue();
         assertThat(initialPruningResult.numBlocksPruned).isZero();
         assertThat(initialPruningResult.numBlocksPendingAck).isEqualTo(10);
@@ -893,7 +906,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(bufferStatus.isActionStage()).isFalse();
         assertThat(bufferStatus.saturationPercent()).isEqualTo(20.0D);
 
-        PruneResult pruneResult = lastPruningResult(blockBufferService);
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(2);
 
@@ -910,7 +924,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(bufferStatus.isActionStage()).isTrue();
         assertThat(bufferStatus.saturationPercent()).isEqualTo(100.0D);
 
-        pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isTrue();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
 
@@ -941,7 +956,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        PruneResult pruneResult = lastPruningResult(blockBufferService);
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(2);
 
@@ -959,7 +975,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(7);
         assertThat(pruneResult.saturationPercent).isEqualTo(70.0D);
@@ -994,7 +1011,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        PruneResult pruneResult = lastPruningResult(blockBufferService);
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(2);
 
@@ -1011,7 +1029,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(4);
 
@@ -1045,7 +1064,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        PruneResult pruneResult = lastPruningResult(blockBufferService);
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(7);
 
@@ -1064,7 +1084,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isTrue();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
 
@@ -1101,7 +1122,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        PruneResult pruneResult = lastPruningResult(blockBufferService);
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(7);
 
@@ -1116,7 +1138,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(8);
 
@@ -1150,7 +1173,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        PruneResult pruneResult = lastPruningResult(blockBufferService);
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(7);
 
@@ -1164,7 +1188,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(2);
 
@@ -1194,7 +1219,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        PruneResult pruneResult = lastPruningResult(blockBufferService);
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isTrue();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
 
@@ -1205,7 +1231,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isTrue();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
 
@@ -1233,7 +1260,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        PruneResult pruneResult = lastPruningResult(blockBufferService);
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isTrue();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
 
@@ -1247,7 +1275,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(6);
 
@@ -1279,7 +1308,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        PruneResult pruneResult = lastPruningResult(blockBufferService);
+        PruneResult pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isTrue();
         assertThat(pruneResult.numBlocksPendingAck).isEqualTo(10);
 
@@ -1293,7 +1323,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        pruneResult = lastPruningResult(blockBufferService);
+        pruneResult = lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult).isNotNull();
         assertThat(pruneResult.isSaturated).isFalse();
         assertThat(pruneResult.numBlocksPendingAck).isZero();
 
@@ -1345,7 +1376,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult1 = lastPruningResult(blockBufferService);
+        final PruneResult pruneResult1 =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult1).isNotNull();
         assertThat(pruneResult1.isSaturated).isTrue();
         assertThat(pruneResult1.saturationPercent).isEqualTo(100.0);
 
@@ -1376,7 +1409,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult2 = lastPruningResult(blockBufferService);
+        final PruneResult pruneResult2 =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult2).isNotNull();
         assertThat(pruneResult2.isSaturated).isFalse();
         assertThat(pruneResult2.saturationPercent).isEqualTo(80.0);
 
@@ -1404,7 +1439,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult3 = lastPruningResult(blockBufferService);
+        final PruneResult pruneResult3 =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult3).isNotNull();
         assertThat(pruneResult3.isSaturated).isFalse();
         assertThat(pruneResult3.saturationPercent).isEqualTo(70.0);
 
@@ -1432,7 +1469,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         checkBufferHandle.invoke(blockBufferService);
 
-        final PruneResult pruneResult4 = lastPruningResult(blockBufferService);
+        final PruneResult pruneResult4 =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(pruneResult4).isNotNull();
         assertThat(pruneResult4.isSaturated).isFalse();
         assertThat(pruneResult4.saturationPercent).isEqualTo(0.0);
 
@@ -1839,7 +1878,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
 
         final boolean expectedSaturated = numBlockUnacked == 10; // ideal max size is 10
 
-        final PruneResult initialPruningResult = lastPruningResult(blockBufferService);
+        final PruneResult initialPruningResult =
+                lastPruningResultRef(blockBufferService).get();
+        assertThat(initialPruningResult).isNotNull();
         assertThat(initialPruningResult.isSaturated).isEqualTo(expectedSaturated);
         assertThat(initialPruningResult.numBlocksPruned).isZero();
         assertThat(initialPruningResult.numBlocksPendingAck).isEqualTo(numBlockUnacked);
@@ -1857,8 +1898,9 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         reset(blockStreamMetrics);
     }
 
-    private PruneResult lastPruningResult(final BlockBufferService bufferService) {
-        return (PruneResult) lastPruningResultHandle.getVolatile(bufferService);
+    @SuppressWarnings("unchecked")
+    private AtomicReference<PruneResult> lastPruningResultRef(final BlockBufferService bufferService) {
+        return (AtomicReference<PruneResult>) lastPruningResultRefHandle.get(bufferService);
     }
 
     @SuppressWarnings("unchecked")

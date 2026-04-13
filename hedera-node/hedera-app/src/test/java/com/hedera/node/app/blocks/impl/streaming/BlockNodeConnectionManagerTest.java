@@ -141,7 +141,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             getNextPriorityBlockNodeHandle = lookup.unreflect(getNextPriorityBlockNode);
 
             final Method selectNewBlockNode = cls.getDeclaredMethod(
-                    "selectNewBlockNode", boolean.class, NodeSelectionCriteria.class, CloseReason.class);
+                    "selectNewBlockNode",
+                    boolean.class,
+                    NodeSelectionCriteria.class,
+                    CloseReason.class,
+                    BlockNodeStreamingConnection.class);
             selectNewBlockNode.setAccessible(true);
             selectNewBlockNodeHandle = lookup.unreflect(selectNewBlockNode);
 
@@ -1099,7 +1103,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         globalCoolDownTimestampRef().set(Instant.now().plusSeconds(10));
         activeConnectionRef().set(null);
 
-        invoke_selectNewBlockNode(false, new AnyCriteria(), CloseReason.BUFFER_SATURATION);
+        invoke_selectNewBlockNode(false, new AnyCriteria(), CloseReason.BUFFER_SATURATION, null);
 
         assertThat(activeConnectionRef()).hasNullValue();
     }
@@ -1128,7 +1132,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
                 mockConstruction(BlockNodeStreamingConnection.class)) {
-            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.BUFFER_SATURATION);
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.BUFFER_SATURATION, null);
 
             // one connection should have been created
             assertThat(mockConnection.constructed()).hasSize(1);
@@ -1165,7 +1169,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
                 mockConstruction(BlockNodeStreamingConnection.class)) {
-            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.BUFFER_SATURATION);
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.BUFFER_SATURATION, null);
 
             // no connection should have been created
             assertThat(mockConnection.constructed()).isEmpty();
@@ -1210,7 +1214,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeStreamingConnection newActiveConnection;
         try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
                 mockConstruction(BlockNodeStreamingConnection.class)) {
-            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.BUFFER_SATURATION);
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.BUFFER_SATURATION, node2Conn);
 
             // one connection should have been created
             final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
@@ -1272,7 +1276,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection = mockConstruction(
                 BlockNodeStreamingConnection.class,
                 (mock, ctx) -> newConnectionConstructorArgs.addAll(ctx.arguments()))) {
-            invoke_selectNewBlockNode(true, new MinimumPriorityCriteria(1), CloseReason.HIGHER_PRIORITY_FOUND);
+            invoke_selectNewBlockNode(
+                    true, new MinimumPriorityCriteria(1), CloseReason.HIGHER_PRIORITY_FOUND, node2Conn);
 
             // one connection should have been created
             final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
@@ -1326,7 +1331,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
                 mockConstruction(BlockNodeStreamingConnection.class)) {
-            invoke_selectNewBlockNode(true, new MinimumPriorityCriteria(1), CloseReason.HIGHER_PRIORITY_FOUND);
+            invoke_selectNewBlockNode(
+                    true, new MinimumPriorityCriteria(1), CloseReason.HIGHER_PRIORITY_FOUND, node2Conn);
 
             // no connection should have been created
             final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
@@ -1751,8 +1757,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     void invoke_selectNewBlockNode(
-            final boolean force, final NodeSelectionCriteria criteria, final CloseReason closeReason) throws Throwable {
-        selectNewBlockNodeHandle.invoke(connectionManager, force, criteria, closeReason);
+            final boolean force,
+            final NodeSelectionCriteria criteria,
+            final CloseReason closeReason,
+            final BlockNodeStreamingConnection activeConnection)
+            throws Throwable {
+        selectNewBlockNodeHandle.invoke(connectionManager, force, criteria, closeReason, activeConnection);
     }
 
     void invoke_pruneNodes() throws Throwable {

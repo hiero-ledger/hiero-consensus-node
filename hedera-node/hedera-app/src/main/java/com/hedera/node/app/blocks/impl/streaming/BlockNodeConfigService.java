@@ -268,10 +268,17 @@ public class BlockNodeConfigService {
         @Override
         public void run() {
             while (isActive.get()) {
+                final WatchService watchService = watchServiceRef.get();
+                if (watchService == null) {
+                    // If the watch service is null, it likely means the configuration service is shutting down
+                    // Thus, if we continue, the isActive check will be triggered and the shutdown should be detected
+                    continue;
+                }
+
                 WatchKey key = null;
 
                 try {
-                    key = watchServiceRef.get().take();
+                    key = watchService.take();
 
                     for (final WatchEvent<?> event : key.pollEvents()) {
                         final WatchEvent.Kind<?> kind = event.kind();

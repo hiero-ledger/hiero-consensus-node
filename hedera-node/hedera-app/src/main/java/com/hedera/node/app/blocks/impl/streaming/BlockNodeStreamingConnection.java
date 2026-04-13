@@ -50,7 +50,7 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
 /**
  * Manages a single gRPC bidirectional streaming connection to a block node. Each connection:
  * <ul>
- *   <li>Handles the streaming of block items to a configured Block ode</li>
+ *   <li>Handles the streaming of block items to a configured Block Node</li>
  *   <li>Maintains connection state and handles responses from the Block Node</li>
  *   <li>Coordinates with {@link BlockNodeConnectionManager} for managing the connection lifecycle</li>
  *   <li>Processes block acknowledgements, retries, and error scenarios</li>
@@ -531,8 +531,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             // If we don't have the block state, we schedule retry for this connection and establish new one
             // with different block node
             logger.info(
-                    "{} Block node requested a ResendBlock for block {} but that block does not exist "
-                            + "on this consensus node. Closing connection and will retry later.",
+                    "{} Block node requested a ResendBlock for block {} but that block does not exist; closing connection",
                     this,
                     resendBlockNumber);
 
@@ -540,7 +539,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 // Indicate that the block node should catch up from another trustworthy block node
                 sendEndStream(TOO_FAR_BEHIND);
                 close(CloseReason.BLOCK_NODE_BEHIND, true);
-            } else if (resendBlockNumber > blockBufferService.getLastBlockNumberProduced()) {
+            } else {
                 sendEndStream(ERROR);
                 close(CloseReason.INTERNAL_ERROR, true);
             }
@@ -589,19 +588,22 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         // The block node is behind us, check if we have the last verified block still available
         // to start streaming from there
         if (blockBufferService.getBlockState(blockToStream) != null) {
-            logger.info("{} Block node reported it is behind. Will start streaming block {}.", this, blockToStream);
+            logger.info("{} Block node reported it is behind. Will start streaming block {}", this, blockToStream);
 
             streamingBlockNumber.set(blockToStream);
         } else {
             // If we don't have the block state, we schedule retry for this connection
             // and establish new one with different block node
-            logger.info("{} Block node is behind and block state is not available. Ending the stream.", this);
+            logger.info(
+                    "{} Block node is behind and requested block ({}) is not available; ending stream",
+                    this,
+                    blockToStream);
 
             if (blockToStream < blockBufferService.getEarliestAvailableBlockNumber()) {
                 // Indicate that the block node should catch up from another trustworthy block node
                 sendEndStream(TOO_FAR_BEHIND);
                 close(CloseReason.BLOCK_NODE_BEHIND, true);
-            } else if (blockToStream > blockBufferService.getLastBlockNumberProduced()) {
+            } else {
                 sendEndStream(ERROR);
                 close(CloseReason.INTERNAL_ERROR, true);
             }
@@ -695,7 +697,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             } catch (final TimeoutException e) {
                 future.cancel(true); // Cancel the task if it times out
                 if (isActive()) {
-                    logger.warn("{} Pipeline onNext() timed out after {}ms", this, pipelineOperationTimeout.toMillis());
+                    logger.warn(
+                            "{} Timed out sending request (timeout: {}ms) - closing connection",
+                            this,
+                            pipelineOperationTimeout.toMillis());
                     blockStreamMetrics.recordPipelineOperationTimeout();
                     close(CloseReason.CONNECTION_ERROR, true);
                 }
@@ -730,7 +735,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         final long durationMs = sentMs - startMs;
         blockStreamMetrics.recordRequestLatency(durationMs);
 
-        if (request instanceof final BlockRequest br) {
+        if (request instanceof BlockRequest) {
             logger.trace("{} Request took {}ms to send", connectionContext(correlationId), durationMs);
         } else {
             logger.trace("{} Ad hoc request took {}ms to send", connectionContext(correlationId), durationMs);
@@ -780,6 +785,11 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             return;
         }
 
+        if (shouldSendEndStreamOnClose) {
+            // before closing the connection, attempt to send a final EndStream message
+            sendEndStream(EndStream.Code.RESET);
+        }
+
         if (!updateConnectionState(status, ConnectionState.CLOSING)) {
             logger.debug("{} State changed while trying to close connection. Aborting close attempt.", this);
             return;
@@ -787,11 +797,6 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
 
         logger.info("{} Closing connection (reason: {})", this, closeReason);
         setCloseReason(closeReason);
-
-        if (shouldSendEndStreamOnClose) {
-            // before closing the connection, attempt to send a final EndStream message
-            sendEndStream(EndStream.Code.RESET);
-        }
 
         try {
             closePipeline(callOnComplete);
@@ -838,8 +843,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         logger.debug("{} Request pipeline successfully closed.", this);
                     } catch (final TimeoutException e) {
                         future.cancel(true); // Cancel the task if it times out
-                        logger.debug(
-                                "{} Pipeline onComplete() timed out after {}ms",
+                        logger.warn(
+                                "{} Timed out while attempting to shutdown pipeline (timeout: {}ms) - ignoring",
                                 this,
                                 pipelineOperationTimeout.toMillis());
                         blockStreamMetrics.recordPipelineOperationTimeout();

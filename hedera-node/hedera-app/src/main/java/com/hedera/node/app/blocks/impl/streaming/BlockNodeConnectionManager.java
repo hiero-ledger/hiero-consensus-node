@@ -93,7 +93,7 @@ public class BlockNodeConnectionManager {
     /**
      * Executor service used to execute blocking I/O operations - e.g. retrieving block node status.
      */
-    private ExecutorService blockingIoExecutor;
+    private final AtomicReference<ExecutorService> blockingIoExecutorRef = new AtomicReference<>();
     /**
      * The available block nodes, based on the latest active configuration, by node address.
      */
@@ -170,7 +170,7 @@ public class BlockNodeConnectionManager {
         this.clientFactory = new BlockNodeClientFactory();
         this.blockNodeConfigService = requireNonNull(blockNodeConfigService, "Block node config service is required");
 
-        blockingIoExecutor = blockingIoExecutorSupplier.get();
+        blockingIoExecutorRef.set(blockingIoExecutorSupplier.get());
     }
 
     /**
@@ -200,9 +200,9 @@ public class BlockNodeConnectionManager {
         }
         logger.info("Shutting down block node connection manager...");
 
+        final ExecutorService blockingIoExecutor = blockingIoExecutorRef.getAndSet(null);
         if (blockingIoExecutor != null) {
             blockingIoExecutor.shutdownNow();
-            blockingIoExecutor = null;
         }
 
         blockNodeConfigService.shutdown();
@@ -235,14 +235,14 @@ public class BlockNodeConnectionManager {
         }
         logger.info("Starting block node connection manager...");
 
-        if (blockingIoExecutor == null) {
+        if (blockingIoExecutorRef.get() == null) {
             /*
             Why the null check? We initialize the blocking I/O executor in the constructor by calling the supplier,
             but an instance of the connection manager can be shutdown and technically can be restarted. During the
             shutdown process, the executor is also shutdown (and set to null) so if the manager was started again we
             need to get another instance from the blocking I/O executor from the supplier.
              */
-            blockingIoExecutor = blockingIoExecutorSupplier.get();
+            blockingIoExecutorRef.compareAndSet(null, blockingIoExecutorSupplier.get());
         }
 
         // Start the block buffer service
@@ -265,9 +265,10 @@ public class BlockNodeConnectionManager {
      * Selects the next available block node based on priority.
      * It will skip over any nodes that are already in retry or have a lower priority than the current active connection.
      *
+     * @param availableBlockNodes list of available block nodes to select from
      * @return the next available block node
      */
-    private @Nullable BlockNode getNextPriorityBlockNode(@Nullable final List<BlockNode> availableBlockNodes) {
+    private @Nullable BlockNode getNextPriorityBlockNode(@NonNull final List<BlockNode> availableBlockNodes) {
         requireNonNull(availableBlockNodes, "Available block nodes list is required");
         logger.debug("Searching for new block node connection based on node priorities.");
 
@@ -354,6 +355,7 @@ public class BlockNodeConnectionManager {
             return null;
         }
 
+        final ExecutorService blockingIoExecutor = blockingIoExecutorRef.get();
         final Duration timeout = bncConfig().blockNodeStatusTimeout();
 
         final List<RetrieveBlockNodeStatusTask> tasks = new ArrayList<>();
@@ -604,7 +606,7 @@ public class BlockNodeConnectionManager {
 
         final Instant now = Instant.now();
         final BlockNodeStreamingConnection activeConnection = activeConnectionRef.get();
-        CloseReason closeReason = null;
+        CloseReason closeReason = CloseReason.UNKNOWN;
         NodeSelectionCriteria criteria = new AnyCriteria();
 
         final boolean noActiveConnection = isMissingActiveConnection(activeConnection);
@@ -664,7 +666,7 @@ public class BlockNodeConnectionManager {
                 logger.info("{}", sb);
             }
 
-            selectNewBlockNode(noActiveConnection, criteria, closeReason);
+            selectNewBlockNode(noActiveConnection, criteria, closeReason, activeConnection);
         } else {
             logger.trace("Block node connectivity is healthy; no corrective action needed at this time");
         }
@@ -889,7 +891,8 @@ public class BlockNodeConnectionManager {
     private void selectNewBlockNode(
             final boolean force,
             @NonNull final NodeSelectionCriteria criteria,
-            @Nullable final CloseReason closeReason) {
+            @NonNull final CloseReason closeReason,
+            @Nullable final BlockNodeStreamingConnection activeConnection) {
         requireNonNull(criteria, "Selection criteria is required");
         pruneNodes();
 
@@ -964,12 +967,20 @@ public class BlockNodeConnectionManager {
                 null,
                 clientFactory,
                 selfNodeId);
-        connection.initialize();
-        connection.updateConnectionState(ConnectionState.ACTIVE);
 
-        final BlockNodeStreamingConnection oldConnection = activeConnectionRef.getAndSet(connection);
-        if (oldConnection != null) {
-            oldConnection.closeAtBlockBoundary(closeReason);
+        try {
+            connection.initialize();
+        } catch (final Exception e) {
+            logger.warn("{} Failed to initialize connection", connection, e);
+            connection.close(CloseReason.INTERNAL_ERROR, true);
+            return; // exit, let the monitor try again at the next invocation
+        }
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        activeConnectionRef.set(connection);
+
+        if (activeConnection != null) {
+            activeConnection.closeAtBlockBoundary(closeReason);
         }
 
         // set the global cool down so we don't try to switch connections too frequently

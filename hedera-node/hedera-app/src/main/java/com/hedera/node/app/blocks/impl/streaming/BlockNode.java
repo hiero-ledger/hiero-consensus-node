@@ -203,7 +203,7 @@ public class BlockNode {
      * Retrieves whether this block node can be removed from any tracking. If this block node is marked as terminated,
      * and it has no active connection, this block node can safely be removed.
      *
-     * @return
+     * @return true if this block node instance can be safely removed, else false
      */
     boolean isRemovable() {
         return isTerminated.get() && activeStreamingConnectionRef.get() == null;
@@ -399,7 +399,7 @@ public class BlockNode {
             // there is another cool down active that extends beyond what this invocation wanted the cool down to be
             // leave the longer cool down in place
             logger.debug(
-                    "An cool down with a later end is already exists (existing: {}, wanted: {}) - will not modify the cool down",
+                    "A cool down with a later end is already exists (existing: {}, wanted: {}) - will not modify the cool down",
                     actualCoolDownTimestamp,
                     newCoolDownTimestamp);
             return;
@@ -422,10 +422,10 @@ public class BlockNode {
     static class ConnectionHistory {
         final ConnectionId connectionId;
         final Instant createTimestamp;
-        Instant activeTimestamp;
-        Instant closeTimestamp;
-        CloseReason closeReason;
-        Integer numBlocksSent;
+        volatile Instant activeTimestamp;
+        volatile Instant closeTimestamp;
+        volatile CloseReason closeReason;
+        volatile Integer numBlocksSent;
 
         ConnectionHistory(@NonNull final BlockNodeStreamingConnection connection) {
             connectionId = connection.connectionId();

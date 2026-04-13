@@ -806,7 +806,6 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(requestPipeline).onComplete();
         verify(bufferService).getBlockState(10L);
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
-        verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -934,9 +933,13 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.close(CloseReason.CONNECTION_STALLED, true);
 
         assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_STALLED);
-
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
 
+        // verifications for sending EndStream.RESET
+        verify(requestPipeline).onNext(any());
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        // remaining verifications
         verify(metrics).recordConnectionClosed();
         verify(requestPipeline).onComplete();
         verify(bufferService).getEarliestAvailableBlockNumber();
@@ -956,13 +959,18 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.UNKNOWN);
 
+        // verifications for sending EndStream.RESET
+        verify(requestPipeline).onNext(any());
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        // remaining verifications
         // Should not call onComplete when callOnComplete is false
         verify(metrics).recordConnectionClosed();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(requestPipeline);
+        verifyNoMoreInteractions(requestPipeline);
     }
 
     // Tests close operation when connection is not in ACTIVE state
@@ -1122,6 +1130,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
 
+        // verifications for sending EndStream.RESET
+        verify(requestPipeline).onNext(any());
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        // remaining verifications
         verify(metrics).recordConnectionOnError();
         verify(metrics).recordConnectionClosed();
         verify(requestPipeline).onComplete();
@@ -1218,6 +1231,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
 
+        // verifications for sending EndStream.RESET
+        verify(requestPipeline).onNext(any());
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        // remaining verifications
         verify(requestPipeline).onComplete();
         verify(metrics).recordConnectionOnComplete();
         verify(metrics).recordConnectionClosed();
@@ -1575,6 +1593,22 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(requestPipeline);
     }
 
+    @Test
+    void testOnNext_blockNodeBehind_inRangeMissingBlock() {
+        activateConnection();
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10);
+        when(bufferService.getBlockState(11)).thenReturn(null);
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(10L);
+        when(stats.shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class)))
+                .thenReturn(false);
+        when(stats.addBehindPublisherAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class)))
+                .thenReturn(false);
+
+        connection.onNext(response);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+    }
+
     // Tests BehindPublisher code with Long.MAX_VALUE edge case (should restart at block 0)
     @Test
     void testOnNext_blockNodeBehind_maxValueBlockNumber() {
@@ -1876,9 +1910,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamRequest request = createRequest(newBlockHeaderItem());
         sendRequest(new BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
 
-        // Verify that the pipeline was NOT called (executor should be shut down and connection is CLOSED)
-        verify(requestPipeline, times(1)).onComplete(); // Only from the close() call
-        verify(requestPipeline, times(0)).onNext(any()); // sendRequest should not execute
+        verify(requestPipeline).onComplete(); // Only from the close() call
+        verify(requestPipeline).onNext(any()); // sendRequest should be executed to send the RESET request
 
         // Verify no additional interactions beyond the close operation
         verify(metrics).recordConnectionClosed();
@@ -1896,7 +1929,16 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // Create a mock Future that will throw TimeoutException when get() is called
         @SuppressWarnings("unchecked")
         final Future<Object> mockFuture = mock(Future.class);
-        when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException("Simulated timeout"));
+        final AtomicBoolean isFirstCall = new AtomicBoolean(true);
+        doAnswer(_ -> {
+                    if (isFirstCall.compareAndSet(true, false)) {
+                        throw new TimeoutException("Simulated timeout");
+                    } else {
+                        return null;
+                    }
+                })
+                .when(mockFuture)
+                .get(anyLong(), any(TimeUnit.class));
 
         // Set up the pipelineExecutor to return mock future
         doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
@@ -1913,11 +1955,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // Verify timeout was detected and handled
         // Note: future.get() is called twice - once for sendRequest (times out)
         // and once for closePipeline/onComplete (also times out during cleanup)
-        verify(mockFuture, times(2)).get(anyLong(), any(TimeUnit.class));
-        verify(mockFuture, times(2)).cancel(true); // Future should be cancelled both times
+        verify(mockFuture, times(3)).get(anyLong(), any(TimeUnit.class));
+        verify(mockFuture).cancel(true); // Future should be cancelled both times
 
         // Timeout metric is recorded twice - once for sendRequest, once for onComplete during close
-        verify(metrics, times(2)).recordPipelineOperationTimeout();
+        verify(metrics).recordPipelineOperationTimeout();
         verify(metrics).recordConnectionClosed();
     }
 
@@ -1932,7 +1974,20 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // Create a mock Future that will throw TimeoutException when get() is called
         @SuppressWarnings("unchecked")
         final Future<Object> mockFuture = mock(Future.class);
-        when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException("Simulated timeout"));
+        final AtomicInteger opCounter = new AtomicInteger(0);
+        doAnswer(_ -> {
+                    // when close is called, we will first attempt to send an EndStream.RESET message, that we want to
+                    // succeed
+                    // the second invocation will be the pipeline close that we want to fail with a timeout
+                    final int opCount = opCounter.incrementAndGet();
+                    if (opCount == 2) {
+                        throw new TimeoutException("Simulated timeout");
+                    } else {
+                        return null;
+                    }
+                })
+                .when(mockFuture)
+                .get(anyLong(), any(TimeUnit.class));
 
         // Set up the pipelineExecutor to return mock future
         doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
@@ -1944,7 +1999,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
 
         // Verify timeout was detected during onComplete
-        verify(mockFuture).get(anyLong(), any(TimeUnit.class));
+        verify(mockFuture, times(2)).get(anyLong(), any(TimeUnit.class));
         verify(mockFuture).cancel(true);
         verify(metrics).recordPipelineOperationTimeout();
         verify(metrics).recordConnectionClosed();
