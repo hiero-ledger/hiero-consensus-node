@@ -25,9 +25,9 @@ on:
         default: "20"
       enable-network-log-capture:
         description: "Network Log Capture Enabled"
-        type: string
+        type: boolean
         required: false
-        default: "false"
+        default: false
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -86,11 +86,13 @@ jobs:
 
       - name: Integration Tests
         id: gradle-integration-tests
+        if: ${{ !cancelled() }}
         run: ${GRADLE_EXEC} testIntegration
 
       - name: Publish Integration Test Report
         id: publish-test-report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
+        if: ${{ !cancelled() }}
         with:
           check_name: "Node: Integration Test Results"
           json_thousands_separator: ","
@@ -100,6 +102,7 @@ jobs:
       - name: Upload Integration Test Report Artifacts
         id: upload-test-report-artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
         with:
           name: Integration Test Report
           path: "**/build/test-results/testIntegration/TEST-*.xml"
@@ -110,8 +113,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           has_flaky="false"
-          if find . -path "*/build/test-results/testIntegration/TEST-*.xml" 2>/dev/null \
-              | xargs --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
+          if find . -path "*/build/test-results/testIntegration/TEST-*.xml" -print0 2>/dev/null \
+              | xargs -0 --no-run-if-empty grep -ql "<flakyFailure" 2>/dev/null; then
             has_flaky="true"
           fi
           echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
