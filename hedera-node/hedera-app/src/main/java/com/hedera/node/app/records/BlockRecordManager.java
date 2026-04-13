@@ -156,15 +156,6 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
             @NonNull Bytes prevWrappedRecordBlockRootHash, @NonNull List<Bytes> intermediateHashes, long leafCount);
 
     /**
-     * Syncs the voting metadata fields into the in-memory BlockInfo cache. Used to ensure
-     * {@code putLastBlockInfo} calls don't write stale cached values.
-     *
-     * @param votingComplete whether voting is complete
-     * @param votingCompletionDeadlineBlockNumber the deadline block number for voting completion
-     */
-    void syncVotingMetadata(boolean votingComplete, long votingCompletionDeadlineBlockNumber);
-
-    /**
      * Hook to compute wrapped record-file block data for the current in-progress record block
      * prior to a freeze. In such an event, this method has one of two possible responsibilities:
      * <ol>
