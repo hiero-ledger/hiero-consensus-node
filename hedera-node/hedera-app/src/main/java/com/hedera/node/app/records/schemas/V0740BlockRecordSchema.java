@@ -22,6 +22,7 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(74).patch(0).build();
+    public static final int DEADLINE_BLOCK_NUMBER_BUFFER = 10;
 
     public V0740BlockRecordSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
@@ -45,7 +46,8 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
                         existingBlockInfo.votingComplete());
             } else if (hasJumpstartData(ctx)) {
                 // We only want to initialize jumpstart voting if valid jumpstart data is present
-                final long votingCompletionDeadlineBlockNumber = existingBlockInfo.lastBlockNumber() + 10;
+                final long votingCompletionDeadlineBlockNumber =
+                        existingBlockInfo.lastBlockNumber() + DEADLINE_BLOCK_NUMBER_BUFFER;
                 blockInfoSingleton.put(existingBlockInfo
                         .copyBuilder()
                         .votingComplete(false)
