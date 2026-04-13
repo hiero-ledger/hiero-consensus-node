@@ -650,7 +650,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
         final VirtualLeafBytes<V> rec = records.findLeafRecord(key);
         statistics.countReadEntities();
-        return rec == null ? null : rec.value(valueCodec, virtualMapConfig.valueParseMaxSize());
+        return rec == null ? null : rec.value(valueCodec, virtualMapConfig.valueParseMaxSizeBytes());
     }
 
     /**

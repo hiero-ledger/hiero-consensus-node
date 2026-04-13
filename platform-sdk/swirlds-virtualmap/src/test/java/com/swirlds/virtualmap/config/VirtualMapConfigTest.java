@@ -118,7 +118,7 @@ class VirtualMapConfigTest {
     void testValueParseMaxSizeOutOfRangeMin() {
         // given
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.valueParseMaxSize", 0))
+                .withSources(new SimpleConfigSource("virtualMap.valueParseMaxSizeBytes", 0))
                 .withConfigDataType(VirtualMapConfig.class);
 
         // then
@@ -133,13 +133,13 @@ class VirtualMapConfigTest {
         // given
         final int value = 40 * 1024 * 1024;
         final Configuration config = ConfigurationBuilder.create()
-                .withSources(new SimpleConfigSource("virtualMap.valueParseMaxSize", value))
+                .withSources(new SimpleConfigSource("virtualMap.valueParseMaxSizeBytes", value))
                 .withConfigDataType(VirtualMapConfig.class)
                 .build();
         final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
 
         // then
-        Assertions.assertEquals(value, virtualMapConfig.valueParseMaxSize());
+        Assertions.assertEquals(value, virtualMapConfig.valueParseMaxSizeBytes());
     }
 
     @Test
