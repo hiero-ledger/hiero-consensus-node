@@ -37,15 +37,15 @@ public class HalfDiskMapBench extends BaseBench {
 
     @Benchmark
     public void merge() throws Exception {
-        String storeName = "mergeBench";
-        setTestDir(storeName);
+        final String storeName = "mergeBench";
+        setStoreDir(storeName);
 
         logger.info(RUN_DELIMITER);
 
         final long[] map = new long[verify ? maxKey : 0];
         Arrays.fill(map, INVALID_PATH);
 
-        final var store = new HalfDiskHashMap(configuration, maxKey, getTestDir(), storeName, null, false);
+        final var store = new HalfDiskHashMap(configuration, maxKey, getStoreDir(), storeName, null, false);
         final var dataFileCompactor = new DataFileCompactor(
                 storeName, store.getFileCollection(), store.getBucketIndexToBucketLocation(), null, null, null, null);
 
