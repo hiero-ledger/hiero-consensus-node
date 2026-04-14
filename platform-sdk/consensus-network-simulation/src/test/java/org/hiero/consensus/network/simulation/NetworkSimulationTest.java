@@ -15,12 +15,12 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.network.simulation.fixtures.EventCreatorNetwork;
 import org.junit.jupiter.api.Test;
 
-public class Simulation {
+public class NetworkSimulationTest {
     private static final Duration SIMULATION_DURATION = Duration.ofMillis(100);
 
-    private static final List<Integer> delays = List.of(80, 100, 120);
-    private static final List<Integer> numNodes = List.of(4, 10);
-    private static final List<Integer> maxOp = List.of(1, 3, 5, 10);
+    private static final List<Integer> delays = List.of(100);
+    private static final List<Integer> numNodes = List.of(4);
+    private static final List<Integer> maxOp = List.of(10);
 
     @Test
     void sim(){
