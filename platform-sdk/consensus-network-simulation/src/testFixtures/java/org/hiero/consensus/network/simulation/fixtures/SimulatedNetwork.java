@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.network.simulation.fixtures;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.PriorityQueue;
+import java.util.Queue;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.node.NodeId;
+
+/**
+ * This gossip simulation is intentionally simplistic. It does not attempt to mimic any real gossip algorithm in any
+ * meaningful way and makes no attempt to reduce the rate of duplicate events.
+ */
+public class SimulatedNetwork {
+
+    /**
+     * Events that are currently in transit between nodes in the network.
+     */
+    private final Map<NodeId, PriorityQueue<EventInTransit>> eventsInTransit;
+    private final Map<NodeId, Queue<EventInTransit>> eventsDelivered;
+
+    private final Map<ConnectionKey, ConnectionInfo> connections = new HashMap<>();
+    private final Set<NodeId> nodes;
+
+    Instant now;
+
+    public SimulatedNetwork(final Instant now, final int numNodes) {
+        this.now = now;
+        this.nodes = LongStream.range(0, numNodes).mapToObj(NodeId::of).collect(Collectors.toSet());
+        eventsInTransit = nodes.stream().collect(Collectors.toMap(Function.identity(),
+                _ -> new PriorityQueue<>()));
+        eventsDelivered = nodes.stream().collect(Collectors.toMap(Function.identity(),
+                _ -> new LinkedList<>()));
+    }
+
+    /**
+     * Submit an event to be gossiped around the network. Safe to be called by multiple nodes in parallel.
+     *
+     * @param event the event to gossip
+     */
+    public void submitEvent(@NonNull final PlatformEvent event) {
+        final NodeId sender = event.getCreatorId();
+        for (final NodeId receiver : nodes) {
+            if (sender.equals(receiver)) {
+                // Don't gossip to ourselves
+                continue;
+            }
+
+            final ConnectionKey connectionKey = new ConnectionKey(sender, receiver);
+            final ConnectionInfo connectionState = connections.getOrDefault(connectionKey, ConnectionInfo.DEFAULT);
+
+            final Instant deliveryTime = now.plus(connectionState.latency());
+
+            // create a copy so that nodes don't modify each other's events
+            final PlatformEvent eventToDeliver = event.copyGossipedData();
+            eventToDeliver.setSenderId(sender);
+            eventToDeliver.setTimeReceived(deliveryTime);
+            final EventInTransit eventInTransit = new EventInTransit(eventToDeliver, deliveryTime);
+            eventsInTransit.get(receiver).add(eventInTransit);
+        }
+    }
+
+    /**
+     * Move time forward to the given instant.
+     *
+     * @param now the new time
+     */
+    public void tick(@NonNull final Instant now) {
+        this.now = now;
+        deliverEvents();
+    }
+
+    /**
+     * For each node, deliver all events that are eligible for immediate delivery.
+     */
+    private void deliverEvents() {
+        // Iteration order does not need to be deterministic. The nodes are not running on any thread
+        // when this method is called, and so the order in which nodes are provided events makes no difference.
+        for (final Entry<NodeId, PriorityQueue<EventInTransit>> entry : eventsInTransit.entrySet()) {
+            final NodeId nodeId = entry.getKey();
+            final PriorityQueue<EventInTransit> events = entry.getValue();
+
+            while (!events.isEmpty() && events.peek().arrivalTime().isBefore(now)) {
+                eventsDelivered.get(nodeId).add(events.poll());
+            }
+        }
+    }
+}
