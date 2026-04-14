@@ -148,6 +148,8 @@ public class AsyncOutputStream {
      * Send a pre-serialized message asynchronously. Messages are guaranteed to be delivered
      * in the order sent.
      *
+     * This method can be overridden to simulate disk write delays. Note that the caller thread will be delayed.
+     *
      * @param messageBytes the serialized message bytes
      * @throws InterruptedException if interrupted while waiting to enqueue
      */
