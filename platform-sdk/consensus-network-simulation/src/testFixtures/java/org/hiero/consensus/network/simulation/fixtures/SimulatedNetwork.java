@@ -85,6 +85,32 @@ public class SimulatedNetwork {
     }
 
     /**
+     * Configures connection latencies from a 2D array. The value at {@code latencies[i][j]} is the latency from node
+     * {@code i} to node {@code j}. The array must be square with dimensions equal to the number of nodes.
+     *
+     * @param latencies a square matrix of latencies, where {@code latencies[i][j]} is the duration for an event sent
+     *                  from node {@code i} to reach node {@code j}
+     */
+    public void setLatencies(@NonNull final Duration[][] latencies) {
+        if (latencies.length != nodes.size()) {
+            throw new IllegalArgumentException(
+                    "Latency matrix size " + latencies.length + " does not match node count " + nodes.size());
+        }
+        for (int i = 0; i < latencies.length; i++) {
+            if (latencies[i].length != nodes.size()) {
+                throw new IllegalArgumentException(
+                        "Row " + i + " has length " + latencies[i].length + ", expected " + nodes.size());
+            }
+            for (int j = 0; j < latencies[i].length; j++) {
+                if (i == j) {
+                    continue;
+                }
+                connections.put(new ConnectionKey(NodeId.of(i), NodeId.of(j)), new ConnectionInfo(latencies[i][j]));
+            }
+        }
+    }
+
+    /**
      * For each node, deliver all events that are eligible for immediate delivery.
      */
     private void deliverEvents() {
