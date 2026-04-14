@@ -542,7 +542,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     private void putLastBlockInfo(@NonNull final State state) {
-        logger.fatal("matt: putting last block info: {}", lastBlockInfo);
         final var states = state.getWritableStates(BlockRecordService.NAME);
         final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
         blockInfoState.put(lastBlockInfo);
