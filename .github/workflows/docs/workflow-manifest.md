@@ -66,6 +66,7 @@
 | node-flow-pull-request-checks.yaml                    | Node: PR Checks                                                   |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # QOL                                                 |                                                                   |                  |                      |
+| 080-flow-auto-unapprove.yaml                          | 080: [FLOW] Auto Unapprove PR                                     |                  |                      |
 | 100-flow-update-solo-version-vars.yaml                | 100: [FLOW] Update Solo Version Variables                         |                  |                      |
 | zxf-update-gs-state-variable.yaml                     | ZXF: Update GS_STATE Variable                                     |                  |                      |
 | flow-pull-request-formatting.yaml                     | PR Formatting                                                     |                  |                      |

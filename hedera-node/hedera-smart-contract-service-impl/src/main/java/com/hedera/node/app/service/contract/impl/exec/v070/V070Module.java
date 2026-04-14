@@ -90,7 +90,8 @@ public interface V070Module {
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV070 @NonNull final FeatureFlags featureFlags,
             @NonNull final CodeFactory codeFactory,
-            @NonNull final HederaGasCalculator gasCalculator) {
+            @NonNull final HederaGasCalculator gasCalculator,
+            @ServicesV070 @NonNull final HEVM hevm) {
         return new TransactionProcessor(
                 frameBuilder,
                 frameRunner,
@@ -99,7 +100,8 @@ public interface V070Module {
                 contractCreationProcessor,
                 featureFlags,
                 codeFactory,
-                gasCalculator);
+                gasCalculator,
+                hevm);
     }
 
     @Provides

@@ -10,7 +10,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
+import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -40,7 +40,7 @@ class ProxyEvmContractTest {
             UInt256.fromHexString("0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
 
     @Mock
-    private EvmFrameState hederaState;
+    private DispatchingEvmFrameState hederaState;
 
     private ProxyEvmContract subject;
 

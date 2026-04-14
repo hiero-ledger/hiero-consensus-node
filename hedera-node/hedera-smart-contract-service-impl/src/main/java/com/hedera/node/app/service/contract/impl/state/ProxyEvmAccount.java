@@ -19,7 +19,7 @@ import org.hyperledger.besu.evm.code.CodeV0;
 public class ProxyEvmAccount extends AbstractProxyEvmAccount {
     private final Account account;
 
-    public ProxyEvmAccount(final Account account, @NonNull final EvmFrameState state) {
+    public ProxyEvmAccount(final Account account, @NonNull final DispatchingEvmFrameState state) {
         super(account.accountId(), state);
 
         this.account = account;
