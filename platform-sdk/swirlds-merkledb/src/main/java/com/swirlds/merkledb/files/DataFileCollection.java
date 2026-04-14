@@ -8,6 +8,7 @@ import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
 import static com.swirlds.merkledb.files.DataFileCommon.FILE_EXTENSION;
 import static com.swirlds.merkledb.files.DataFileCommon.byteOffsetFromDataLocation;
 import static com.swirlds.merkledb.files.DataFileCommon.fileIndexFromDataLocation;
+import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static com.swirlds.merkledb.files.DataFileCommon.isFullyWrittenDataFile;
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
 import static java.util.Collections.singletonList;
@@ -404,6 +405,15 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         }
         dataReader.updateMetadata(dataWriter.getMetadata()); // propagate final itemsCount
         dataReader.setFileCompleted();
+
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "[{}] Flush file written: index={}, items={}, size={}",
+                storeName,
+                dataReader.getIndex(),
+                dataWriter.getMetadata().getItemsCount(),
+                formatSizeBytes(dataReader.getSize()));
+
         return dataReader;
     }
 

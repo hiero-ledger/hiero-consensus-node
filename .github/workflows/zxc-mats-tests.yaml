@@ -13,11 +13,6 @@ on:
         type: string
         required: false
         default: "false"
-      enable-spotless-check:
-        description: "Spotless Check Enabled"
-        type: string
-        required: false
-        default: "false"
       enable-unit-tests:
         description: "Unit Testing Enabled"
         type: string
@@ -167,10 +162,9 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  dependency-check:
-    name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
-    if: ${{ inputs.enable-dependency-check == 'true' }}
-    uses: ./.github/workflows/zxc-dependency-module-check.yaml
+  spotless:
+    name: "${{ inputs.custom-job-label }} Spotless"
+    uses: ./.github/workflows/zxc-spotless-check.yaml
     needs:
       - commit-info
       - build
@@ -181,13 +175,14 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  spotless:
-    name: "${{ inputs.custom-job-label }} Spotless"
-    if: ${{ inputs.enable-spotless-check == 'true' }}
-    uses: ./.github/workflows/zxc-spotless-check.yaml
+  dependency-check:
+    name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
+    if: ${{ inputs.enable-dependency-check == 'true' }}
+    uses: ./.github/workflows/zxc-dependency-module-check.yaml
     needs:
       - commit-info
       - build
+      - spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
@@ -202,6 +197,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -220,6 +216,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -237,6 +234,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -260,6 +258,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -278,6 +277,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -295,6 +295,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -311,6 +312,7 @@ jobs:
     needs:
       - commit-info
       - build
+      - spotless
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}

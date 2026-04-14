@@ -58,7 +58,6 @@ jobs:
     uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
-      enable-spotless-check: "true"
       enable-dependency-check: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-unit-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
