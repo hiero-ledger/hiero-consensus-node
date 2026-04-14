@@ -198,24 +198,20 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         if (virtualMapP == null) {
             virtualMapP = createEmptyMap();
             final AtomicReference<VirtualMap> mapRef = new AtomicReference<>(virtualMapP);
+            final long recordsPerCopy = maxKey / numFiles;
 
             final long start = System.currentTimeMillis();
             new StateBuilder(BenchmarkKeyUtils::longToKey, i -> new BenchmarkValue(nextValue()))
                     .populateState(
                             0,
-                            (long) numRecords * numFiles,
+                            maxKey,
                             i -> {
-                                if (i % numRecords == 0) {
-                                    logger.info("Copying files for i={}", i);
+                                if (i > 0 && i % recordsPerCopy == 0) {
                                     mapRef.set(virtualMapP = copyMap(virtualMapP));
                                 }
                             },
                             StateBuilder.buildVMPopulator(mapRef));
-
-            logger.info(
-                    "Pre-created {} records in {} ms",
-                    (long) numRecords * numFiles,
-                    System.currentTimeMillis() - start);
+            logger.info("Pre-created {} records in {} ms", maxKey, System.currentTimeMillis() - start);
 
             virtualMapP = flushAndOptionallySaveMap(virtualMapP);
         }
@@ -225,7 +221,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         IntStream.range(0, numThreads).parallel().forEach(thread -> {
             long sum = 0;
             for (int i = 0; i < numRecords; ++i) {
-                final long id = Utils.randomLong((long) numRecords * numFiles);
+                final long id = Utils.randomLong(maxKey);
                 final BenchmarkValue value = virtualMapP.get(longToKey(id), BenchmarkValueCodec.INSTANCE);
                 sum += value.hashCode();
             }

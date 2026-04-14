@@ -61,11 +61,15 @@ public abstract class BaseBench {
      * {@code [0, maxKey)}. The ratio to {@code numFiles × numRecords}
      * controls density: smaller means update-heavy, larger means create-heavy.
      * <p>
+     * In {@code VirtualMapBench.read()}, used as the exact map population
+     * size — all keys in {@code [0, maxKey)} are inserted, then read
+     * randomly. Map copies during population are spaced to avoid OOM.
+     * <p>
      * In low-level storage benchmarks ({@code DataFileCollectionBench},
      * {@code HalfDiskMapBench}, {@code KeyValueStoreBench}), used as
      * the physical index capacity.
      * <p>
-     * Not used by full-population benchmarks, which derive map size
+     * Not used by {@code ReconnectBench}, which derives map size
      * from {@code numFiles × numRecords}.
      */
     @Param({"1000000"})
