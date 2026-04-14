@@ -22,13 +22,13 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double SIGNATURE_FEE_USD = 0.00001;
     public static final double STATE_BYTES_FEE_USD = 0.0001;
-    public static final double PROCESSING_BYTES_FEE_USD = 0.000001;
+    public static final double PROCESSING_BYTES_FEE_USD = 0.000_001;
     public static final double KEYS_FEE_USD = 0.01;
     public static final double ACCOUNTS_FEE_USD = 0.0001;
     public static final double SIGNATURE_FEE_AFTER_MULTIPLIER = (NETWORK_MULTIPLIER + 1) * SIGNATURE_FEE_USD;
 
     public static final double TOKEN_TYPES_FEE = 0.0001;
-    public static final double GAS_FEE_USD = 0.0000000852;
+    public static final double GAS_FEE_USD = 0.000_000_085_2;
 
     public static final double TOKEN_MINT_FT_BASE_FEE = 0.001;
     public static final double TOKEN_MINT_NFT_FEE_USD = 0.02;
