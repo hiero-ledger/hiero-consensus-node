@@ -184,7 +184,10 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
             final var expectedRootMnemonic = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
             final var actualRootMnemonic = Mnemonics.generateMnemonic(stateToHash.getHash());
             final var errorMsg = new StringBuilder("Binary replay hash mismatch");
-            errorMsg.append("\n    * root hash - expected ").append(expectedRootHash).append(", was ").append(rootHash);
+            errorMsg.append("\n    * root hash - expected ")
+                    .append(expectedRootHash)
+                    .append(", was ")
+                    .append(rootHash);
             if (expectedRootMnemonic != null) {
                 errorMsg.append("\n    * root mnemonic - expected ")
                         .append(expectedRootMnemonic)
@@ -293,8 +296,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                     case 10 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
-                            final Bytes rawKey =
-                                    readMapKeyPayload(stateId, input, input.position() + messageLength);
+                            final Bytes rawKey = readMapKeyPayload(stateId, input, input.position() + messageLength);
                             mapKeyAsStateKey = kvKey(stateId, rawKey);
                         }
                     }
@@ -327,8 +329,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                     case 10 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
-                            final Bytes rawKey =
-                                    readMapKeyPayload(stateId, input, input.position() + messageLength);
+                            final Bytes rawKey = readMapKeyPayload(stateId, input, input.position() + messageLength);
                             mapKeyAsStateKey = kvKey(stateId, rawKey);
                         }
                     }
@@ -425,7 +426,8 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
             return normalizeMapKeyPayload(stateId, fieldNumber, payload);
         }
 
-        private static Bytes normalizeMapKeyPayload(final int stateId, final int fieldNumber, @NonNull final Bytes payload) {
+        private static Bytes normalizeMapKeyPayload(
+                final int stateId, final int fieldNumber, @NonNull final Bytes payload) {
             if (stateId == 9 && fieldNumber == 2) {
                 try {
                     final var tokenAssociation = TokenAssociation.PROTOBUF.parse(payload);
@@ -443,8 +445,8 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
 
         private static Bytes wrapStateValue(final int stateId, @NonNull final Bytes rawValue) {
-            final int tag = (stateId << ProtoParserTools.TAG_FIELD_OFFSET)
-                    | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal();
+            final int tag =
+                    (stateId << ProtoParserTools.TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal();
             final int valueLength = (int) rawValue.length();
             final int tagSize = ProtoWriterTools.sizeOfVarInt32(tag);
             final int valueSize = ProtoWriterTools.sizeOfVarInt32(valueLength);
@@ -520,11 +522,8 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         @Override
         public String toString() {
             final var sb = new StringBuilder();
-            summaries.forEach((stateId, counts) -> sb.append("- ")
-                    .append(stateId)
-                    .append(" - ")
-                    .append(counts)
-                    .append('\n'));
+            summaries.forEach((stateId, counts) ->
+                    sb.append("- ").append(stateId).append(" - ").append(counts).append('\n'));
             return sb.toString();
         }
     }
@@ -543,10 +542,17 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                 parts.append("singleton puts=").append(singletonPuts).append(' ');
             }
             if (mapUpdates > 0 || mapDeletes > 0) {
-                parts.append("map updates=").append(mapUpdates).append(", deletes=").append(mapDeletes).append(' ');
+                parts.append("map updates=")
+                        .append(mapUpdates)
+                        .append(", deletes=")
+                        .append(mapDeletes)
+                        .append(' ');
             }
             if (queuePushes > 0 || queuePops > 0) {
-                parts.append("queue pushes=").append(queuePushes).append(", pops=").append(queuePops);
+                parts.append("queue pushes=")
+                        .append(queuePushes)
+                        .append(", pops=")
+                        .append(queuePops);
             }
             return parts.toString().trim();
         }
@@ -586,7 +592,8 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     private static @Nullable Path findLargestNumberDirectory(@NonNull final Path savedStatesDir) throws IOException {
         long latestRound = -1;
         Path latestRoundPath = null;
-        try (final var stream = Files.newDirectoryStream(savedStatesDir, BinaryStateChangesValidator::isNumberDirectory)) {
+        try (final var stream =
+                Files.newDirectoryStream(savedStatesDir, BinaryStateChangesValidator::isNumberDirectory)) {
             for (final var numberDirectory : stream) {
                 final var round = Long.parseLong(numberDirectory.getFileName().toString());
                 if (round > latestRound) {
