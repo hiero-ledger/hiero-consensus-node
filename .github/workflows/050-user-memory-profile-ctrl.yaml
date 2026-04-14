@@ -242,6 +242,7 @@ jobs:
               kubectl -n ${i} exec network-node1-0  -- \
               bash -c "ps -aef; jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); \
               if [ \"\$jpid\" != \"\" ]; then echo \"pod $i:\"; \
+                if [ -f /tmp/test.hprof ]; then rm -f /tmp/test.hprof; fi; \
                 jcmd \$jpid GC.heap_info; echo \"\"; \
                 jmap -dump:live,format=b,file=/tmp/test.hprof \$jpid; fi"; \
               kubectl -n ${i} cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/output/recording.jfr "${{ github.workspace }}"/solo/recording.jfr
