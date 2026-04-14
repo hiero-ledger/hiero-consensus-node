@@ -9,6 +9,7 @@ import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.files.FileCollectionMetrics;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,6 +21,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.metrics.core.MetricRegistry;
+import org.hiero.metrics.core.MetricsBinder;
 
 /**
  * Traverses the in-memory index for a file collection and computes per-file garbage statistics.
@@ -42,7 +45,7 @@ import org.apache.logging.log4j.Logger;
  * size), and phase 2 absorption are the responsibility of
  * {@link MerkleDbCompactionCoordinator}.
  */
-public class GarbageScanner {
+public class GarbageScanner implements MetricsBinder {
 
     private static final Logger logger = LogManager.getLogger(GarbageScanner.class);
 
@@ -50,6 +53,8 @@ public class GarbageScanner {
     private final DataFileCollection dataFileCollection;
     private final String storeName;
     private final boolean deduplicateMirroredEntries;
+
+    private FileCollectionMetrics metrics;
 
     /**
      * Creates a new scanner with {@code deduplicateMirroredEntries} disabled.
@@ -103,7 +108,7 @@ public class GarbageScanner {
      * @return per-file statistics for all completed files, indexed by file index
      */
     @NonNull
-    public IndexedGarbageFileStats scan() {
+    IndexedGarbageFileStats scan() {
         final long start = System.currentTimeMillis();
 
         // Count alive items per file by traversing the index
@@ -172,6 +177,10 @@ public class GarbageScanner {
                     ? "n/a"
                     : String.valueOf(Math.round((double) levelDeadItems / levelAliveItems * 100) / 100.0);
 
+            if (metrics != null) {
+                metrics.updateScanMetrics(levelGarbageRatio, level);
+            }
+
             logger.info(
                     MERKLE_DB.getMarker(),
                     "[%s] Garbage scan level %d: files=%d, totalItems=%d, aliveItems=%d, garbageRatio=%1.2f, dead/alive=%s"
@@ -202,6 +211,11 @@ public class GarbageScanner {
             statsByFileIndex[fileReader.getIndex() - firstIndex] = new GarbageFileStats(fileReader);
         }
         return new IndexedGarbageFileStats(firstIndex, statsByFileIndex);
+    }
+
+    @Override
+    public void bind(@NonNull MetricRegistry registry) {
+        metrics = new FileCollectionMetrics(dataFileCollection, registry);
     }
 
     /**

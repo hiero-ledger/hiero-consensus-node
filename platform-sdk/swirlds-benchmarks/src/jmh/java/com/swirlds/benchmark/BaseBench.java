@@ -36,13 +36,13 @@ public abstract class BaseBench {
     private static final Logger logger = LogManager.getLogger(BaseBench.class);
 
     @Param({"100"})
-    public int numFiles = 500;
+    public int numFiles = 2000;
 
     @Param({"100000"})
     public int numRecords = 10_000;
 
     @Param({"1000000"})
-    public int maxKey = 10_000_000;
+    public int maxKey = 30_000_000;
 
     @Param({"8"})
     public int keySize = 32;
@@ -68,15 +68,15 @@ public abstract class BaseBench {
     protected static Configuration configuration;
 
     private static void loadConfig() throws IOException {
-        ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
+        configuration = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withSource(new LegacyFileConfigSource(Path.of(".", "settings.txt")))
                 .withConfigDataType(BenchmarkConfig.class)
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(MerkleDbConfig.class)
                 .withConfigDataType(MetricsConfig.class)
-                .withConfigDataType(CryptoConfig.class);
-        configuration = configurationBuilder.build();
+                .withConfigDataType(CryptoConfig.class)
+                .build();
 
         final StringBuilder settingsUsed = new StringBuilder();
         ConfigExport.addConfigContents(configuration, settingsUsed);
@@ -129,7 +129,7 @@ public abstract class BaseBench {
         }
 
         // Setup metrics system
-        BenchmarkMetrics.start(benchmarkConfig);
+        BenchmarkMetrics.start(configuration);
 
         // Subclass hook
         onTrialSetup();

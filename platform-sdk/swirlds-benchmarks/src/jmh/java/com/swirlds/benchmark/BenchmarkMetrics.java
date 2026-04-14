@@ -36,9 +36,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.metrics.core.MetricRegistry;
+import org.hiero.metrics.core.MetricsBinder;
 
 public final class BenchmarkMetrics {
 
@@ -65,6 +69,7 @@ public final class BenchmarkMetrics {
     private String origMetricString;
     private String curMetricString;
     private Metrics metrics;
+    private MetricRegistry metricRegistry;
 
     /*
      *    System metrics: time, memory, CPU
@@ -333,16 +338,18 @@ public final class BenchmarkMetrics {
         }
     }
 
-    private void setupInstance() {
-        final Configuration configuration = ConfigurationBuilder.create()
-                .withConfigDataType(MetricsConfig.class)
-                .build();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+    private void setupInstance(Configuration config) {
+        DefaultMetricsProvider defaultMetricsProvider = new DefaultMetricsProvider(config);
+        defaultMetricsProvider.start();
         metricService = Executors.newSingleThreadScheduledExecutor(
                 getStaticThreadManager().createThreadFactory("benchmark", "MetricsWriter"));
-        metrics = new DefaultPlatformMetrics(
-                null, registry, metricService, new PlatformMetricsFactoryImpl(metricsConfig), metricsConfig);
+        metrics = defaultMetricsProvider.createPlatformMetrics(NodeId.FIRST_NODE_ID);
+
+        // new framework metrics registry and export manager
+        metricRegistry = MetricRegistry.builder()
+                .discoverMetricProviders()
+                .discoverMetricsExporter(config)
+                .build();
 
         metrics.getOrCreate(TIMESTAMP_CONFIG);
         metrics.getOrCreate(MEM_TOT_CONFIG);
@@ -368,17 +375,17 @@ public final class BenchmarkMetrics {
         deviceName = config.deviceName();
     }
 
-    public static void start() {
-        INSTANCE.setupInstance();
-    }
-
-    public static void start(BenchmarkConfig config) {
-        configure(config);
-        start();
+    public static void start(Configuration config) {
+        configure(config.getConfigData(BenchmarkConfig.class));
+        INSTANCE.setupInstance(config);
     }
 
     public static void register(final Consumer<Metrics> consumer) {
         consumer.accept(INSTANCE.metrics);
+    }
+
+    public static void bindRegistry(final MetricsBinder binder) {
+        binder.bind(INSTANCE.metricRegistry);
     }
 
     /**
@@ -400,11 +407,13 @@ public final class BenchmarkMetrics {
 
     public static void reset() {
         INSTANCE.metrics.resetAll();
+        INSTANCE.metricRegistry.reset();
         INSTANCE.csvMetricsFilePath = null;
         INSTANCE.csvMetricNamesFilePath = null;
     }
 
-    public static void stop() {
+    public static void stop() throws IOException {
         INSTANCE.metricService.shutdownNow();
+        INSTANCE.metricRegistry.close();
     }
 }

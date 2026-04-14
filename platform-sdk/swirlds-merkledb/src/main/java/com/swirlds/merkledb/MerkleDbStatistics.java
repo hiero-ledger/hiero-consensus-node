@@ -95,7 +95,7 @@ public class MerkleDbStatistics {
     /** Off-heap usage in MB of object keys store bucket index */
     private IntegerGauge offHeapObjectKeyBucketsIndexMb;
     /** Off-heap usage in MB of hashes list in RAM */
-    private IntegerGauge offHeapHashesListMb;
+    private IntegerGauge offHeapHashesListMb; // TODO unused
     /** Total data source off-heap usage in MB */
     private IntegerGauge offHeapDataSourceMb;
 

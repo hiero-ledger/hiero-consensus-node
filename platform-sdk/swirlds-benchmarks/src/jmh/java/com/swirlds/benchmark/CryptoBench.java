@@ -302,6 +302,10 @@ public class CryptoBench extends VirtualMapBench {
 
         verifyMap(map, finalMap);
 
+        int minutes = 2;
+        logger.info("Sleeping {} minutes for compaction to work", minutes);
+        Thread.sleep(1000 * 60 * minutes); // try to wait for compaction to compact more files
+
         finalMap.release();
         finalMap.getDataSource().close();
     }

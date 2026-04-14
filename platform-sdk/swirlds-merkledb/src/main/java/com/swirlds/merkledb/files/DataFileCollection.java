@@ -8,7 +8,6 @@ import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
 import static com.swirlds.merkledb.files.DataFileCommon.FILE_EXTENSION;
 import static com.swirlds.merkledb.files.DataFileCommon.byteOffsetFromDataLocation;
 import static com.swirlds.merkledb.files.DataFileCommon.fileIndexFromDataLocation;
-import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static com.swirlds.merkledb.files.DataFileCommon.isFullyWrittenDataFile;
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
 import static java.util.Collections.singletonList;
@@ -50,6 +49,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.metrics.core.MetricRegistry;
+import org.hiero.metrics.core.MetricsBinder;
 
 /**
  * DataFileCollection manages a set of data files and the compaction of them over time. It stores
@@ -68,7 +69,7 @@ import org.apache.logging.log4j.Logger;
  * deleted keys.
  */
 @SuppressWarnings({"unused", "unchecked"})
-public class DataFileCollection implements FileStatisticAware, Snapshotable {
+public class DataFileCollection implements FileStatisticAware, Snapshotable, MetricsBinder {
 
     private static final Logger logger = LogManager.getLogger(DataFileCollection.class);
 
@@ -155,6 +156,8 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
      */
     private final ConcurrentSkipListSet<Integer> setOfNewFileIndexes =
             logger.isTraceEnabled() ? new ConcurrentSkipListSet<>() : null;
+
+    private FileCollectionMetrics metrics;
 
     /**
      * Construct a new DataFileCollection.
@@ -260,6 +263,11 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         }
     }
 
+    @NonNull
+    public String getStoreName() {
+        return storeName;
+    }
+
     /**
      * Get the valid range of keys for data items currently stored by this data file collection. Any
      * data items with keys below this can be deleted during a merge.
@@ -297,6 +305,14 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         return activeIndexedFiles.stream()
                 .filter(DataFileReader::isFileCompleted)
                 .toList();
+    }
+
+    public Stream<DataFileReader> streamAllCompletedFiles() {
+        final ImmutableIndexedObjectList<DataFileReader> activeIndexedFiles = dataFiles.get();
+        if (activeIndexedFiles == null) {
+            return Stream.empty();
+        }
+        return activeIndexedFiles.stream().filter(DataFileReader::isFileCompleted);
     }
 
     /**
@@ -406,13 +422,16 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         dataReader.updateMetadata(dataWriter.getMetadata()); // propagate final itemsCount
         dataReader.setFileCompleted();
 
+        updateFileMetrics();
+        // TODO change to DEBUG?
         logger.info(
                 MERKLE_DB.getMarker(),
-                "[{}] Flush file written: index={}, items={}, size={}",
+                "Finished writing file. store={}, items={}, size={}, compaction_level={}, path={}",
                 storeName,
-                dataReader.getIndex(),
-                dataWriter.getMetadata().getItemsCount(),
-                formatSizeBytes(dataReader.getSize()));
+                dataReader.getMetadata().getItemsCount(),
+                dataReader.getSize(),
+                dataReader.getMetadata().getCompactionLevel(),
+                dataReader.getPath());
 
         return dataReader;
     }
@@ -582,6 +601,11 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         }
     }
 
+    @Override
+    public void bind(@NonNull MetricRegistry registry) {
+        metrics = new FileCollectionMetrics(this, registry);
+    }
+
     /**
      * Get the set of new file indexes. This is only callable if trace logging is enabled.
      *
@@ -660,6 +684,12 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
         for (final DataFileReader fileReader : files) {
             fileReader.close();
             Files.delete(fileReader.getPath());
+        }
+    }
+
+    void updateFileMetrics() {
+        if (metrics != null) {
+            metrics.updateFileMetrics();
         }
     }
 

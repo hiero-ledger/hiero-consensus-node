@@ -34,15 +34,15 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("benchmark")
 public record BenchmarkConfig(
-        @ConfigProperty(defaultValue = "") String benchmarkData,
-        @ConfigProperty(defaultValue = "false") boolean saveDataDirectory,
+        @ConfigProperty(defaultValue = "data") String benchmarkData,
+        @ConfigProperty(defaultValue = "true") boolean saveDataDirectory,
         @ConfigProperty(defaultValue = "true") boolean verifyResult,
         @ConfigProperty(defaultValue = "false") boolean enableSnapshots,
         @ConfigProperty(defaultValue = "false") boolean printHistogram,
         @ConfigProperty(defaultValue = "") String csvOutputFolder,
         @ConfigProperty(defaultValue = "BenchmarkMetrics.csv") String csvMetricsFileName,
         @ConfigProperty(defaultValue = "BenchmarkMetricNames.csv") String csvMetricNamesFileName,
-        @ConfigProperty(defaultValue = "0") int csvWriteFrequency,
+        @ConfigProperty(defaultValue = "3") int csvWriteFrequency,
         @ConfigProperty(defaultValue = "false") boolean csvAppend,
         @ConfigProperty(defaultValue = "sda") String deviceName) {
     public String toString() {

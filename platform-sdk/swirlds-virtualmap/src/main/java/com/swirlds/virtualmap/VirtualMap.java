@@ -81,6 +81,8 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.metrics.core.MetricRegistry;
+import org.hiero.metrics.core.MetricsBinder;
 
 /**
  * A Merkle tree that virtualizes all of its children, such that the child nodes
@@ -144,7 +146,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * internal nodes. Indeed, you <strong>MUST NOT</strong> modify the tree structure directly, only
  * through the map-like methods.
  */
-public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
+public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot, MetricsBinder {
 
     /**
      * The number of elements to have in the buffer used during rehashing on start.
@@ -180,6 +182,11 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     /** Virtual Map platform configuration */
     @NonNull
     private final VirtualMapConfig virtualMapConfig;
+
+    @Override
+    public void bind(@NonNull MetricRegistry registry) {
+        dataSource.bind(registry);
+    }
 
     /**
      * This version number should be used to handle compatibility issues that may arise from any future changes

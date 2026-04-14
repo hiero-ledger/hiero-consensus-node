@@ -46,7 +46,7 @@ public class KeyValueStoreBench extends BaseBench {
         final var store = new MemoryIndexDiskKeyValueStore(
                 dbConfig, getStoreDir(), storeName, null, (dataLocation, dataValue) -> {}, keyToDiskLocationIndex);
         final DataFileCompactor compactor = new DataFileCompactor(
-                storeName, store.getFileCollection(), keyToDiskLocationIndex, null, null, null, null);
+                store.getFileCollection(), keyToDiskLocationIndex, null, null, null, null);
 
         // Write files
         long start = System.currentTimeMillis();

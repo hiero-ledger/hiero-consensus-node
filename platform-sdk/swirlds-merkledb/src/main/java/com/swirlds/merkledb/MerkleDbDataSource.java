@@ -62,6 +62,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.metrics.core.MetricRegistry;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
 
@@ -1376,7 +1377,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     DataFileCompactor newHashChunkStoreCompactor() {
         return new DataFileCompactor(
-                tableName + "_" + ID_TO_HASH_CHUNK,
                 hashChunkStore.getFileCollection(),
                 idToDiskLocationHashChunks,
                 statisticsUpdater::setHashesStoreCompactionTimeMs,
@@ -1393,7 +1393,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     DataFileCompactor newKeyValueStoreCompactor() {
         return new DataFileCompactor(
-                tableName + "_" + PATH_TO_KEY_VALUE,
                 keyValueStore.getFileCollection(),
                 pathToDiskLocationLeafNodes,
                 statisticsUpdater::setLeavesStoreCompactionTimeMs,
@@ -1410,7 +1409,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     DataFileCompactor newKeyToPathCompactor() {
         return new DataFileCompactor(
-                tableName + "_" + OBJECT_KEY_TO_PATH,
                 keyToPath.getFileCollection(),
                 keyToPath.getBucketIndexToBucketLocation(),
                 statisticsUpdater::setLeafKeysStoreCompactionTimeMs,
@@ -1510,5 +1508,17 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             return false;
         }
         return Objects.equals(dbPaths.storageDir, other.dbPaths.storageDir);
+    }
+
+    @Override
+    public void bind(@NonNull MetricRegistry registry) {
+        // TODO make stores also metrics bindable
+        hashChunkStore.getFileCollection().bind(registry);
+        keyValueStore.getFileCollection().bind(registry);
+        keyToPath.getFileCollection().bind(registry);
+
+        chunkStoreScanner.bind(registry);
+        objectKeyToPathScanner.bind(registry);
+        pathToKeyValueStoreScanner.bind(registry);
     }
 }

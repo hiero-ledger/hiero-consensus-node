@@ -146,7 +146,6 @@ public class DataFileCompactor {
     private volatile boolean interruptFlag = false;
 
     /**
-     * @param storeName                          name of the store to compact
      * @param dataFileCollection                 data file collection to compact
      * @param index                              index to update during compaction
      * @param reportDurationMetricFunction       function to report how long compaction took, in ms
@@ -155,14 +154,13 @@ public class DataFileCompactor {
      * @param updateTotalStatsFunction           updates statistics of total disk and off-heap usage
      */
     public DataFileCompactor(
-            final String storeName,
             final DataFileCollection dataFileCollection,
             CASableLongIndex index,
             @Nullable final BiConsumer<Integer, Long> reportDurationMetricFunction,
             @Nullable final BiConsumer<Integer, Double> reportSavedSpaceMetricFunction,
             @Nullable final BiConsumer<Integer, Double> reportFileSizeByLevelMetricFunction,
             @Nullable Runnable updateTotalStatsFunction) {
-        this.storeName = storeName;
+        this.storeName = dataFileCollection.getStoreName();
         this.dataFileCollection = dataFileCollection;
         this.index = index;
         this.reportDurationMetricFunction = reportDurationMetricFunction;
@@ -201,7 +199,7 @@ public class DataFileCompactor {
         final long filesToCompactSize = getSizeOfFiles(filesToCompact);
         logger.info(
                 MERKLE_DB.getMarker(),
-                "[{}] Starting compaction to level {} of {} files of size {} Mb ",
+                "[{}] Starting compaction to level {} of {} files of size {}",
                 storeName,
                 targetLevel,
                 filesCount,
@@ -359,7 +357,15 @@ public class DataFileCompactor {
                 currentCompactionStartTime.set(null);
                 if (allDataItemsProcessed) {
                     logger.info(
-                            MERKLE_DB.getMarker(), "All files to compact have been processed, they will be deleted");
+                            MERKLE_DB.getMarker(),
+                            "Deleted compacted files, store={}, compaction_level={}, count={}, saved={}",
+                            storeName,
+                            filesToCompact.getFirst().getMetadata().getCompactionLevel(),
+                            filesToCompact.size(),
+                            filesToCompact.stream()
+                                    .map(DataFileReader::getSize)
+                                    .mapToLong(Long::longValue)
+                                    .sum());
                     // Close the readers and delete compacted files
                     dataFileCollection.deleteFiles(filesToCompact);
                 } else {
@@ -367,6 +373,7 @@ public class DataFileCompactor {
                             MERKLE_DB.getMarker(),
                             "Some files to compact haven't been processed, they will be compacted later");
                 }
+                dataFileCollection.updateFileMetrics();
             } finally {
                 snapshotCompactionLock.unlock();
             }
@@ -426,7 +433,13 @@ public class DataFileCompactor {
             reader.updateMetadata(writer.getMetadata());
             reader.setFileCompleted();
             logger.info(
-                    MERKLE_DB.getMarker(), "[{}] Compaction file written, fileNum={}", storeName, reader.getIndex());
+                    MERKLE_DB.getMarker(),
+                    "Finished writing new compaction file. store={}, items={}, size={}, compaction_level={}, path={}",
+                    storeName,
+                    reader.getMetadata().getItemsCount(),
+                    reader.getSize(),
+                    reader.getMetadata().getCompactionLevel(),
+                    reader.getPath());
         }
         currentReader.set(null);
     }
