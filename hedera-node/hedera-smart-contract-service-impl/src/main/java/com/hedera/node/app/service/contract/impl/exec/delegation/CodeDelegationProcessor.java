@@ -25,19 +25,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Processor for handling code delegations for EIP-7702 transactions.
  */
 public record CodeDelegationProcessor(long chainId) {
-    private static final Logger LOG = LoggerFactory.getLogger(CodeDelegationProcessor.class);
+    private static final Logger LOG = LogManager.getLogger(CodeDelegationProcessor.class);
 
     // The half of the secp256k1 curve order, used to validate the signature.
     private static final BigInteger HALF_CURVE_ORDER =
