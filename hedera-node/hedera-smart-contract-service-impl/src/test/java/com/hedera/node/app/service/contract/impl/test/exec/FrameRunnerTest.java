@@ -117,7 +117,7 @@ class FrameRunnerTest {
         given(frame.getGasRefund()).willReturn(nominalRefund);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -145,7 +145,7 @@ class FrameRunnerTest {
         given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
                 .willReturn(contractId);
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         assertEquals(EXPECTED_GAS_USED_NO_REFUNDS, result.gasUsed());
@@ -170,7 +170,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -195,7 +195,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -220,7 +220,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);
@@ -247,7 +247,7 @@ class FrameRunnerTest {
                 .willReturn(contractId);
 
         final var result = subject.runToCompletion(
-                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor);
+                GAS_LIMIT, SENDER_ID, frame, tracer, messageCallProcessor, contractCreationProcessor, null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         inOrder.verify(contractCreationProcessor).process(frame, tracer);

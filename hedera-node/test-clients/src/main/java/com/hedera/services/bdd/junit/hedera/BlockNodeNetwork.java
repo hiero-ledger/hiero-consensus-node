@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
+import com.hedera.services.bdd.junit.hedera.containers.BlockNodeSubscribeClient;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeController;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -42,6 +43,9 @@ public class BlockNodeNetwork {
     private final Map<Long, long[]> blockNodeIdsBySubProcessNodeId = new HashMap<>();
 
     public static final int BLOCK_NODE_LOCAL_PORT = 40840;
+    private static final int MAX_START_ATTEMPTS = 4;
+    private static final long CONTAINER_START_BACKOFF_MS = 1000L;
+    private static final long SIMULATOR_START_BACKOFF_MS = 500L;
 
     private final BlockNodeController blockNodeController;
 
@@ -74,11 +78,67 @@ public class BlockNodeNetwork {
 
         // First start block nodes if needed
         startBlockNodesAsApplicable();
+
+        // Wait for gRPC readiness on real block node containers.
+        awaitGrpcReadiness(Duration.ofSeconds(30));
+    }
+
+    /**
+     * Polls each real block node container's gRPC server status endpoint until it responds,
+     * ensuring gRPC is ready before consensus nodes start. The HTTP health check only covers
+     * port 16007; the gRPC streaming port (40840) may still be initializing.
+     */
+    private void awaitGrpcReadiness(@NonNull final Duration timeout) {
+        if (blockNodeContainerById.isEmpty()) {
+            return;
+        }
+        final long deadline = System.currentTimeMillis() + timeout.toMillis();
+        for (final Entry<Long, BlockNodeContainer> entry : blockNodeContainerById.entrySet()) {
+            final long id = entry.getKey();
+            final BlockNodeContainer container = entry.getValue();
+            boolean ready = false;
+            while (System.currentTimeMillis() < deadline) {
+                try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
+                    final long lastBlock = client.getLastAvailableBlock();
+                    if (lastBlock >= 0) {
+                        logger.info(
+                                "Block node container {} gRPC ready at {}:{}",
+                                id,
+                                container.getHost(),
+                                container.getPort());
+                        ready = true;
+                        break;
+                    }
+                } catch (final Exception e) {
+                    // Unexpected failure — fall through to retry
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (final InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+            if (!ready) {
+                logger.warn("Block node container {} gRPC not ready after {}s timeout", id, timeout.toSeconds());
+            }
+        }
     }
 
     public void terminate(@NonNull final Path scopeRoot) {
         dumpContainerLogs(scopeRoot);
+        doTerminate();
+    }
 
+    /**
+     * Stops all block node containers and simulators without attempting to dump logs.
+     * Intended for cleanup when the consensus network never started successfully.
+     */
+    public void terminateQuietly() {
+        doTerminate();
+    }
+
+    private void doTerminate() {
         final List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>();
         // Stop block node containers
         for (final Entry<Long, BlockNodeContainer> entry : blockNodeContainerById.entrySet()) {
@@ -160,35 +220,81 @@ public class BlockNodeNetwork {
     }
 
     private void startRealBlockNodeContainer(final long id) {
-        final int port = findAvailablePort();
-        try {
-            final BlockNodeContainer container = new BlockNodeContainer(id, port);
-
-            container.start();
-
-            blockNodeContainerById.put(id, container);
-
-            logger.info("Started real block node container {} @ {}", id, container);
-        } catch (final Exception e) {
-            throw new RuntimeException("Failed to start real block node container " + id + " on port " + port, e);
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_START_ATTEMPTS; attempt++) {
+            final int port = findAvailablePort();
+            BlockNodeContainer container = null;
+            try {
+                container = new BlockNodeContainer(id, port);
+                container.start();
+                blockNodeContainerById.put(id, container);
+                logger.info("Started real block node container {} @ {}", id, container);
+                return;
+            } catch (final Exception e) {
+                lastException = e;
+                if (container != null) {
+                    try {
+                        container.stop();
+                    } catch (final Exception stopEx) {
+                        // Best-effort cleanup; Ryuk will handle it
+                    }
+                }
+                if (attempt < MAX_START_ATTEMPTS) {
+                    logger.warn(
+                            "Attempt {}/{} to start block node container {} on port {} failed, retrying",
+                            attempt,
+                            MAX_START_ATTEMPTS,
+                            id,
+                            port,
+                            e);
+                    try {
+                        Thread.sleep(CONTAINER_START_BACKOFF_MS * attempt);
+                    } catch (final InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted while retrying block node container " + id, ie);
+                    }
+                }
+            }
         }
+        throw new RuntimeException(
+                "Failed to start real block node container " + id + " after " + MAX_START_ATTEMPTS + " attempts",
+                lastException);
     }
 
     public void startSimulatorNode(final Long id, final Supplier<Long> lastVerifiedBlockNumberSupplier) {
-        // Find an available port
-        final int port = findAvailablePort();
-        final boolean highLatency = blockNodeHighLatencyById.getOrDefault(id, false);
-        final SimulatedBlockNodeServer server =
-                new SimulatedBlockNodeServer(port, highLatency, lastVerifiedBlockNumberSupplier);
-        try {
-            server.start();
-
-            simulatedBlockNodeById.put(id, server);
-
-            logger.info("Started shared simulated block node @ localhost:{}", port);
-        } catch (final Exception e) {
-            throw new RuntimeException("Failed to start simulated block node " + id + " on port " + port, e);
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_START_ATTEMPTS; attempt++) {
+            final int port = findAvailablePort();
+            final boolean highLatency = blockNodeHighLatencyById.getOrDefault(id, false);
+            final SimulatedBlockNodeServer server =
+                    new SimulatedBlockNodeServer(port, highLatency, lastVerifiedBlockNumberSupplier);
+            try {
+                server.start();
+                simulatedBlockNodeById.put(id, server);
+                logger.info("Started shared simulated block node @ localhost:{}", port);
+                return;
+            } catch (final Exception e) {
+                lastException = e;
+                if (attempt < MAX_START_ATTEMPTS) {
+                    logger.warn(
+                            "Attempt {}/{} to start simulated block node {} on port {} failed, retrying",
+                            attempt,
+                            MAX_START_ATTEMPTS,
+                            id,
+                            port,
+                            e);
+                    try {
+                        Thread.sleep(SIMULATOR_START_BACKOFF_MS * attempt);
+                    } catch (final InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted while retrying simulated block node " + id, ie);
+                    }
+                }
+            }
         }
+        throw new RuntimeException(
+                "Failed to start simulated block node " + id + " after " + MAX_START_ATTEMPTS + " attempts",
+                lastException);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {

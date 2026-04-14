@@ -85,7 +85,7 @@ jobs:
         run: ${GRADLE_EXEC} assemble
 
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+        run: npm install -g @hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}
 
       - name: Setup Kind
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0

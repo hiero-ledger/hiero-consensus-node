@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.common.utility.StopWatch;
-import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -79,7 +79,7 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
             throws IOException, InterruptedException {
 
         // Collection of database files and index
-        LongListOffHeap storeIndex = new LongListOffHeap(1024 * 1024, 2L * 1024 * 1024, 256 * 1024);
+        LongListSegment storeIndex = new LongListSegment(1024 * 1024, 2L * 1024 * 1024, 256 * 1024);
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final var store = new MemoryIndexDiskKeyValueStore(
                 dbConfig,
@@ -458,7 +458,7 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
         private int iteration = 1;
         private final DataFileCompactor compactor;
 
-        Compactor(final MemoryIndexDiskKeyValueStore coll, LongListOffHeap storeIndex) {
+        Compactor(final MemoryIndexDiskKeyValueStore coll, LongListSegment storeIndex) {
             compactor = new DataFileCompactor(
                     "megaMergeHammerTest", coll.getFileCollection(), storeIndex, null, null, null, null);
         }

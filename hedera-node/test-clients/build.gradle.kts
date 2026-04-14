@@ -41,16 +41,15 @@ val totalMemoryGib: Double =
     }
 // Use all available processors but cap at 8 to avoid excessive thread contention
 val testProcessorCount = availableCpus.coerceAtMost(8)
+// Parallelism is set per-task based on actual node count (see testSubprocessConcurrent below)
 // Reserve ~half of total memory for the test client JVM, leave the rest for forked node JVMs and OS
 val testClientHeapGib = (totalMemoryGib / 2).toInt().coerceIn(4, 8)
 val testMaxHeap = "${testClientHeapGib}g"
-// Remaining memory is split among forked node JVMs (default 4 nodes) with some left for OS
-val maxNodeCount = 4
-val nodeHeapMib =
-    ((totalMemoryGib - testClientHeapGib) * 1024 / maxNodeCount * 0.8).toInt().coerceIn(512, 4096)
+// Pass remaining memory pool to ProcessUtils, which divides by actual node count at runtime
+val nodePoolMib = ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
 
 logger.lifecycle(
-    "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodeHeap=${nodeHeapMib}m"
+    "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
 )
 
 mainModuleInfo {
@@ -185,9 +184,9 @@ val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
+        "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCrypto" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestCryptoSerial" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to
@@ -384,7 +383,7 @@ tasks.register<Test>("testSubprocess") {
     // Scale heap and processor count to match available resources
     maxHeapSize = testMaxHeap
     // Limit forked node JVM heap to avoid overcommitting container/runner memory
-    systemProperty("hapi.spec.node.maxHeapMib", "$nodeHeapMib")
+    systemProperty("hapi.spec.node.poolMib", "$nodePoolMib")
     // Fix testcontainers module system access to commons libraries
     // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
     jvmArgs(
@@ -501,12 +500,11 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
     // Limit concurrent test classes to prevent transaction backlog
-    // Use fixed strategy with limited parallelism to balance speed and stability
+    // Use fixed strategy with parallelism based on node count: 3 nodes → 3 threads, 4 nodes → 2
+    // threads
+    val testParallelism = if ((networkSize.toIntOrNull() ?: 4) <= 3) 3 else 2
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
-    systemProperty(
-        "junit.jupiter.execution.parallel.config.fixed.parallelism",
-        "$testProcessorCount",
-    )
+    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "$testParallelism")
     systemProperty(
         "junit.jupiter.testclass.order.default",
         "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
@@ -515,8 +513,16 @@ tasks.register<Test>("testSubprocessConcurrent") {
     // Scale heap and processor count to match available resources
     maxHeapSize = testMaxHeap
     // Limit forked node JVM heap to avoid overcommitting container/runner memory
-    systemProperty("hapi.spec.node.maxHeapMib", "$nodeHeapMib")
-    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
+    systemProperty("hapi.spec.node.poolMib", "$nodePoolMib")
+    // Fix testcontainers module system access to commons libraries
+    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
+    jvmArgs(
+        "-XX:ActiveProcessorCount=$testProcessorCount",
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
     maxParallelForks = 1
 }
 

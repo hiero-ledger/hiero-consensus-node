@@ -41,7 +41,6 @@ import com.hedera.services.bdd.spec.utilops.grouping.InBlockingOrder;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,37 +58,18 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
 
     /*
       Test that long-zero EVM address has the expected value before and after
-      key rotation, and that hte record stream does not imply anything different.
+      key rotation, and that the record stream does not imply anything different.
     */
     @Order(1)
     @HapiTest
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForLongZero() {
-        final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>((Comparator.comparing(Enum::ordinal)));
+        final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>();
         accountsToCreate.put(UtilStateChange.ECKind.LONG_ZERO, UtilStateChange.ECKind.LONG_ZERO.name());
         final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
-        final Map<UtilStateChange.ECKind, Address> evmAddresses =
-                new HashMap<>(); // Collect addresses of created accounts here
+        final Map<UtilStateChange.ECKind, Address> evmAddresses = new HashMap<>();
         return hapiTest(flatten(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
-
-                // Validate (after all ops executed) that the keeys were rotated
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-                        visibleNonSyntheticItems(
-                                keyRotationsValidator(accountsToHaveKeysRotated),
-                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
-                        Duration.ofSeconds(15)),
-
-                // Validate (after all ops executed) that our accounts did get created
-                recordStreamMustIncludePassFrom(
-                                visibleNonSyntheticItems(
-                                        ecAccountsValidator(evmAddresses, accountsToCreate),
-                                        rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
-                                Duration.ofSeconds(15))
-                        .stopAfterFirstSuccess(),
-
-                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
-                // first couple of creations, so wait for a new record file boundary
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                registerStreamAssertions(accountsToHaveKeysRotated, evmAddresses, accountsToCreate),
 
                 // Create the account with a long-zero EVM address
                 cryptoCreate(accountsToCreate.get(UtilStateChange.ECKind.LONG_ZERO))
@@ -100,19 +80,17 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
                 // Save all EVM addresses
                 saveAllEvmAddresses(evmAddresses, accountsToCreate),
                 rotateKeys(accountsToHaveKeysRotated),
-
-                // --- ROTATE KEYS ---
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted)));
     }
 
     /*
       Test that auto and hollow EVM address has the expected value before and after
-      key rotation, and that hte record stream does not imply anything different.
+      key rotation, and that the record stream does not imply anything different.
     */
     @Order(2)
     @HapiTest
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForAutoAndHollow() {
-        final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>((Comparator.comparing(Enum::ordinal)));
+        final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>();
         accountsToCreate.put(
                 UtilStateChange.ECKind.AUTO, UtilStateChange.ECKind.AUTO.name().toLowerCase());
         accountsToCreate.put(
@@ -122,25 +100,7 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
         final Map<UtilStateChange.ECKind, Address> evmAddresses = new HashMap<>();
         return hapiTest(flatten(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
-
-                // Validate (after all ops executed) that the keeys were rotated
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-                        visibleNonSyntheticItems(
-                                keyRotationsValidator(accountsToHaveKeysRotated),
-                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
-                        Duration.ofSeconds(15)),
-
-                // Validate (after all ops executed) that our accounts did get created
-                recordStreamMustIncludePassFrom(
-                                visibleNonSyntheticItems(
-                                        ecAccountsValidator(evmAddresses, accountsToCreate),
-                                        rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
-                                Duration.ofSeconds(15))
-                        .stopAfterFirstSuccess(),
-
-                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
-                // first couple of creations, so wait for a new record file boundary
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                registerStreamAssertions(accountsToHaveKeysRotated, evmAddresses, accountsToCreate),
 
                 // Auto-create an account with an ECDSA key alias
                 createHip32Auto(1, KeyShape.SECP256K1, i -> accountsToCreate.get(UtilStateChange.ECKind.AUTO)),
@@ -177,38 +137,19 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
     }
 
     /*
-    Test that explicit alias EVM address has the expected value before and after
-    key rotation, and that hte record stream does not imply anything different.
-     */
+      Test that explicit alias EVM address has the expected value before and after
+      key rotation, and that the record stream does not imply anything different.
+    */
     @Order(3)
     @HapiTest
     final Stream<DynamicTest> keyRotationDoesNotChangeEvmAddressForExplicitAlias() {
-        final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>((Comparator.comparing(Enum::ordinal)));
+        final var accountsToCreate = new TreeMap<UtilStateChange.ECKind, String>();
         accountsToCreate.put(UtilStateChange.ECKind.EXPLICIT_ALIAS, UtilStateChange.ECKind.EXPLICIT_ALIAS.name());
         final var accountsToHaveKeysRotated = accountsToCreate.values().stream().toList();
-        final Map<UtilStateChange.ECKind, Address> evmAddresses =
-                new HashMap<>(); // Collect addresses of created accounts here
+        final Map<UtilStateChange.ECKind, Address> evmAddresses = new HashMap<>();
         return hapiTest(flatten(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1)),
-
-                // Validate (after all ops executed) that the keeys were rotated
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-                        visibleNonSyntheticItems(
-                                keyRotationsValidator(accountsToHaveKeysRotated),
-                                rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
-                        Duration.ofSeconds(15)),
-
-                // Validate (after all ops executed) that our accounts did get created
-                recordStreamMustIncludePassFrom(
-                                visibleNonSyntheticItems(
-                                        ecAccountsValidator(evmAddresses, accountsToCreate),
-                                        rotateAndCalculateAllTxnIds(accountsToHaveKeysRotated)),
-                                Duration.ofSeconds(15))
-                        .stopAfterFirstSuccess(),
-
-                // If the FileAlterationObserver just started the monitor, there's a chance we could miss the
-                // first couple of creations, so wait for a new record file boundary
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                registerStreamAssertions(accountsToHaveKeysRotated, evmAddresses, accountsToCreate),
 
                 // Create an account with an explicit EVM address
                 newKeyNamed(accountsToCreate.get(UtilStateChange.ECKind.EXPLICIT_ALIAS))
@@ -223,6 +164,34 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
                 saveAllEvmAddresses(evmAddresses, accountsToCreate),
                 rotateKeys(accountsToHaveKeysRotated),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted)));
+    }
+
+    /**
+     * Registers stream assertions that validate both key rotations and account creations,
+     * then triggers a record file boundary to ensure the monitor is ready.
+     */
+    private static SpecOperation[] registerStreamAssertions(
+            @NonNull final List<String> accountsToHaveKeysRotated,
+            @NonNull final Map<UtilStateChange.ECKind, Address> evmAddresses,
+            @NonNull final Map<UtilStateChange.ECKind, String> accountsToCreate) {
+        return new SpecOperation[] {
+            // Validate (after all ops executed) that the keys were rotated
+            recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                    visibleNonSyntheticItems(
+                            keyRotationsValidator(accountsToHaveKeysRotated),
+                            accountsToHaveKeysRotated.stream().map(ROTATION_TXN).toArray(String[]::new)),
+                    Duration.ofSeconds(15)),
+            // Validate (after all ops executed) that our accounts did get created
+            recordStreamMustIncludePassFrom(
+                            visibleNonSyntheticItems(
+                                    ecAccountsValidator(evmAddresses, accountsToCreate),
+                                    accountsToHaveKeysRotated.toArray(new String[0])),
+                            Duration.ofSeconds(15))
+                    .stopAfterFirstSuccess(),
+            // If the FileAlterationObserver just started the monitor, there's a chance we could
+            // miss the first couple of creations, so wait for a new record file boundary
+            doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted)
+        };
     }
 
     private static VisibleItemsValidator keyRotationsValidator(@NonNull final List<String> accountsToHaveKeysRotated) {
@@ -262,13 +231,5 @@ public class KeyRotationDoesNotChangeEvmAddressTest {
                                 e.getValue().value().toString(16));
             }
         });
-    }
-
-    private String[] rotateAndCalculateAllTxnIds(List<String> accountsToHaveKeysRotated) {
-        final var allTxnIds = Stream.concat(
-                        accountsToHaveKeysRotated.stream(),
-                        accountsToHaveKeysRotated.stream().map(ROTATION_TXN))
-                .toArray(String[]::new);
-        return allTxnIds;
     }
 }

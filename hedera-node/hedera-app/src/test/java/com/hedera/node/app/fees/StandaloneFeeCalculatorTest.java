@@ -30,8 +30,8 @@ import org.junit.jupiter.api.Test;
 
 public class StandaloneFeeCalculatorTest {
     static final long TINY_CENTS = 100_000_000L;
-    static final long CREATE_TOPIC_BASE = 99000000L;
-    static final long SUBMIT_MESSAGE_BASE = 7000000L;
+    static final long CREATE_TOPIC_BASE = 99_000_000L;
+    static final long SUBMIT_MESSAGE_BASE = 700_000L;
     static final long NODE_BASE = 100000;
     static final long SIG_EXTRA = 100000;
 
@@ -290,8 +290,9 @@ public class StandaloneFeeCalculatorTest {
                 .build();
         final Transaction txn = Transaction.newBuilder().body(body).build();
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(7_000_000L);
-        assertThat(result.totalTinycents()).isEqualTo(7_000_000 + 1_000_000L); // add in the node + network fee
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE);
+        assertThat(result.totalTinycents())
+                .isEqualTo(SUBMIT_MESSAGE_BASE + 1_000_000L); // add in the node + network fee
     }
 
     @Test
@@ -349,7 +350,8 @@ public class StandaloneFeeCalculatorTest {
                 .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
                 .build();
         final FeeResult result = calc.calculateIntrinsic(txn);
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(7_000_000L);
-        assertThat(result.totalTinycents()).isEqualTo(7_000_000 + 1_000_000L); // add in the node + network fee
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(SUBMIT_MESSAGE_BASE);
+        assertThat(result.totalTinycents())
+                .isEqualTo(SUBMIT_MESSAGE_BASE + 1_000_000L); // add in the node + network fee
     }
 }
