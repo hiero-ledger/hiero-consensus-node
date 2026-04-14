@@ -35,6 +35,7 @@ import com.hedera.services.bdd.junit.support.validators.ExpiryRecordsValidator;
 import com.hedera.services.bdd.junit.support.validators.TokenReconciliationValidator;
 import com.hedera.services.bdd.junit.support.validators.TransactionBodyValidator;
 import com.hedera.services.bdd.junit.support.validators.WrappedRecordHashesByRecordFilesValidator;
+import com.hedera.services.bdd.junit.support.validators.block.BinaryStateChangesValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockContentsValidator;
 import com.hedera.services.bdd.junit.support.validators.block.BlockNumberSequenceValidator;
 import com.hedera.services.bdd.junit.support.validators.block.EventHashBlockStreamValidator;
@@ -86,6 +87,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
             TransactionRecordParityValidator.FACTORY,
             StateChangesValidator.FACTORY,
+            BinaryStateChangesValidator.FACTORY,
             BlockContentsValidator.FACTORY,
             BlockNumberSequenceValidator.FACTORY,
             EventHashBlockStreamValidator.FACTORY,
