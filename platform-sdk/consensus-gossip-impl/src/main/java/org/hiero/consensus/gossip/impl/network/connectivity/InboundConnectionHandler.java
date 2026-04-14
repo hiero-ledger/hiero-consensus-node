@@ -122,6 +122,7 @@ public class InboundConnectionHandler {
                     selfId,
                     formattedException);
             NetworkUtils.close(clientSocket);
+            System.exit(-1);
         } catch (final RuntimeException e) {
             logger.error(
                     EXCEPTION.getMarker(),

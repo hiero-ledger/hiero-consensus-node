@@ -77,46 +77,46 @@ public final class MtlsDebug {
     static void main(String[] args) throws Exception {
         // Dispatch to variant if flag is present
         for (String arg : args) {
-            if ("--java".equals(arg)) {
-                MtlsDebugJava.main(args);
-                return;
-            }
-            if ("--mlkem".equals(arg)) {
-                MtlsDebugMlKem.main(args);
-                return;
-            }
-            if ("--pq".equals(arg)) {
-                MtlsDebugPq.main(args);
-                return;
-            }
-            if ("--pq-java".equals(arg)) {
-                MtlsDebugPqJava.main(args);
-                return;
-            }
-            if ("--mlkem-java".equals(arg)) {
-                MtlsDebugMlKemJava.main(args);
-                return;
-            }
-            if ("--pq-ec-ca".equals(arg)) {
-                MtlsDebugPqEcCa.main(args);
-                return;
-            }
-            if ("--rsa-pss".equals(arg)) {
-                MtlsDebugRsaPss.main(args);
-                return;
-            }
-            if ("--ecdh-test".equals(arg)) {
-                MtlsDebugEcdhTest.main(args);
-                return;
-            }
-            if ("--gossip-pss".equals(arg)) {
-                MtlsDebugGossipPss.main(args);
-                return;
-            }
-            if ("--psk".equals(arg)) {
-                MtlsDebugPsk.main(args);
-                return;
-            }
+//            if ("--java".equals(arg)) {
+//                MtlsDebugJava.main(args);
+//                return;
+//            }
+//            if ("--mlkem".equals(arg)) {
+//                MtlsDebugMlKem.main(args);
+//                return;
+//            }
+//            if ("--pq".equals(arg)) {
+//                MtlsDebugPq.main(args);
+//                return;
+//            }
+//            if ("--pq-java".equals(arg)) {
+//                MtlsDebugPqJava.main(args);
+//                return;
+//            }
+//            if ("--mlkem-java".equals(arg)) {
+//                MtlsDebugMlKemJava.main(args);
+//                return;
+//            }
+//            if ("--pq-ec-ca".equals(arg)) {
+//                MtlsDebugPqEcCa.main(args);
+//                return;
+//            }
+//            if ("--rsa-pss".equals(arg)) {
+//                MtlsDebugRsaPss.main(args);
+//                return;
+//            }
+//            if ("--ecdh-test".equals(arg)) {
+//                MtlsDebugEcdhTest.main(args);
+//                return;
+//            }
+//            if ("--gossip-pss".equals(arg)) {
+//                MtlsDebugGossipPss.main(args);
+//                return;
+//            }
+//            if ("--psk".equals(arg)) {
+//                MtlsDebugPsk.main(args);
+//                return;
+//            }
         }
 
         boolean debug = false;
@@ -243,7 +243,7 @@ public final class MtlsDebug {
         System.out.println("    " + prefix + " Protocol : " + session.getProtocol());
         System.out.println("    " + prefix + " Suite    : " + session.getCipherSuite());
         System.out.println("    " + prefix + " Peer DN  : "
-                + ((X509Certificate) session.getPeerCertificates()[0]).getSubjectX500Principal());
+                           + ((X509Certificate) session.getPeerCertificates()[0]).getSubjectX500Principal());
     }
 
     // ---- Key generation ----

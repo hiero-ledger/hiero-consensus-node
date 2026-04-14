@@ -135,8 +135,8 @@ public class TlsFactory implements SocketFactory {
             final var session = socket.getSession();
             final String peerDn = session.getPeerCertificates().length > 0
                     ? ((java.security.cert.X509Certificate) session.getPeerCertificates()[0])
-                            .getSubjectX500Principal()
-                            .toString()
+                      .getSubjectX500Principal()
+                      .toString()
                     : "none";
             // Extract the negotiated named group via reflection on BCJSSE internals.
             // BCSSLConnection doesn't expose it publicly, but the TlsContext does.
