@@ -68,9 +68,9 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
      * Tracks a monotonically increasing sequence number for events in the buffer.
      * <p>
      * This variable is used to assign a unique, sequential identifier to each event as it is released from the orphan
-     * buffer. The sequence number ensures that events can be ordered consistently, even if they arrive out of order.
+     * buffer. The sequence number ensures that events can be ordered topologically, even if they arrive out of order.
      */
-    private final AtomicLong eventSequenceNumber = new AtomicLong(0);
+    private final AtomicLong eventSequenceNumber = new AtomicLong(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER + 1);
 
     /**
      * Constructor

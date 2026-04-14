@@ -246,6 +246,17 @@ class OrphanBufferTests {
         }
     }
 
+    private void assertValidSequenceNumber(final List<PlatformEvent> unorphanedEvents) {
+        for (final PlatformEvent unorphanedEvent : unorphanedEvents) {
+            assertThat(unorphanedEvent.getNGen())
+                    .withFailMessage(
+                            "Invalid sequence number value {} assigned to event {}",
+                            unorphanedEvent.getNGen(),
+                            unorphanedEvent.getHash())
+                    .isGreaterThan(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
+        }
+    }
+
     @Test
     @DisplayName("Test that events sorted by nGen result in a valid topological ordering")
     void topologicalOrderByNGen() {
@@ -304,7 +315,7 @@ class OrphanBufferTests {
         final List<PlatformEvent> emittedEvents = new ArrayList<>();
         for (final PlatformEvent intakeEvent : intakeEvents) {
             final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(intakeEvent));
-            assertValidNgen(unorphanedEvents);
+            assertValidSequenceNumber(unorphanedEvents);
             emittedEvents.addAll(unorphanedEvents);
         }
 

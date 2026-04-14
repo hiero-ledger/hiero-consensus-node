@@ -75,7 +75,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * This value is chosen because sequence numbers are typically non-negative,
      * making {@code -1} a clear and unambiguous indicator of the unassigned state.
      */
-    private static final long UNASSIGNED_SEQUENCE_NUMBER = -1;
+    public static final long UNASSIGNED_SEQUENCE_NUMBER = -1;
 
     /**
      * Represents the sequence number assigned to this event. The sequence number is unique and increments

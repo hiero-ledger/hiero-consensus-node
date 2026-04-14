@@ -149,9 +149,9 @@ public class TestingEventBuilder {
     /** The origin of this events */
     private EventOrigin origin = EventOrigin.GOSSIP;
 
-    private long sequenceNumberOverride;
+    private long sequenceNumberOverride = PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
 
-    private static final AtomicLong sequenceNumber = new AtomicLong(0);
+    private static final AtomicLong sequenceNumber = new AtomicLong(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER + 1);
 
     /**
      * Constructor
@@ -550,7 +550,7 @@ public class TestingEventBuilder {
         platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 
         platformEvent.setNGen(nGen);
-        if (sequenceNumberOverride > 0) {
+        if (sequenceNumberOverride > PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER) {
             platformEvent.setSequenceNumber(sequenceNumberOverride);
         } else {
             platformEvent.setSequenceNumber(sequenceNumber.getAndIncrement());
