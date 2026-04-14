@@ -151,13 +151,10 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         for (final var ttl : op.tokenTransfers()) {
             final var tokenId = ttl.tokenOrThrow();
             final var token = tokenStore.get(tokenId);
-            // Skip if token doesn't exist - validation will happen at handle time
-            // and properly return CONTRACT_REVERT_EXECUTED for contract calls
-            if (token == null) {
-                continue;
-            }
-            final boolean hasCustomFees = !token.customFees().isEmpty();
-            final boolean isFungible = token.tokenType() == TokenType.FUNGIBLE_COMMON;
+            // If token doesn't exist, still charge for the transfer attempt as a standard token
+            // transfer (no custom fees assumed). Validation at handle time returns INVALID_TOKEN_ID.
+            final boolean hasCustomFees = token != null && !token.customFees().isEmpty();
+            final boolean isFungible = token == null || token.tokenType() == TokenType.FUNGIBLE_COMMON;
             if (isFungible) {
                 if (!ttl.transfers().isEmpty()) {
                     if (hasCustomFees) {
