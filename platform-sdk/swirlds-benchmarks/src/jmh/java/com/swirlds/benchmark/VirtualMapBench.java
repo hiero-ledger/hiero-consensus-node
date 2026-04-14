@@ -19,6 +19,8 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @Fork(value = 1)
 @BenchmarkMode(Mode.AverageTime)
@@ -37,8 +39,6 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void update() throws Exception {
-        setTestDir("update");
-
         logger.info(RUN_DELIMITER);
 
         final long[] map = new long[verify ? maxKey : 0];
@@ -92,8 +92,6 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void create() throws Exception {
-        setTestDir("create");
-
         logger.info(RUN_DELIMITER);
 
         final long[] map = new long[verify ? maxKey : 0];
@@ -132,8 +130,6 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void delete() throws Exception {
-        setTestDir("delete");
-
         logger.info(RUN_DELIMITER);
 
         final long[] map = new long[verify ? maxKey : 0];
@@ -199,9 +195,6 @@ public class VirtualMapBench extends VirtualMapBaseBench {
      */
     @Benchmark
     public void read() {
-        setTestDir("read");
-        preserveTestDir();
-
         logger.info(RUN_DELIMITER);
 
         if (virtualMapP == null) {
@@ -242,5 +235,13 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 (long) numRecords * numThreads,
                 numThreads,
                 System.currentTimeMillis() - start);
+    }
+
+    static void main() throws Exception {
+        new Runner(new OptionsBuilder()
+                        .include(VirtualMapBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
+                .run();
     }
 }
