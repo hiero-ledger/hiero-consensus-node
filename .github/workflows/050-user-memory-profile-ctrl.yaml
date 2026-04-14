@@ -173,7 +173,7 @@ jobs:
 
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          git checkout 942ec2d0f1738edead5bbc89ece6cd1516c3bae6
+          git checkout main
           task build:compile
           #npm run build
 
