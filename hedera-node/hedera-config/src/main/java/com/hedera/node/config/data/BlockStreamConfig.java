@@ -80,9 +80,13 @@ public record BlockStreamConfig(
         boolean streamWrappedRecordBlocks) {
 
     /**
-     * Whether to stream to block nodes.
+     * Whether the node should maintain an active stream to block nodes. This is true when either
+     * the main block stream writes via gRPC (writerMode != FILE) <b>or</b> the wrapped-record-block
+     * (WRB) path is enabled ({@code streamWrappedRecordBlocks}), since the WRB writer also
+     * publishes through {@code BlockBufferService} and requires the block-node connection
+     * infrastructure to be running.
      */
     public boolean streamToBlockNodes() {
-        return writerMode != BlockStreamWriterMode.FILE;
+        return writerMode != BlockStreamWriterMode.FILE || streamWrappedRecordBlocks;
     }
 }
