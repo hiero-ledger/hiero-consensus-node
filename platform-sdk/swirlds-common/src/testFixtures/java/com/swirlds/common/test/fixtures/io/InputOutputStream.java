@@ -58,10 +58,6 @@ public class InputOutputStream implements AutoCloseable {
         outStream.close();
     }
 
-    public void printBytes() {
-        System.out.println(Arrays.toString(outByteStream.toByteArray()));
-    }
-
     public SerializableDataInputStream getInput() {
         return inStream;
     }
