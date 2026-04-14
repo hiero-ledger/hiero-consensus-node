@@ -41,7 +41,9 @@ public class SwirldsLogValidator {
         final List<String> problemLines = new ArrayList<>();
         final var problemTracker = new ProblemTracker();
         try (final var stream = Files.lines(Paths.get(logFileLocation))) {
-            stream.filter(problemTracker::isProblem).map(problemTracker::indented).forEach(problemLines::add);
+            stream.filter(problemTracker::isProblem)
+                    .map(problemTracker::indented)
+                    .forEach(problemLines::add);
         }
         if (!problemLines.isEmpty()) {
             Assertions.fail("Found " + problemTracker.numProblems + " problems in swirlds.log '" + logFileLocation
