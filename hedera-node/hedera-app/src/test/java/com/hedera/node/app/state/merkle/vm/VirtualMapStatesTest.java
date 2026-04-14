@@ -38,6 +38,7 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.state.merkle.MerkleSchemaRegistry;
 import com.hedera.node.app.state.merkle.SchemaApplications;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -238,8 +239,15 @@ class VirtualMapStatesTest extends MerkleTestBase {
                 StateKey.KeyOneOfType.SINGLETON, SingletonType.fromProtobufOrdinal(PLATFORM_STATE_STATE_ID))));
         final var singletonValueBytes = virtualMap.getBytes(singletonBytesKey);
         Objects.requireNonNull(singletonValueBytes);
-        final PlatformState singletonExtractedValue =
-                StateValue.PROTOBUF.parse(singletonValueBytes).value().as();
+        final PlatformState singletonExtractedValue = StateValue.PROTOBUF
+                .parse(
+                        singletonValueBytes.toReadableSequentialData(),
+                        false,
+                        false,
+                        Codec.DEFAULT_MAX_DEPTH,
+                        Codec.DEFAULT_MAX_SIZE)
+                .value()
+                .as();
         assertEquals(singletonOriginalValue, singletonExtractedValue);
     }
 
@@ -279,8 +287,15 @@ class VirtualMapStatesTest extends MerkleTestBase {
                 new OneOf<>(StateKey.KeyOneOfType.fromProtobufOrdinal(TRANSACTION_RECEIPTS_STATE_ID), 1L)));
         final var queueValueBytes = virtualMap.getBytes(queueBytesKey);
         Objects.requireNonNull(queueValueBytes);
-        final TransactionReceiptEntries queueExtractedValue =
-                StateValue.PROTOBUF.parse(queueValueBytes).value().as();
+        final TransactionReceiptEntries queueExtractedValue = StateValue.PROTOBUF
+                .parse(
+                        queueValueBytes.toReadableSequentialData(),
+                        false,
+                        false,
+                        Codec.DEFAULT_MAX_DEPTH,
+                        Codec.DEFAULT_MAX_SIZE)
+                .value()
+                .as();
         assertEquals(queueOriginalValue, queueExtractedValue);
     }
 
@@ -397,8 +412,15 @@ class VirtualMapStatesTest extends MerkleTestBase {
                 new StateKey(new OneOf<>(StateKey.KeyOneOfType.fromProtobufOrdinal(ACCOUNTS_STATE_ID), kvOriginalKey)));
         final var kvValueBytes = virtualMap.getBytes(kvBytesKey);
         Objects.requireNonNull(kvValueBytes);
-        final Account kvExtractedValue =
-                StateValue.PROTOBUF.parse(kvValueBytes).value().as();
+        final Account kvExtractedValue = StateValue.PROTOBUF
+                .parse(
+                        kvValueBytes.toReadableSequentialData(),
+                        false,
+                        false,
+                        Codec.DEFAULT_MAX_DEPTH,
+                        Codec.DEFAULT_MAX_SIZE)
+                .value()
+                .as();
         assertEquals(kvOriginalValue, kvExtractedValue);
     }
 

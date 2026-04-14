@@ -835,7 +835,12 @@ public class VirtualMapStateImpl implements VirtualMapState {
                                 extractStateIdFromStateValueOneOf(leafBytes.valueBytes()), new QueueStateCodec());
                         try {
                             final QueueState queueState = queueStateCodec
-                                    .parse(leafBytes.valueBytes())
+                                    .parse(
+                                            leafBytes.valueBytes().toReadableSequentialData(),
+                                            false,
+                                            false,
+                                            Codec.DEFAULT_MAX_DEPTH,
+                                            virtualMap.valueParseMaxSizeBytes())
                                     .value();
                             final JSONObject queueJson = new JSONObject();
                             queueJson.put("head", queueState.head());

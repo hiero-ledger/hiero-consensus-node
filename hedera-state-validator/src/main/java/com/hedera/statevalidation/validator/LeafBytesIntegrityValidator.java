@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator;
 
+import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
 import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationError;
 
 import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -231,6 +233,11 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     }
 
     private static StateValue parseValue(Bytes valueBytes) throws ParseException {
-        return StateValue.PROTOBUF.parse(valueBytes);
+        return StateValue.PROTOBUF.parse(
+                valueBytes.toReadableSequentialData(),
+                false,
+                false,
+                Codec.DEFAULT_MAX_DEPTH,
+                getVirtualMapValueParseMaxSizeBytes());
     }
 }

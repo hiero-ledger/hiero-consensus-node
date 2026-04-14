@@ -151,8 +151,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     private static final int MAX_REHASHING_BUFFER_SIZE = 10_000_000;
 
-    private static final int MAX_PBJ_RECORD_SIZE = 33554432;
-
     /**
      * Hardcoded virtual map label
      */
@@ -654,6 +652,15 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     }
 
     /**
+     * Gets the configured maximum size (in bytes) for parsing a virtual map value payload.
+     *
+     * @return the max parse size in bytes
+     */
+    public int valueParseMaxSizeBytes() {
+        return virtualMapConfig.valueParseMaxSizeBytes();
+    }
+
+    /**
      * Gets the value associated with the given key as raw bytes.
      *
      * @param key
@@ -755,7 +762,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                             false,
                             false,
                             DEFAULT_MAX_DEPTH,
-                            MAX_PBJ_RECORD_SIZE);
+                            virtualMapConfig.valueParseMaxSizeBytes());
         } catch (final ParseException e) {
             throw new RuntimeException("Failed to deserialize a value from bytes", e);
         }

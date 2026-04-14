@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator;
 
+import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -11,6 +12,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationException;
@@ -98,7 +100,12 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
                 final TokenID tokenId1 = entityIDPair.tokenId();
 
                 final com.hedera.hapi.platform.state.StateValue stateValue =
-                        com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
+                        com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(
+                                valueBytes.toReadableSequentialData(),
+                                false,
+                                false,
+                                Codec.DEFAULT_MAX_DEPTH,
+                                getVirtualMapValueParseMaxSizeBytes());
                 final TokenRelation tokenRelation = stateValue.value().as();
                 final AccountID accountId2 = tokenRelation.accountId();
                 final TokenID tokenId2 = tokenRelation.tokenId();
