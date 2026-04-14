@@ -129,10 +129,10 @@ public class TipsetTracker {
         final List<Tipset> parentTipsets = getParentTipsets(event.getAllParents());
 
         final Tipset eventTipset =
-                new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getNGen());
+                new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getSequenceNumber());
 
         tipsets.put(event.getDescriptor(), eventTipset);
-        latestGenerations = latestGenerations.advance(event.getCreatorId(), event.getNGen());
+        latestGenerations = latestGenerations.advance(event.getCreatorId(), event.getSequenceNumber());
 
         return eventTipset;
     }
@@ -193,8 +193,8 @@ public class TipsetTracker {
      * @param nodeId the node in question
      * @return the highest generation of all events received by a given node
      */
-    public long getLatestGenerationForNode(@NonNull final NodeId nodeId) {
-        return latestGenerations.getTipGenerationForNode(nodeId);
+    public long getLatestSequenceNumberForNode(@NonNull final NodeId nodeId) {
+        return latestGenerations.getTipSequenceNumberForNode(nodeId);
     }
 
     /**

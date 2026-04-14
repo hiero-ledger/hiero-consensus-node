@@ -17,28 +17,28 @@ import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Keeps track of events created that have no children. These events are candidates to be used as parents when creating
- * a new event. This class is a helper class and does not do ancient window checking on its own. It is up to the
- * caller to only pass non-ancient events and to prune old events when necessary.
+ * a new event. This class is a helper class and does not do ancient window checking on its own. It is up to the caller
+ * to only pass non-ancient events and to prune old events when necessary.
  */
 public class ChildlessEventTracker {
 
     /**
-     * A map of events created by our peers that have no known children. These events are eligible to be
-     * used as other parents the next time this node creates an event.
+     * A map of events created by our peers that have no known children. These events are eligible to be used as other
+     * parents the next time this node creates an event.
      */
     private final Map<EventDescriptorWrapper, PlatformEvent> childlessEvents = new HashMap<>();
 
     /**
-     * A map of childless events keyed by node id. Maintaining a single event per node allows us to
-     * handle branching appropriately.
+     * A map of childless events keyed by node id. Maintaining a single event per node allows us to handle branching
+     * appropriately.
      */
     private final Map<NodeId, PlatformEvent> eventsByCreator = new HashMap<>();
 
     /**
      * Add a new event. Parents are removed from the set of childless events. Event is ignored if there is another event
-     * from the same creator with a higher nGen. Causes any event by the same creator, if present, to be removed
-     * if it has a lower nGen. This is true even if the event being added is not a direct child (possible if there
-     * has been branching).
+     * from the same creator with a higher sequence numbers. Causes any event by the same creator, if present, to be
+     * removed if it has a lower sequence number. This is true even if the event being added is not a direct child
+     * (possible if there has been branching).
      *
      * @param event the event to add
      */
@@ -47,11 +47,11 @@ public class ChildlessEventTracker {
 
         final PlatformEvent existingEvent = eventsByCreator.get(event.getCreatorId());
         if (existingEvent != null) {
-            if (existingEvent.getNGen() >= event.getNGen()) {
-                // Only add a new event if it has the highest ngen of all events observed so far.
+            if (existingEvent.getSequenceNumber() >= event.getSequenceNumber()) {
+                // Only add a new event if it has the highest sequence number of all events observed so far.
                 return;
             } else {
-                // Remove the existing event if it has a lower ngen than the new event.
+                // Remove the existing event if it has a lower sequence number than the new event.
                 removeEvent(existingEvent.getDescriptor());
             }
         }
@@ -64,8 +64,8 @@ public class ChildlessEventTracker {
     }
 
     /**
-     * Register a self event. Removes parents but does not add the event to the set of childless events, because
-     * we only track childless events created by other nodes that we might use as other parents in the future.
+     * Register a self event. Removes parents but does not add the event to the set of childless events, because we only
+     * track childless events created by other nodes that we might use as other parents in the future.
      *
      * @param parents the parents of the self event
      */

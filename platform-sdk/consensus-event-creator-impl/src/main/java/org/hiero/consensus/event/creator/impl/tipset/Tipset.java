@@ -8,7 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.model.event.EventConstants;
-import org.hiero.consensus.model.event.NonDeterministicGeneration;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -33,7 +33,7 @@ public class Tipset {
         this.roster = Objects.requireNonNull(roster);
         tips = new long[roster.rosterEntries().size()];
 
-        Arrays.fill(tips, NonDeterministicGeneration.GENERATION_UNDEFINED);
+        Arrays.fill(tips, PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
     }
 
     /**
@@ -86,10 +86,10 @@ public class Tipset {
      * @param nodeId the node in question
      * @return the tip generation for the node
      */
-    public long getTipGenerationForNode(@NonNull final NodeId nodeId) {
+    public long getTipSequenceNumberForNode(@NonNull final NodeId nodeId) {
         final int index = RosterUtils.getIndex(roster, nodeId.id());
         if (index == -1) {
-            return NonDeterministicGeneration.GENERATION_UNDEFINED;
+            return PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
         }
         return tips[index];
     }
