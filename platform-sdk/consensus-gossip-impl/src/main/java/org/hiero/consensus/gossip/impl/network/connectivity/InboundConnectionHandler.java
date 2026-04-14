@@ -86,6 +86,7 @@ public class InboundConnectionHandler {
             clientSocket.setSoTimeout(socketConfig.timeoutSyncClientSocket());
 
             final SSLSocket sslSocket = (SSLSocket) clientSocket;
+            TlsFactory.logHandshake("server", sslSocket);
             final PeerInfo connectedPeer =
                     networkPeerIdentifier.identifyTlsPeer(sslSocket.getSession().getPeerCertificates());
             if (connectedPeer == null) {

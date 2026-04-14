@@ -124,7 +124,86 @@ public class TlsFactory implements SocketFactory {
             final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
             SocketFactory.configureAndConnect(clientSocket, socketConfig, hostname, port);
             clientSocket.startHandshake();
+            logHandshake("client", clientSocket);
             return clientSocket;
+        }
+    }
+
+    /** Call after handshake completes to log the negotiated TLS parameters. */
+    public static void logHandshake(final String side, final SSLSocket socket) {
+        try {
+            final var session = socket.getSession();
+            final String peerDn = session.getPeerCertificates().length > 0
+                    ? ((java.security.cert.X509Certificate) session.getPeerCertificates()[0])
+                            .getSubjectX500Principal()
+                            .toString()
+                    : "none";
+            // Extract the negotiated named group via reflection on BCJSSE internals.
+            // BCSSLConnection doesn't expose it publicly, but the TlsContext does.
+            String namedGroup = extractNamedGroup(socket);
+            System.out.println(String.format(
+                    "[TLS %s] protocol=%s suite=%s namedGroup=%s peer=%s",
+                    side, session.getProtocol(), session.getCipherSuite(), namedGroup, peerDn));
+        } catch (final Exception e) {
+            System.out.println("[TLS " + side + "] log failed: " + e.getMessage());
+        }
+    }
+
+    private static String extractNamedGroup(final SSLSocket socket) {
+        try {
+            if (!(socket instanceof org.bouncycastle.jsse.BCSSLSocket bcss)) {
+                return "not-bcjsse";
+            }
+            final var conn = bcss.getConnection();
+            if (conn == null) return "no-connection";
+            // ProvSSLConnection has a protected `getTlsContext()` method
+            java.lang.reflect.Method getTlsContext = null;
+            Class<?> cls = conn.getClass();
+            while (cls != null) {
+                try {
+                    getTlsContext = cls.getDeclaredMethod("getTlsContext");
+                    break;
+                } catch (NoSuchMethodException e) {
+                    cls = cls.getSuperclass();
+                }
+            }
+            if (getTlsContext == null) return "no-getTlsContext";
+            getTlsContext.setAccessible(true);
+            final Object ctx = getTlsContext.invoke(conn);
+            if (ctx == null) return "null-context";
+            // TlsContext.getSecurityParametersConnection() → SecurityParameters
+            // Must use setAccessible because AbstractTlsContext is package-private in a named module
+            final java.lang.reflect.Method getSp =
+                    ctx.getClass().getMethod("getSecurityParametersConnection");
+            getSp.setAccessible(true);
+            final Object sp = getSp.invoke(ctx);
+            if (sp == null) return "null-sp";
+            // SecurityParameters.getClientSupportedGroups() — int[] of TLS 1.3 groups offered
+            final java.lang.reflect.Method getClientGroups = sp.getClass().getMethod("getClientSupportedGroups");
+            getClientGroups.setAccessible(true);
+            final int[] clientGroups = (int[]) getClientGroups.invoke(sp);
+            final java.lang.reflect.Method getServerGroups = sp.getClass().getMethod("getServerSupportedGroups");
+            getServerGroups.setAccessible(true);
+            final int[] serverGroups = (int[]) getServerGroups.invoke(sp);
+            final StringBuilder sb = new StringBuilder();
+            sb.append("clientGroups=[");
+            if (clientGroups != null) {
+                for (int i = 0; i < clientGroups.length; i++) {
+                    if (i > 0) sb.append(",");
+                    sb.append(org.bouncycastle.tls.NamedGroup.getText(clientGroups[i]));
+                }
+            }
+            sb.append("] serverGroups=[");
+            if (serverGroups != null) {
+                for (int i = 0; i < serverGroups.length; i++) {
+                    if (i > 0) sb.append(",");
+                    sb.append(org.bouncycastle.tls.NamedGroup.getText(serverGroups[i]));
+                }
+            }
+            sb.append("]");
+            return sb.toString();
+        } catch (final Exception e) {
+            return "extract-failed:" + e.getClass().getSimpleName() + ":" + e.getMessage();
         }
     }
 

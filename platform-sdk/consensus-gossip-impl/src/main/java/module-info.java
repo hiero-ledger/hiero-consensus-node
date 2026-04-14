@@ -47,6 +47,7 @@ module org.hiero.consensus.gossip.impl {
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
+    requires org.bouncycastle.tls;
     requires static transitive com.github.spotbugs.annotations;
 
     provides GossipModule with
