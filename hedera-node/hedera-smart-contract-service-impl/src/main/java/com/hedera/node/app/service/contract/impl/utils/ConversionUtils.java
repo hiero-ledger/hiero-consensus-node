@@ -694,7 +694,6 @@ public class ConversionUtils {
      * @param outcome the outcome
      * @param handleContext the handle context
      * @param hederaOperations the Hedera operations
-     * @param streamBuilder the stream builder
      */
     public static void throwIfUnsuccessfulCall(
             @NonNull final CallOutcome outcome,
