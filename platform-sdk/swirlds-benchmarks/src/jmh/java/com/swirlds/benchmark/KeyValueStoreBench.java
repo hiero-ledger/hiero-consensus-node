@@ -4,7 +4,7 @@ package com.swirlds.benchmark;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
@@ -18,6 +18,8 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @Fork(value = 1)
 @BenchmarkMode(Mode.AverageTime)
@@ -35,23 +37,23 @@ public class KeyValueStoreBench extends BaseBench {
 
     @Benchmark
     public void merge() throws Exception {
-        String storeName = "mergeBench";
-        setTestDir(storeName);
+        final String storeName = "mergeBench";
+        setStoreDir(storeName);
 
         logger.info(RUN_DELIMITER);
 
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
-        LongListOffHeap keyToDiskLocationIndex = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
+        LongListSegment keyToDiskLocationIndex = new LongListSegment(1024 * 1024, maxKey, 256 * 1024);
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final var store = new MemoryIndexDiskKeyValueStore(
-                dbConfig, getTestDir(), storeName, null, (dataLocation, dataValue) -> {}, keyToDiskLocationIndex);
+                dbConfig, getStoreDir(), storeName, null, (dataLocation, dataValue) -> {}, keyToDiskLocationIndex);
         final DataFileCompactor compactor = new DataFileCompactor(
                 storeName, store.getFileCollection(), keyToDiskLocationIndex, null, null, null, null);
 
         // Write files
         long start = System.currentTimeMillis();
         for (int i = 0; i < numFiles; i++) {
-            store.updateValidKeyRange(0, maxKey);
+            store.updateValidKeyRange(0, maxKey - 1);
             store.startWriting();
             resetKeys();
             for (int j = 0; j < numRecords; ++j) {
@@ -90,5 +92,13 @@ public class KeyValueStoreBench extends BaseBench {
         }
 
         store.close();
+    }
+
+    static void main() throws Exception {
+        new Runner(new OptionsBuilder()
+                        .include(KeyValueStoreBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
+                .run();
     }
 }

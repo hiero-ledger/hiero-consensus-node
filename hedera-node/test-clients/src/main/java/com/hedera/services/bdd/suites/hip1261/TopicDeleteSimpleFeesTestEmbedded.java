@@ -6,6 +6,26 @@ import static com.hedera.services.bdd.junit.TestTags.ONLY_EMBEDDED;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
+import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
+import static com.hedera.services.bdd.spec.keys.SigControl.ON;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
@@ -14,18 +34,9 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
-import com.hedera.services.bdd.spec.queries.QueryVerbs;
-import com.hedera.services.bdd.spec.transactions.TxnVerbs;
-import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
-import com.hedera.services.bdd.spec.utilops.UtilVerbs;
-import com.hedera.services.bdd.suites.HapiSuite;
-import com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -60,52 +71,31 @@ public class TopicDeleteSimpleFeesTestEmbedded {
         @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
         @DisplayName("TopicDelete - invalid payer signature fails on pre-handle - network fee only")
         final Stream<DynamicTest> topicDeleteInvalidPayerSigFailsOnPreHandle() {
-            final AtomicLong initialBalance = new AtomicLong();
-            final AtomicLong afterBalance = new AtomicLong();
-            final AtomicLong initialNodeBalance = new AtomicLong();
-            final AtomicLong afterNodeBalance = new AtomicLong();
-
             final String INNER_ID = "topic-delete-txn-inner-id";
 
-            final KeyShape keyShape = KeyShape.threshOf(2, KeyShape.SIMPLE, KeyShape.SIMPLE);
-            final SigControl invalidSig = keyShape.signedWith(KeyShape.sigs(SigControl.ON, SigControl.OFF));
+            final KeyShape keyShape = KeyShape.threshOf(2, SIMPLE, SIMPLE);
+            final SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF));
 
             return hapiTest(
-                    UtilVerbs.newKeyNamed(PAYER_KEY).shape(keyShape),
-                    TxnVerbs.cryptoCreate(PAYER).key(PAYER_KEY).balance(HapiSuite.ONE_HUNDRED_HBARS),
-                    UtilVerbs.newKeyNamed(ADMIN_KEY),
-                    TxnVerbs.createTopic(TOPIC)
-                            .adminKeyName(ADMIN_KEY)
-                            .signedBy(HapiSuite.DEFAULT_PAYER, ADMIN_KEY)
-                            .fee(HapiSuite.ONE_HUNDRED_HBARS),
-                    QueryVerbs.getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-                    TxnVerbs.cryptoTransfer(TokenMovement.movingHbar(HapiSuite.ONE_HBAR)
-                                    .between(HapiSuite.DEFAULT_PAYER, NODE_ACCOUNT_ID))
-                            .fee(HapiSuite.ONE_HUNDRED_HBARS),
-                    QueryVerbs.getAccountBalance(NODE_ACCOUNT_ID).exposingBalanceTo(initialNodeBalance::set),
-                    TxnVerbs.deleteTopic(TOPIC)
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    newKeyNamed(ADMIN_KEY),
+                    createTopic(TOPIC).adminKeyName(ADMIN_KEY).signedBy(DEFAULT_PAYER, ADMIN_KEY),
+                    cryptoTransfer(movingHbar(ONE_HBAR).between(DEFAULT_PAYER, NODE_ACCOUNT_ID)),
+                    deleteTopic(TOPIC)
                             .payingWith(PAYER)
                             .sigControl(ControlForKey.forKey(PAYER_KEY, invalidSig))
                             .signedBy(PAYER, ADMIN_KEY)
-                            .fee(HapiSuite.ONE_HUNDRED_HBARS)
                             .setNode(NODE_ACCOUNT_ID)
                             .via(INNER_ID)
-                            .hasKnownStatus(ResponseCodeEnum.INVALID_PAYER_SIGNATURE),
-                    QueryVerbs.getTxnRecord(INNER_ID)
-                            .assertingNothingAboutHashes()
-                            .logged(),
-                    QueryVerbs.getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                    QueryVerbs.getAccountBalance(NODE_ACCOUNT_ID).exposingBalanceTo(afterNodeBalance::set),
-                    UtilVerbs.withOpContext((spec, log) -> {
-                        Assertions.assertEquals(initialBalance.get(), afterBalance.get());
-                        Assertions.assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
-                    }),
-                    FeesChargingUtils.validateChargedFeeToUsd(
+                            .hasKnownStatus(INVALID_PAYER_SIGNATURE),
+                    getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
+                    validateChargedUsdWithinWithTxnSize(
                             INNER_ID,
-                            initialNodeBalance,
-                            afterNodeBalance,
-                            FeesChargingUtils.expectedTopicDeleteNetworkFeeOnlyUsd(2L),
-                            1.0));
+                            txnSize -> expectedTopicDeleteNetworkFeeOnlyUsd(
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                            0.1),
+                    validateChargedAccount(INNER_ID, "4"));
         }
     }
 }

@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
 import java.io.IOException;
@@ -168,7 +169,7 @@ class MemoryIndexDiskKeyValueStoreTest {
     void createDataAndCheckImpl(final FilesTestType testType) throws Exception {
         // let's store hashes as easy test class
         final Path tempDir = testDirectory.resolve("DataFileTest");
-        final LongListOffHeap index = new LongListOffHeap(1024, 1_000_000, 256);
+        final LongListSegment index = new LongListSegment(1024, 1_000_000, 256);
         final AtomicLong timeSpent = new AtomicLong(0);
         final AtomicReference<Double> savedSpace = new AtomicReference<>(0.0);
         final String storeName = "MemoryIndexDiskKeyValueStoreTest";

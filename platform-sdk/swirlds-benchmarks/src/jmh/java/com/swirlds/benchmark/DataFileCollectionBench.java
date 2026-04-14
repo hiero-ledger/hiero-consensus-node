@@ -5,7 +5,7 @@ import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCompactor;
@@ -22,6 +22,8 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @Fork(value = 1)
 @BenchmarkMode(Mode.AverageTime)
@@ -39,17 +41,17 @@ public class DataFileCollectionBench extends BaseBench {
 
     @Benchmark
     public void compaction() throws Exception {
-        String storeName = "compactionBench";
-        setTestDir(storeName);
+        final String storeName = "compactionBench";
+        setStoreDir(storeName);
 
         logger.info(RUN_DELIMITER);
 
-        final LongListOffHeap index = new LongListOffHeap(1024 * 1024, maxKey, 256 * 1024);
+        final LongListSegment index = new LongListSegment(1024 * 1024, maxKey, 256 * 1024);
         index.updateValidRange(0, maxKey - 1);
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final var store =
-                new DataFileCollection(dbConfig, getTestDir(), storeName, null, (dataLocation, dataValue) -> {}) {
+                new DataFileCollection(dbConfig, getStoreDir(), storeName, null, (dataLocation, dataValue) -> {}) {
                     BenchmarkRecord read(long dataLocation) throws IOException {
                         final BufferedData recordData = readDataItem(dataLocation);
                         if (recordData == null) {
@@ -104,5 +106,13 @@ public class DataFileCollectionBench extends BaseBench {
 
         store.close();
         index.close();
+    }
+
+    static void main() throws Exception {
+        new Runner(new OptionsBuilder()
+                        .include(DataFileCollectionBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
+                .run();
     }
 }
