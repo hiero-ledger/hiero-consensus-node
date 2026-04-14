@@ -12,19 +12,19 @@ SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-tss-upgrade}"
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3}"
-CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
-CLEAN_SOLO_STATE="${CLEAN_SOLO_STATE:-true}"
-WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v0.2.0}"
 
 UPGRADE_072_RELEASE_TAG="${UPGRADE_072_RELEASE_TAG:-v0.72.0-rc.2}"
 UPGRADE_073_VERSION="${UPGRADE_073_VERSION:-v0.73.0-rc.1}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
+WRAPS_KEY_PATH="${WRAPS_KEY_PATH:-${HOME}/.solo/cache/wraps-v0.2.0}"
+WRAPS_ARTIFACTS_DOWNLOAD_URL="${WRAPS_ARTIFACTS_DOWNLOAD_URL:-https://builds.hedera.com/tss/hiero/wraps/v0.2/wraps-v0.2.0.tar.gz}"
+WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
+
 APP_PROPS_072_FILE="${SCRIPT_DIR}/resources/0.72/application.properties"
 APP_PROPS_073_FILE="${SCRIPT_DIR}/resources/0.73/application.properties"
 APP_ENV_073_FILE="${SCRIPT_DIR}/resources/0.73/application.env"
 LOG4J2_XML_PATH="${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml"
-REMEDY_SCRIPT_PATH="${SCRIPT_DIR}/solo-remedy-local-artifact-copy.sh"
 HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/keys/wraps"
 
@@ -35,26 +35,17 @@ log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
 }
 
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "Required command not found: $1" >&2
+    exit 1
+  }
+}
+
 cleanup_solo_state() {
-  local wraps_backup_dir=""
-
-  if [[ "${CLEAN_SOLO_STATE}" != "true" ]]; then
-    return 0
-  fi
-
-  log "Cleaning Solo state under ${SOLO_HOME_DIR}"
-  if [[ -d "${WRAPS_KEY_PATH}" && "${WRAPS_KEY_PATH}" == "${SOLO_HOME_DIR}/cache/"* ]]; then
-    wraps_backup_dir="$(mktemp -d "${TMPDIR:-/tmp}/solo-wraps.XXXXXX")"
-    mv "${WRAPS_KEY_PATH}" "${wraps_backup_dir}/$(basename "${WRAPS_KEY_PATH}")"
-  fi
   rm -rf "${SOLO_HOME_DIR}/cache" >/dev/null 2>&1 || true
   rm -rf "${SOLO_HOME_DIR}/logs" >/dev/null 2>&1 || true
   rm -f "${SOLO_HOME_DIR}/local-config.yaml" >/dev/null 2>&1 || true
-  if [[ -n "${wraps_backup_dir}" && -d "${wraps_backup_dir}/$(basename "${WRAPS_KEY_PATH}")" ]]; then
-    mkdir -p "$(dirname "${WRAPS_KEY_PATH}")"
-    mv "${wraps_backup_dir}/$(basename "${WRAPS_KEY_PATH}")" "${WRAPS_KEY_PATH}"
-    rmdir "${wraps_backup_dir}" >/dev/null 2>&1 || true
-  fi
 }
 
 cleanup() {
@@ -67,17 +58,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-require_cmd() {
-  command -v "$1" >/dev/null 2>&1 || {
-    echo "Required command not found: $1" >&2
-    exit 1
-  }
+validate_local_build_path() {
+  local base="$1"
+  [[ -f "${base}/apps/HederaNode.jar" ]] || return 1
+  [[ -d "${base}/lib" ]] || return 1
 }
 
 wait_for_consensus_pods_ready() {
   local timeout_secs="${1:-600}"
   local node=""
   local nodes=()
+
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     log "Waiting for network-${node}-0 to become Ready"
@@ -89,6 +80,7 @@ wait_for_haproxy_ready() {
   local timeout_secs="${1:-600}"
   local node=""
   local nodes=()
+
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     log "Waiting for haproxy-${node} rollout to become ready"
@@ -96,148 +88,49 @@ wait_for_haproxy_ready() {
   done
 }
 
-namespace_exists() {
-  local namespace="$1"
-  kubectl get namespace "${namespace}" >/dev/null 2>&1
-}
+ensure_wraps_artifacts_downloaded() {
+  local file_count=""
+  local tmp_dir=""
+  local archive_path=""
+  local extract_dir=""
+  local extracted_root=""
+  local extracted_dirs=""
+  local extracted_entries=""
 
-wait_for_namespace_deleted() {
-  local namespace="$1"
-  local timeout_secs="${2:-300}"
-  local deadline=$((SECONDS + timeout_secs))
-
-  while (( SECONDS < deadline )); do
-    if ! namespace_exists "${namespace}"; then
+  if [[ -d "${WRAPS_KEY_PATH}" ]]; then
+    file_count="$(find "${WRAPS_KEY_PATH}" -maxdepth 1 -type f | wc -l | tr -d ' ')"
+    if [[ "${file_count}" -ge "${WRAPS_REQUIRED_FILE_COUNT}" ]]; then
+      log "Using cached WRAPS artifacts from ${WRAPS_KEY_PATH}"
       return 0
     fi
-    sleep 2
-  done
-
-  return 1
-}
-
-delete_namespace_if_exists() {
-  local namespace="$1"
-
-  if ! namespace_exists "${namespace}"; then
-    return 0
   fi
 
-  log "Deleting namespace ${namespace} for a clean baseline rerun"
-  kubectl delete namespace "${namespace}" --wait=false >/dev/null 2>&1 || true
-  wait_for_namespace_deleted "${namespace}" 300
-}
+  tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/solo-wraps-download.XXXXXX")"
+  archive_path="${tmp_dir}/wraps-v0.2.0.tar.gz"
+  extract_dir="${tmp_dir}/extract"
+  mkdir -p "${extract_dir}"
 
-solo_remote_config_exists() {
-  kubectl -n "${SOLO_NAMESPACE}" get configmap solo-remote-config >/dev/null 2>&1
-}
+  log "Downloading WRAPS artifacts from ${WRAPS_ARTIFACTS_DOWNLOAD_URL}"
+  curl -fL "${WRAPS_ARTIFACTS_DOWNLOAD_URL}" -o "${archive_path}"
+  tar -xzf "${archive_path}" -C "${extract_dir}"
 
-local_config_file() {
-  printf '%s\n' "${SOLO_HOME_DIR}/local-config.yaml"
-}
-
-local_config_has_cluster_ref() {
-  local config_file=""
-  config_file="$(local_config_file)"
-  [[ -f "${config_file}" ]] || return 1
-  grep -Eq "^[[:space:]]*kind-${SOLO_CLUSTER_NAME}:[[:space:]]+kind-${SOLO_CLUSTER_NAME}$" "${config_file}"
-}
-
-local_config_has_deployment() {
-  local config_file=""
-  config_file="$(local_config_file)"
-  [[ -f "${config_file}" ]] || return 1
-  grep -Eq "^[[:space:]]*name:[[:space:]]+${SOLO_DEPLOYMENT}$" "${config_file}"
-}
-
-local_config_deployment_has_cluster_ref() {
-  local config_file=""
-  config_file="$(local_config_file)"
-  [[ -f "${config_file}" ]] || return 1
-  awk -v deployment="${SOLO_DEPLOYMENT}" -v cluster_ref="kind-${SOLO_CLUSTER_NAME}" '
-    $1 == "-" && $2 == "clusters:" {
-      in_block = 1
-      seen_cluster = 0
-      next
-    }
-    in_block && $1 == "-" && $2 == cluster_ref {
-      seen_cluster = 1
-      next
-    }
-    in_block && $1 == "name:" {
-      if ($2 == deployment && seen_cluster) {
-        found = 1
-        exit
-      }
-      in_block = 0
-      seen_cluster = 0
-    }
-    END {
-      exit(found ? 0 : 1)
-    }
-  ' "${config_file}"
-}
-
-reset_local_solo_config_if_remote_config_missing() {
-  local config_file=""
-  config_file="$(local_config_file)"
-
-  if [[ -f "${config_file}" ]] && ! solo_remote_config_exists; then
-    log "solo-remote-config is missing; resetting local Solo config so deployment bootstrap can be recreated cleanly"
-    rm -f "${config_file}"
-  fi
-}
-
-configure_solo_deployment() {
-  reset_local_solo_config_if_remote_config_missing
-  log "Configuring Solo deployment ${SOLO_DEPLOYMENT}"
-  if ! local_config_has_cluster_ref; then
-    solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
-  else
-    log "Cluster ref kind-${SOLO_CLUSTER_NAME} already present in local Solo config"
+  extracted_root="${extract_dir}"
+  extracted_dirs="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+  extracted_entries="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
+  if [[ "${extracted_dirs}" == "1" && "${extracted_entries}" == "1" ]]; then
+    extracted_root="$(find "${extract_dir}" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
   fi
 
-  if ! local_config_has_deployment; then
-    solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
-    solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
-  else
-    log "Deployment ${SOLO_DEPLOYMENT} already present in local Solo config"
-    if ! local_config_deployment_has_cluster_ref; then
-      solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes "${CONSENSUS_NODE_COUNT}"
-    fi
-  fi
-}
-
-setup_cluster_minio_prereqs() {
-  log "Installing Solo cluster prerequisites required for consensus deploy"
-  solo cluster-ref config setup \
-    --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
-    --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" \
-    --minio true \
-    --prometheus-stack false \
-    --quiet-mode
-}
-
-validate_local_build_path() {
-  local base="$1"
-  [[ -f "${base}/apps/HederaNode.jar" ]] || return 1
-  [[ -d "${base}/lib" ]] || return 1
-}
-
-local_build_implementation_version() {
-  unzip -p "${LOCAL_BUILD_PATH}/apps/HederaNode.jar" META-INF/MANIFEST.MF 2>/dev/null \
-    | sed -n 's/^Implementation-Version: //p' | tr -d '\r' | head -n 1
-}
-
-consensus_pod_implementation_version() {
-  local pod="$1"
-  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "unzip -p /opt/hgcapp/services-hedera/HapiApp2.0/data/apps/HederaNode.jar META-INF/MANIFEST.MF 2>/dev/null \
-      | sed -n 's/^Implementation-Version: //p' | tr -d '\r' | head -n 1" 2>/dev/null
+  mkdir -p "$(dirname "${WRAPS_KEY_PATH}")"
+  rm -rf "${WRAPS_KEY_PATH}"
+  mkdir -p "${WRAPS_KEY_PATH}"
+  find "${extracted_root}" -maxdepth 1 -type f -exec cp '{}' "${WRAPS_KEY_PATH}/" ';'
+  rm -rf "${tmp_dir}"
 }
 
 configured_wraps_artifacts_container_dir() {
   local configured=""
+
   configured="$(sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' "${APP_ENV_073_FILE}" | head -n 1)"
   if [[ -n "${configured}" ]]; then
     printf '%s\n' "${configured}"
@@ -248,23 +141,41 @@ configured_wraps_artifacts_container_dir() {
 
 consensus_pod_wraps_env() {
   local pod="$1"
+
   kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    'pid="$(pgrep -f "com.hedera.node.app.ServicesMain" | head -n 1)";
-     if [[ -n "${pid}" && -r "/proc/${pid}/environ" ]]; then
-       tr "\000" "\n" < "/proc/${pid}/environ" | sed -n "s/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p" | head -n 1
-     fi' 2>/dev/null
+    "pid=\$(pgrep -f 'com.hedera.node.app.ServicesMain' | head -n 1);
+     if [ -n \"\${pid}\" ] && [ -r \"/proc/\${pid}/environ\" ]; then
+       tr '\\000' '\\n' < \"/proc/\${pid}/environ\" | sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' | head -n 1
+     fi" 2>/dev/null
 }
 
 consensus_pod_wraps_file_count() {
   local pod="$1"
   local wraps_dir="$2"
+
   kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
     "find ${wraps_dir} -maxdepth 1 -type f 2>/dev/null | wc -l" 2>/dev/null | tr -d ' '
 }
 
-wraps_runtime_needs_remedy() {
+wraps_proof_present_in_log() {
+  local pod="$1"
+
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "grep -Eq 'Constructing (genesis|incremental) WRAPS proof with:' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
+}
+
+wraps_failure_present_in_log() {
+  local pod="$1"
+
+  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
+    "grep -Eq 'WRAPS library is not ready|Skipping publication of POST_AGGREGATION output: WRAPS library is not ready' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
+}
+
+verify_wraps_on_consensus_nodes() {
   local wraps_dir=""
   local expected_wraps=""
+  local timeout_secs="${1:-180}"
+  local deadline=0
   local node=""
   local pod=""
   local found_env=""
@@ -272,7 +183,11 @@ wraps_runtime_needs_remedy() {
   local nodes=()
 
   wraps_dir="$(configured_wraps_artifacts_container_dir)"
-  expected_wraps="$(find "${WRAPS_KEY_PATH}" -type f | wc -l | tr -d ' ')"
+  expected_wraps="$(find "${WRAPS_KEY_PATH}" -maxdepth 1 -type f | wc -l | tr -d ' ')"
+  [[ "${expected_wraps}" -ge "${WRAPS_REQUIRED_FILE_COUNT}" ]] || {
+    echo "Expected at least ${WRAPS_REQUIRED_FILE_COUNT} WRAPS artifacts in ${WRAPS_KEY_PATH}, found ${expected_wraps}" >&2
+    return 1
+  }
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
@@ -280,143 +195,129 @@ wraps_runtime_needs_remedy() {
     found_env="$(consensus_pod_wraps_env "${pod}" || true)"
     found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
     log "Verifying WRAPS runtime on ${pod} (expected env ${wraps_dir}, found ${found_env:-unset}; expected ${expected_wraps} files, found ${found_wraps:-0})"
-    if [[ "${found_env}" != "${wraps_dir}" || "${found_wraps}" != "${expected_wraps}" ]]; then
-      return 0
-    fi
-  done
+    [[ "${found_env}" == "${wraps_dir}" ]] || return 1
+    [[ "${found_wraps}" == "${expected_wraps}" ]] || return 1
 
-  return 1
-}
+    log "Waiting for WRAPS proof construction in ${pod} hgcaa.log"
+    deadline=$((SECONDS + timeout_secs))
+    while (( SECONDS < deadline )); do
+      if wraps_failure_present_in_log "${pod}"; then
+        echo "WRAPS reported a runtime failure in ${pod}" >&2
+        return 1
+      fi
+      if wraps_proof_present_in_log "${pod}"; then
+        break
+      fi
+      sleep 5
+    done
 
-verify_local_build_on_consensus_nodes() {
-  local local_version=""
-  local pod_version=""
-  local node=""
-  local pod=""
-  local nodes=()
-
-  local_version="$(local_build_implementation_version)"
-  [[ -n "${local_version}" ]] || {
-    echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2
-    return 1
-  }
-
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    pod_version="$(consensus_pod_implementation_version "${pod}" || true)"
-    log "Verifying local build version on ${pod} (expected ${local_version}, found ${pod_version:-unknown})"
-    if [[ "${pod_version}" != "${local_version}" ]]; then
+    if ! wraps_proof_present_in_log "${pod}"; then
+      echo "Timed out waiting for WRAPS proof construction in ${pod}" >&2
       return 1
     fi
   done
 }
 
-upgrade_failed_due_to_copy_error() {
-  local log_file="${SOLO_HOME_DIR}/logs/solo.log"
-  [[ -f "${log_file}" ]] || return 1
-  tail -n 200 "${log_file}" | grep -Eq \
-    'Error in copying local build to node|test -d "/opt/hgcapp/services-hedera/HapiApp2.0/wraps-v0.2.0"'
+create_cluster() {
+  log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
+  kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+  cleanup_solo_state
+
+  log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
+  kind create cluster -n "${SOLO_CLUSTER_NAME}"
+  CLUSTER_CREATED_THIS_RUN="true"
 }
 
-run_local_copy_remedy() {
-  [[ -f "${REMEDY_SCRIPT_PATH}" ]] || {
-    echo "Missing remedy script: ${REMEDY_SCRIPT_PATH}" >&2
-    return 1
-  }
+configure_solo() {
+  local consensus_node_count=""
+  consensus_node_count="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
 
-  log "Solo upgrade failed with a copy-related error; invoking remedy script"
-  SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT}" \
-  SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
-  NODE_ALIASES="${NODE_ALIASES}" \
-  LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH}" \
-  WRAPS_KEY_PATH="${WRAPS_KEY_PATH}" \
-  WRAPS_ARTIFACTS_CONTAINER_DIR="$(configured_wraps_artifacts_container_dir)" \
-  bash "${REMEDY_SCRIPT_PATH}"
+  log "Configuring Solo deployment ${SOLO_DEPLOYMENT}"
+  solo cluster-ref config connect \
+    --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+    --context "kind-${SOLO_CLUSTER_NAME}"
+
+  solo deployment config create \
+    --namespace "${SOLO_NAMESPACE}" \
+    --deployment "${SOLO_DEPLOYMENT}"
+
+  solo deployment cluster attach \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+    --num-consensus-nodes "${consensus_node_count}"
+}
+
+setup_cluster_prereqs() {
+  log "Installing Solo cluster prerequisites"
+  solo cluster-ref config setup \
+    --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+    --cluster-setup-namespace "${SOLO_CLUSTER_SETUP_NAMESPACE}" \
+    --minio true \
+    --prometheus-stack false \
+    --quiet-mode
 }
 
 deploy_baseline_072() {
-  local deploy_cmd=()
-
-  if namespace_exists "${SOLO_NAMESPACE}"; then
-    log "Removing existing Solo namespace before baseline deploy"
-    solo consensus node stop --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" >/dev/null 2>&1 || true
-    solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
-    delete_namespace_if_exists "${SOLO_NAMESPACE}"
-    configure_solo_deployment
-  fi
-
   log "Deploying baseline ${UPGRADE_072_RELEASE_TAG} consensus network"
-  solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}"
-  deploy_cmd=(
-    solo consensus network deploy
-    --deployment "${SOLO_DEPLOYMENT}"
-    -i "${NODE_ALIASES}"
-    --application-properties "${APP_PROPS_072_FILE}"
-    --log4j2-xml "${LOG4J2_XML_PATH}"
-    --pvcs true
+
+  solo keys consensus generate \
+    --gossip-keys \
+    --tls-keys \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --node-aliases "${NODE_ALIASES}"
+
+  solo consensus network deploy \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --node-aliases "${NODE_ALIASES}" \
+    --application-properties "${APP_PROPS_072_FILE}" \
+    --log4j2-xml "${LOG4J2_XML_PATH}" \
+    --pvcs true \
     --release-tag "${UPGRADE_072_RELEASE_TAG}"
-  )
-  "${deploy_cmd[@]}"
-  solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --release-tag "${UPGRADE_072_RELEASE_TAG}"
-  solo consensus node start --deployment "${SOLO_DEPLOYMENT}" -i "${NODE_ALIASES}" --force-port-forward false
+
+  solo consensus node setup \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --node-aliases "${NODE_ALIASES}" \
+    --release-tag "${UPGRADE_072_RELEASE_TAG}"
+
+  solo consensus node start \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --node-aliases "${NODE_ALIASES}" \
+    --force-port-forward false
+
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
 }
 
-attempt_073_upgrade() {
-  local upgrade_cmd=()
+upgrade_to_local_073() {
+  log "Upgrading consensus network to local build ${UPGRADE_073_VERSION}"
+  ensure_wraps_artifacts_downloaded
 
-  log "Upgrading consensus network to local build with TSS-enabled 0.73 application.properties"
-  upgrade_cmd=(
-    solo consensus network upgrade
-    --deployment "${SOLO_DEPLOYMENT}"
-    --node-aliases "${NODE_ALIASES}"
-    --upgrade-version "${UPGRADE_073_VERSION}"
-    --local-build-path "${LOCAL_BUILD_PATH}"
-    --application-properties "${APP_PROPS_073_FILE}"
-    --application-env "${APP_ENV_073_FILE}"
+  solo consensus network upgrade \
+    --deployment "${SOLO_DEPLOYMENT}" \
+    --node-aliases "${NODE_ALIASES}" \
+    --upgrade-version "${UPGRADE_073_VERSION}" \
+    --local-build-path "${LOCAL_BUILD_PATH}" \
+    --application-properties "${APP_PROPS_073_FILE}" \
+    --application-env "${APP_ENV_073_FILE}" \
+    --wraps-key-path "${WRAPS_KEY_PATH}" \
     --force
-  )
-  [[ -d "${WRAPS_KEY_PATH}" ]] || {
-    echo "Missing WRAPS_KEY_PATH directory: ${WRAPS_KEY_PATH}" >&2
-    return 1
-  }
-  log "Using WRAPS key path for upgrade: ${WRAPS_KEY_PATH}"
-  upgrade_cmd+=(--wraps-key-path "${WRAPS_KEY_PATH}")
 
-  if ! "${upgrade_cmd[@]}"; then
-    if ! upgrade_failed_due_to_copy_error; then
-      return 1
-    fi
-
-    run_local_copy_remedy || return 1
-  fi
-
-  wait_for_consensus_pods_ready 600 || return 1
-  wait_for_haproxy_ready 600 || return 1
-  verify_local_build_on_consensus_nodes || return 1
-  if wraps_runtime_needs_remedy; then
-    log "Detected incomplete WRAPS runtime configuration after upgrade; invoking remedy script"
-    run_local_copy_remedy || return 1
-    wait_for_consensus_pods_ready 600 || return 1
-    wait_for_haproxy_ready 600 || return 1
-    verify_local_build_on_consensus_nodes || return 1
-    wraps_runtime_needs_remedy && return 1
-  fi
+  wait_for_consensus_pods_ready 600
+  wait_for_haproxy_ready 600
+  verify_wraps_on_consensus_nodes 180
 }
 
 log "Validating prerequisites"
 require_cmd kind
 require_cmd kubectl
 require_cmd solo
-require_cmd unzip
+require_cmd curl
+require_cmd tar
 
 [[ -f "${APP_PROPS_072_FILE}" ]] || { echo "Missing file: ${APP_PROPS_072_FILE}" >&2; exit 1; }
 [[ -f "${APP_PROPS_073_FILE}" ]] || { echo "Missing file: ${APP_PROPS_073_FILE}" >&2; exit 1; }
 [[ -f "${APP_ENV_073_FILE}" ]] || { echo "Missing file: ${APP_ENV_073_FILE}" >&2; exit 1; }
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "Missing file: ${LOG4J2_XML_PATH}" >&2; exit 1; }
-[[ -f "${REMEDY_SCRIPT_PATH}" ]] || { echo "Missing file: ${REMEDY_SCRIPT_PATH}" >&2; exit 1; }
 
 validate_local_build_path "${LOCAL_BUILD_PATH}" || {
   echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}" >&2
@@ -424,21 +325,10 @@ validate_local_build_path "${LOCAL_BUILD_PATH}" || {
   exit 1
 }
 
-log "Deleting existing Kind cluster ${SOLO_CLUSTER_NAME} (if any)"
-kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
-cleanup_solo_state
-
-log "Creating Kind cluster ${SOLO_CLUSTER_NAME}"
-kind create cluster -n "${SOLO_CLUSTER_NAME}"
-CLUSTER_CREATED_THIS_RUN="true"
-
-configure_solo_deployment
-setup_cluster_minio_prereqs
-
+create_cluster
+configure_solo
+setup_cluster_prereqs
 deploy_baseline_072
+upgrade_to_local_073
 
-if ! attempt_073_upgrade; then
-  exit 1
-fi
-
-log "PASS: 0.72 -> local 0.73 TSS-enabled upgrade smoke test completed"
+log "PASS: 0.72 -> local 0.73 upgrade completed"
