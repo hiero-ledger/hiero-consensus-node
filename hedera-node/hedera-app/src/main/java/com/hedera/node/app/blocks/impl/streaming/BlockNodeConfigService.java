@@ -243,11 +243,12 @@ public class BlockNodeConfigService {
         latestConfigRef.set(versionedConfigSet);
 
         if (logger.isInfoEnabled()) {
+            final List<BlockNodeConfiguration> nodeConfigsCopy = new ArrayList<>(nodeConfigs);
             final StringBuilder sb = new StringBuilder("Block node configuration loaded (version: ")
                     .append(version)
                     .append(")\n");
-            nodeConfigs.sort(Comparator.comparingInt(BlockNodeConfiguration::priority));
-            final Iterator<BlockNodeConfiguration> it = nodeConfigs.iterator();
+            nodeConfigsCopy.sort(Comparator.comparingInt(BlockNodeConfiguration::priority));
+            final Iterator<BlockNodeConfiguration> it = nodeConfigsCopy.iterator();
             while (it.hasNext()) {
                 sb.append("  ").append(it.next());
                 if (it.hasNext()) {

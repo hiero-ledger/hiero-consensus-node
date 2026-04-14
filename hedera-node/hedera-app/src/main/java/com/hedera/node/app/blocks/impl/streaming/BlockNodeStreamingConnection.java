@@ -934,11 +934,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             blockStreamMetrics.recordConnectionOnError();
 
             if (error instanceof final GrpcException grpcException) {
-                logger.warn("{} Error received (grpcStatus={}).", this, grpcException.status(), grpcException);
+                logger.warn("{} Error received (grpcStatus={})", this, grpcException.status(), grpcException);
             } else {
-                logger.warn("{} Error received.", this, error);
+                logger.warn("{} Error received", this, error);
             }
 
+            shouldSendEndStreamOnClose = false;
             close(CloseReason.CONNECTION_ERROR, true);
         }
     }
@@ -951,14 +952,15 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     public void onComplete() {
         blockStreamMetrics.recordConnectionOnComplete();
         if (currentState() == ConnectionState.CLOSED) {
-            logger.debug("{} onComplete invoked but connection is already closed.", this);
+            logger.debug("{} onComplete invoked but connection is already closed", this);
             return;
         }
 
         if (streamShutdownInProgress.getAndSet(false)) {
-            logger.debug("{} Stream completed (stream close was in progress).", this);
+            logger.debug("{} Stream completed (stream close was in progress)", this);
         } else {
-            logger.debug("{} Stream completed unexpectedly.", this);
+            logger.warn("{} Stream completed unexpectedly", this);
+            shouldSendEndStreamOnClose = false;
             close(CloseReason.CONNECTION_ERROR, true);
         }
     }
