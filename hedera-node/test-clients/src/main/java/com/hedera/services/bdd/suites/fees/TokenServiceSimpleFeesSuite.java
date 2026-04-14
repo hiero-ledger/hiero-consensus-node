@@ -986,20 +986,8 @@ public class TokenServiceSimpleFeesSuite {
                         .fee(ONE_HBAR)
                         .via("attackTxn")
                         .hasKnownStatus(INVALID_TOKEN_ID),
-                validateChargedUsd("attackTxn", TOKEN_TRANSFER_FEE), // Fails here with x10 undercharge
+                // verify that the regular fee is charged even though the transfer failed due to an invalid token id
+                validateChargedUsd("attackTxn", TOKEN_TRANSFER_FEE),
                 overriding("fees.simpleFeesEnabled", "false"));
-        /*
-         final transfer fee result is "baselineTxn"  FeeResult{
-           totalFee=10_000_000,
-           serviceBaseFee=0, serviceDetails=[FeeDetail[name=TOKEN_TRANSFER_BASE, perUnit=9000000, used=1, included=0, charged=1]],
-           nodeBaseFee=100_000, nodeDetails=[], networkMultiplier=9, networkFee=900_000, highVolumeMultiplier=1000}
-
-         final transfer fee result is "attackTxn"  FeeResult{
-           totalFee=1_000_000,
-           serviceBaseFee=0, serviceDetails=[],
-           nodeBaseFee=100_000, nodeDetails=[], networkMultiplier=9, networkFee=900_000, highVolumeMultiplier=1000}
-
-        */
-
     }
 }
