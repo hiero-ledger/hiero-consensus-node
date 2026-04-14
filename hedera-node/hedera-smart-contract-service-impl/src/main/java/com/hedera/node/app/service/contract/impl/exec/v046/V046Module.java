@@ -87,7 +87,8 @@ public interface V046Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                codeFactory);
+                codeFactory,
+                null);
     }
 
     @Provides

@@ -34,35 +34,42 @@ jmhModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
 }
 
-jmh {
-    jvmArgs.set(listOf("-Xmx8g"))
-    includes.set(listOf("transfer"))
-    benchmarkParameters.put("numFiles", listProperty("10"))
-    benchmarkParameters.put("keySize", listProperty("16"))
-    benchmarkParameters.put("recordSize", listProperty("128"))
-}
-
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
 
+// ── Benchmark run configurations ─────────────────────────────────────
+
+tasks.register<JMHTask>("jmhCrypto") {
+    includes.set(listOf("CryptoBench"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-crypto.txt"))
+}
+
+tasks.register<JMHTask>("jmhVirtualMap") {
+    includes.set(listOf("VirtualMapBench"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap.txt"))
+}
+
 tasks.register<JMHTask>("jmhReconnect") {
-    includes.set(listOf("Reconnect.*"))
-    jvmArgs.set(
-        listOf(
-            "-Xmx16g",
-            "-Xms16g",
-            "-XX:+UnlockExperimentalVMOptions",
-            "-XX:+UseZGC",
-            "-XX:MaxDirectMemorySize=48g",
-        )
-    )
-
+    includes.set(listOf("ReconnectBench"))
+    jvmArgs.set(listOf("-Xmx16g"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
+}
 
-    benchmarkParameters.put("numRecords", listProperty("1000"))
-    benchmarkParameters.put("numFiles", listProperty("100"))
-    benchmarkParameters.put("delayStorageMicroseconds", listProperty("100"))
-    benchmarkParameters.put("delayNetworkMicroseconds", listProperty("50"))
-    benchmarkParameters.put("teacherAddProbability", listProperty("0.01"))
-    benchmarkParameters.put("teacherRemoveProbability", listProperty("0.01"))
-    benchmarkParameters.put("teacherModifyProbability", listProperty("0.01"))
+tasks.register<JMHTask>("jmhDataFileCollection") {
+    includes.set(listOf("DataFileCollectionBench"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-datafilecollection.txt"))
+}
+
+tasks.register<JMHTask>("jmhHalfDiskMap") {
+    includes.set(listOf("HalfDiskMapBench"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-halfdiskmap.txt"))
+}
+
+tasks.register<JMHTask>("jmhKeyValueStore") {
+    includes.set(listOf("KeyValueStoreBench"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-keyvaluestore.txt"))
 }
