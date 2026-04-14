@@ -349,7 +349,7 @@ jobs:
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
       - name: Detect Flaky Tests (Token, Simple Fees, Time Consuming & ND Reconnect)
-        id: detect-flaky-hapi-token
+        id: detect-flaky-hapi-token-fees-tc-and-nd-reconnect
         if: ${{ !cancelled() && steps.check-tests-executed-hapi-token-fees-tc-and-nd-reconnect.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
@@ -846,17 +846,12 @@ jobs:
         run: |
           job_statuses=(
             "${{ needs.hapi-tests-misc.result || 'skipped' }}"
-            "${{ needs.hapi-tests-misc-records.result || 'skipped' }}"
-            "${{ needs.hapi-tests-crypto.result || 'skipped' }}"
-            "${{ needs.hapi-tests-simple-fees.result || 'skipped' }}"
-            "${{ needs.hapi-tests-token.result || 'skipped' }}"
-            "${{ needs.hapi-tests-smart-contracts-and-iss.result || 'skipped' }}"
-            "${{ needs.hapi-tests-time-consuming.result || 'skipped' }}"
-            "${{ needs.hapi-tests-restart.result || 'skipped' }}"
-            "${{ needs.hapi-tests-nd-reconnect.result || 'skipped' }}"
-            "${{ needs.hapi-tests-iss.result || 'skipped' }}"
-            "${{ needs.hapi-tests-bn-comms.result || 'skipped' }}"
+            "${{ needs.hapi-tests-misc-records-crypto-and-serial.result || 'skipped' }}"
+            "${{ needs.hapi-tests-token-fees-tc-and-nd-reconnect.result || 'skipped' }}"
             "${{ needs.hapi-tests-atomic-batch.result || 'skipped' }}"
+            "${{ needs.hapi-tests-smart-contracts-and-iss.result || 'skipped' }}"
+            "${{ needs.hapi-tests-restart.result || 'skipped' }}"
+            "${{ needs.hapi-tests-bn-comms.result || 'skipped' }}"
             "${{ needs.hapi-tests-state-throttling.result || 'skipped' }}"
           )
 
