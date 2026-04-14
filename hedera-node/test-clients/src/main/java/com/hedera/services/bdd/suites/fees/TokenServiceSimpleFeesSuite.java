@@ -936,7 +936,6 @@ public class TokenServiceSimpleFeesSuite {
                 validateChargedUsdWithin("updateTxn", TOKEN_UPDATE_NFT_FEE * updateAmounts.size(), 0.1));
     }
 
-    // TokenServiceSimpleFeesSuite.java
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("BASELINE: Valid single fungible token transfer charged correct token fee")
     final Stream<DynamicTest> validFungibleTransferUndercharged() {
@@ -962,11 +961,10 @@ public class TokenServiceSimpleFeesSuite {
                 cryptoTransfer((spec, b) -> {
                             final var attackerInfo = spec.registry().getAccountID("payer");
                             final var receiverInfo = spec.registry().getAccountID("receiver");
-                            long entityNum = 9_000_001L;
                             final var bogusTokenId = TokenID.newBuilder()
-                                    .setShardNum(0)
-                                    .setRealmNum(0)
-                                    .setTokenNum(entityNum)
+                                    .setShardNum(spec.shard())
+                                    .setRealmNum(spec.realm())
+                                    .setTokenNum(9_000_001L)
                                     .build();
                             final var ttl = TokenTransferList.newBuilder()
                                     .setToken(bogusTokenId)
