@@ -181,9 +181,19 @@ jobs:
             **/yahcli/build/test-results/**/TEST-*.xml
           retention-days: 7
 
+      - name: Check If Tests Executed (Misc)
+        id: check-tests-executed-hapi-misc
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" -o -path "*/yahcli/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Misc)
         id: detect-flaky-hapi-misc
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-misc.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null \
@@ -265,9 +275,19 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Misc Records)
+        id: check-tests-executed-hapi-misc-records
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Misc Records)
         id: detect-flaky-hapi-misc-records
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-misc-records.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -343,9 +363,19 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Crypto)
+        id: check-tests-executed-hapi-crypto
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Crypto)
         id: detect-flaky-hapi-crypto
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-crypto.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -421,9 +451,19 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Simple Fees)
+        id: check-tests-executed-hapi-simplefees
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Simple Fees)
         id: detect-flaky-hapi-simplefees
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-simplefees.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -499,9 +539,19 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Token)
+        id: check-tests-executed-hapi-token
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Token)
         id: detect-flaky-hapi-token
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-token.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -577,9 +627,19 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Smart Contract)
+        id: check-tests-executed-hapi-smart-contract
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Smart Contract)
         id: detect-flaky-hapi-smart-contract
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-smart-contract.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -655,9 +715,19 @@ jobs:
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Time Consuming)
+        id: check-tests-executed-hapi-time-consuming
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Time Consuming)
         id: detect-flaky-hapi-time-consuming
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-time-consuming.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -733,9 +803,19 @@ jobs:
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Restart)
+        id: check-tests-executed-hapi-restart
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Restart)
         id: detect-flaky-hapi-restart
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-restart.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -811,9 +891,19 @@ jobs:
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Node Death Reconnect)
+        id: check-tests-executed-hapi-nd-reconnect
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Node Death Reconnect)
         id: detect-flaky-hapi-nd-reconnect
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-nd-reconnect.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -889,9 +979,19 @@ jobs:
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (ISS)
+        id: check-tests-executed-hapi-iss
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (ISS)
         id: detect-flaky-hapi-iss
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-iss.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -967,9 +1067,19 @@ jobs:
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Block Node Communication)
+        id: check-tests-executed-hapi-bn-communication
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Block Node Communication)
         id: detect-flaky-hapi-bn-communication
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-bn-communication.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -1043,9 +1153,19 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (Atomic Batch)
+        id: check-tests-executed-hapi-atomic-batch
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (Atomic Batch)
         id: detect-flaky-hapi-atomic-batch
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-atomic-batch.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
@@ -1121,9 +1241,19 @@ jobs:
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
+      - name: Check If Tests Executed (State Throttling)
+        id: check-tests-executed-hapi-state-throttling
+        if: ${{ !cancelled() }}
+        run: |
+          tests_executed="false"
+          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
+            tests_executed="true"
+          fi
+          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
+
       - name: Detect Flaky Tests (State Throttling)
         id: detect-flaky-hapi-state-throttling
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.check-tests-executed-hapi-state-throttling.outputs.tests-executed == 'true' }}
         run: |
           has_flaky="false"
           if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
