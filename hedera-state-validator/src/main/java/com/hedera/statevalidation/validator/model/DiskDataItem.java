@@ -10,7 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
  * @param bytes the serialized data content
  * @param location the packed data location (file index + byte offset)
  */
-public record DiskDataItem(Type type, Bytes bytes, long location) implements ValidationItem {
+public record DiskDataItem(Type type, Bytes bytes, long location) {
 
     /**
      * MerkleDB data file types used in the validation pipeline.
@@ -18,8 +18,8 @@ public record DiskDataItem(Type type, Bytes bytes, long location) implements Val
     public enum Type {
         /** Path to Key/Value - contains {@code VirtualLeafBytes} */
         P2KV,
-        /** Path to Hash - contains {@code VirtualHashRecord} */
-        P2H,
+        /** Chunk ID to Chunk - contains {@code VirtualHashChunk} */
+        ID2C,
         /** Key to Path - contains HDHM {@code Bucket} entries */
         K2P,
         /** Sentinel value signaling processor threads to terminate */

@@ -43,6 +43,9 @@
             "NodeCreate",
             "NodeUpdate",
             "NodeDelete",
+            "RegisteredNodeCreate",
+            "RegisteredNodeUpdate",
+            "RegisteredNodeDelete",
             "AtomicBatch"
           ]
         },
@@ -158,7 +161,8 @@
           "milliOpsPerSec": 2000,
           "operations": [
             "CryptoCreate",
-            "NodeCreate"
+            "NodeCreate",
+            "RegisteredNodeCreate"
           ]
         },
         {

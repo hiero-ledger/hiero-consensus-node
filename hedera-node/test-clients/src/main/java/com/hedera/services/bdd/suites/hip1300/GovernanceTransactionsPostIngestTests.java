@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.UNIQUE_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -26,6 +27,7 @@ import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -69,8 +71,16 @@ public class GovernanceTransactionsPostIngestTests {
                 newKeyNamed(PAYER_KEY).shape(LARGE_SIZE_KEY),
                 newKeyNamed(PAYER_KEY2).shape(LARGE_SIZE_KEY),
                 newKeyNamed(SUBMIT_KEY),
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
-                cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER)
+                        .key(PAYER_KEY)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER2)
+                        .key(PAYER_KEY2)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
                         .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
@@ -86,8 +96,16 @@ public class GovernanceTransactionsPostIngestTests {
                 newKeyNamed(PAYER_KEY).shape(LARGE_SIZE_KEY),
                 newKeyNamed(PAYER_KEY2).shape(LARGE_SIZE_KEY),
                 newKeyNamed(SUBMIT_KEY),
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
-                cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER)
+                        .key(PAYER_KEY)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER2)
+                        .key(PAYER_KEY2)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
                         .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
@@ -236,8 +254,16 @@ public class GovernanceTransactionsPostIngestTests {
                 newKeyNamed(PAYER_KEY).shape(LARGE_SIZE_KEY),
                 newKeyNamed(PAYER_KEY2).shape(LARGE_SIZE_KEY),
                 newKeyNamed(SUBMIT_KEY),
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
-                cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER)
+                        .key(PAYER_KEY)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER2)
+                        .key(PAYER_KEY2)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
                         .setNode(4)
                         .submitKeyName(SUBMIT_KEY)

@@ -101,7 +101,7 @@ class HistoryProofVoteHandlerTest {
         subject.handle(context);
 
         verify(controllers).getInProgressById(1L, tssConfig);
-        verify(controller).addProofVote(NODE_ID, HistoryProofVote.DEFAULT, CONSENSUS_NOW, store);
+        verify(controller).addProofVote(NODE_ID, HistoryProofVote.DEFAULT, CONSENSUS_NOW, store, tssConfig);
     }
 
     private void givenVoteWith(final long constructionId, @NonNull final HistoryProofVote vote) {

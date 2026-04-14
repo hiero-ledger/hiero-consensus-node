@@ -128,18 +128,10 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                 .contractIdOrThrow()
                                 .contractNumOrThrow();
                         if (baseTranslator.entityCreatedThisUnit(contractNum)) {
-                            long createdNum = baseTranslator.nextCreatedNum(ACCOUNT);
-                            if (contractNum != createdNum) {
-                                if (createdNum > 1000) {
-                                    log.error(
-                                            "Expected {} to be the next created contract, but got {}",
-                                            contractNum,
-                                            createdNum);
-                                } else {
-                                    // Override weird BlockUnitSplit behavior at genesis
-                                    createdNum = contractNum;
-                                }
-                            }
+                            // Consume the specific contract number from the created list;
+                            // using nextCreatedNum(ACCOUNT) here would pop the lowest number
+                            // which may belong to a different account created in the same unit
+                            baseTranslator.consumeCreatedNum(ACCOUNT, contractNum);
                             final var iter = remainingStateChanges.listIterator();
                             while (iter.hasNext()) {
                                 final var stateChange = iter.next();
@@ -152,11 +144,11 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                             .mapUpdateOrThrow()
                                             .keyOrThrow()
                                             .accountIdKeyOrThrow();
-                                    if (accountId.accountNumOrThrow() == createdNum) {
+                                    if (accountId.accountNumOrThrow() == contractNum) {
                                         receiptBuilder.contractID(ContractID.newBuilder()
                                                 .shardNum(accountId.shardNum())
                                                 .realmNum(accountId.realmNum())
-                                                .contractNum(createdNum)
+                                                .contractNum(contractNum)
                                                 .build());
                                         iter.remove();
                                         return;
@@ -164,11 +156,13 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                 }
                             }
                         }
-                        // If we reach here, we didn't find the created contract in the remaining state changes
-                        // so it must have been an existing hollow account finalized as a contract
-                        final var op = parts.body().contractCreateInstanceOrThrow();
-                        final var selfAdminId = op.adminKeyOrThrow().contractIDOrThrow();
-                        receiptBuilder.contractID(selfAdminId);
+                        // If we reach here, we didn't find the created contract in the remaining
+                        // state changes; use the authoritative contractID from the EVM result
+                        receiptBuilder.contractID(ContractID.newBuilder()
+                                .shardNum(baseTranslator.getShard())
+                                .realmNum(baseTranslator.getRealm())
+                                .contractNum(contractNum)
+                                .build());
                     }
                 },
                 remainingStateChanges,

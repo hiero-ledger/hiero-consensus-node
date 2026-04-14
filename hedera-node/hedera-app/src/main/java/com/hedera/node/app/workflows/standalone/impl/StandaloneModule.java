@@ -6,6 +6,7 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP
 
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
@@ -31,6 +32,13 @@ public interface StandaloneModule {
     @Nullable
     @Singleton
     static AtomicBoolean provideMaybeSystemEntitiesCreatedFlag() {
+        return null;
+    }
+
+    @Provides
+    @Nullable
+    @Singleton
+    static BlockRecordManager provideNoOpBlockRecordManager() {
         return null;
     }
 

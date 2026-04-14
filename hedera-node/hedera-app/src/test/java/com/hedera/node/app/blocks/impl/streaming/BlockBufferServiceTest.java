@@ -1662,6 +1662,79 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         }
     }
 
+    @Test
+    void testConcurrentPersistDoesNotLoseBlocks() throws Throwable {
+        // Validates that concurrent persistBufferImpl() calls (periodic + freeze) don't lose blocks.
+        // Without the persistLock, each call creates a separate directory and one's cleanupOldFiles
+        // can delete the other's output, causing block data loss on restore.
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.maxBlocks", 100)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        Files.createDirectories(testDirFile.toPath());
+
+        blockBufferService = initBufferService(configProvider);
+
+        // Create 10 blocks
+        for (long blockNum = 1; blockNum <= 10; blockNum++) {
+            final long b = blockNum;
+            blockBufferService.openBlock(b);
+            final List<BlockItem> items = generateBlockItems(10, b, Set.of());
+            items.forEach(item -> blockBufferService.addItem(b, item));
+            blockBufferService.closeBlock(b);
+        }
+
+        // Run two concurrent persists (simulating periodic + freeze persist racing)
+        final CountDownLatch startLatch = new CountDownLatch(1);
+        final Thread t1 = new Thread(() -> {
+            try {
+                startLatch.await();
+                persistBufferHandle.invoke(blockBufferService);
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        });
+        final Thread t2 = new Thread(() -> {
+            try {
+                startLatch.await();
+                persistBufferHandle.invoke(blockBufferService);
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        t1.start();
+        t2.start();
+        startLatch.countDown();
+        t1.join(10_000);
+        t2.join(10_000);
+
+        // Verify: exactly one directory with all 10 blocks
+        try (final Stream<Path> stream = Files.list(testDirFile.toPath())) {
+            final List<Path> subDirs = stream.toList();
+            assertThat(subDirs).hasSize(1);
+            final Path subDir = subDirs.getFirst();
+
+            try (final Stream<Path> subStream = Files.list(subDir)) {
+                final Set<String> actualFileNames =
+                        subStream.map(Path::toFile).map(File::getName).collect(Collectors.toSet());
+                final Set<String> expectedFileNames = new HashSet<>();
+                for (long b = 1; b <= 10; b++) {
+                    expectedFileNames.add("block-" + b + ".bin");
+                }
+                assertThat(actualFileNames).isEqualTo(expectedFileNames);
+            }
+        }
+    }
+
     // Utilities
 
     void setupState(final int numBlockUnacked, final boolean reconnectExpected) throws Throwable {

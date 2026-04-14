@@ -68,13 +68,28 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
                 numTxnSignatures =
                         transaction.sigMapOrElse(SignatureMap.DEFAULT).sigPair().size();
             } else {
-                final var signedTransaction = SignedTransaction.PROTOBUF.parse(
-                        BufferedData.wrap(transaction.signedTransactionBytes().toByteArray()));
-                this.body = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
-                numTxnSignatures = signedTransaction
-                        .sigMapOrElse(SignatureMap.DEFAULT)
-                        .sigPair()
-                        .size();
+                final var signedBytes = transaction.signedTransactionBytes();
+                // If there are not signed bytes and no regular transaction body,
+                // try the bodyBytes(). Even though it is deprecated some tests and
+                // transactions still use it.
+                if (signedBytes.length() == 0) {
+                    final var bytes = transaction.bodyBytes();
+                    this.body = TransactionBody.PROTOBUF.parse(bytes);
+                    if (transaction.hasSigMap()) {
+                        var sigmap = transaction.sigMap();
+                        numTxnSignatures = sigmap.sigPair().size();
+                    } else {
+                        numTxnSignatures = 0;
+                    }
+                } else {
+                    final var signedTransaction =
+                            SignedTransaction.PROTOBUF.parse(BufferedData.wrap(signedBytes.toByteArray()));
+                    this.body = TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+                    numTxnSignatures = signedTransaction
+                            .sigMapOrElse(SignatureMap.DEFAULT)
+                            .sigPair()
+                            .size();
+                }
             }
         }
 

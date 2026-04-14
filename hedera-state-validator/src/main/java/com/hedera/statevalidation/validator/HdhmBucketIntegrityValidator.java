@@ -9,7 +9,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.reflect.BucketIterator;
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
+import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.DataFileCollection;
@@ -73,7 +73,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
         Objects.requireNonNull(virtualMap);
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
 
-        this.pathToKeyValueDfc = vds.getPathToKeyValue().getFileCollection();
+        this.pathToKeyValueDfc = vds.getKeyValueStore().getFileCollection();
 
         this.pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
     }
@@ -187,29 +187,30 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                     hashCodeMismatchInfos.size());
         }
 
-        ValidationAssertions.requireTrue(
-                stalePathsInfos.isEmpty()
-                        && nullLeafsInfo.isEmpty()
-                        && unexpectedKeyInfos.isEmpty()
-                        && pathMismatchInfos.isEmpty()
-                        && bucketIndexMismatchInfos.isEmpty()
-                        && hashCodeMismatchInfos.isEmpty(),
-                getName(),
-                "One of the test condition hasn't been met. "
-                        + "Conditions: "
-                        + ("stalePathsInfos.isEmpty() = %s, "
-                                        + "nullLeafsInfo.isEmpty() = %s, "
-                                        + "unexpectedKeyInfos.isEmpty() = %s, "
-                                        + "pathMismatchInfos.isEmpty() = %s, "
-                                        + "bucketIndexMismatchInfos.isEmpty() = %s, "
-                                        + "hashCodeMismatchInfos.isEmpty() = %s")
-                                .formatted(
-                                        stalePathsInfos.isEmpty(),
-                                        nullLeafsInfo.isEmpty(),
-                                        unexpectedKeyInfos.isEmpty(),
-                                        pathMismatchInfos.isEmpty(),
-                                        bucketIndexMismatchInfos.isEmpty(),
-                                        hashCodeMismatchInfos.isEmpty()));
+        if (!(stalePathsInfos.isEmpty()
+                && nullLeafsInfo.isEmpty()
+                && unexpectedKeyInfos.isEmpty()
+                && pathMismatchInfos.isEmpty()
+                && bucketIndexMismatchInfos.isEmpty()
+                && hashCodeMismatchInfos.isEmpty())) {
+            throw new ValidationException(
+                    getName(),
+                    "One of the test condition hasn't been met. "
+                            + "Conditions: "
+                            + ("stalePathsInfos.isEmpty() = %s, "
+                                            + "nullLeafsInfo.isEmpty() = %s, "
+                                            + "unexpectedKeyInfos.isEmpty() = %s, "
+                                            + "pathMismatchInfos.isEmpty() = %s, "
+                                            + "bucketIndexMismatchInfos.isEmpty() = %s, "
+                                            + "hashCodeMismatchInfos.isEmpty() = %s")
+                                    .formatted(
+                                            stalePathsInfos.isEmpty(),
+                                            nullLeafsInfo.isEmpty(),
+                                            unexpectedKeyInfos.isEmpty(),
+                                            pathMismatchInfos.isEmpty(),
+                                            bucketIndexMismatchInfos.isEmpty(),
+                                            hashCodeMismatchInfos.isEmpty()));
+        }
     }
 
     // ---

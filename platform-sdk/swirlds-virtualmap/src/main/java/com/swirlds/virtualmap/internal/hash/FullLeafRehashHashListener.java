@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import com.swirlds.virtualmap.datasource.VirtualHashRecord;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -18,7 +18,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
 
 /**
  * A {@link VirtualHashListener} that is used during a full leaf rehash of a {@link VirtualMap}.
@@ -34,10 +33,11 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
 
     private static final Logger logger = LogManager.getLogger(FullLeafRehashHashListener.class);
 
+    private final int hashChunkHeight;
     private final VirtualDataSource dataSource;
     private final long firstLeafPath;
     private final long lastLeafPath;
-    private List<VirtualHashRecord> hashes;
+    private List<VirtualHashChunk> hashes;
     private final int flushInterval;
 
     // Flushes are initiated from onNodeHashed(). While a flush is in progress, other nodes
@@ -80,6 +80,7 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
         this.firstLeafPath = firstLeafPath;
         this.lastLeafPath = lastLeafPath;
         this.dataSource = requireNonNull(dataSource);
+        this.hashChunkHeight = dataSource.getHashChunkHeight();
         this.statistics = requireNonNull(statistics);
         this.flushInterval = flushInterval;
     }
@@ -94,12 +95,13 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
      * {@inheritDoc}
      */
     @Override
-    public void onNodeHashed(final long path, final Hash hash) {
+    public void onHashChunkHashed(@NonNull final VirtualHashChunk chunk) {
         assert hashes != null : "onNodeHashed called without onHashingStarted";
-        final List<VirtualHashRecord> dirtyHashesToFlush;
+        final List<VirtualHashChunk> dirtyHashesToFlush;
         synchronized (this) {
-            hashes.add(new VirtualHashRecord(path, hash));
-            if ((hashes.size() >= flushInterval) && flushInProgress.compareAndSet(false, true)) {
+            hashes.add(chunk);
+            if ((hashes.size() * VirtualHashChunk.getChunkSize(hashChunkHeight) >= flushInterval)
+                    && flushInProgress.compareAndSet(false, true)) {
                 dirtyHashesToFlush = hashes;
                 hashes = new ArrayList<>();
             } else {
@@ -113,7 +115,7 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
 
     @Override
     public void onHashingCompleted() {
-        final List<VirtualHashRecord> finalNodesToFlush;
+        final List<VirtualHashChunk> finalNodesToFlush;
         synchronized (this) {
             finalNodesToFlush = hashes;
             hashes = null;
@@ -125,7 +127,7 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
 
     // Since flushes may take quite some time, this method is called outside synchronized blocks,
     // otherwise all hashing tasks would be blocked on listener calls until flush is completed.
-    private void flush(@NonNull final List<VirtualHashRecord> hashesToFlush) {
+    private void flush(@NonNull final List<VirtualHashChunk> hashesToFlush) {
         assert flushInProgress.get() : "Flush in progress flag must be set";
         try {
             logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushing {} hashes", hashesToFlush.size());

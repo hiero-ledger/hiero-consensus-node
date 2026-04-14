@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.reconnect.impl;
 
+import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -770,7 +770,7 @@ class ReconnectControllerTest {
     @Test
     @DisplayName("Controller gracefully stops when interrupted during operations after stop()")
     void controllerGracefullyStopsWhenStopReconnectLoopIsCalledAndThreadIsInterrupted() {
-        final AtomicReference<?> systemExitCalled = new AtomicReference<>();
+        final AtomicReference<Boolean> systemExitCalled = new AtomicReference<>(false);
 
         final ReconnectController controller = createController();
 
@@ -787,12 +787,13 @@ class ReconnectControllerTest {
                 .waitForFinish(LONG_TIMEOUT);
 
         // Wait for system exit to be called
-        assertNull(
-                systemExitCalled.get(),
+        assertEventuallyTrue(
+                () -> !systemExitCalled.get(),
+                LONG_TIMEOUT,
                 "SystemExitUtils.exitSystem should not have been called on expected InterruptedException");
 
         // Verify the thread finished correctly
-        assertFalse(scenario.isControllerAlive());
+        assertEventuallyTrue(() -> !scenario.isControllerAlive(), LONG_TIMEOUT, "Controller should have been stopped");
     }
 
     private static void sleep(long millis) {

@@ -218,8 +218,7 @@ public class ReconnectStateTeacher {
     private void reconnect() throws InterruptedException, IOException {
         statistics.incrementSenderStartTimes();
 
-        connection.getDis().getSyncByteCounter().resetCount();
-        connection.getDos().getSyncByteCounter().resetCount();
+        connection.getDis().byteCounter().getAndReset();
 
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         final TeachingSynchronizer synchronizer = new TeachingSynchronizer(

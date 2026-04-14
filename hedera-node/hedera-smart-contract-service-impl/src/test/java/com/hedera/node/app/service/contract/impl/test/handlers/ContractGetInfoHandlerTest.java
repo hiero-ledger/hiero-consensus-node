@@ -32,9 +32,9 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeComponents;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.swirlds.config.api.Configuration;
@@ -80,9 +80,6 @@ class ContractGetInfoHandlerTest {
     private TokensConfig tokensConfig;
 
     @Mock
-    private LedgerConfig ledgerConfig;
-
-    @Mock
     private StakingConfig stakingConfig;
 
     @Mock
@@ -104,6 +101,7 @@ class ContractGetInfoHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new ContractGetInfoHandler(instantSource, entityIdFactory);
+        lenient().when(context.ledgerId()).thenReturn(Bytes.fromHex("03"));
     }
 
     @Test
@@ -237,7 +235,6 @@ class ContractGetInfoHandlerTest {
     private void mockConfigurationAndStores() {
         when(context.configuration()).thenReturn(configuration);
         when(configuration.getConfigData(TokensConfig.class)).thenReturn(tokensConfig);
-        when(configuration.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         when(configuration.getConfigData(StakingConfig.class)).thenReturn(stakingConfig);
         when(context.createStore(ReadableTokenStore.class)).thenReturn(tokenStore);
         when(context.createStore(ReadableStakingInfoStore.class)).thenReturn(stakingInfoStore);

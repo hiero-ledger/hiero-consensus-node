@@ -45,7 +45,7 @@ class VirtualMapSerializationTests {
     }
 
     public static MerkleDbDataSourceBuilder constructBuilder(final Configuration configuration) {
-        return new MerkleDbDataSourceBuilder(configuration, 10_000, Long.MAX_VALUE);
+        return new MerkleDbDataSourceBuilder(configuration, 10_000);
     }
 
     /**

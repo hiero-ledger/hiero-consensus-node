@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.evm.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -66,7 +65,6 @@ class AtomicEvm50ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceOfV050Opcodes() {
         final var contract = Module05OpcodesExist_CONTRACT;
         return hapiTest(

@@ -22,7 +22,7 @@ public class EntityNumGeneratorImpl implements EntityNumGenerator {
 
     @Override
     public long newEntityNum() {
-        return entityIdStore.incrementAndGet();
+        return entityIdStore.incrementEntityNumAndGet();
     }
 
     @Override

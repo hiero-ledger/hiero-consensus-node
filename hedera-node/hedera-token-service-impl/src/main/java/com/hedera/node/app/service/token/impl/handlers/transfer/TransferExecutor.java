@@ -181,10 +181,19 @@ public class TransferExecutor extends BaseTokenHandler {
             txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
         }
         final boolean hasHooks = HookUtils.hasHookExecutions(replacedOp);
-        final var hookCalls = hasHooks
-                ? hookCallsFactory.from(
-                        transferContext.getHandleContext(), replacedOp, transferContext.getItemizedAssessedFees())
-                : null;
+        final HookCalls hookCalls;
+        if (hasHooks) {
+            // Use OrThrow() on all required fields, catch and propagate NPE as INVALID_HOOK_CALL; other
+            // exception types should not occur and will propagate as a FAIL_INVALID with fees re-charged
+            try {
+                hookCalls = hookCallsFactory.from(
+                        transferContext.getHandleContext(), replacedOp, transferContext.getItemizedAssessedFees());
+            } catch (NullPointerException ignore) {
+                throw new HandleException(INVALID_HOOK_CALL);
+            }
+        } else {
+            hookCalls = null;
+        }
         final var numAttemptedHookCalls = new Counter();
         if (hasHooks) {
             try {
@@ -204,7 +213,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
-                        ctx -> refundHookFee(
+                        (ctx, ignored) -> refundHookFee(
                                 context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
             }
         }
@@ -229,7 +238,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 // for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
-                        ctx -> refundHookFee(
+                        (ctx, ignored) -> refundHookFee(
                                 context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
             }
         }

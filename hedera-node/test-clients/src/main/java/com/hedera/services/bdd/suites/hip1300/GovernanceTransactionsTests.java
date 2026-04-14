@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.UNIQUE_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -24,6 +25,7 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -73,8 +75,16 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 newKeyNamed(PAYER_KEY).shape(LARGE_SIZE_KEY),
                 newKeyNamed(PAYER_KEY2).shape(LARGE_SIZE_KEY),
                 newKeyNamed(SUBMIT_KEY),
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
-                cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER)
+                        .key(PAYER_KEY)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER2)
+                        .key(PAYER_KEY2)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(PAYER)
@@ -89,8 +99,16 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 newKeyNamed(PAYER_KEY).shape(LARGE_SIZE_KEY),
                 newKeyNamed(PAYER_KEY2).shape(LARGE_SIZE_KEY),
                 newKeyNamed(SUBMIT_KEY),
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
-                cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER)
+                        .key(PAYER_KEY)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER2)
+                        .key(PAYER_KEY2)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(SYSTEM_ADMIN)
@@ -221,8 +239,16 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 newKeyNamed(PAYER_KEY).shape(LARGE_SIZE_KEY),
                 newKeyNamed(PAYER_KEY2).shape(LARGE_SIZE_KEY),
                 newKeyNamed(SUBMIT_KEY),
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
-                cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER)
+                        .key(PAYER_KEY)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
+                cryptoCreate(PAYER2)
+                        .key(PAYER_KEY2)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .sigMapPrefixes(TrieSigMapGenerator.withNature(UNIQUE_PREFIXES))
+                        .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(SYSTEM_ADMIN)

@@ -28,7 +28,7 @@ import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.util.StateUtils;
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
+import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -144,7 +144,9 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
      */
     @Override
     public void validate() {
-        ValidationAssertions.requireEqual(0, issuesFound.get(), getName());
+        if (issuesFound.get() != 0) {
+            throw new ValidationException(getName(), String.format("Expected <%d> but was <%d>", 0, issuesFound.get()));
+        }
     }
 
     private void checkEntityUniqueness(long entityId) {

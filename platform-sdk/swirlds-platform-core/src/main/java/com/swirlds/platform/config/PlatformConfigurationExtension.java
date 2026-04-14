@@ -10,6 +10,7 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfigur
 import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
@@ -36,6 +37,7 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
         // Load Configuration Definitions
         return Set.of(
                 MerkleDbConfig.class,
+                ModulesConfig.class,
                 OSHealthCheckConfig.class,
                 PathsConfig.class,
                 PlatformMetricsConfig.class,

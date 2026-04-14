@@ -133,7 +133,7 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Creates a new arbitrary virtual map */
     protected VirtualMap createVirtualMap() {
-        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
+        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100);
         return new VirtualMap(builder, CONFIGURATION);
     }
 

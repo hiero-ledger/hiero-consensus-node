@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,7 +51,8 @@ public class LearnerPullVirtualTreeSendTask {
     private final AtomicLong responsesExpected;
 
     private final AtomicBoolean rootRequestSent;
-    private final AtomicBoolean lastPathSent;
+    private final AtomicInteger tasksDone;
+
     /**
      * Create a thread for sending node requests to the teacher.
      *
@@ -62,9 +64,15 @@ public class LearnerPullVirtualTreeSendTask {
      * 		the output stream, this object is responsible for closing this when finished
      * @param view
      * 		the view to be used when touching the merkle tree
+     * @param rootResponseReceived
+     *      the latch to wait for the root response from the teacher
      * @param responsesExpected
      *      number of responses expected from the teacher, increased by one every time a request
      *      is sent
+     * @param rootRequestSent
+     *      the flag to set when the root request to the teacher has been sent
+     * @param tasksDone
+     *      the counter to decrease, when this task is finished
      */
     public LearnerPullVirtualTreeSendTask(
             final ReconnectConfig reconnectConfig,
@@ -74,14 +82,14 @@ public class LearnerPullVirtualTreeSendTask {
             final CountDownLatch rootResponseReceived,
             final AtomicLong responsesExpected,
             final AtomicBoolean rootRequestSent,
-            final AtomicBoolean lastPathSent) {
+            final AtomicInteger tasksDone) {
         this.workGroup = workGroup;
         this.out = out;
         this.view = view;
         this.rootResponseReceived = rootResponseReceived;
         this.responsesExpected = responsesExpected;
         this.rootRequestSent = rootRequestSent;
-        this.lastPathSent = lastPathSent;
+        this.tasksDone = tasksDone;
 
         this.rootResponseTimeout = reconnectConfig.pullLearnerRootResponseTimeout();
     }
@@ -107,9 +115,11 @@ public class LearnerPullVirtualTreeSendTask {
             while (!Thread.currentThread().isInterrupted()) {
                 final long path = view.getNextPathToSend();
                 if (path == Path.INVALID_PATH) {
-                    if (lastPathSent.compareAndSet(false, true)) {
-                        out.sendAsync(new PullVirtualTreeRequest(path, null));
-                        responsesExpected.incrementAndGet();
+                    // Once the last learner sending task is done, send the teacher a marker
+                    // (final) reconnect request and terminate the async out
+                    if (tasksDone.decrementAndGet() == 0) {
+                        out.sendAsync(new PullVirtualTreeRequest(Path.INVALID_PATH, null));
+                        out.done();
                     }
                     break;
                 }

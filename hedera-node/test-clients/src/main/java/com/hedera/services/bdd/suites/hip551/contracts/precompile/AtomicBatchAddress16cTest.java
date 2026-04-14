@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.contracts.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecContract.VARIANT_16C;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -71,7 +70,6 @@ class AtomicBatchAddress16cTest {
      * TokenMetadataTest
      */
     @HapiTest
-    @Tag(MATS)
     Stream<DynamicTest> atomicTestUpdateMetadata(
             @Contract(contract = "CreateTokenVersioned", creationGas = 5_000_000L, variant = VARIANT_16C)
                     final SpecContract contractTarget,

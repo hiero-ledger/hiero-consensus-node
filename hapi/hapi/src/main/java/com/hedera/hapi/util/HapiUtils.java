@@ -265,6 +265,7 @@ public class HapiUtils {
             case REGISTERED_NODE_CREATE -> HederaFunctionality.REGISTERED_NODE_CREATE;
             case REGISTERED_NODE_UPDATE -> HederaFunctionality.REGISTERED_NODE_UPDATE;
             case REGISTERED_NODE_DELETE -> HederaFunctionality.REGISTERED_NODE_DELETE;
+            case MIGRATION_ROOT_HASH_VOTE -> HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
             case UNSET -> throw new UnknownHederaFunctionality();
         };
     }

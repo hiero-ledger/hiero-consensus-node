@@ -19,7 +19,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -51,8 +50,7 @@ class AsyncInputStreamTest {
 
             final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
 
-            final AsyncOutputStream out =
-                    new AsyncOutputStream(streams.getLearnerOutput(), workGroup, in::isAlive, reconnectConfig);
+            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
 
             in.start();
             out.start();
@@ -68,6 +66,7 @@ class AsyncInputStreamTest {
             // Send reconnect completion marker
             streams.getLearnerOutput().writeInt(-1);
             streams.getLearnerOutput().flush();
+            out.done();
 
             workGroup.waitForTermination();
         }
@@ -82,8 +81,7 @@ class AsyncInputStreamTest {
 
             final AsyncInputStream in = new AsyncInputStream(streams.getTeacherInput(), workGroup, reconnectConfig);
 
-            final AsyncOutputStream out =
-                    new AsyncOutputStream(streams.getLearnerOutput(), workGroup, in::isAlive, reconnectConfig);
+            final AsyncOutputStream out = new AsyncOutputStream(streams.getLearnerOutput(), workGroup, reconnectConfig);
 
             in.start();
             out.start();
@@ -99,6 +97,7 @@ class AsyncInputStreamTest {
             // Send reconnect completion marker
             streams.getLearnerOutput().writeInt(-1);
             streams.getLearnerOutput().flush();
+            out.done();
 
             workGroup.waitForTermination();
         }
@@ -120,9 +119,8 @@ class AsyncInputStreamTest {
         // Block all bytes from this stream, data can only sit in async stream buffer
         blockingOut.lock();
 
-        final AtomicBoolean keepRunning = new AtomicBoolean(true);
-        final AsyncOutputStream out = new AsyncOutputStream(
-                new SerializableDataOutputStream(blockingOut), workGroup, keepRunning::get, reconnectConfig);
+        final AsyncOutputStream out =
+                new AsyncOutputStream(new SerializableDataOutputStream(blockingOut), workGroup, reconnectConfig);
 
         out.start();
 
@@ -139,7 +137,6 @@ class AsyncInputStreamTest {
                             break;
                         }
                     }
-                    keepRunning.set(false);
                 })
                 .setThreadName("output-thread")
                 .build();
@@ -158,6 +155,8 @@ class AsyncInputStreamTest {
         blockingOut.unlock();
 
         assertEventuallyEquals(count, messagesSent::get, Duration.ofSeconds(5), "all messages should have been sent");
+
+        out.done();
 
         workGroup.waitForTermination();
 
@@ -254,7 +253,7 @@ class AsyncInputStreamTest {
                     new StandardWorkGroup(getStaticThreadManager(), "input-stream-abort-deadlock", null);
 
             final AsyncOutputStream teacherOut =
-                    new AsyncOutputStream(pairedStreams.getTeacherOutput(), workGroup, () -> true, reconnectConfig);
+                    new AsyncOutputStream(pairedStreams.getTeacherOutput(), workGroup, reconnectConfig);
 
             final AsyncInputStream learnerIn =
                     new AsyncInputStream(pairedStreams.getLearnerInput(), workGroup, reconnectConfig);

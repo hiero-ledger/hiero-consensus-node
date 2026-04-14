@@ -5,7 +5,7 @@ import static com.hedera.statevalidation.validator.RehashValidator.REHASH_GROUP;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.hedera.statevalidation.util.ConfigUtils;
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
+import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
@@ -89,6 +89,9 @@ public class RootHashValidator implements Validator {
             }
         }
 
-        ValidationAssertions.requireEqual(expectedRootHashLine, actualRootHashLine, getName());
+        if (!java.util.Objects.equals(expectedRootHashLine, actualRootHashLine)) {
+            throw new ValidationException(
+                    getName(), String.format("Expected <%s> but was <%s>", expectedRootHashLine, actualRootHashLine));
+        }
     }
 }

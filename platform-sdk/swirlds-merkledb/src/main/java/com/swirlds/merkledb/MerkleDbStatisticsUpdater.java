@@ -3,7 +3,6 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 
-import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileReader;
@@ -69,15 +68,12 @@ public class MerkleDbStatisticsUpdater {
      * @return hashes store file size, Mb
      */
     int updateHashesStoreFileStats(final MerkleDbDataSource dataSource) {
-        if (dataSource.getHashStoreDisk() != null) {
-            final LongSummaryStatistics internalHashesFileSizeStats =
-                    dataSource.getHashStoreDisk().getFilesSizeStatistics();
-            statistics.setHashesStoreFileCount((int) internalHashesFileSizeStats.getCount());
-            final int fileSizeInMb = (int) (internalHashesFileSizeStats.getSum() * BYTES_TO_MEBIBYTES);
-            statistics.setHashesStoreFileSizeMb(fileSizeInMb);
-            return fileSizeInMb;
-        }
-        return 0;
+        final LongSummaryStatistics internalHashesFileSizeStats =
+                dataSource.getHashChunkStore().getFilesSizeStatistics();
+        statistics.setHashesStoreFileCount((int) internalHashesFileSizeStats.getCount());
+        final int fileSizeInMb = (int) (internalHashesFileSizeStats.getSum() * BYTES_TO_MEBIBYTES);
+        statistics.setHashesStoreFileSizeMb(fileSizeInMb);
+        return fileSizeInMb;
     }
 
     /**
@@ -87,7 +83,7 @@ public class MerkleDbStatisticsUpdater {
      */
     private int updateLeavesStoreFileStats(final MerkleDbDataSource dataSource) {
         final LongSummaryStatistics leafDataFileSizeStats =
-                dataSource.getPathToKeyValue().getFilesSizeStatistics();
+                dataSource.getKeyValueStore().getFilesSizeStatistics();
         statistics.setLeavesStoreFileCount((int) leafDataFileSizeStats.getCount());
         final int fileSizeInMb = (int) (leafDataFileSizeStats.getSum() * BYTES_TO_MEBIBYTES);
         statistics.setLeavesStoreFileSizeMb(fileSizeInMb);
@@ -124,16 +120,9 @@ public class MerkleDbStatisticsUpdater {
      */
     void updateOffHeapStats(final MerkleDbDataSource dataSource) {
         int totalOffHeapMemoryConsumption = updateOffHeapStat(
-                        dataSource.getPathToDiskLocationInternalNodes(), statistics::setOffHeapHashesIndexMb)
-                + updateOffHeapStat(dataSource.getPathToDiskLocationLeafNodes(), statistics::setOffHeapLeavesIndexMb);
-        if (dataSource.getKeyToPath() != null) {
-            totalOffHeapMemoryConsumption += updateOffHeapStat(
-                    (OffHeapUser) dataSource.getKeyToPath(), statistics::setOffHeapObjectKeyBucketsIndexMb);
-        }
-        if (dataSource.getHashStoreRam() != null) {
-            totalOffHeapMemoryConsumption +=
-                    updateOffHeapStat((OffHeapUser) dataSource.getHashStoreRam(), statistics::setOffHeapHashesListMb);
-        }
+                        dataSource.getIdToDiskLocationHashChunks(), statistics::setOffHeapHashesIndexMb)
+                + updateOffHeapStat(dataSource.getPathToDiskLocationLeafNodes(), statistics::setOffHeapLeavesIndexMb)
+                + updateOffHeapStat(dataSource.getKeyToPath(), statistics::setOffHeapObjectKeyBucketsIndexMb);
         statistics.setOffHeapDataSourceMb(totalOffHeapMemoryConsumption);
     }
 
@@ -170,16 +159,6 @@ public class MerkleDbStatisticsUpdater {
     /** Increments count of hashes written during a flush*/
     void countFlushHashesWritten() {
         statistics.countFlushHashesWritten(1);
-    }
-
-    private static int updateOffHeapStat(final LongList longList, final IntConsumer updateFunction) {
-        if (longList instanceof OffHeapUser longListOffHeap) {
-            final int result = (int) (longListOffHeap.getOffHeapConsumption() * BYTES_TO_MEBIBYTES);
-            updateFunction.accept(result);
-            return result;
-        } else {
-            return 0;
-        }
     }
 
     private static int updateOffHeapStat(final OffHeapUser offHeapUser, final IntConsumer updateFunction) {

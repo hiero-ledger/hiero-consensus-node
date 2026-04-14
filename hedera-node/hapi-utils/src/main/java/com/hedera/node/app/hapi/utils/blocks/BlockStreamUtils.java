@@ -56,6 +56,7 @@ public final class BlockStreamUtils {
             case STATE_ID_ROSTER_STATE -> "RosterService.ROSTER_STATE";
             case STATE_ID_ROSTERS -> "RosterService.ROSTERS";
             case STATE_ID_ENTITY_COUNTS -> "EntityIdService.ENTITY_COUNTS";
+            case STATE_ID_HIGHEST_NODE_ID -> "EntityIdService.HIGHEST_NODE_ID";
             case STATE_ID_TRANSACTION_RECEIPTS -> "RecordCache.TRANSACTION_RECEIPTS";
             case STATE_ID_SCHEDULES_BY_EQUALITY -> "ScheduleService.SCHEDULES_BY_EQUALITY";
             case STATE_ID_SCHEDULES_BY_EXPIRY_SEC -> "ScheduleService.SCHEDULES_BY_EXPIRY_SEC";
@@ -86,6 +87,7 @@ public final class BlockStreamUtils {
             case STATE_ID_ACTIVE_PROOF_CONSTRUCTION -> "HistoryService.ACTIVE_PROOF_CONSTRUCTION";
             case STATE_ID_NEXT_PROOF_CONSTRUCTION -> "HistoryService.NEXT_PROOF_CONSTRUCTION";
             case STATE_ID_HISTORY_SIGNATURES -> "HistoryService.HISTORY_SIGNATURES";
+            case STATE_ID_WRAPS_PROVING_KEY_HASH -> "HistoryService.WRAPS_PROVING_KEY_HASH";
             case STATE_ID_PROOF_VOTES -> "HistoryService.PROOF_VOTES";
             case STATE_ID_WRAPS_MESSAGE_HISTORIES -> "HistoryService.WRAPS_MESSAGE_HISTORIES";
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
@@ -117,6 +119,7 @@ public final class BlockStreamUtils {
             case HISTORY_PROOF_CONSTRUCTION_VALUE -> singletonUpdateChange.historyProofConstructionValueOrThrow();
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
             case NODE_PAYMENTS_VALUE -> singletonUpdateChange.nodePaymentsValueOrThrow();
+            case NODE_ID_VALUE -> singletonUpdateChange.nodeIdValueOrThrow();
         };
     }
 

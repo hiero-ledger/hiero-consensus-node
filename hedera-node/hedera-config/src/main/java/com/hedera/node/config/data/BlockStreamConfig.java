@@ -71,7 +71,10 @@ public record BlockStreamConfig(
         int blockFileBufferInnerSizeKb,
 
         @ConfigProperty(defaultValue = "256") @Min(64) @NetworkProperty
-        int blockFileBufferGzipSizeKb) {
+        int blockFileBufferGzipSizeKb,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean enableCutover) {
 
     /**
      * Whether to stream to block nodes.
