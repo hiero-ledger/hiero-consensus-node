@@ -17,6 +17,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.TokenAssociation;
+import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.ParseException;
@@ -292,7 +294,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
                             final Bytes rawKey =
-                                    readOneOfPayload(input, input.position() + messageLength, "MapChangeKey");
+                                    readMapKeyPayload(stateId, input, input.position() + messageLength);
                             mapKeyAsStateKey = kvKey(stateId, rawKey);
                         }
                     }
@@ -326,7 +328,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
                             final Bytes rawKey =
-                                    readOneOfPayload(input, input.position() + messageLength, "MapChangeKey");
+                                    readMapKeyPayload(stateId, input, input.position() + messageLength);
                             mapKeyAsStateKey = kvKey(stateId, rawKey);
                         }
                     }
@@ -393,6 +395,45 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
             }
             if (payload == null) {
                 throw new IllegalStateException(description + " payload missing");
+            }
+            return payload;
+        }
+
+        /**
+         * Most block-stream key payloads are already byte-compatible with the state key bytes stored in the
+         * VirtualMap. Token relationship keys are the important exception: block stream uses TokenAssociation
+         * while state stores EntityIDPair, whose field ordering is different.
+         */
+        private static Bytes readMapKeyPayload(
+                final int stateId, @NonNull final ReadableSequentialData input, final long endPosition) {
+            Bytes payload = null;
+            Integer fieldNumber = null;
+            while (input.position() < endPosition) {
+                final int tag = input.readVarInt(false);
+                final var wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
+                if (payload == null && wireType == ProtoConstants.WIRE_TYPE_DELIMITED) {
+                    fieldNumber = tag >>> ProtoParserTools.TAG_FIELD_OFFSET;
+                    final int length = input.readVarInt(false);
+                    payload = input.readBytes(length);
+                } else {
+                    skipField(input, wireType);
+                }
+            }
+            if (payload == null) {
+                throw new IllegalStateException("MapChangeKey payload missing");
+            }
+            return normalizeMapKeyPayload(stateId, fieldNumber, payload);
+        }
+
+        private static Bytes normalizeMapKeyPayload(final int stateId, final int fieldNumber, @NonNull final Bytes payload) {
+            if (stateId == 9 && fieldNumber == 2) {
+                try {
+                    final var tokenAssociation = TokenAssociation.PROTOBUF.parse(payload);
+                    return EntityIDPair.PROTOBUF.toBytes(
+                            new EntityIDPair(tokenAssociation.accountId(), tokenAssociation.tokenId()));
+                } catch (ParseException e) {
+                    throw new IllegalStateException("Failed to normalize token relationship key", e);
+                }
             }
             return payload;
         }
