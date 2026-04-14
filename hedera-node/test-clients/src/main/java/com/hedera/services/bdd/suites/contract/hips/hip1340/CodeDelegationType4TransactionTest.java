@@ -245,11 +245,6 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                                     recordWith()
                                             .status(ResponseCodeEnum.SUCCESS)
                                             .targetAccountId(PAYER),
-                                    // TODO(Pectra): something is off; figure out why we now have two child records for
-                                    // payer?
-                                    recordWith()
-                                            .status(ResponseCodeEnum.SUCCESS)
-                                            .targetAccountId(PAYER),
                                     recordWith()
                                             .targetAccountId(DELEGATING_ACCOUNT_ID)
                                             .status(ResponseCodeEnum.SUCCESS))
@@ -301,11 +296,6 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                                     recordWith()
                                             .status(ResponseCodeEnum.SUCCESS)
                                             .targetAccountId(PAYER),
-                                    // TODO(Pectra): something is off; figure out why we now have two child records for
-                                    // payer?
-                                    recordWith()
-                                            .status(ResponseCodeEnum.SUCCESS)
-                                            .targetAccountId(PAYER),
                                     recordWith()
                                             .targetAccountId(DELEGATING_ACCOUNT_ID_1)
                                             .status(ResponseCodeEnum.SUCCESS),
@@ -316,6 +306,37 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                                             .targetAccountId(DELEGATING_ACCOUNT_ID_3)
                                             .status(ResponseCodeEnum.SUCCESS))
                             .logged());
+        }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> testDelegationSetToExistingAccountWithRevertingCall() {
+        return hapiTest(withOpContext((spec, opLog) -> {
+            deployEvmContract(spec, REVERTING_CONTRACT);
+            createPayerAccountWithAlias(spec);
+            final var delegatingAccount = createEvmAccountWithKey(spec);
+            allRunFor(spec, sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
+                    .signingWith(PAYER_KEY)
+                    .payingWith(RELAYER)
+                    .type(EthTransactionType.EIP7702)
+                    .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), delegatingAccount.name())
+                    .gasLimit(2_000_000L)
+                    .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
+                    .via(DELEGATION_SET)
+                    .exposingGasTo((s, gas) -> {
+                        final var numDelegations = 1;
+                        final var expectedGas = 21_000L /* intrinsic gas base fee */
+                                + 64 /* payload cost */
+                                + numDelegations * 25_000L /* code delegation fee with new account creation */
+                                + 408 /* call costs in gas */;
+                        assertEquals(expectedGas, gas);
+                    })));
+            allRunFor(
+                    spec,
+                    getAliasedAccountInfo(delegatingAccount.name())
+                            .hasDelegationAddress(DELEGATION_TARGET.get())
+                            .exposingEthereumNonceTo(nonce -> assertEquals(1, nonce))
+                            .isNotHollow());
         }));
     }
 

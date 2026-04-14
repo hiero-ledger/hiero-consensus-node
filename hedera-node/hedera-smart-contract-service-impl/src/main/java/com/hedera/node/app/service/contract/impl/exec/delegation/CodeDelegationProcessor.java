@@ -172,6 +172,7 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
+            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress);
             if (!proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(
                     authorityAddress, authorizer.publicKey(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
@@ -207,6 +208,7 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
+            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress);
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(CodeDelegationResult.EntryIgnoreReason.Other);
@@ -246,14 +248,17 @@ public record CodeDelegationProcessor(long chainId) {
     }
 
     private static class CodeDelegationProcessingState {
+        private final long initialLazyCreationGasAvailable;
         private long remainingLazyCreationGasAvailable;
         private long totalLazyCreationGasCharged;
         private int numAuthorizationsEligibleForRefund;
         private int successfullyProcessedAuthorizations;
         private final Map<CodeDelegationResult.EntryIgnoreReason, Integer> numIgnoredEntriesByReason = new HashMap<>();
         private final List<Address> accessedAddresses = new ArrayList<>();
+        private final List<CodeDelegationResult.ValidDelegation> validDelegations = new ArrayList<>();
 
         CodeDelegationProcessingState(final long lazyCreationGasAvailable) {
+            this.initialLazyCreationGasAvailable = lazyCreationGasAvailable;
             this.remainingLazyCreationGasAvailable = lazyCreationGasAvailable;
         }
 
@@ -282,13 +287,20 @@ public record CodeDelegationProcessor(long chainId) {
             accessedAddresses.add(accessedAddress);
         }
 
+        void addValidDelegation(byte[] authorityEcdsaPublicKey, Address authorityAddress, Address delegationTarget) {
+            validDelegations.add(new CodeDelegationResult.ValidDelegation(
+                    Bytes.wrap(authorityEcdsaPublicKey), authorityAddress, delegationTarget));
+        }
+
         public CodeDelegationResult toResult() {
             return new CodeDelegationResult(
+                    initialLazyCreationGasAvailable,
                     totalLazyCreationGasCharged,
                     numAuthorizationsEligibleForRefund,
                     successfullyProcessedAuthorizations,
                     numIgnoredEntriesByReason,
-                    accessedAddresses);
+                    accessedAddresses,
+                    validDelegations);
         }
     }
 }

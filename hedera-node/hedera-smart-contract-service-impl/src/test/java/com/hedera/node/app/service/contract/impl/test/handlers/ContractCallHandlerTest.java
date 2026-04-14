@@ -129,6 +129,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
+                null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
         given(component.hederaOperations()).willReturn(hederaOperations);
@@ -159,6 +160,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                null,
                 null,
                 null,
                 null);

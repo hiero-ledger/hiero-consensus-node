@@ -229,7 +229,7 @@ class HandleHederaNativeOperationsTest {
         given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
         given(context.dispatch(assertArg(options -> {
                     assertEquals(synthLazyCreate, options.body());
-                    assertEquals(TransactionCategory.PRECEDING, options.category());
+                    assertEquals(TransactionCategory.CHILD, options.category());
                 })))
                 .willReturn(cryptoCreateRecordBuilder);
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
