@@ -312,7 +312,7 @@ class OrphanBufferTests {
         assertThat(orphanBuffer.getCurrentOrphanCount()).isEqualTo(0);
         assertThat(emittedEvents.size()).isEqualTo(intakeEvents.size());
 
-        // Verify that when nGen is assigned such that children always have higher values than parents by
+        // Verify that when sequence number is assigned such that children always have higher values than parents by
         // shuffling the list, then sorting by ngen and checking that parents are always before children.
         Collections.shuffle(emittedEvents, random);
         emittedEvents.sort(Comparator.comparingLong(PlatformEvent::getSequenceNumber));
@@ -328,7 +328,7 @@ class OrphanBufferTests {
                     // should always be encountered before the child.
                     assertThat(parentHashes)
                             .withFailMessage(
-                                    "Parent event {} was not before the child, indicating that child {} does not have a higher nGen value.",
+                                    "Parent event {} was not before the child, indicating that child {} does not have a higher sequence value.",
                                     Mnemonics.generateMnemonic(parentDescriptor.hash()),
                                     Mnemonics.generateMnemonic(event.getHash()))
                             .contains(parentDescriptor.hash());

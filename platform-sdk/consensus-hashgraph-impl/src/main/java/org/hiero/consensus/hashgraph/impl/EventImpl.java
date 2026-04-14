@@ -532,7 +532,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * Get the sequence number of this event, which determines the order in which this event was processed.
+     * Get the consensus sequence number of this event, which indicates the order in which this event was processed in consensus.
      *
      * @return the sequence number of this event
      */
@@ -541,7 +541,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * Set the sequence number of this event, which determines the order in which this event was processed by consensus.
+     * Set the sequence number of this event, which indicates the order in which this event was processed by consensus.
      *
      * @param consensusSequence the sequence number to set
      */
