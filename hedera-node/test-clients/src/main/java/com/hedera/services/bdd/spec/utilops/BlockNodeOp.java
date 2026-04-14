@@ -215,42 +215,26 @@ public class BlockNodeOp extends UtilOp {
                 controller.setSendBlockAcknowledgementsEnabled(nodeIndex, sendBlockAcknowledgementsEnabled);
                 break;
             case ASSERT_BLOCK_HAS_RECORD_FILE:
-                final boolean hasRecordFile = controller.hasReceivedRecordFileItem(nodeIndex, blockNumber);
-                if (!hasRecordFile) {
-                    final String errorMsg = String.format(
+                if (!controller.hasReceivedRecordFileItem(nodeIndex, blockNumber)) {
+                    throw new AssertionError(String.format(
                             "No RecordFileItem received for block %d by simulator %d. Received RecordFileItems for blocks: %s",
                             blockNumber,
                             nodeIndex,
-                            controller.getAllRecordFileItems(nodeIndex).keySet());
-                    log.error(errorMsg);
-                    throw new AssertionError(errorMsg);
+                            controller.getAllRecordFileItems(nodeIndex).keySet()));
                 }
-                log.info(
-                        "Successfully verified that a RecordFileItem has been received for block {} by simulator {}",
-                        blockNumber,
-                        nodeIndex);
                 break;
             case ASSERT_NO_RECORD_FILES_IN_RANGE:
                 for (long n = rangeStart; n <= rangeEnd; n++) {
                     if (controller.hasReceivedRecordFileItem(nodeIndex, n)) {
-                        final String errorMsg = String.format(
+                        throw new AssertionError(String.format(
                                 "Unexpected RecordFileItem received for block %d by simulator %d in range [%d, %d]",
-                                n, nodeIndex, rangeStart, rangeEnd);
-                        log.error(errorMsg);
-                        throw new AssertionError(errorMsg);
+                                n, nodeIndex, rangeStart, rangeEnd));
                     }
                 }
-                log.info(
-                        "Successfully verified that no RecordFileItems have been received for blocks in [{}, {}] by simulator {}",
-                        rangeStart,
-                        rangeEnd,
-                        nodeIndex);
                 break;
             case EXPOSE_RECORD_FILE_ITEMS:
-                final Map<Long, RecordFileItem> items = controller.getAllRecordFileItems(nodeIndex);
-                log.info("Exposing {} RecordFileItems from simulator {}", items.size(), nodeIndex);
                 if (recordFileItemsConsumer != null) {
-                    recordFileItemsConsumer.accept(items);
+                    recordFileItemsConsumer.accept(controller.getAllRecordFileItems(nodeIndex));
                 }
                 break;
             default:
@@ -918,8 +902,7 @@ public class BlockNodeOp extends UtilOp {
         private final long fromInclusive;
         private final long toInclusive;
 
-        AssertNoRecordFilesInRangeBuilder(
-                final long nodeIndex, final long fromInclusive, final long toInclusive) {
+        AssertNoRecordFilesInRangeBuilder(final long nodeIndex, final long fromInclusive, final long toInclusive) {
             this.nodeIndex = nodeIndex;
             this.fromInclusive = fromInclusive;
             this.toInclusive = toInclusive;
@@ -954,8 +937,7 @@ public class BlockNodeOp extends UtilOp {
         private final long nodeIndex;
         private final Consumer<Map<Long, RecordFileItem>> consumer;
 
-        ExposeRecordFileItemsBuilder(
-                final long nodeIndex, final Consumer<Map<Long, RecordFileItem>> consumer) {
+        ExposeRecordFileItemsBuilder(final long nodeIndex, final Consumer<Map<Long, RecordFileItem>> consumer) {
             this.nodeIndex = nodeIndex;
             this.consumer = consumer;
         }

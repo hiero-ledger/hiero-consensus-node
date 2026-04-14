@@ -27,14 +27,8 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Tests that the consensus node streams Wrapped Record Block (WRB) items to a block node when the
- * {@code blockStream.streamWrappedRecordBlocks} feature flag is enabled, and that no WRB items are
- * streamed when it is disabled.
- *
- * <p>Each block streamed in WRB mode carries a {@link RecordFileItem} (field {@code record_file} of
- * {@code BlockItem}) whose {@code record_file_contents.block_number} matches the block number of the
- * carrying block; the block SHALL NOT also contain preview-block content items (event transactions,
- * transaction results/outputs, state changes). See {@code block/stream/block_item.proto}.
+ * Verifies the consensus node streams Wrapped Record Block (WRB) items to a block node iff
+ * {@code blockStream.streamWrappedRecordBlocks=true}.
  */
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
@@ -51,24 +45,14 @@ public class WrbStreamingSuite {
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            // writerMode=FILE is the production WRB configuration (preview
-                            // blocks go to disk only; only WRBs stream over gRPC). If the main
-                            // stream also used gRPC (FILE_AND_GRPC), its already-closed block
-                            // state would collide with WRB openBlock calls in BlockBufferService
-                            // (BlockBufferService#openBlock returns early for closed blocks),
-                            // silently swallowing the WRB RecordFileItem. See epic sub-issue
-                            // hiero-ledger/hiero-consensus-node#24775 which will flip this
-                            // default.
+                            // writerMode=FILE is the production WRB topology (preview blocks to
+                            // disk, only WRBs over gRPC); see #24775.
                             "blockStream.writerMode", "FILE",
                             "blockStream.streamWrappedRecordBlocks", "true",
-                            // Required for BlockRecordManagerImpl to walk the WRB emission path
-                            // (see BlockRecordManagerImpl#startUserTransaction line 411).
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
-                            // Forces votingBlockNumInitialized() == true so emission kicks in
-                            // without waiting for migration voting to complete (a fresh subprocess
-                            // network has no prior record streams, so no local migration vote
-                            // would ever be submitted). Same pattern used by the WRB unit tests
-                            // in BlockRecordManagerImplWrappedRecordFileBlockHashesTest.
+                            // Forces votingBlockNumInitialized() so WRB emission fires without
+                            // waiting for migration voting; matches the unit-test pattern in
+                            // BlockRecordManagerImplWrappedRecordFileBlockHashesTest.
                             "blockStream.jumpstart.blockNum", "1"
                         })
             })
@@ -76,15 +60,11 @@ public class WrbStreamingSuite {
     final Stream<DynamicTest> wrbHappyPathSingleNode() {
         final AtomicReference<Map<Long, RecordFileItem>> seenRef = new AtomicReference<>();
         return hapiTest(
-                // Wait longer than the 10-block voting deadline so live wrapping has time to
-                // kick in and emit a few WRB blocks.
                 waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 blockNode(0).exposingRecordFileItems(seenRef::set),
                 doingContextual(spec -> {
                     final Map<Long, RecordFileItem> seen = requireNonNull(seenRef.get());
-                    assertFalse(
-                            seen.isEmpty(),
-                            "expected at least one RecordFileItem to be streamed to the simulator");
+                    assertFalse(seen.isEmpty(), "expected at least one RecordFileItem to be streamed to the simulator");
                     final long first = seen.keySet().stream().min(Long::compare).orElseThrow();
                     final long last = seen.keySet().stream().max(Long::compare).orElseThrow();
                     for (long n = first; n <= last; n++) {
@@ -113,9 +93,8 @@ public class WrbStreamingSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE",
-                            // liveWrite + jumpstart on so the WRB build path runs, but the
-                            // dedicated streaming flag is off: the node should still compute WRB
-                            // hashes locally but never forward RecordFileItems to the block node.
+                            // WRB build path on but streaming flag off: items computed locally,
+                            // never forwarded to the block node.
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
                             "blockStream.jumpstart.blockNum", "1",
                             "blockStream.streamWrappedRecordBlocks", "false"
