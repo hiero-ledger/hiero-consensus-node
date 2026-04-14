@@ -152,19 +152,7 @@ public class AsyncOutputStream {
      * @throws InterruptedException if interrupted while waiting to enqueue
      */
     public void sendAsync(@NonNull final byte[] messageBytes) throws InterruptedException {
-        enqueue(messageBytes);
-    }
-
-    /**
-     * Enqueues an item into the stream queue. Blocks until space is available or the
-     * configured timeout expires.
-     *
-     * @param item the item to enqueue
-     * @throws InterruptedException if interrupted while waiting
-     * @throws MerkleSynchronizationException if the operation times out
-     */
-    private void enqueue(final Object item) throws InterruptedException {
-        final boolean success = streamQueue.offer(item, timeout.toMillis(), TimeUnit.MILLISECONDS);
+        final boolean success = streamQueue.offer(messageBytes, timeout.toMillis(), TimeUnit.MILLISECONDS);
         if (!success) {
             try {
                 outputStream.close();
@@ -205,7 +193,8 @@ public class AsyncOutputStream {
 
     /**
      * Writes a single length-prefixed message to the underlying output stream. Called on
-     * the writer thread for each dequeued message.
+     * the <b>writer thread</b> for each dequeued message. This method is helpful for testing
+     * when it comes to simulation of network latency.
      *
      * @param messageBytes the serialized message bytes
      * @throws IOException if writing to the stream fails
