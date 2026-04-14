@@ -182,7 +182,7 @@ class GarbageScannerDeadAliveRatioTest {
             final DataFileCollection fileCollection = mock(DataFileCollection.class);
             when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file));
 
-            final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "ObjectKeyToPath", true);
+            final GarbageScanner scanner = new GarbageScanner(index, fileCollection, true);
 
             final IndexedGarbageFileStats stats = scanner.scan();
 
@@ -209,7 +209,7 @@ class GarbageScannerDeadAliveRatioTest {
             final DataFileCollection fileCollection = mock(DataFileCollection.class);
             when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file));
 
-            final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "ObjectKeyToPath", true);
+            final GarbageScanner scanner = new GarbageScanner(index, fileCollection, true);
 
             final IndexedGarbageFileStats stats = scanner.scan();
 
@@ -358,7 +358,7 @@ class GarbageScannerDeadAliveRatioTest {
 
             final LongList index = emptyIndex();
 
-            final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "test");
+            final GarbageScanner scanner = new GarbageScanner(index, fileCollection);
 
             final IndexedGarbageFileStats stats = scanner.scan();
             assertEquals(0, stats.garbageFileStats().length);
@@ -416,7 +416,7 @@ class GarbageScannerDeadAliveRatioTest {
             final DataFileCollection fileCollection = mock(DataFileCollection.class);
             when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(normalFile, flaggedFile));
 
-            final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "test");
+            final GarbageScanner scanner = new GarbageScanner(index, fileCollection);
 
             final IndexedGarbageFileStats stats = scanner.scan();
 
@@ -439,7 +439,7 @@ class GarbageScannerDeadAliveRatioTest {
             final DataFileCollection fileCollection = mock(DataFileCollection.class);
             when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file1, file2));
 
-            final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "test");
+            final GarbageScanner scanner = new GarbageScanner(index, fileCollection);
 
             final IndexedGarbageFileStats stats = scanner.scan();
             assertEquals(0, stats.garbageFileStats().length);
@@ -453,7 +453,7 @@ class GarbageScannerDeadAliveRatioTest {
     private static GarbageScanner createScanner(final LongList index, final List<DataFileReader> files) {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(files);
-        return new GarbageScanner(index, fileCollection, "test");
+        return new GarbageScanner(index, fileCollection);
     }
 
     private static LongList emptyIndex() {
