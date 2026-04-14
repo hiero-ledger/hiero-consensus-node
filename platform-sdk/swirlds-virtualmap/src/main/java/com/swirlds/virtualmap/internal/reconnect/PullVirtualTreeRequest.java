@@ -88,7 +88,9 @@ public record PullVirtualTreeRequest(
      * @param out the sequential data to write to
      */
     public void writeTo(@NonNull final WritableSequentialData out) {
-        writeLong(out, FIELD_PULLREQUEST_PATH, path);
+        if (path != 0) {
+            writeLong(out, FIELD_PULLREQUEST_PATH, path);
+        }
         if (hash != null) {
             try {
                 writeBytes(out, FIELD_PULLREQUEST_HASH, hash.getBytes(), false);

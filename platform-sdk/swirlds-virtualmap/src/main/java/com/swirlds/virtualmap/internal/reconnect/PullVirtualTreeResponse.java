@@ -124,7 +124,9 @@ public record PullVirtualTreeResponse(
      * @param out the sequential data to write to
      */
     public void writeTo(@NonNull final WritableSequentialData out) {
-        writeLong(out, FIELD_PULLRESPONSE_PATH, path);
+        if (path != 0) {
+            writeLong(out, FIELD_PULLRESPONSE_PATH, path);
+        }
         writeBoolean(out, FIELD_PULLRESPONSE_IS_CLEAN, isClean);
         // First/last leaf paths - only for root
         if (path == Path.ROOT_PATH) {
@@ -137,9 +139,7 @@ public record PullVirtualTreeResponse(
                 final Bytes keyBytes = leafData.keyBytes();
                 writeBytes(out, FIELD_PULLRESPONSE_KEY_BYTES, keyBytes, false);
                 final Bytes valueBytes = leafData.valueBytes();
-                if (valueBytes != null) {
-                    writeBytes(out, FIELD_PULLRESPONSE_VALUE_BYTES, valueBytes, false);
-                }
+                writeBytes(out, FIELD_PULLRESPONSE_VALUE_BYTES, valueBytes, false);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

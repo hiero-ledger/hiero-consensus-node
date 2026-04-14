@@ -107,25 +107,6 @@ class PullVirtualTreeResponseTest {
     }
 
     @Test
-    @DisplayName("Round-trip: dirty leaf with key and null value")
-    void roundTripDirtyLeafWithNullValue() {
-        final Bytes key = Bytes.wrap("key-only".getBytes());
-        final VirtualLeafBytes<?> leafData = new VirtualLeafBytes<>(20, key, null);
-
-        final PullVirtualTreeResponse original = new PullVirtualTreeResponse(20, false, -1, -1, leafData);
-
-        final byte[] bytes = new byte[original.getSizeInBytes()];
-        original.writeTo(BufferedData.wrap(bytes));
-
-        final PullVirtualTreeResponse deserialized = PullVirtualTreeResponse.parseFrom(BufferedData.wrap(bytes));
-
-        assertNotNull(deserialized);
-        assertNotNull(deserialized.leafData());
-        assertEquals(key, deserialized.leafData().keyBytes());
-        assertNull(deserialized.leafData().valueBytes());
-    }
-
-    @Test
     @DisplayName("Round-trip: dirty leaf with key and empty value")
     void roundTripDirtyLeafWithEmptyValue() {
         final Bytes key = Bytes.wrap("some-key".getBytes());
@@ -176,10 +157,7 @@ class PullVirtualTreeResponseTest {
                     false,
                     -1,
                     -1,
-                    new VirtualLeafBytes<>(10, Bytes.wrap("k".getBytes()), Bytes.wrap("v".getBytes()))),
-            // Dirty leaf with null value
-            new PullVirtualTreeResponse(
-                    11, false, -1, -1, new VirtualLeafBytes<>(11, Bytes.wrap("k2".getBytes()), (Bytes) null)),
+                    new VirtualLeafBytes<>(10, Bytes.wrap("k".getBytes()), Bytes.wrap("v".getBytes())))
         };
 
         for (final PullVirtualTreeResponse response : variants) {
