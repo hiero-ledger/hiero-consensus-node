@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.state.DispatchingEvmFram
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.pbj.runtime.OneOf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -34,9 +35,9 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
  */
 public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount {
     protected final AccountID accountID;
-    protected final EvmFrameState state;
+    protected final DispatchingEvmFrameState state;
 
-    protected AbstractProxyEvmAccount(final AccountID accountID, @NonNull final EvmFrameState state) {
+    protected AbstractProxyEvmAccount(final AccountID accountID, @NonNull DispatchingEvmFrameState state) {
         this.accountID = accountID;
         this.state = state;
     }
@@ -117,11 +118,10 @@ public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount 
 
     @Override
     public @NonNull ContractID hederaContractId() {
-        return ContractID.newBuilder()
-                .shardNum(accountID.shardNum())
-                .realmNum(accountID.realmNum())
-                .contractNum(accountID.accountNumOrThrow())
-                .build();
+        long shard = accountID.shardNum();
+        long realm = accountID.realmNum();
+        var num = new OneOf<>(ContractID.ContractOneOfType.CONTRACT_NUM, accountID.accountNumOrThrow());
+        return new ContractID(shard, realm, num);
     }
 
     @Override

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_BIN_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED_SIGSET_VERSIONS;
 import static java.nio.file.Files.exists;
@@ -21,7 +19,6 @@ import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -82,14 +79,7 @@ public final class SignedStateFileReader {
                 sigSet.deserialize(in);
             }
         } else {
-            final File sigSetFile =
-                    stateDir.resolve(SIGNATURE_SET_BIN_FILE_NAME).toFile();
-            sigSet = deserializeAndDebugOnFailure(
-                    () -> new BufferedInputStream(new FileInputStream(sigSetFile)),
-                    (final SerializableDataInputStream in) -> {
-                        readAndCheckSigSetFileVersion(in);
-                        return in.readSerializable();
-                    });
+            throw new IOException("No signature set file found at " + pbjFile.getAbsolutePath());
         }
 
         final SignedState newSignedState = new SignedState(
@@ -115,8 +105,7 @@ public final class SignedStateFileReader {
      */
     private static void checkSignedStateFilePath(@NonNull final Path stateDirectory) throws IOException {
         final Path signedStatePbjPath = stateDirectory.resolve(SIGNATURE_SET_FILE_NAME);
-        final Path signedStateBinPath = stateDirectory.resolve(SIGNATURE_SET_BIN_FILE_NAME);
-        if (!exists(signedStatePbjPath) && !exists(signedStateBinPath)) {
+        if (!exists(signedStatePbjPath)) {
             throw new IOException(
                     "Directory " + stateDirectory.toAbsolutePath() + " does not contain a signature set!");
         }

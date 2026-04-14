@@ -13,11 +13,6 @@ on:
         type: string
         required: false
         default: "false"
-      enable-spotless-check:
-        description: "Spotless Check Enabled"
-        type: string
-        required: false
-        default: "false"
       enable-unit-tests:
         description: "Unit Testing Enabled"
         type: string
@@ -179,7 +174,6 @@ jobs:
 
   spotless:
     name: "${{ inputs.custom-job-label }} Spotless"
-    if: ${{ inputs.enable-spotless-check == 'true' }}
     uses: ./.github/workflows/zxc-spotless-check.yaml
     needs:
       - commit-info
