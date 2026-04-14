@@ -85,27 +85,45 @@ public class SimulatedNetwork {
     }
 
     /**
-     * Configures connection latencies from a 2D array. The value at {@code latencies[i][j]} is the latency from node
-     * {@code i} to node {@code j}. The array must be square with dimensions equal to the number of nodes.
+     * Sets the same latency for all connections in the network.
      *
-     * @param latencies a square matrix of latencies, where {@code latencies[i][j]} is the duration for an event sent
-     *                  from node {@code i} to reach node {@code j}
+     * @param latency the latency to apply to every connection
      */
-    public void setLatencies(@NonNull final Duration[][] latencies) {
-        if (latencies.length != nodes.size()) {
-            throw new IllegalArgumentException(
-                    "Latency matrix size " + latencies.length + " does not match node count " + nodes.size());
-        }
-        for (int i = 0; i < latencies.length; i++) {
-            if (latencies[i].length != nodes.size()) {
-                throw new IllegalArgumentException(
-                        "Row " + i + " has length " + latencies[i].length + ", expected " + nodes.size());
+    public void setUniformLatency(@NonNull final Duration latency) {
+        for (final NodeId sender : nodes) {
+            for (final NodeId receiver : nodes) {
+                if (!sender.equals(receiver)) {
+                    connections.put(new ConnectionKey(sender, receiver), new ConnectionInfo(latency));
+                }
             }
-            for (int j = 0; j < latencies[i].length; j++) {
+        }
+    }
+
+    /**
+     * Configures connection latencies from a 2D array of millisecond values. The value at {@code latenciesMs[i][j]} is
+     * the latency in milliseconds from node {@code i} to node {@code j}. The array must be square with dimensions equal
+     * to the number of nodes.
+     *
+     * @param latenciesMs a square matrix of latencies in milliseconds, where {@code latenciesMs[i][j]} is the time in
+     *                    milliseconds for an event sent from node {@code i} to reach node {@code j}
+     */
+    public void setLatencies(@NonNull final int[][] latenciesMs) {
+        if (latenciesMs.length != nodes.size()) {
+            throw new IllegalArgumentException(
+                    "Latency matrix size " + latenciesMs.length + " does not match node count " + nodes.size());
+        }
+        for (int i = 0; i < latenciesMs.length; i++) {
+            if (latenciesMs[i].length != nodes.size()) {
+                throw new IllegalArgumentException(
+                        "Row " + i + " has length " + latenciesMs[i].length + ", expected " + nodes.size());
+            }
+            for (int j = 0; j < latenciesMs[i].length; j++) {
                 if (i == j) {
                     continue;
                 }
-                connections.put(new ConnectionKey(NodeId.of(i), NodeId.of(j)), new ConnectionInfo(latencies[i][j]));
+                connections.put(
+                        new ConnectionKey(NodeId.of(i), NodeId.of(j)),
+                        new ConnectionInfo(Duration.ofMillis(latenciesMs[i][j])));
             }
         }
     }
