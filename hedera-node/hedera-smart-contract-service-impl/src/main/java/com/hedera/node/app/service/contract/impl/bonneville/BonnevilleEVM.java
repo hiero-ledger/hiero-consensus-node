@@ -8,6 +8,9 @@ import com.hedera.node.app.service.contract.impl.exec.processors.*;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.math.BigInteger;
 import java.util.*;
 import org.hyperledger.besu.evm.EvmSpecVersion;
@@ -23,6 +26,8 @@ public class BonnevilleEVM extends HEVM {
 
     final FeatureFlags _flags;
     final AddressChecks _adrChk;
+    final SB _trace = null; // new SB(); // For bytecode-by-bytecode tracing
+    final PrintStream _stdOut = _trace==null ? null : new PrintStream(new FileOutputStream(FileDescriptor.out));
 
     // A singleton BonnevilleEVM is created for all threads.  In *theory* we
     // might have more than one, specialized by e.g. flags or gasCalc.  In
@@ -195,7 +200,7 @@ public class BonnevilleEVM extends HEVM {
 
     @Override
     public void runToHalt(MessageFrame frame, OperationTracer tracer) {
-        CodeV2 code = CodeV2.make(frame.getCode().getBytes().toArrayUnsafe());
+        CodeV2 code = CodeV2.make(frame.getCode().getBytes().toArrayUnsafe(), _stdOut);
         if( code != null && frame.getCode() == null )
             throw new TODO("Failed validation");
         if(!(tracer instanceof ActionSidecarContentTracer scTracer) )
@@ -220,6 +225,7 @@ public class BonnevilleEVM extends HEVM {
             tracer.traceNotExecuting(frame);
 
         if( frees.size() < MAX_FREE_PER_THREAD ) frees.addLast(bevm);
+        if( _stdOut!=null ) _stdOut.flush();
     }
 
     // ---------------------

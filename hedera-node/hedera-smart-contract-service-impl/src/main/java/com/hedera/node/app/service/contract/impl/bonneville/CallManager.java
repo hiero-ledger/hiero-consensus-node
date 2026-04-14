@@ -27,7 +27,7 @@ public abstract class CallManager {
         // Nested create contract call; so print the post-trace before the
         // nested call and reload the pre-trace state after call.
         String str = hasSalt ? "CREATE2" : "CREATE";
-        preTraceCall(bevm, trace, str);
+        preTraceCall(bevm, str);
         if( bevm._sp < (hasSalt ? 4 : 3) ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         if( bevm._isStatic ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
         Address sender = hookSender(bevm);
@@ -37,7 +37,7 @@ public abstract class CallManager {
         int len = bevm.popInt();
         Bytes salt = hasSalt ? bevm.popBytes() : null;
 
-        CodeV2 code = CodeV2.make(bevm._mem._mem, off, len);
+        CodeV2 code = CodeV2.make(bevm._mem._mem, off, len, false, bevm._bonneville._stdOut);
 
         var senderAccount = bevm._updater.getAccount(sender);
         if( value.compareTo(senderAccount.getBalance()) > 0 || bevm._frame.getDepth() >= 1024 /*AbstractCustomCreateOperation.MAX_STACK_DEPTH*/ )
@@ -48,6 +48,12 @@ public abstract class CallManager {
         Address recv_contract =
                 hasSalt ? saltContract(sender, salt, code) : Address.contractAddress(sender, senderNonce);
         assert recv_contract != null;
+
+        // A bit arbitrary maybe, but if implicit creation isn't enabled, we also
+        // don't support finalizing hollow accounts as contracts, so return failed
+        if( bevm._updater.isHollowAccount(recv_contract) && !bevm._flags.isImplicitCreationEnabled() )
+            return bevm.push0();
+
         bevm.isWarm(recv_contract); // Force contract address to be warmed up
 
         bevm._updater.setupInternalAliasedCreate(sender, recv_contract);
@@ -175,7 +181,7 @@ public abstract class CallManager {
     static ExceptionalHaltReason _abstractCall( BEVM bevm, SB trace, String str, long stipend, Address recipient, Address contract, Address sender, Wei value, boolean isStatic, CallOperationType opCall ) {
         // Nested create contract call; so print the post-trace before the
         // nested call and reload the pre-trace state after call.
-        preTraceCall(bevm, trace, str);
+        preTraceCall(bevm, str);
 
         int srcOff = bevm.popInt(); // Outgoing data passed to child
         int srcLen = bevm.popInt();
@@ -197,7 +203,7 @@ public abstract class CallManager {
 
         // Get the bytecodes to execute; if we have a contract account, get
         // code from it
-        CodeV2 code = CodeV2.make(contractAccount);
+        CodeV2 code = CodeV2.make(contractAccount, bevm._bonneville._stdOut);
 
         // gas cost check.  As usual, the input values are capped at
         // Integer.MAX_VALUE, and the sum of a few of these will not overflow a
@@ -311,7 +317,7 @@ public abstract class CallManager {
         bevm._gas += child.getRemainingGas(); // Recover leftover gas from the child
 
         if( trace != null )
-            System.out.println(trace.clear().p("RETURN ").p(str).nl());
+            bevm._bonneville._stdOut.println(trace.clear().p("RETURN ").p(str).nl());
 
         boolean success = child.getState() == MessageFrame.State.COMPLETED_SUCCESS;
         if( type == MessageFrame.Type.CONTRACT_CREATION )
@@ -358,9 +364,11 @@ public abstract class CallManager {
         /*nothing*/
     }
 
-    private static void preTraceCall(BEVM bevm, SB trace, String str) {
+    private static void preTraceCall(BEVM bevm, String str) {
+        SB trace = bevm._bonneville._trace;
         if( trace == null ) return;
-        System.out.println(bevm.postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
+        bevm.postTrace();
+        bevm._bonneville._stdOut.println(trace.nl().nl().p("CONTRACT ").p(str).nl());
         trace.clear();
     }
 }

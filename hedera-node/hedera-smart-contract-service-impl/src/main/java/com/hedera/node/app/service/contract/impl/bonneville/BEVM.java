@@ -15,9 +15,6 @@ import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
-import java.io.FileDescriptor;
-import java.io.FileOutputStream;
-import java.io.PrintStream;
 import java.math.BigInteger;
 import java.util.*;
 import org.apache.tuweni.bytes.Bytes;
@@ -393,22 +390,20 @@ class BEVM {
     // -----------------------------------------------------------
     // Execute bytecodes until done
     BEVM run(boolean topLevel) {
-        SB trace = null; // new SB();
-        PrintStream oldSysOut = System.out;
-        if( trace != null) {
-            System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out)));
-            if( topLevel) System.out.println(BonnevilleEVM.TOP_SEP);
-        }
+        SB trace = _bonneville._trace;
+        if( trace != null && topLevel )
+            _bonneville._stdOut.println(BonnevilleEVM.TOP_SEP);
 
         int pc = 0;
         ExceptionalHaltReason halt = null;
         byte[] codes = _code._codes;
+        int off = _code._off;
         byte[] opGas = _bonneville._opGas;
         byte[] opStackMin = _bonneville._opStackMin;
 
         while( halt == null ) {
-            int op = pc < codes.length ? codes[pc] & 0xFF : 0;
-            preTrace(trace, pc, op);
+            int op = pc+off < codes.length ? codes[pc+off] & 0xFF : 0;
+            preTrace(pc, op);
             pc++;
 
             if( _tracer != null )
@@ -545,10 +540,10 @@ class BEVM {
 
             if( trace != null ) {
                 if( !(op >= 0xF0 && op <= 0xFA && op != 0xF3) ) {
-                    postTrace(trace);
+                    postTrace();
                     if( halt != null && halt != ExceptionalHaltReason.NONE )
                         trace.p(" ").p(halt.toString());
-                    System.out.println(trace);
+                    _bonneville._stdOut.println(trace);
                 }
                 trace.clear();
             }
@@ -558,9 +553,9 @@ class BEVM {
         } // End while( halt!=null )...
 
         if( trace != null ) {
-            System.out.println();
-            if( topLevel) System.out.println(BonnevilleEVM.TOP_SEP);
-            System.setOut(oldSysOut);
+            _bonneville._stdOut.println();
+            if( topLevel ) _bonneville._stdOut.println(BonnevilleEVM.TOP_SEP);
+            _bonneville._stdOut.flush();
         }
 
         // Set mutable state back into Frame after executing
@@ -575,17 +570,16 @@ class BEVM {
         return this;
     }
 
-    private void preTrace(SB trace, int pc, int op) {
-        if( trace != null)
-            trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int) _gas).p(" ").hex2(_sp).p(" -> ");
+    private void preTrace(int pc, int op) {
+        if( _bonneville._trace != null)
+            _bonneville._trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int) _gas).p(" ").hex2(_sp).p(" -> ");
     }
 
-    SB postTrace(SB trace) {
-        trace.hex2(_sp);
+    void postTrace() {
+        _bonneville._trace.hex2(_sp);
         // Dump TOS
         if( _sp > 0 )
-            trace.p(" 0x").hex8(STK3[_sp - 1]).hex8(STK2[_sp - 1]).hex8(STK1[_sp - 1]).hex8(STK0[_sp - 1]);
-        return trace;
+            _bonneville._trace.p(" 0x").hex8(STK3[_sp - 1]).hex8(STK2[_sp - 1]).hex8(STK1[_sp - 1]).hex8(STK0[_sp - 1]);
     }
 
     // ---------------------
@@ -717,7 +711,7 @@ class BEVM {
         // BigInteger fallback
         _sp += 2; // Re-push bytes
         var dividend = new BigInteger(1, popBytes().toArrayUnsafe());
-        var divisor = new BigInteger(1, popBytes().toArrayUnsafe());
+        var divisor  = new BigInteger(1, popBytes().toArrayUnsafe());
         return push(dividend.divide(divisor));
     }
 
@@ -1141,7 +1135,7 @@ class BEVM {
 
     // Push size of code
     private ExceptionalHaltReason codeSize() {
-        return push(_code._codes.length);
+        return push(_code._len);
     }
 
     // Copy code into Memory
@@ -1154,7 +1148,7 @@ class BEVM {
         var halt = useGas(copyCost(memOff, len, 3));
         if( halt != null) return halt;
 
-        _mem.write(memOff, _code._codes, srcOff, len);
+        _mem.write(memOff, _code._codes, srcOff+_code._off, len);
         return null;
     }
 
@@ -1640,7 +1634,7 @@ class BEVM {
 
     // Push an array of immediate bytes onto the stack
     private ExceptionalHaltReason push(int pc, int newpc) {
-        return push(_code._codes, pc, newpc - pc);
+        return push(_code._codes, pc+_code._off, newpc - pc);
     }
 
     // Duplicate nth word
