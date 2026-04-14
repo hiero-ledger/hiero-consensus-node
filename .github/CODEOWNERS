@@ -16,7 +16,7 @@
 ##### State Validator ######
 ############################
 /hedera-state-validator                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/hedera-state-validator/**/*.gradle             @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/hedera-state-validator/**/*.gradle             @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/github-maintainers
 
 #########################
 ##### Hedera Node  ######
@@ -24,7 +24,7 @@
 
 # Hedera Node Root Protections
 /hedera-node/                                   @hiero-ledger/hiero-consensus-node-execution-codeowners
-/hedera-node/**/*.gradle                        @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
+/hedera-node/**/*.gradle                        @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @hiero-ledger/github-maintainers
 
 # Hedera Node Deployments - Configuration & Grafana Dashboards
 /hedera-node/configuration/**                   @rbair23 @dalvizu @Nana-EC @SimiHunjan @steven-sheehy @nathanklick @rbarker-dev @Ferparishuertas @akdev
@@ -57,7 +57,7 @@
 ###############################
 # add @rsinha as an explicit codeowner once hiero-invite has been added
 /hedera-cryptography/                               @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/hedera-cryptography/**/*.gradle                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/hedera-cryptography/**/*.gradle                    @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/github-maintainers
 
 #########################
 ##### Platform SDK ######
@@ -88,14 +88,14 @@
 /platform-sdk/swirlds-virtualmap/                   @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 /hiero-observability                                @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/hiero-observability/**/*.gradle                    @hiero-ledger/hiero-consensus-node-foundation-codeowners
+/hiero-observability/**/*.gradle                    @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/github-maintainers
 
 ####################
 #####   HAPI  ######
 ####################
 
 /hapi/                                              @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
-/hapi/**/*.gradle                                   @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners
+/hapi/**/*.gradle                                   @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @hiero-ledger/github-maintainers
 
 # Protobuf
 /hapi/hedera-protobuf-java-api/src/main/proto/services/ @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-smart-contract-codeowners @jsync-swirlds @hiero-ledger/hiero-mirror-node-maintainers
