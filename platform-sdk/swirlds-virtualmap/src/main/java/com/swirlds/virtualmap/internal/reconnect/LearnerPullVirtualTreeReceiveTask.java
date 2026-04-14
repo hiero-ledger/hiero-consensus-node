@@ -93,7 +93,6 @@ public class LearnerPullVirtualTreeReceiveTask {
                 final PullVirtualTreeResponse response =
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
                 final long path = response.path();
-                // Track stats for non-root paths
                 if (path != Path.INVALID_PATH) {
                     view.responseReceived(response);
                 }
