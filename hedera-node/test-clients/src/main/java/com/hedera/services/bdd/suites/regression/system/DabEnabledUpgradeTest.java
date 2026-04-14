@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicFee
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.entryById;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -482,11 +483,11 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     private static String recordsPath(String nodeId) {
-        return "build/hapi-test/node%s/data/recordStreams/".formatted(nodeId);
+        return workingDirFor(Long.parseLong(nodeId), null) + "/data/recordStreams/";
     }
 
     private static String blocksPath(String nodeId) {
-        return "build/hapi-test/node%s/data/blockStreams/".formatted(nodeId);
+        return workingDirFor(Long.parseLong(nodeId), null) + "/data/blockStreams/";
     }
 
     private static ContextualActionOp validatePathsDoesntExist(String nodeId, AtomicReference<AccountID> accountId) {
