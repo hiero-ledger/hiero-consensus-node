@@ -43,6 +43,9 @@ public class BlockNodeNetwork {
     private final Map<Long, long[]> blockNodeIdsBySubProcessNodeId = new HashMap<>();
 
     public static final int BLOCK_NODE_LOCAL_PORT = 40840;
+    private static final int MAX_START_ATTEMPTS = 4;
+    private static final long CONTAINER_START_BACKOFF_MS = 1000L;
+    private static final long SIMULATOR_START_BACKOFF_MS = 500L;
 
     private final BlockNodeController blockNodeController;
 
@@ -124,7 +127,18 @@ public class BlockNodeNetwork {
 
     public void terminate(@NonNull final Path scopeRoot) {
         dumpContainerLogs(scopeRoot);
+        doTerminate();
+    }
 
+    /**
+     * Stops all block node containers and simulators without attempting to dump logs.
+     * Intended for cleanup when the consensus network never started successfully.
+     */
+    public void terminateQuietly() {
+        doTerminate();
+    }
+
+    private void doTerminate() {
         final List<CompletableFuture<Void>> shutdownFutures = new ArrayList<>();
         // Stop block node containers
         for (final Entry<Long, BlockNodeContainer> entry : blockNodeContainerById.entrySet()) {
@@ -206,35 +220,81 @@ public class BlockNodeNetwork {
     }
 
     private void startRealBlockNodeContainer(final long id) {
-        final int port = findAvailablePort();
-        try {
-            final BlockNodeContainer container = new BlockNodeContainer(id, port);
-
-            container.start();
-
-            blockNodeContainerById.put(id, container);
-
-            logger.info("Started real block node container {} @ {}", id, container);
-        } catch (final Exception e) {
-            throw new RuntimeException("Failed to start real block node container " + id + " on port " + port, e);
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_START_ATTEMPTS; attempt++) {
+            final int port = findAvailablePort();
+            BlockNodeContainer container = null;
+            try {
+                container = new BlockNodeContainer(id, port);
+                container.start();
+                blockNodeContainerById.put(id, container);
+                logger.info("Started real block node container {} @ {}", id, container);
+                return;
+            } catch (final Exception e) {
+                lastException = e;
+                if (container != null) {
+                    try {
+                        container.stop();
+                    } catch (final Exception stopEx) {
+                        // Best-effort cleanup; Ryuk will handle it
+                    }
+                }
+                if (attempt < MAX_START_ATTEMPTS) {
+                    logger.warn(
+                            "Attempt {}/{} to start block node container {} on port {} failed, retrying",
+                            attempt,
+                            MAX_START_ATTEMPTS,
+                            id,
+                            port,
+                            e);
+                    try {
+                        Thread.sleep(CONTAINER_START_BACKOFF_MS * attempt);
+                    } catch (final InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted while retrying block node container " + id, ie);
+                    }
+                }
+            }
         }
+        throw new RuntimeException(
+                "Failed to start real block node container " + id + " after " + MAX_START_ATTEMPTS + " attempts",
+                lastException);
     }
 
     public void startSimulatorNode(final Long id, final Supplier<Long> lastVerifiedBlockNumberSupplier) {
-        // Find an available port
-        final int port = findAvailablePort();
-        final boolean highLatency = blockNodeHighLatencyById.getOrDefault(id, false);
-        final SimulatedBlockNodeServer server =
-                new SimulatedBlockNodeServer(port, highLatency, lastVerifiedBlockNumberSupplier);
-        try {
-            server.start();
-
-            simulatedBlockNodeById.put(id, server);
-
-            logger.info("Started shared simulated block node @ localhost:{}", port);
-        } catch (final Exception e) {
-            throw new RuntimeException("Failed to start simulated block node " + id + " on port " + port, e);
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_START_ATTEMPTS; attempt++) {
+            final int port = findAvailablePort();
+            final boolean highLatency = blockNodeHighLatencyById.getOrDefault(id, false);
+            final SimulatedBlockNodeServer server =
+                    new SimulatedBlockNodeServer(port, highLatency, lastVerifiedBlockNumberSupplier);
+            try {
+                server.start();
+                simulatedBlockNodeById.put(id, server);
+                logger.info("Started shared simulated block node @ localhost:{}", port);
+                return;
+            } catch (final Exception e) {
+                lastException = e;
+                if (attempt < MAX_START_ATTEMPTS) {
+                    logger.warn(
+                            "Attempt {}/{} to start simulated block node {} on port {} failed, retrying",
+                            attempt,
+                            MAX_START_ATTEMPTS,
+                            id,
+                            port,
+                            e);
+                    try {
+                        Thread.sleep(SIMULATOR_START_BACKOFF_MS * attempt);
+                    } catch (final InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new RuntimeException("Interrupted while retrying simulated block node " + id, ie);
+                    }
+                }
+            }
         }
+        throw new RuntimeException(
+                "Failed to start simulated block node " + id + " after " + MAX_START_ATTEMPTS + " attempts",
+                lastException);
     }
 
     public void configureBlockNodeConnectionInformation(HederaNode node) {

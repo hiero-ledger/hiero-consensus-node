@@ -10,7 +10,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,6 +22,8 @@ import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -39,7 +40,7 @@ public class GuiEventStorage {
     private final ConsensusLinker linker;
     private final Configuration configuration;
     private ConsensusRound lastConsensusRound;
-    private Map<GossipEvent, BranchedEventMetadata> branchedEventsMetadata = new HashMap<>();
+    private final GuiBranchDetector branchDetector = new GuiBranchDetector();
 
     /**
      * Creates an empty instance
@@ -93,6 +94,10 @@ public class GuiEventStorage {
     public synchronized void handlePreconsensusEvent(@NonNull final PlatformEvent event) {
         maxGeneration = Math.max(maxGeneration, event.getNGen());
 
+        // Detect branches before linking
+        final NodeId creator = event.getCreatorId();
+        branchDetector.detectBranches(creator, event);
+
         // since the gui will modify the event, we need to copy it
         final EventImpl eventImpl = linker.linkEvent(event.copyGossipedData());
         if (eventImpl == null) {
@@ -107,7 +112,9 @@ public class GuiEventStorage {
         }
         lastConsensusRound = rounds.getLast();
 
-        linker.setEventWindow(rounds.getLast().getEventWindow());
+        final EventWindow currentEventWindow = rounds.getLast().getEventWindow();
+        branchDetector.setEventWindow(currentEventWindow);
+        linker.setEventWindow(currentEventWindow);
     }
 
     /**
@@ -119,9 +126,12 @@ public class GuiEventStorage {
     public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
         consensus.loadSnapshot(snapshot);
         linker.clear();
-        linker.setEventWindow(EventWindowUtils.createEventWindow(
-                snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient()));
+        final EventWindow currentEventWindow = EventWindowUtils.createEventWindow(
+                snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient());
+        linker.setEventWindow(currentEventWindow);
         lastConsensusRound = null;
+        branchDetector.clear();
+        branchDetector.setEventWindow(currentEventWindow);
     }
 
     /**
@@ -155,11 +165,6 @@ public class GuiEventStorage {
      */
     @NonNull
     public Map<GossipEvent, BranchedEventMetadata> getBranchedEventsMetadata() {
-        return branchedEventsMetadata;
-    }
-
-    public void setBranchedEventsMetadata(
-            @NonNull final Map<GossipEvent, BranchedEventMetadata> branchedEventsMetadata) {
-        this.branchedEventsMetadata = branchedEventsMetadata;
+        return branchDetector.getBranchedEvents();
     }
 }

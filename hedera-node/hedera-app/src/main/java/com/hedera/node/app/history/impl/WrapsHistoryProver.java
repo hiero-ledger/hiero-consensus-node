@@ -298,8 +298,12 @@ public class WrapsHistoryProver implements HistoryProver {
 
     @Override
     public void observeProofVote(
-            final long nodeId, @NonNull final HistoryProofVote vote, final boolean proofFinalized) {
+            final long nodeId,
+            @NonNull final HistoryProofVote vote,
+            final boolean proofFinalized,
+            @NonNull final ProofVoteCategory proofVoteCategory) {
         requireNonNull(vote);
+        requireNonNull(proofVoteCategory);
         if (proofFinalized) {
             log.info("Observed finalized proof via node{}; skipping vote", nodeId);
             tryCompleteVoteDecision(VoteDecision.skip());
@@ -315,13 +319,25 @@ public class WrapsHistoryProver implements HistoryProver {
         // Explicit vote case
         if (vote.hasProof()) {
             final var proof = vote.proofOrElse(HistoryProof.DEFAULT);
-            // Always store a hash – useful if we haven't finished our own proof yet.
-            final var hash = hashOf(proof);
-            explicitHistoryProofHashes.put(nodeId, hash);
-            // If we already have our proof, see if it matches.
-            if (historyProof != null && selfProofHashOrThrow().equals(hash)) {
-                log.info("Observed matching explicit proof from node{}; voting congruent instead", nodeId);
-                tryCompleteVoteDecision(VoteDecision.congruent(nodeId));
+            switch (proofVoteCategory) {
+                case NOT_RECURSIVE -> {
+                    // Always store a hash – useful if we haven't finished our own proof yet
+                    final var hash = hashOf(proof);
+                    explicitHistoryProofHashes.put(nodeId, hash);
+                    // If we already have our proof, see if it matches; save a few bytes by using congruent vote
+                    if (historyProof != null && selfProofHashOrThrow().equals(hash)) {
+                        log.info("Observed matching explicit proof from node{}; voting congruent instead", nodeId);
+                        tryCompleteVoteDecision(VoteDecision.congruent(nodeId));
+                    }
+                }
+                case VALID_RECURSIVE -> {
+                    // This is the big win, avoiding an explicit vote for the megabyte-scale WRAPS proof
+                    log.info("Observed valid explicit recursive proof from node{}; voting congruent instead", nodeId);
+                    tryCompleteVoteDecision(VoteDecision.congruent(nodeId));
+                }
+                case INVALID_RECURSIVE -> {
+                    // No-op, an invalid proof obviously has no use for us
+                }
             }
         }
     }

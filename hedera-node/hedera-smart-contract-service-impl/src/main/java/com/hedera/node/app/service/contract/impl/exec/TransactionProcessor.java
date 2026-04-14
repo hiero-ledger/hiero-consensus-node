@@ -22,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -52,15 +53,17 @@ public class TransactionProcessor {
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
     private final CodeFactory codeFactory;
+    private final HEVM hevm;
 
     public TransactionProcessor(
-            @NonNull final FrameBuilder frameBuilder,
-            @NonNull final FrameRunner frameRunner,
-            @NonNull final CustomGasCharging gasCharging,
-            @NonNull final CustomMessageCallProcessor messageCall,
-            @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull FrameBuilder frameBuilder,
+            @NonNull FrameRunner frameRunner,
+            @NonNull CustomGasCharging gasCharging,
+            @NonNull CustomMessageCallProcessor messageCall,
+            @NonNull ContractCreationProcessor contractCreation,
+            @NonNull FeatureFlags featureFlags,
+            @NonNull CodeFactory codeFactory,
+            @NonNull HEVM hevm) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
@@ -68,6 +71,7 @@ public class TransactionProcessor {
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
         this.codeFactory = codeFactory;
+        this.hevm = hevm;
     }
 
     /**
@@ -145,7 +149,7 @@ public class TransactionProcessor {
 
         // Compute the result of running the frame to completion
         final var result = frameRunner.runToCompletion(
-                transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation);
+                transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation, hevm);
 
         // Maybe refund some of the charged fees before committing if not a hook dispatch
         // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once
