@@ -2,13 +2,14 @@
 package org.hiero.consensus.network.simulation.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PriorityQueue;
-import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -26,7 +27,7 @@ public class SimulatedNetwork {
      * Events that are currently in transit between nodes in the network.
      */
     private final Map<NodeId, PriorityQueue<EventInTransit>> eventsInTransit;
-    private final Map<NodeId, Queue<EventInTransit>> eventsDelivered;
+    private final Map<NodeId, List<PlatformEvent>> eventsDelivered;
 
     private final Map<ConnectionKey, ConnectionInfo> connections = new HashMap<>();
     private final Set<NodeId> nodes;
@@ -43,7 +44,7 @@ public class SimulatedNetwork {
     }
 
     /**
-     * Submit an event to be gossiped around the network. Safe to be called by multiple nodes in parallel.
+     * Submit an event to be gossiped around the network.
      *
      * @param event the event to gossip
      */
@@ -79,6 +80,10 @@ public class SimulatedNetwork {
         deliverEvents();
     }
 
+    public List<PlatformEvent> getDeliveredEvents(final NodeId nodeId) {
+        return eventsDelivered.replace(nodeId, new LinkedList<>());
+    }
+
     /**
      * For each node, deliver all events that are eligible for immediate delivery.
      */
@@ -89,8 +94,8 @@ public class SimulatedNetwork {
             final NodeId nodeId = entry.getKey();
             final PriorityQueue<EventInTransit> events = entry.getValue();
 
-            while (!events.isEmpty() && events.peek().arrivalTime().isBefore(now)) {
-                eventsDelivered.get(nodeId).add(events.poll());
+            while (!events.isEmpty() && !events.peek().arrivalTime().isAfter(now)) {
+                eventsDelivered.get(nodeId).add(events.poll().event());
             }
         }
     }
