@@ -64,7 +64,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
@@ -123,16 +123,16 @@ class TransactionProcessorTest {
     private Configuration config;
 
     @Mock
-    private HederaEvmAccount senderAccount;
+    private AbstractMutableEvmAccount senderAccount;
 
     @Mock
     private StorageAccessTracker tracker;
 
     @Mock
-    private HederaEvmAccount relayerAccount;
+    private AbstractMutableEvmAccount relayerAccount;
 
     @Mock
-    private HederaEvmAccount receiverAccount;
+    private AbstractMutableEvmAccount receiverAccount;
 
     @Mock
     private CustomGasCharging gasCharging;
@@ -142,8 +142,6 @@ class TransactionProcessorTest {
 
     @Mock
     private ContractOperationStreamBuilder recordBuilder;
-
-    private final Deque<MessageFrame> stack = new ArrayDeque<>();
 
     private TransactionProcessor subject;
 
