@@ -171,14 +171,14 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
     public void validate() {
         log.info("Checked {} VirtualHashChunk entries", processedCount.get());
 
-    final long expectedCount = vds.getIdToDiskLocationHashChunks().size();
-    final boolean ok = successCount.get() == expectedCount
-        && exceptionCount.get() == 0
-        && idMismatchCount.get() == 0
-        && pathMismatchCount.get() == 0
-        && hashMismatchCount.get() == 0
-        && storeMismatchCount.get() == 0
-        && chunkHeightMismatchCount.get() == 0;
+        final long expectedCount = vds.getIdToDiskLocationHashChunks().size();
+        final boolean ok = successCount.get() == expectedCount
+                && exceptionCount.get() == 0
+                && idMismatchCount.get() == 0
+                && pathMismatchCount.get() == 0
+                && hashMismatchCount.get() == 0
+                && storeMismatchCount.get() == 0
+                && chunkHeightMismatchCount.get() == 0;
 
         if (!ok) {
             throw new ValidationException(
