@@ -109,14 +109,15 @@ gradle.lifecycle.beforeProject {
             module("io.vertx:vertx-core", "io.vertx.core")
         }
     }
+}
 
-    gradle.allprojects {
-        configurations.all {
-            resolutionStrategy.dependencySubstitution {
-                substitute(module("io.tmio:tuweni-bytes"))
-                    .using(module("io.consensys.tuweni:tuweni-bytes:2.7.2"))
-                substitute(module("io.tmio:tuweni-units"))
-                    .using(module("io.consensys.tuweni:tuweni-units:2.7.2"))
-            }
+gradle.allprojects {
+    configurations.all {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("io.tmio:tuweni-bytes"))
+                .using(module("io.consensys.tuweni:tuweni-bytes:2.7.2"))
+            substitute(module("io.tmio:tuweni-units"))
+                .using(module("io.consensys.tuweni:tuweni-units:2.7.2"))
         }
+    }
 }

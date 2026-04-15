@@ -25,8 +25,8 @@ public record CodeDelegationResult(
 
     public record ValidDelegation(Bytes authorityEcdsaPublicKey, Address authorityAddress, Address delegationTarget) {}
 
-    public static final CodeDelegationResult EMPTY = new CodeDelegationResult(0, 0, 0, 0, Map.of(), List.of(), List.of());
-
+    public static final CodeDelegationResult EMPTY =
+            new CodeDelegationResult(0, 0, 0, 0, Map.of(), List.of(), List.of());
 
     public int ignoredCodeDelegations() {
         return numIgnoredEntriesByReason.isEmpty()
