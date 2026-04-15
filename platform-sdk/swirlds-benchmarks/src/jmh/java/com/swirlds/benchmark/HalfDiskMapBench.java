@@ -49,7 +49,7 @@ public class HalfDiskMapBench extends BaseBench {
 
         final var store = new HalfDiskHashMap(configuration, maxKey, getStoreDir(), storeName, null, false);
         final var dataFileCompactor = new DataFileCompactor(
-                storeName, store.getFileCollection(), store.getBucketIndexToBucketLocation(), null, null, null, null);
+                store.getFileCollection(), store.getBucketIndexToBucketLocation(), null, null, null, null);
 
         // Write files
         long start = System.currentTimeMillis();

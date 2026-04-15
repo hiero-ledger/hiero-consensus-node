@@ -143,7 +143,7 @@ class BlockNodeConfigurationTest {
 
         assertThatThrownBy(builder::build)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Message size hard limit must be greater than or equal to soft limit size");
+                .hasMessage("Message size hard limit (100) must be greater than or equal to soft limit size (1000)");
     }
 
     @Test

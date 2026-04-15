@@ -27,8 +27,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAcco
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenWipeNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -231,14 +233,8 @@ public class TokenWipeSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenWipe fungible with large payer key - extra processing bytes fee")
         final Stream<DynamicTest> tokenWipeFungibleLargeKeyExtraProcessingBytesFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(
-                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
@@ -251,13 +247,13 @@ public class TokenWipeSimpleFeesTest {
                             .supplyKey(SUPPLY_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20))),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     cryptoTransfer(moving(100L, TOKEN).between(TREASURY, ACCOUNT))
                             .payingWith(TREASURY),
                     wipeTokenAccount(TOKEN, ACCOUNT, 50L)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .signedBy(PAYER, WIPE_KEY)
                             .via(wipeTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -271,17 +267,8 @@ public class TokenWipeSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenWipe fungible with very large payer key below oversize - extra processing bytes fee")
         final Stream<DynamicTest> tokenWipeFungibleVeryLargeKeyBelowOversizeFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(sigs(
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(41)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
@@ -294,13 +281,13 @@ public class TokenWipeSimpleFeesTest {
                             .supplyKey(SUPPLY_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41))),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     cryptoTransfer(moving(100L, TOKEN).between(TREASURY, ACCOUNT))
                             .payingWith(TREASURY),
                     wipeTokenAccount(TOKEN, ACCOUNT, 50L)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41)))
                             .signedBy(PAYER, WIPE_KEY)
                             .via(wipeTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -912,7 +899,7 @@ public class TokenWipeSimpleFeesTest {
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                         validateChargedUsdWithinWithTxnSize(
                                 wipeTxn,
-                                txnSize -> expectedTokenWipeNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(wipeTxn, "4"));

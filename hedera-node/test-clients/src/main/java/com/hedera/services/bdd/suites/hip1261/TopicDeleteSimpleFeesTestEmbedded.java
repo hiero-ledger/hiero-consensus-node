@@ -21,7 +21,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAcco
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
@@ -92,8 +92,8 @@ public class TopicDeleteSimpleFeesTestEmbedded {
                     getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                     validateChargedUsdWithinWithTxnSize(
                             INNER_ID,
-                            txnSize -> expectedTopicDeleteNetworkFeeOnlyUsd(
-                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                            txnSize ->
+                                    expectedNetworkOnlyFeeUsd(Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(INNER_ID, "4"));
         }
