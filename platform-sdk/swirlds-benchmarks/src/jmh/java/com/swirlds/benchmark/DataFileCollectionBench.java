@@ -64,7 +64,7 @@ public class DataFileCollectionBench extends BaseBench {
                     }
                 };
 
-        final var compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
+        final var compactor = new DataFileCompactor(store, index, null, null, null, null);
 
         // Write files
         long start = System.currentTimeMillis();

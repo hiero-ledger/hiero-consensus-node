@@ -146,7 +146,6 @@ public class DataFileCompactor {
     private volatile boolean interruptFlag = false;
 
     /**
-     * @param storeName                          name of the store to compact
      * @param dataFileCollection                 data file collection to compact
      * @param index                              index to update during compaction
      * @param reportDurationMetricFunction       function to report how long compaction took, in ms
@@ -155,14 +154,13 @@ public class DataFileCompactor {
      * @param updateTotalStatsFunction           updates statistics of total disk and off-heap usage
      */
     public DataFileCompactor(
-            final String storeName,
             final DataFileCollection dataFileCollection,
             CASableLongIndex index,
             @Nullable final BiConsumer<Integer, Long> reportDurationMetricFunction,
             @Nullable final BiConsumer<Integer, Double> reportSavedSpaceMetricFunction,
             @Nullable final BiConsumer<Integer, Double> reportFileSizeByLevelMetricFunction,
             @Nullable Runnable updateTotalStatsFunction) {
-        this.storeName = storeName;
+        this.storeName = dataFileCollection.getStoreName();
         this.dataFileCollection = dataFileCollection;
         this.index = index;
         this.reportDurationMetricFunction = reportDurationMetricFunction;
@@ -201,7 +199,7 @@ public class DataFileCompactor {
         final long filesToCompactSize = getSizeOfFiles(filesToCompact);
         logger.info(
                 MERKLE_DB.getMarker(),
-                "[{}] Starting compaction to level {} of {} files of size {} Mb ",
+                "[{}] Starting compaction to level {} of {} files of size {}",
                 storeName,
                 targetLevel,
                 filesCount,
