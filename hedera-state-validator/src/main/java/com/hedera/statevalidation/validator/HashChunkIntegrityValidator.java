@@ -4,7 +4,6 @@ package com.hedera.statevalidation.validator;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -39,7 +38,6 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
     private long firstLeafPath;
     private long lastLeafPath;
     private int hashChunkHeight;
-    private LongList IdToDiskLocationHashChunks;
     private MemoryIndexDiskKeyValueStore hashStore;
 
     /**
@@ -71,8 +69,6 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
         this.firstLeafPath = vds.getFirstLeafPath();
         this.lastLeafPath = vds.getLastLeafPath();
         this.hashChunkHeight = vds.getHashChunkHeight();
-
-        this.IdToDiskLocationHashChunks = vds.getIdToDiskLocationHashChunks();
         this.hashStore = vds.getHashChunkStore();
     }
 
@@ -175,15 +171,14 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
     public void validate() {
         log.info("Checked {} VirtualHashChunk entries", processedCount.get());
 
-        final long expectedCount = vds.getIdToDiskLocationHashChunks().size();
-        final boolean ok = successCount.get() == expectedCount
-                && exceptionCount.get() == 0
-                && idMismatchCount.get() == 0
-                && pathMismatchCount.get() == 0
-                && hashMismatchCount.get() == 0
-                && storeMismatchCount.get() == 0
-                && indexMismatchCount.get() == 0
-                && chunkHeightMismatchCount.get() == 0;
+    final long expectedCount = vds.getIdToDiskLocationHashChunks().size();
+    final boolean ok = successCount.get() == expectedCount
+        && exceptionCount.get() == 0
+        && idMismatchCount.get() == 0
+        && pathMismatchCount.get() == 0
+        && hashMismatchCount.get() == 0
+        && storeMismatchCount.get() == 0
+        && chunkHeightMismatchCount.get() == 0;
 
         if (!ok) {
             throw new ValidationException(
@@ -200,7 +195,6 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                                     idMismatchCount.get(),
                                     pathMismatchCount.get(),
                                     hashMismatchCount.get(),
-                                    indexMismatchCount.get(),
                                     storeMismatchCount.get(),
                                     chunkHeightMismatchCount.get(),
                                     exceptionCount.get()));
