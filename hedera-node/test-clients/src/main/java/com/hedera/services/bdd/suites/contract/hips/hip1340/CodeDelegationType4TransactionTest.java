@@ -64,7 +64,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
         final var delegatedFunctionSelector = Hex.toHexString(
                 new Function("getValue()").encodeCall(Tuple.EMPTY).array());
 
-        return hapiTest(withOpContext((spec, opLog) -> {
+        return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, CONTRACT);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
             allRunFor(
@@ -117,7 +117,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
     @HapiTest
     final Stream<DynamicTest> testMultipleCodeDelegationsSetViaEthCall() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
-        return hapiTest(withOpContext((spec, opLog) -> {
+        return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, CONTRACT);
             createSecp256k1Keys(
                     spec, DELEGATING_ACCOUNT, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
@@ -168,7 +168,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
 
     @HapiTest
     final Stream<DynamicTest> testDelegatingToKey() {
-        return hapiTest(withOpContext((spec, opLog) -> {
+        return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
@@ -181,13 +181,12 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                             .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT)
                             .gasLimit(2_000_000L)
                             .via(DELEGATION_SET)
-                            .exposingGasTo((s, gas) -> {
+                            .exposingGasTo((_, gas) -> {
                                 final var expectedGas = 21_000L /* intrinsic gas base fee */
                                         + 64 /* payload cost */
                                         + 25_000L /* code delegation fee with new account creation */
-                                        + 108_893L /*call costs in gas*/
-                                        + 554_517L /* auto creation hapi fee*/
-                                        + 32_337L /* mysterious new fee; TODO(Pectra) figure this out */;
+                                        + 108_893L /* call costs in gas */
+                                        + 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
                                 assertEquals(expectedGas, gas);
                             })),
                     getAliasedAccountInfo(DELEGATING_ACCOUNT)
@@ -211,7 +210,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
 
     @HapiTest
     final Stream<DynamicTest> testDelegationSetToHollowAccountWithRevertingCall() {
-        return hapiTest(withOpContext((spec, opLog) -> {
+        return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
@@ -223,13 +222,12 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                     .gasLimit(2_000_000L)
                     .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
                     .via(DELEGATION_SET)
-                    .exposingGasTo((s, gas) -> {
+                    .exposingGasTo((_, gas) -> {
                         final var expectedGas = 21_000L /* intrinsic gas base fee */
                                 + 64 /* payload cost */
                                 + 25_000L /* code delegation fee with new account creation */
                                 + 408 /*call costs in gas*/
-                                + 554_517L /* auto creation hapi fee*/
-                                + 32_337L /* mysterious new fee; TODO(Pectra) figure this out */;
+                                + 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
                         assertEquals(expectedGas, gas);
                     })));
             allRunFor(
@@ -254,7 +252,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
 
     @HapiTest
     final Stream<DynamicTest> testDelegationSetToMultipleHollowAccountsWithRevertingCall() {
-        return hapiTest(withOpContext((spec, opLog) -> {
+        return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
@@ -268,13 +266,13 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                     .gasLimit(2_000_000L)
                     .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
                     .via(DELEGATION_SET)
-                    .exposingGasTo((s, gas) -> {
+                    .exposingGasTo((_, gas) -> {
                         final var expectedGas = 21_000L /* intrinsic gas base fee */
                                 + 64 /* payload cost */
                                 + 3 * 25_000L /* code delegation fee with new account creation */
                                 + 408 /*call costs in gas*/
-                                + 3 * 554_517L /* auto creation hapi fee*/
-                                + 3 * 32_337L /* mysterious new fee; TODO(Pectra) figure this out */;
+                                + 3
+                                        * 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
                         assertEquals(expectedGas, gas);
                     })));
             allRunFor(
@@ -311,7 +309,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
 
     @HapiTest
     final Stream<DynamicTest> testDelegationSetToExistingAccountWithRevertingCall() {
-        return hapiTest(withOpContext((spec, opLog) -> {
+        return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             final var delegatingAccount = createEvmAccountWithKey(spec);
@@ -323,7 +321,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                     .gasLimit(2_000_000L)
                     .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
                     .via(DELEGATION_SET)
-                    .exposingGasTo((s, gas) -> {
+                    .exposingGasTo((_, gas) -> {
                         final var numDelegations = 1;
                         final var expectedGas = 21_000L /* intrinsic gas base fee */
                                 + 64 /* payload cost */
@@ -342,7 +340,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
 
     @HapiTest
     final Stream<DynamicTest> testDelegationWithMultipleAccountsAndNotEnoughGasForLazyCreation() {
-        return hapiTest(withOpContext((spec, opLog) -> {
+        return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
@@ -356,13 +354,13 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                     .addCodeDelegationWithSpecNonce(DELEGATION_TARGET.get(), DELEGATING_ACCOUNT_3)
                     .via(DELEGATION_SET)
                     .hasKnownStatus(ResponseCodeEnum.SUCCESS)
-                    .exposingGasTo((s, gas) -> {
+                    .exposingGasTo((_, gas) -> {
                         final var expectedGas = 21_000L /* intrinsic gas base fee */
                                 + 64 /* payload cost */
                                 + 3 * 25_000L /* code delegation fee with new account creation */
                                 + 108_893L /*call costs in gas*/
-                                + 2 * 554_517L /* auto creation hapi fee*/
-                                + 2 * 32_337L /* mysterious new fee; TODO(Pectra) figure this out */;
+                                + 2
+                                        * 586_854L /* auto creation hapi fee, proxyWorldUpdater.lazyCreationCostInGas(authorityAddress) */;
                         assertEquals(expectedGas, gas);
                     })));
             allRunFor(
