@@ -245,12 +245,12 @@ class CryptoTransferFeeCalculatorTest {
             // Should not throw INVALID_TOKEN_ID - validation happens at handle time
             final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            // Treated as no valid tokens, so no service fee (like HBAR-only)
-            assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
+            // even though no valid tokens, should still charge the fee as if it was valid
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
         }
 
         @Test
-        @DisplayName("Mix of valid and non-existent tokens only counts valid ones")
+        @DisplayName("Mix of valid and non-existent tokens charge for both kinds")
         void mixOfValidAndNonExistentTokens() {
             setupMocksWithTokenStore();
             mockFungibleToken(2001L, false); // Valid token
@@ -268,8 +268,8 @@ class CryptoTransferFeeCalculatorTest {
             // Should not throw - invalid token is skipped
             final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
 
-            // Only the valid token should be counted
-            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE);
+            // should be charged for both valid and invalid tokens
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE);
         }
     }
 
