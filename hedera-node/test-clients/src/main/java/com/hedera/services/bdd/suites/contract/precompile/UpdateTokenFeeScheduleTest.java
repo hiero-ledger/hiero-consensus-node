@@ -100,7 +100,9 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("fungible token with fixed ℏ fee")
     public Stream<DynamicTest> updateFungibleTokenWithHbarFixedFee() {
         return hapiTest(
-                updateTokenFeeSchedules.call("updateFungibleFixedHbarFee", fungibleToken, 10L, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateFungibleFixedHbarFee", fungibleToken, 10L, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 fungibleToken
                         .getInfo()
                         .andAssert(info -> info.hasCustom(fixedHbarFeeInSchedule(10L, feeCollector.name()))));
@@ -110,7 +112,9 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("non fungible token with fixed ℏ fee")
     public Stream<DynamicTest> updateNonFungibleTokenWithHbarFixedFee() {
         return hapiTest(
-                updateTokenFeeSchedules.call("updateNonFungibleFixedHbarFee", nonFungibleToken, 10L, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateNonFungibleFixedHbarFee", nonFungibleToken, 10L, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 nonFungibleToken
                         .getInfo()
                         .andAssert(info -> info.hasCustom(fixedHbarFeeInSchedule(10L, feeCollector.name()))));
@@ -120,7 +124,9 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("fungible token with token fixed fee")
     public Stream<DynamicTest> updateFungibleTokenWithTokenFixedFee() {
         return hapiTest(
-                updateTokenFeeSchedules.call("updateFungibleFixedHtsFee", fungibleToken, feeToken, 1L, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateFungibleFixedHtsFee", fungibleToken, feeToken, 1L, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 fungibleToken
                         .getInfo()
                         .andAssert(info ->
@@ -136,8 +142,8 @@ public class UpdateTokenFeeScheduleTest {
                 nonFungibleToken
                         .authorizeContracts(updateTokenFeeSchedules)
                         .alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
-                updateTokenFeeSchedules.call(
-                                "updateNonFungibleFixedHtsFee", nonFungibleToken, feeToken, 1L, feeCollector)
+                updateTokenFeeSchedules
+                        .call("updateNonFungibleFixedHtsFee", nonFungibleToken, feeToken, 1L, feeCollector)
                         .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 nonFungibleToken
                         .getInfo()
@@ -152,7 +158,9 @@ public class UpdateTokenFeeScheduleTest {
         return hapiTest(
                 feeCollector.associateTokens(token),
                 token.authorizeContracts(updateTokenFeeSchedules).alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
-                updateTokenFeeSchedules.call("updateFungibleFixedTokenFee", token, 1L, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateFungibleFixedTokenFee", token, 1L, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 token.getInfo()
                         .andAssert(
                                 info -> info.hasCustom(fixedHtsFeeInSchedule(1L, token.name(), feeCollector.name()))));
@@ -162,11 +170,15 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("fungible token with fractional fee")
     public Stream<DynamicTest> updateFungibleTokenWithFractionalFee() {
         return hapiTest(
-                updateTokenFeeSchedules.call("updateFungibleFractionalFee", feeToken, 1L, 10L, false, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateFungibleFractionalFee", feeToken, 1L, 10L, false, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 feeToken.getInfo()
                         .andAssert(info -> info.hasCustom(
                                 fractionalFeeInSchedule(1L, 10L, 0L, OptionalLong.of(0), false, feeCollector.name()))),
-                updateTokenFeeSchedules.call("updateFungibleFractionalFee", feeToken, 1L, 10L, true, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateFungibleFractionalFee", feeToken, 1L, 10L, true, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 feeToken.getInfo()
                         .andAssert(info -> info.hasCustom(
                                 fractionalFeeInSchedule(1L, 10L, 0L, OptionalLong.of(0), true, feeCollector.name()))));
@@ -176,15 +188,8 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("fungible token with fractional fee with min and max")
     public Stream<DynamicTest> updateFungibleTokenWithFractionalFeeWithMinAndMax() {
         return hapiTest(
-                updateTokenFeeSchedules.call(
-                                "updateFungibleFractionalFeeMinAndMax",
-                                feeToken,
-                                1L,
-                                10L,
-                                10L,
-                                20L,
-                                false,
-                                feeCollector)
+                updateTokenFeeSchedules
+                        .call("updateFungibleFractionalFeeMinAndMax", feeToken, 1L, 10L, 10L, 20L, false, feeCollector)
                         .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 feeToken.getInfo()
                         .andAssert(info -> info.hasCustom(fractionalFeeInSchedule(
@@ -200,7 +205,9 @@ public class UpdateTokenFeeScheduleTest {
                 nonFungibleToken
                         .authorizeContracts(updateTokenFeeSchedules)
                         .alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
-                updateTokenFeeSchedules.call("updateNonFungibleRoyaltyFee", nonFungibleToken, 1L, 10L, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateNonFungibleRoyaltyFee", nonFungibleToken, 1L, 10L, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 nonFungibleToken
                         .getInfo()
                         .andAssert(info ->
@@ -212,8 +219,8 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("non fungible token with royalty fee ℏ fallback")
     public Stream<DynamicTest> updateNonFungibleTokenWithRoyaltyFeeHbarFallback() {
         return hapiTest(
-                updateTokenFeeSchedules.call(
-                                "updateNonFungibleRoyaltyFeeHbarFallback", nonFungibleToken, 1L, 10L, 20L, feeCollector)
+                updateTokenFeeSchedules
+                        .call("updateNonFungibleRoyaltyFeeHbarFallback", nonFungibleToken, 1L, 10L, 20L, feeCollector)
                         .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 nonFungibleToken
                         .getInfo()
@@ -226,7 +233,8 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("non fungible token with royalty fee token fallback")
     public Stream<DynamicTest> updateNonFungibleTokenWithRoyaltyFeeTokenFallback() {
         return hapiTest(
-                updateTokenFeeSchedules.call(
+                updateTokenFeeSchedules
+                        .call(
                                 "updateNonFungibleRoyaltyFeeHtsFallback",
                                 nonFungibleToken,
                                 feeToken,
@@ -245,7 +253,9 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("fungible token with n fixed ℏ fee")
     public Stream<DynamicTest> updateFungibleTokenWithNHbarFixedFee() {
         return hapiTest(
-                updateTokenFeeSchedules.call("updateFungibleFixedHbarFees", fungibleToken, 3, 10L, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateFungibleFixedHbarFees", fungibleToken, 3, 10L, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 fungibleToken.getInfo().andAssert(info -> info.hasCustom(
                                 fixedHbarFeeInSchedule(10L, feeCollector.name()))
                         .hasCustom(fixedHbarFeeInSchedule(10L, feeCollector.name()))
@@ -259,7 +269,9 @@ public class UpdateTokenFeeScheduleTest {
         return hapiTest(
                 token.authorizeContracts(updateTokenFeeSchedules).alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
                 feeCollector.associateTokens(token),
-                updateTokenFeeSchedules.call("updateFungibleFractionalFees", token, 3, 1L, 10L, false, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateFungibleFractionalFees", token, 3, 1L, 10L, false, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 token.getInfo().andAssert(info -> info.hasCustom(
                                 fractionalFeeInSchedule(1L, 10L, 0L, OptionalLong.of(0), false, feeCollector.name()))
                         .hasCustom(fractionalFeeInSchedule(1L, 10L, 0L, OptionalLong.of(0), false, feeCollector.name()))
@@ -271,8 +283,8 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("non fungible token with n royalty fee")
     public Stream<DynamicTest> updateNonFungibleTokenWithNRoyaltyFee() {
         return hapiTest(
-                updateTokenFeeSchedules.call(
-                                "updateNonFungibleRoyaltyFees", nonFungibleToken, 3, 1L, 10L, feeCollector)
+                updateTokenFeeSchedules
+                        .call("updateNonFungibleRoyaltyFees", nonFungibleToken, 3, 1L, 10L, feeCollector)
                         .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 nonFungibleToken.getInfo().andAssert(info -> info.hasCustom(
                                 royaltyFeeWithoutFallbackInSchedule(1L, 10L, feeCollector.name()))
@@ -287,7 +299,9 @@ public class UpdateTokenFeeScheduleTest {
         return hapiTest(
                 token.authorizeContracts(updateTokenFeeSchedules).alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
                 feeCollector.associateTokens(token),
-                updateTokenFeeSchedules.call("updateFungibleFees", token, 3L, token, 1L, 10L, false, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateFungibleFees", token, 3L, token, 1L, 10L, false, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 token.getInfo()
                         .andAssert(info -> info.hasCustom(fixedHtsFeeInSchedule(3L, token.name(), feeCollector.name()))
                                 .hasCustom(fixedHbarFeeInSchedule(6L, feeCollector.name()))
@@ -300,8 +314,8 @@ public class UpdateTokenFeeScheduleTest {
     @DisplayName("non fungible token multiple fees")
     public Stream<DynamicTest> updateNonFungibleTokenFees() {
         return hapiTest(
-                updateTokenFeeSchedules.call(
-                                "updateNonFungibleFees", nonFungibleToken, feeToken, 1L, 1L, 10L, feeCollector)
+                updateTokenFeeSchedules
+                        .call("updateNonFungibleFees", nonFungibleToken, feeToken, 1L, 1L, 10L, feeCollector)
                         .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 nonFungibleToken.getInfo().andAssert(info -> info.hasCustom(
                                 fixedHtsFeeInSchedule(1L, feeToken.name(), feeCollector.name()))
@@ -321,7 +335,9 @@ public class UpdateTokenFeeScheduleTest {
                         .authorizeContracts(updateTokenFeeSchedules)
                         .alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
                 feeCollector.associateTokens(fungibleToken),
-                updateTokenFeeSchedules.call("updateFungibleFixedTokenFee", fungibleToken, 1L, feeCollector).gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
+                updateTokenFeeSchedules
+                        .call("updateFungibleFixedTokenFee", fungibleToken, 1L, feeCollector)
+                        .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 updateTokenFeeSchedules.call("resetFungibleTokenFees", fungibleToken),
                 fungibleToken.getInfo().andAssert(HapiGetTokenInfo::hasEmptyCustom),
                 updateTokenFeeSchedules
@@ -339,8 +355,8 @@ public class UpdateTokenFeeScheduleTest {
                 nonFungibleToken
                         .authorizeContracts(updateTokenFeeSchedules)
                         .alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
-                updateTokenFeeSchedules.call(
-                                "updateNonFungibleFees", nonFungibleToken, feeToken, 1L, 1L, 10L, feeCollector)
+                updateTokenFeeSchedules
+                        .call("updateNonFungibleFees", nonFungibleToken, feeToken, 1L, 1L, 10L, feeCollector)
                         .gas(CALL_GAS_WITH_CUSTOM_FEE_SURCHARGE),
                 updateTokenFeeSchedules.call("resetNonFungibleTokenFees", nonFungibleToken),
                 nonFungibleToken.getInfo().andAssert(HapiGetTokenInfo::hasEmptyCustom),
