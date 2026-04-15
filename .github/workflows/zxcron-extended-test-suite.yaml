@@ -406,190 +406,28 @@ jobs:
           checkout-fetch-depth: "1"
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
-      - name: Build Rootly Summary
-        id: rootly-summary
-        if: ${{ needs.report-flaky-tests.outputs.flaky-count > 0 }}
+      - name: Install gomplate
+        run: |
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
+            -o /tmp/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
+          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
+
+      - name: Build Success Slack Payload
         env:
+          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
+          XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
+          TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
           FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
-        run: |
-          title="XTS Flaky Test Report (${{ needs.fetch-xts-candidate.outputs.xts-info }})"
-
-          FLAKY_LIST=$(echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"')
-
-          echo "title=${title}" >> "${GITHUB_OUTPUT}"
-          {
-            echo 'summary<<EOF'
-            echo "------------------------------------"
-            echo "XTS tests passed but flaky tests were detected."
-            echo "Flaky Test(s):"
-            echo "${FLAKY_LIST}"
-            echo "------------------------------------"
-            echo "Commit information:"
-            echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
-            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
-            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-            echo EOF
-          } >> "${GITHUB_OUTPUT}"
-
-      - name: Log Rootly Summary
-        if: ${{ needs.report-flaky-tests.outputs.flaky-count > 0 }}
-        run: |
-          echo "## Rootly Summary:" >> "${GITHUB_STEP_SUMMARY}"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
-
-      - name: Create Rootly Alert
-        id: create-rootly-alert
-        if: ${{ needs.report-flaky-tests.outputs.flaky-count > 0 }}
-        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
-        continue-on-error: true
-        with:
-          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
-          summary: "${{ steps.rootly-summary.outputs.title }}"
-          details: "${{ steps.rootly-summary.outputs.summary }}"
-          notification_target_type: "Service"
-          notification_target: "CITR General"
-          set_as_noise: "false"
-          alert_urgency: "Low"
-          external_id: ${{ github.run_id }}
-          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          environments: "CITR"
-
-      - name: Build Slack Payload Message
-        env:
-          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
-          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
-        run: |
-          FLAKY_SECTION=""
-          if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
-            COLOR="#FFA500"
-            HEADER=":warning: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed with Flaky Tests"
-            DESCRIPTION="*XTS Job Succeeded but flaky tests were detected. Test panel status below*"
-
-            FLAKY_LIST=""
-            while IFS= read -r line; do
-              class=$(echo "${line}" | jq -r '.class')
-              method=$(echo "${line}" | jq -r '.method')
-              issue_url=$(echo "${line}" | jq -r '.issue_url')
-              issue_number=$(echo "${line}" | jq -r '.issue_number')
-              is_new=$(echo "${line}" | jq -r '.is_new')
-              status=""
-              if [[ "${is_new}" == "true" ]]; then
-                status=" (New)"
-              fi
-              FLAKY_LIST="${FLAKY_LIST}• \`${class}#${method}\` — <${issue_url}|#${issue_number}>${status}\n"
-            done < <(echo "${FLAKY_TESTS_JSON}" | jq -c '.[]')
-
-            FLAKY_SECTION=',{"type":"divider"},{"type":"section","text":{"type":"mrkdwn","text":"*Flaky Tests (failed initially but passed on retry):*\n'"${FLAKY_LIST}"'"}}'
-          else
-            COLOR="#00FF00"
-            HEADER=":tada: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed"
-            DESCRIPTION="*XTS Job Succeeded. Test panel status below*"
-          fi
-
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "${COLOR}",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "${HEADER}",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "${DESCRIPTION}"
-                    },
-                    "fields": [
-                      {
-                        "type": "plain_text",
-                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "XTS Execution: ${{ needs.xts-execution.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
-                      }
-                    ]
-                  }${FLAKY_SECTION},
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*\nFor a full list of executed tests see \`Workflow run URL\` below"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Commit List*:"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          COMMIT_AUTHOR: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_LIST: ${{ needs.fetch-xts-candidate.outputs.commit-list }}
+        run: gomplate -f .github/workflows/templates/slack-xts-success-detailed.json.tpl -o slack_payload.json
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
@@ -607,10 +445,9 @@ jobs:
       - xts-execution
       - tag-for-promotion
       - report-flaky-tests
-    if: ${{ (needs.fetch-xts-candidate.result != 'success' ||
-      needs.xts-execution.result != 'success' ||
-      needs.tag-for-promotion.result != 'success') &&
-      !cancelled() && always() }}
+    if: ${{ !( needs.fetch-xts-candidate.result == 'success' &&
+      needs.xts-execution.result == 'success' &&
+      needs.tag-for-promotion.result == 'success') && always() }}
 
     steps:
       - name: Initialize GitHub Job
@@ -621,7 +458,22 @@ jobs:
           checkout-fetch-depth: "0"
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
+      - name: Determine Report Category
+        id: report-category
+        run: |
+          if [[ "${{ needs.xts-execution.result }}" == "cancelled" ]] \
+            || [[ "${{ needs.fetch-xts-candidate.result }}" == "cancelled" ]]; then
+            echo "category=cancelled" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(skipped|failure)$ ]] \
+            || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
+            || [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]]; then
+            echo "category=infrastructure" >> "${GITHUB_OUTPUT}"
+          else
+            echo "category=test" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Collect run logs in a log file
+        if: ${{ steps.report-category.outputs.category != 'cancelled' }}
         env:
           GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         continue-on-error: true
@@ -640,6 +492,7 @@ jobs:
           done
 
       - name: Upload log as artifact
+        if: ${{ steps.report-category.outputs.category != 'cancelled' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         continue-on-error: true
         with:
@@ -647,6 +500,7 @@ jobs:
 
       - name: Find Commit Author in Slack
         id: find-commit-author-slack
+        if: ${{ steps.report-category.outputs.category == 'test' }}
         continue-on-error: true
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
@@ -665,26 +519,19 @@ jobs:
           fi
           echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
 
-      - name: Determine failure mode
-        id: extended-test-suite-failure
-        if: ${{ needs.xts-execution.result != 'success' }}
-        run: |
-          failure_mode="${{ needs.xts-execution.outputs.failure-mode || 'general' }}"
-          echo "mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
-
       - name: Set Rootly Service Name
         id: set-rootly-service
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
-          if [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ steps.extended-test-suite-failure.outputs.mode || 'general' }}" == "workflow" ]]; then
+          if [[ "${{ steps.report-category.outputs.category }}" == "infrastructure" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
           FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
@@ -701,7 +548,11 @@ jobs:
             echo "- Tag for Promotion: ${{ needs.tag-for-promotion.result }}"
             echo "------------------------------------"
             if [[ "${{ needs.xts-execution.result }}" != "success" ]]; then
-              echo "XTS tests failed due to a ${{ needs.xts-execution.outputs.failure-mode }} error."
+              FAILURE_MODE="${{ needs.xts-execution.outputs.failure-mode }}"
+              if [[ "${FAILURE_MODE}" == "infrastructure" ]]; then
+                FAILURE_MODE="infrastructure"
+              fi
+              echo "XTS failure - ${FAILURE_MODE} error."
               echo "Failing Test(s):"
               bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.xts-execution.outputs.failed-tests }}"
               echo "------------------------------------"
@@ -722,6 +573,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Log Rootly Summary
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         run: |
           echo "## Rootly Summary:"
           echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
@@ -731,6 +583,7 @@ jobs:
 
       - name: Create Rootly Alert
         id: create-rootly-alert
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
@@ -745,145 +598,64 @@ jobs:
           external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           environments: "CITR"
 
-      - name: Build Slack Payload Message
-        id: payload
-        env:
-          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
-          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
+      - name: Install gomplate
+        if: ${{ steps.report-category.outputs.category == 'test' ||
+          steps.report-category.outputs.category == 'infrastructure' ||
+          steps.report-category.outputs.category == 'cancelled' }}
         run: |
-          FLAKY_SECTION=""
-          if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
-            FLAKY_LIST=""
-            while IFS= read -r line; do
-              class=$(echo "${line}" | jq -r '.class')
-              method=$(echo "${line}" | jq -r '.method')
-              issue_url=$(echo "${line}" | jq -r '.issue_url')
-              issue_number=$(echo "${line}" | jq -r '.issue_number')
-              is_new=$(echo "${line}" | jq -r '.is_new')
-              status=""
-              if [[ "${is_new}" == "true" ]]; then
-                status=" (New)"
-              fi
-              FLAKY_LIST="${FLAKY_LIST}• \`${class}#${method}\` — <${issue_url}|#${issue_number}>${status}\n"
-            done < <(echo "${FLAKY_TESTS_JSON}" | jq -c '.[]')
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
+            -o /tmp/gomplate
+          curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/checksums-v5.0.0_sha256.txt" \
+            -o /tmp/gomplate_checksums.txt
+          echo "$(grep 'bin/gomplate_linux-amd64$' /tmp/gomplate_checksums.txt | awk '{print $1}')  /tmp/gomplate" | sha256sum -c -
+          sudo install -m 755 /tmp/gomplate /usr/local/bin/gomplate
 
-            FLAKY_SECTION=',{"type":"divider"},{"type":"section","text":{"type":"mrkdwn","text":"*Flaky Tests (failed initially but passed on retry):*\n'"${FLAKY_LIST}"'"}}'
-          fi
+      - name: Build Test Failure Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'test' }}
+        env:
+          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
+          XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
+          TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
+          FAILED_TESTS: ${{ needs.xts-execution.outputs.failed-tests }}
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+          COMMIT_AUTHOR: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}
+          SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_LIST: ${{ needs.fetch-xts-candidate.outputs.commit-list }}
+        run: gomplate -f .github/workflows/templates/slack-xts-test-failure-detailed.json.tpl -o slack_payload.json
 
-          cat <<EOF > slack_payload.json
-          {
-            "attachments": [
-              {
-                "color": "#FF0000",
-                "blocks": [
-                  {
-                    "type": "header",
-                    "text": {
-                      "type": "plain_text",
-                      "text": ":grey_exclamation: XTS - eXtended Test Suite Failure Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Failed",
-                      "emoji": true
-                    }
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*XTS Job Resulted in failure. See status below.*"
-                    },
-                    "fields": [
-                      {
-                        "type": "plain_text",
-                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "XTS Execution: ${{ needs.xts-execution.result }}"
-                      },
-                      {
-                        "type": "plain_text",
-                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
-                      }
-                    ]
-                  }${FLAKY_SECTION},
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Workflow and Commit Information*"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Source Commit*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Commit author*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Slack user*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ steps.find-commit-author-slack.outputs.slack-user-id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run ID*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": " ${{ github.run_id }}"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "*Workflow run URL*:"
-                      },
-                      {
-                        "type": "mrkdwn",
-                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                      }
-                    ]
-                  },
-                  {
-                    "type": "divider"
-                  },
-                  {
-                    "type": "section",
-                    "text": {
-                      "type": "mrkdwn",
-                      "text": "*Commit List*:"
-                    },
-                    "fields": [
-                      {
-                        "type": "mrkdwn",
-                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-          EOF
+      - name: Build Infrastructure Failure Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        env:
+          XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
+          FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
+          XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
+          TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-xts-infra-failure-detailed.json.tpl -o slack_payload.json
 
-      - name: Report failure (slack citr-operations)
-        if: ${{ steps.set-rootly-service.outputs.service != 'CI/CD Workflows' }}
+      - name: Build Infrastructure Failure Summary Payload
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        env:
+          SLACK_SUMMARY_TEXT: ":warning: XTS infrastructure failure (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+        run: gomplate -f .github/workflows/templates/slack-infra-failure-summary.json.tpl -o slack_payload_summary.json
+
+      - name: Build Cancelled Summary Payload
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        env:
+          SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS run cancelled (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+        run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_summary.json
+
+      # Notification routing:
+      #   test failures       -> citr-operations (detailed)
+      #   infrastructure      -> citr-operations (summary) + citr-failures (detailed)
+      #   canceled            -> citr-operations (summary) + citr-failures (summary)
+      - name: Notify test failure detailed (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'test' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
@@ -891,11 +663,38 @@ jobs:
           payload-templated: true
           payload-file-path: slack_payload.json
 
-      - name: Report failure (slack citr-failures)
-        if: ${{ steps.set-rootly-service.outputs.service == 'CI/CD Workflows' }}
+      - name: Notify infrastructure failure summary (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify infrastructure failure detailed (citr-failures)
+        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
+
+      - name: Notify cancelled summary (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
+
+      - name: Notify cancelled summary (citr-failures)
+        if: ${{ steps.report-category.outputs.category == 'cancelled' }}
+        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload_summary.json
