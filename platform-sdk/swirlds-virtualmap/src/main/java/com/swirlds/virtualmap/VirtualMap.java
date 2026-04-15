@@ -1019,15 +1019,31 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         final long end = System.currentTimeMillis();
         flushed.set(true);
 
-        // If an async snapshot was requested via createSnapshotAsync(), write the snapshot
-        // to the target path and signal completion. This must happen after the cache flush
-        // completes, so the data source contains all relevant data.
-        final Path targetPath = snapshotTargetPath.get();
-        final CompletableFuture<Void> future = snapshotFuture.get();
-        if (targetPath != null && future != null) {
-            dataSourceBuilder.snapshot(targetPath, dataSource);
-            future.complete(null);
-
+        try {
+            // If an async snapshot was requested via createSnapshotAsync(), write the snapshot
+            // to the target path and signal completion. This must happen after the cache flush
+            // completes, so the data source contains all relevant data.
+            final Path targetPath = snapshotTargetPath.get();
+            final CompletableFuture<Void> future = snapshotFuture.get();
+            if (targetPath != null && future != null) {
+                if (future.isCancelled()) {
+                    logger.warn(
+                            VIRTUAL_MERKLE_STATS.getMarker(),
+                            "Async snapshot to {} was cancelled, skipping snapshot write",
+                            targetPath);
+                } else {
+                    dataSourceBuilder.snapshot(targetPath, dataSource);
+                    future.complete(null);
+                }
+                snapshotTargetPath.set(null);
+                snapshotFuture.set(null);
+            }
+        } catch (final Exception e) {
+            logger.error(EXCEPTION.getMarker(), "Failed to write snapshot to target path", e);
+            final CompletableFuture<Void> future = snapshotFuture.get();
+            if (future != null) {
+                future.completeExceptionally(e);
+            }
             snapshotTargetPath.set(null);
             snapshotFuture.set(null);
         }

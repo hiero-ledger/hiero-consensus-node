@@ -30,8 +30,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.NodeId;
@@ -157,6 +159,7 @@ public final class SignedStateFileWriter {
                     signedState.getRound());
         }
 
+        Future<Void> snapshotFuture = null;
         try {
             if (stateConfig.saveStateAsync()
                     && StateToDiskReason.PERIODIC_SNAPSHOT.equals(signedState.getStateToDiskReason())) {
@@ -167,24 +170,59 @@ public final class SignedStateFileWriter {
                 // the backpressure.
                 // This optimization applies only to PERIODIC_SNAPSHOT states. States saved for other reasons
                 // (e.g., freeze states) may retain additional references and won't be destroyed here, and thus flushed.
-                final Future<Void> snapshotFuture =
-                        stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
+                snapshotFuture = stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
                 // Release the state reference so that current snapshot creation can be unblocked in `VirtualMap#flush`,
                 // because the copy becomes destroyed and thus can be flushed.
                 reservedSignedState.close();
                 // Block until the snapshot is created.
-                snapshotFuture.get(90, TimeUnit.SECONDS); // Figure out timeout
+                snapshotFuture.get(stateConfig.asyncSnapshotTimeout(), TimeUnit.SECONDS);
             } else {
                 stateLifecycleManager.createSnapshot(signedState.getState(), directory);
                 reservedSignedState.close();
             }
-        } catch (final Throwable e) {
+        } catch (final TimeoutException e) {
             logger.error(
                     EXCEPTION.getMarker(),
-                    "Unexpected error when writing a snapshot for round {} to {}: {}",
+                    "Timed out waiting for async snapshot for round {} to {} after {} seconds",
+                    signedState.getRound(),
+                    directory,
+                    stateConfig.asyncSnapshotTimeout(),
+                    e);
+            if (snapshotFuture != null) {
+                snapshotFuture.cancel(false);
+            }
+            throw new IOException("Async snapshot timed out for round " + signedState.getRound(), e);
+        } catch (final ExecutionException e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Async snapshot failed for round {} to {}: {}",
+                    signedState.getRound(),
+                    directory,
+                    e.getCause());
+            throw new IOException("Async snapshot failed for round " + signedState.getRound(), e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Interrupted while waiting for async snapshot for round {} to {}",
                     signedState.getRound(),
                     directory,
                     e);
+            if (snapshotFuture != null) {
+                snapshotFuture.cancel(false);
+            }
+            throw new IOException("Async snapshot interrupted for round " + signedState.getRound(), e);
+        } catch (final Throwable e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Unexpected error when writing a snapshot for round {} to {}",
+                    signedState.getRound(),
+                    directory,
+                    e);
+            if (snapshotFuture != null) {
+                snapshotFuture.cancel(false);
+            }
+            throw new IOException("Snapshot creation failed for round " + signedState.getRound(), e);
         } finally {
             // Ensures cleanup if an error occurs during snapshot creation. The isClosed() check
             // prevents double-close since ReservedSignedState can only be closed once.
