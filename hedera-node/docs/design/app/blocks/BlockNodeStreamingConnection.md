@@ -27,7 +27,7 @@ It manages connection state, handles communication, and reports errors to the `B
 <dd>A connection instance managing communication and state with a block node.</dd>
 
 <dt>ConnectionState</dt>
-<dd>Represents current connection status: UNINITIALIZED, PENDING, ACTIVE, CLOSING, CLOSED.</dd>
+<dd>Represents current connection status: UNINITIALIZED, READY, ACTIVE, CLOSING, CLOSED.</dd>
 </dl>
 
 ## Component Responsibilities
@@ -56,8 +56,8 @@ created, but the underlying gRPC connection between the consensus node and the b
 the connection was created, optionally a specific block number to begin streaming with can be passed in. If one is not
 specified, then the connection will pick a block based on the state of the block buffer.
 
-The next transitional state is `PENDING`. When the underlying gRPC connection is established (by invoking
-`#createRequestPipeline`) the state will transition to `PENDING` indicating that the connection was successfully created.
+The next transitional state is `READY`. When the underlying gRPC connection is established (by invoking
+`#createRequestPipeline`) the state will transition to `READY` indicating that the connection was successfully created.
 No traffic is occurring over the connection in this state, merely this state indicates that the connection is _ready_ to
 start handling traffic.
 
@@ -158,7 +158,7 @@ Where:
 
 For block streaming request sends, logs include the full block request correlation ID in the connection context:
 
-`[bn-conn-worker] [N3-STR1-BLK0-REQ2/localhost:37753/ACTIVE] Sending request to block node (type=BLOCK_ITEMS)`
+`[N3-STR1-BLK0-REQ2/localhost:37753/ACTIVE] Sending request to block node (type=BLOCK_ITEMS)`
 
 For non-block-specific operations (e.g. service/status calls), logs use the connection-level ID:
 
@@ -267,33 +267,15 @@ sequenceDiagram
     Connection-->>Manager: reportError(error)
 ```
 
-### Consensus Node Behavior on EndOfStream Response Codes
-
-| Code                 | Connect to Other Node | Retry Behavior      | Initial Retry Delay | Exponential Backoff | Restart at Block | Special Behaviour |
-|:---------------------|:----------------------|:--------------------|:--------------------|:--------------------|:-----------------|:------------------|
-| `SUCCESS`            | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
-| `ERROR`              | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
-| `PERSISTENCE_FAILED` | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
-| `TIMEOUT`            | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
-| `DUPLICATE_BLOCK`    | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
-| `BAD_BLOCK_PROOF`    | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
-| `INVALID_REQUEST`    | No (retry same)       | Exponential backoff | 1 second            | Yes (2x, jittered)  | blockNumber + 1  |                   |
-| `UNKNOWN`            | Yes (immediate)       | Fixed delay         | 30 seconds          | No                  | Latest           |                   |
-
-**Notes:**
-- **Exponential Backoff**: When enabled, delay starts at 1 second and doubles (2x multiplier) on each retry attempt with jitter applied (delay/2 + random(0, delay/2)) to spread out retry attempts. Max backoff is configurable via `maxBackoffDelay`.
-- **Connect to Other Node**: When "Yes (immediate)", the manager will immediately attempt to connect to the next available priority node while the failed node is rescheduled for retry.
-- **Restart at Block**: "Latest" means reconnection starts at the latest produced block; "blockNumber + 1" means reconnection continues from the block following the acknowledged block.
-
 ### Consensus Node Behavior on BehindPublisher Response
 
 The `BehindPublisher` response indicates that the block node is behind the publisher (consensus node) and needs earlier blocks. This is a separate response type from `EndOfStream`, and crucially **does not close the stream** when the consensus node can help.
 
-| Condition                            | Connection Behavior  | Stream Closed | Resume at Block | Special Behaviour                                                                             |
-|:-------------------------------------|:---------------------|:--------------|:----------------|:----------------------------------------------------------------------------------------------|
-| Block available in buffer            | Stay connected       | No            | blockNumber + 1 | Connection remains open; streaming resumes from the earlier block                             |
-| Block not available (too far behind) | Close and reschedule | Yes           | Latest          | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN should catch up from other Block Nodes |
-| Block not available (future block)   | Close and reschedule | Yes           | Latest          | CN sends `EndStream.ERROR` - this indicates an unexpected state                               |
+| Condition                            | Connection Behavior | Stream Closed | Resume at Block | Special Behaviour                                                                             |
+|:-------------------------------------|:--------------------|:--------------|:----------------|:----------------------------------------------------------------------------------------------|
+| Block available in buffer            | Stay connected      | No            | blockNumber + 1 | Connection remains open; streaming resumes from the earlier block                             |
+| Block not available (too far behind) | Close               | Yes           | Latest          | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN should catch up from other Block Nodes |
+| Block not available (future block)   | Close               | Yes           | Latest          | CN sends `EndStream.ERROR` - this indicates an unexpected state                               |
 
 **Key Behavioral Notes:**
 - If the consensus node has the requested block in its buffer, it simply updates the streaming block and continues on the same connection.
@@ -311,9 +293,6 @@ The connection implements a configurable rate limiting mechanism for EndOfStream
 
 <dt>blockNode.endOfStreamTimeFrame</dt>
 <dd>The duration of the sliding window in which EndOfStream responses are counted.</dd>
-
-<dt>blockNode.endOfStreamScheduleDelay</dt>
-<dd>The delay duration before attempting reconnection when the rate limit is exceeded.</dd>
 
 <dt>blockNode.connectionWorkerSleepDuration</dt>
 <dd>The amount of time the connection worker thread will sleep between attempts to send block items to the block node.</dd>
@@ -338,12 +317,10 @@ Pipeline operations (`onNext()`, `onComplete()`, and pipeline creation) are pote
   - The timeout metric is incremented
   - A `RuntimeException` is thrown with the underlying `TimeoutException`
   - The connection remains in UNINITIALIZED state
-  - The connection manager's error handling will schedule a retry with exponential backoff
 - **onNext() timeout**: When sending block items via `sendRequest()`, the operation is submitted to the connection's dedicated executor and the calling thread blocks waiting for completion with a timeout. If the operation does not complete within the configured timeout period:
   - The Future is cancelled to interrupt the blocked operation
   - The timeout metric is incremented
   - `handleStreamFailure()` is triggered (only if connection is still ACTIVE)
-  - The connection follows standard failure handling with exponential backoff retry
   - The connection manager will select a different block node for the next attempt if one is available
   - `TimeoutException` is caught and handled internally
 - **onComplete() timeout**: When closing the stream via `closePipeline()`, the operation is submitted to the same dedicated executor with the same timeout mechanism. If the operation does not complete within the configured timeout period:

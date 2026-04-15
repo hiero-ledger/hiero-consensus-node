@@ -124,7 +124,7 @@ class GarbageScannerTest {
         final LongList index =
                 new LongListHeap(DEFAULT_CONFIG.longListChunkSize(), 1, DEFAULT_CONFIG.longListReservedBufferSize());
 
-        final GarbageScanner scanner = new GarbageScanner(index, fileCollection, "test-store");
+        final GarbageScanner scanner = new GarbageScanner(index, fileCollection);
 
         final IndexedGarbageFileStats stats = scanner.scan();
         assertEquals(0, stats.garbageFileStats().length);
@@ -155,7 +155,7 @@ class GarbageScannerTest {
     private static GarbageScanner createScanner(final LongList index, final List<DataFileReader> files) {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(files);
-        return new GarbageScanner(index, fileCollection, "test-store");
+        return new GarbageScanner(index, fileCollection);
     }
 
     private static LongList indexWithEntries(final Map<Long, Long> indexEntries) {
