@@ -18,8 +18,10 @@ Usage: solo-wrb-jumpstart.sh [--nodes 3|4]
 
 Environment:
   INITIAL_RELEASE_TAG           Deploy release tag (default: v0.73.0-rc.1)
-  UPGRADE_LOCAL_VERSION         Solo upgrade-version for local build (default: v0.73.0-rc.1)
-  LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars (default: <repo>/hedera-node/data)
+  UPGRADE_VERSION               Solo upgrade-version for network upgrade
+                                (default: local-build upgrade uses v0.73.0-rc.1; explicit value uses tag-based upgrade)
+  LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars
+                                (used when UPGRADE_VERSION is not set; default: <repo>/hedera-node/data)
   DEPLOY_APP_PROPS_FILE         application.properties used for initial deploy
                                 (default: wrapped-record-block-jumpstart/resources/0.73/application.properties)
   BASE_074_APP_PROPS_FILE       Base 0.74 properties used to generate temp upgrade file
@@ -39,7 +41,7 @@ Environment:
 
 Examples:
   ./solo-wrb-jumpstart.sh
-  NODE_ALIASES=node1,node2,node3 UPGRADE_LOCAL_VERSION=0.74.0 ./solo-wrb-jumpstart.sh --nodes 3
+  NODE_ALIASES=node1,node2,node3 UPGRADE_VERSION=0.74.0 ./solo-wrb-jumpstart.sh --nodes 3
 EOF
 }
 
@@ -87,7 +89,8 @@ fi
 
 CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0-rc.1}"
-UPGRADE_LOCAL_VERSION="${UPGRADE_LOCAL_VERSION:-v0.73.0-rc.1}"
+UPGRADE_VERSION="${UPGRADE_VERSION:-${UPGRADE_LOCAL_VERSION:-}}"
+LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.73.0-rc.1}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
@@ -95,6 +98,7 @@ BASE_074_APP_PROPS_FILE="${BASE_074_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.74
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
 BLOCKS_WRAP_EXTRA_ARGS="${BLOCKS_WRAP_EXTRA_ARGS:-}"
 KEEP_NETWORK="${KEEP_NETWORK:-true}"
+USE_LOCAL_BUILD_FOR_UPGRADE="false"
 
 CN_GRPC_LOCAL_PORT="${CN_GRPC_LOCAL_PORT:-50211}"
 MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
@@ -963,15 +967,20 @@ run_replay_wrap_to_migration_block() {
   load_jumpstart_env_from_bin "${SECOND_JUMPSTART_BIN}"
 }
 
-run_local_build_upgrade() {
-  solo consensus network upgrade \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --upgrade-version "${UPGRADE_LOCAL_VERSION}" \
-    --local-build-path "${LOCAL_BUILD_PATH}" \
-    --application-properties "${TMP_UPGRADE_APP_PROPS}" \
-    --quiet-mode \
+run_network_upgrade() {
+  local upgrade_args=(
+    solo consensus network upgrade
+    --deployment "${SOLO_DEPLOYMENT}"
+    --node-aliases "${NODE_ALIASES}"
+    --upgrade-version "${UPGRADE_VERSION}"
+    --application-properties "${TMP_UPGRADE_APP_PROPS}"
+    --quiet-mode
     --force
+  )
+  if [[ "${USE_LOCAL_BUILD_FOR_UPGRADE}" == "true" ]]; then
+    upgrade_args+=(--local-build-path "${LOCAL_BUILD_PATH}")
+  fi
+  "${upgrade_args[@]}"
 }
 
 ensure_mirror_node() {
@@ -1022,6 +1031,18 @@ validate_local_build_path "${LOCAL_BUILD_PATH}"
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "log4j2 config not found: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 [[ -f "${DEPLOY_APP_PROPS_FILE}" ]] || { echo "Deploy application.properties not found: ${DEPLOY_APP_PROPS_FILE}" >&2; exit 1; }
 [[ -f "${BASE_074_APP_PROPS_FILE}" ]] || { echo "Base 0.74 application.properties not found: ${BASE_074_APP_PROPS_FILE}" >&2; exit 1; }
+if [[ -z "${UPGRADE_VERSION}" ]]; then
+  local_build_version="$(local_build_implementation_version)"
+  [[ -n "${local_build_version}" ]] || {
+    echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2
+    exit 1
+  }
+  USE_LOCAL_BUILD_FOR_UPGRADE="true"
+  UPGRADE_VERSION="${LOCAL_BUILD_UPGRADE_TAG}"
+  log "Using fixed upgrade-version ${UPGRADE_VERSION} for local build upgrade; local build Implementation-Version is ${local_build_version}"
+else
+  log "Using explicit upgrade-version override: ${UPGRADE_VERSION}"
+fi
 
 log "Cleaning previous local artifacts"
 rm -rf "${RECORD_STREAMS_DIR}" "${WRAPPED_BLOCKS_DIR}" >/dev/null 2>&1 || true
@@ -1063,12 +1084,20 @@ log "Running offline wrap from genesis records"
 run_initial_offline_wrap_from_genesis "${MIRROR_REST_URL}"
 create_temp_upgrade_properties
 
-log "Upgrading network to local build using temp application.properties"
-run_local_build_upgrade
+if [[ "${USE_LOCAL_BUILD_FOR_UPGRADE}" == "true" ]]; then
+  log "Upgrading network to local build using temp application.properties"
+else
+  log "Upgrading network to release tag ${UPGRADE_VERSION} using temp application.properties"
+fi
+run_network_upgrade
 wait_for_consensus_pods_ready 600
 wait_for_haproxy_ready 600
 restart_post_upgrade_port_forwards
-verify_local_build_on_consensus_nodes
+if [[ "${USE_LOCAL_BUILD_FOR_UPGRADE}" == "true" ]]; then
+  verify_local_build_on_consensus_nodes
+else
+  log "Skipping local build verification because upgrade uses explicit tag ${UPGRADE_VERSION}"
+fi
 
 log "Parsing migration vote values from hgcaa logs"
 parse_migration_vote_from_hgcaa
