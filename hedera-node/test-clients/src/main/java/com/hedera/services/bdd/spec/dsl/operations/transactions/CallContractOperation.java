@@ -21,7 +21,7 @@ import java.util.function.Consumer;
  */
 public class CallContractOperation extends AbstractSpecTransaction<CallContractOperation, HapiContractCall>
         implements SpecOperation {
-    private static final long DEFAULT_GAS = 100_000;
+    private static final long DEFAULT_GAS = 200_000_000;
 
     private final SpecContract target;
     private final String function;

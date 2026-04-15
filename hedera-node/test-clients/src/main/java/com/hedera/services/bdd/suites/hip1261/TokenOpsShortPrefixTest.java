@@ -37,7 +37,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFreezeFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenGrantKycFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintFungibleFullFeeUsd;
@@ -380,7 +380,7 @@ public class TokenOpsShortPrefixTest {
                         .via("feeScheduleUpdateTxn"),
                 validateChargedUsdWithinWithTxnSize(
                         "feeScheduleUpdateTxn",
-                        txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                        txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                 Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                         5.0));
     }

@@ -532,7 +532,8 @@ public class TokenServiceFeesSuite {
         final var feeDenom = "denom";
         final var htsCollector = "denomFee";
         final var feeScheduleKey = "feeSchedule";
-        final var expectedBasePriceUsd = 0.001;
+        final var expectedLegacyBasePriceUsd = 0.001;
+        final var expectedSimpleFeesBasePriceUsd = 1.001;
 
         return hapiTest(
                 newKeyNamed(feeScheduleKey),
@@ -548,7 +549,7 @@ public class TokenServiceFeesSuite {
                         .blankMemo()
                         .withCustom(fixedHtsFee(htsAmount, feeDenom, htsCollector))
                         .via("baseFeeSchUpd"),
-                safeValidateChargedUsd("baseFeeSchUpd", expectedBasePriceUsd, expectedBasePriceUsd));
+                safeValidateChargedUsd("baseFeeSchUpd", expectedLegacyBasePriceUsd, expectedSimpleFeesBasePriceUsd));
     }
 
     @HapiTest

@@ -747,7 +747,7 @@ public class TokenServiceSimpleFeesSuite {
                         .fee(ONE_HUNDRED_HBARS)
                         .withCustom(fixedHtsFee(htsAmount, feeDenom, htsCollector))
                         .via("fee-schedule-update-txn"),
-                validateChargedSimpleFees("Simple Fees", "fee-schedule-update-txn", 0.001, 1));
+                validateChargedSimpleFees("Simple Fees", "fee-schedule-update-txn", 1.001, 1));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
