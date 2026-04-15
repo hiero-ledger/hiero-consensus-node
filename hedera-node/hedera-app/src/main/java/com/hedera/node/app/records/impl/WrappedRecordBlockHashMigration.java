@@ -125,6 +125,10 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
+        if (!validateJumpstartBlockHashesMatch(jumpstartConfig, allRecentWrappedRecordHashes)) {
+            return;
+        }
+
         if (!validateBlockNumberRange(jumpstartConfig.blockNum(), allRecentWrappedRecordHashes)) {
             return;
         }
@@ -198,6 +202,42 @@ public class WrappedRecordBlockHashMigration {
                 allRecentWrappedRecordHashes.entries().getFirst().blockNumber(),
                 allRecentWrappedRecordHashes.entries().getLast().blockNumber());
         return allRecentWrappedRecordHashes;
+    }
+
+    private boolean validateJumpstartBlockHashesMatch(
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
+            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes) {
+        final var jumpstartBlockNum = jumpstartConfig.blockNum();
+        final var matchingEntry = allRecentWrappedRecordHashes.entries().stream()
+                .filter(e -> e.blockNumber() == jumpstartBlockNum)
+                .findFirst()
+                .orElse(null);
+        if (matchingEntry == null) {
+            log.warn(
+                    "No wrapped record hashes file entry found for jumpstart block {}. {}",
+                    jumpstartBlockNum,
+                    RESUME_MESSAGE);
+            return false;
+        }
+        if (!matchingEntry.consensusTimestampHash().equals(jumpstartConfig.currentBlockConsensusTimestampHash())) {
+            log.warn(
+                    "Jumpstart currentBlockConsensusTimestampHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
+                    jumpstartBlockNum,
+                    jumpstartConfig.currentBlockConsensusTimestampHash(),
+                    matchingEntry.consensusTimestampHash(),
+                    RESUME_MESSAGE);
+            return false;
+        }
+        if (!matchingEntry.outputItemsTreeRootHash().equals(jumpstartConfig.currentBlockOutputItemsTreeRootHash())) {
+            log.warn(
+                    "Jumpstart currentBlockOutputItemsTreeRootHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
+                    jumpstartBlockNum,
+                    jumpstartConfig.currentBlockOutputItemsTreeRootHash(),
+                    matchingEntry.outputItemsTreeRootHash(),
+                    RESUME_MESSAGE);
+            return false;
+        }
+        return true;
     }
 
     private boolean validateBlockNumberRange(
@@ -281,6 +321,24 @@ public class WrappedRecordBlockHashMigration {
                         RESUME_MESSAGE);
                 foundError = true;
             }
+        }
+        final var timestampHash = jumpstartConfig.currentBlockConsensusTimestampHash();
+        if (timestampHash.length() != HASH_SIZE) {
+            log.error(
+                    "Jumpstart currentBlockConsensusTimestampHash has invalid length {} (expected {}). {}",
+                    timestampHash.length(),
+                    HASH_SIZE,
+                    RESUME_MESSAGE);
+            foundError = true;
+        }
+        final var outputHash = jumpstartConfig.currentBlockOutputItemsTreeRootHash();
+        if (outputHash.length() != HASH_SIZE) {
+            log.error(
+                    "Jumpstart currentBlockOutputItemsTreeRootHash has invalid length {} (expected {}). {}",
+                    outputHash.length(),
+                    HASH_SIZE,
+                    RESUME_MESSAGE);
+            foundError = true;
         }
         return !foundError;
     }

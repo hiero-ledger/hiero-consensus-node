@@ -77,7 +77,8 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
         // >= firstDiskBlock so the migration has disk entries to process from
         // jumpstartBlockNum+1 onward.
         final int mid = entries.size() / 2;
-        final long jumpstartBlockNum = entries.get(mid - 1).blockNumber();
+        final var jumpstartEntry = entries.get(mid - 1);
+        final long jumpstartBlockNum = jumpstartEntry.blockNumber();
         log.info(
                 "Using jumpstart block {} (~midpoint of disk range [{}, {}])",
                 jumpstartBlockNum,
@@ -107,6 +108,12 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
         envOverrides.put(
                 "blockStream.jumpstart.streamingHasherSubtreeHashes",
                 intermediateHashes.stream().map(Bytes::toHex).collect(Collectors.joining(",")));
+        envOverrides.put(
+                "blockStream.jumpstart.currentBlockConsensusTimestampHash",
+                jumpstartEntry.consensusTimestampHash().toHex());
+        envOverrides.put(
+                "blockStream.jumpstart.currentBlockOutputItemsTreeRootHash",
+                jumpstartEntry.outputItemsTreeRootHash().toHex());
         log.info(
                 "Set jumpstart config properties: blockNum={}, leafCount={}, hashCount={}",
                 jumpstartBlockNum,
@@ -119,7 +126,9 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
                 prevWrappedBlockHash,
                 hasher.leafCount(),
                 intermediateHashes.size(),
-                intermediateHashes));
+                intermediateHashes,
+                jumpstartEntry.consensusTimestampHash(),
+                jumpstartEntry.outputItemsTreeRootHash()));
         return false;
     }
 }
