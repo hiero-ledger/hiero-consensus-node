@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers.changingFungibleBalances;
@@ -363,7 +362,6 @@ class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> staticCallForBurnWithContractKey() {
         final AtomicReference<Address> vanillaTokenTokenAddress = new AtomicReference<>();
         return hapiTest(
@@ -867,7 +865,6 @@ class AtomicBatchContractKeysHtsTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> callForDissociateWithContractKey() {
         final AtomicReference<Address> accountAddress = new AtomicReference<>();
         final AtomicReference<Address> vanillaTokenAddress = new AtomicReference<>();

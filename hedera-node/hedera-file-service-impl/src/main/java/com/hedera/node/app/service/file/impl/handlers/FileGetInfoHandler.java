@@ -29,7 +29,6 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -101,7 +100,6 @@ public class FileGetInfoHandler extends FileQueryBase {
         final var query = context.query();
         final var fileStore = context.createStore(ReadableFileStore.class);
         final var upgradeFileStore = context.createStore(ReadableUpgradeFileStore.class);
-        final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var fileServiceConfig = context.configuration().getConfigData(FilesConfig.class);
         final var op = query.fileGetInfoOrThrow();
         final var responseBuilder = FileGetInfoResponse.newBuilder();
@@ -112,7 +110,7 @@ public class FileGetInfoHandler extends FileQueryBase {
         if (header.nodeTransactionPrecheckCode() == OK && responseType != COST_ANSWER) {
             final Optional<FileInfo> optionalInfo;
             try {
-                optionalInfo = infoForFile(file, fileStore, ledgerConfig, upgradeFileStore, fileServiceConfig);
+                optionalInfo = infoForFile(file, fileStore, context.ledgerId(), upgradeFileStore, fileServiceConfig);
             } catch (IOException e) {
                 throw new UncheckedIOException("Unable to read file contents", e);
             }
@@ -133,14 +131,14 @@ public class FileGetInfoHandler extends FileQueryBase {
      * Provides information about a file.
      * @param fileID the file to get information about
      * @param fileStore the file store
-     * @param ledgerConfig Ledger configuration properties
+     * @param ledgerId the ledger id to surface in the query response
      * @return the information about the file
      */
     @SuppressWarnings("java:S5738") // Suppress the warning that we are using deprecated class(CryptographyHolder)
     private Optional<FileInfo> infoForFile(
             @NonNull final FileID fileID,
             @NonNull final ReadableFileStore fileStore,
-            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final Bytes ledgerId,
             @NonNull final ReadableUpgradeFileStore upgradeFileStore,
             @NonNull final FilesConfig fileServiceConfig)
             throws IOException {
@@ -182,7 +180,7 @@ public class FileGetInfoHandler extends FileQueryBase {
             info.expirationTime(meta.expirationTimestamp());
             info.deleted(meta.deleted());
             info.keys(meta.keys());
-            info.ledgerId(ledgerConfig.id());
+            info.ledgerId(ledgerId);
             return Optional.of(info.build());
         }
     }

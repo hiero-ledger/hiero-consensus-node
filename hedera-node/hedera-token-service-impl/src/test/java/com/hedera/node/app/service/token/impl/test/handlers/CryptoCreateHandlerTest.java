@@ -196,6 +196,18 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
+    @DisplayName("pureChecks fail when delegation address is not empty")
+    void whenDelegationAddressIsNonEmpty() {
+        txn = new CryptoCreateBuilder()
+                .withDelegationAddress(Bytes.fromHex("cafebabe"))
+                .build();
+        //        given(pureChecksContext.body()).willReturn(txn);
+        //        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        //        TOOD(Pectra): verify with feature flag off
+        //        assertThat(NOT_SUPPORTED).isEqualTo(msg.responseCode());
+    }
+
+    @Test
     @DisplayName("pureChecks fail without auto-renew period specified")
     void whenNoAutoRenewPeriodSpecified() {
         txn = new CryptoCreateBuilder().withNoAutoRenewPeriod().build();

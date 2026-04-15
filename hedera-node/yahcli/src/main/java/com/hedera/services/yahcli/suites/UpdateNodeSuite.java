@@ -63,6 +63,9 @@ public class UpdateNodeSuite extends HapiSuite {
     @Nullable
     private final ServiceEndpoint grpcProxyEndpoint;
 
+    @Nullable
+    private final List<Long> associatedRegisteredNode;
+
     public UpdateNodeSuite(
             @NonNull final ConfigManager configManager,
             final long nodeId,
@@ -76,7 +79,8 @@ public class UpdateNodeSuite extends HapiSuite {
             @Nullable final byte[] gossipCaCertificate,
             @Nullable final byte[] hapiCertificateHash,
             @Nullable final Boolean declineRewards,
-            @Nullable final ServiceEndpoint grpcProxyEndpoint) {
+            @Nullable final ServiceEndpoint grpcProxyEndpoint,
+            @Nullable final List<Long> associatedRegisteredNode) {
         this.configManager = requireNonNull(configManager);
         this.nodeId = nodeId;
         this.accountId = accountId;
@@ -90,6 +94,7 @@ public class UpdateNodeSuite extends HapiSuite {
         this.hapiCertificateHash = hapiCertificateHash;
         this.declineRewards = declineRewards;
         this.grpcProxyEndpoint = grpcProxyEndpoint;
+        this.associatedRegisteredNode = associatedRegisteredNode;
     }
 
     @Override
@@ -145,6 +150,9 @@ public class UpdateNodeSuite extends HapiSuite {
         }
         if (grpcProxyEndpoint != null) {
             op.grpcProxyEndpoint(grpcProxyEndpoint);
+        }
+        if (associatedRegisteredNode != null) {
+            op.associatedRegisteredNode(associatedRegisteredNode);
         }
         return op.signedBy(availableSigners());
     }

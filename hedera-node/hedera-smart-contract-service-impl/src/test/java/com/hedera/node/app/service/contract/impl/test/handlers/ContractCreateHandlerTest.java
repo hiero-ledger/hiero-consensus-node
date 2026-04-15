@@ -166,6 +166,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
+                null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
 
@@ -211,6 +212,7 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 null,
                 null,
                 HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                null,
                 null,
                 null,
                 null);

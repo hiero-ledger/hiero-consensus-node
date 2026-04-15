@@ -13,7 +13,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -26,6 +25,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
@@ -37,7 +37,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
-import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
@@ -91,7 +91,7 @@ class ContextTransactionProcessorTest {
     private TransactionBody transactionBody;
 
     @Mock
-    private HederaEvmAccount senderAccount;
+    private AbstractMutableEvmAccount senderAccount;
 
     @Mock
     private EntityIdFactory entityIdFactory;
@@ -171,7 +171,8 @@ class ContextTransactionProcessorTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
-                null);
+                null,
+                CodeDelegationResult.empty());
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
         assertEquals(expectedResult, subject.call());
     }
@@ -224,7 +225,8 @@ class ContextTransactionProcessorTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
-                null);
+                null,
+                CodeDelegationResult.empty());
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
     }
@@ -271,7 +273,8 @@ class ContextTransactionProcessorTest {
                 SUCCESS_RESULT.asEvmTxResultOf(null, rootProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
-                null);
+                null,
+                CodeDelegationResult.empty());
         assertEquals(expectedResult, subject.call());
         verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
     }
@@ -631,64 +634,6 @@ class ContextTransactionProcessorTest {
         verify(hevmTransactionFactory)
                 .fromContractTxException(eq(transactionBody), argThat(e -> e.getStatus() == TRANSACTION_OVERSIZE));
         assertEquals(TRANSACTION_OVERSIZE, outcome.status());
-    }
-
-    @Test
-    void safeCreateHevmTransactionChecksNonceForEip7702WhenPectraEnabled() {
-        final var contractsConfig = PECTRA_ENABLED_CONFIG.getConfigData(ContractsConfig.class);
-        final var hydratedEthTxData = HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false);
-        final var subject = createSubject(hydratedEthTxData, contractsConfig, PECTRA_ENABLED_CONFIG);
-
-        // Setup for nonce mismatch scenario
-        given(context.body()).willReturn(transactionBody);
-        given(context.payer()).willReturn(SENDER_ID);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID))
-                .willReturn(hevmTransaction);
-        given(hevmTransaction.payload()).willReturn(Bytes.EMPTY);
-        given(hevmTransaction.isEthereumTransaction()).willReturn(true);
-        given(hevmTransaction.senderId()).willReturn(SENDER_ID);
-        given(hevmTransaction.nonce()).willReturn(5L);
-        given(rootProxyWorldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
-        given(senderAccount.getNonce()).willReturn(10L); // Different nonce
-        given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
-        given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
-        given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
-
-        var outcome = subject.call();
-
-        // Verify nonce mismatch triggers WRONG_NONCE
-        verify(hevmTransactionFactory)
-                .fromContractTxException(eq(transactionBody), argThat(e -> e.getStatus() == WRONG_NONCE));
-        verify(hevmTransaction).nonce();
-        assertNotEquals(SUCCESS, outcome.status());
-    }
-
-    @Test
-    void safeCreateHevmTransactionSkipsNonceCheckForNonEthereumTransactions() {
-        final var contractsConfig = PECTRA_ENABLED_CONFIG.getConfigData(ContractsConfig.class);
-        final var hydratedEthTxData = HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false);
-        var subject = createSubject(hydratedEthTxData, contractsConfig, PECTRA_ENABLED_CONFIG);
-
-        given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
-        given(enhancement.operations()).willReturn(hederaOperations);
-        given(context.body()).willReturn(transactionBody);
-        given(context.payer()).willReturn(SENDER_ID);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID))
-                .willReturn(hevmTransaction);
-        given(hevmTransaction.payload()).willReturn(Bytes.EMPTY);
-        given(hevmTransaction.isEthereumTransaction()).willReturn(false); // Not ETH tx
-        given(hevmTransaction.isException()).willReturn(false);
-        given(hevmTransaction.senderId()).willReturn(SENDER_ID);
-        given(rootProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
-        given(rootProxyWorldUpdater.getHederaAccount(SENDER_ID)).willReturn(senderAccount);
-        given(senderAccount.getNonce()).willReturn(1L);
-        given(processor.processTransaction(any(), any(), any(), any(), any(), any()))
-                .willReturn(SUCCESS_RESULT);
-
-        var outcome = subject.call();
-
-        verify(hevmTransaction, never()).codeDelegations();
-        assertEquals(SUCCESS, outcome.status());
     }
 
     private ContextTransactionProcessor createSubject(

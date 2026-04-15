@@ -74,7 +74,7 @@ jobs:
         uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
-          java-version: 21.0.6
+          java-version: 25
 
       # Set up the node environment
       - name: Setup NodeJS Environment
@@ -100,7 +100,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+        run: npm install -g @hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind

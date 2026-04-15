@@ -15,7 +15,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.FileSyncOption;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
-import org.hiero.consensus.pces.impl.common.PcesFileManager;
 
 public class DefaultInlinePcesWriter implements InlinePcesWriter {
 
@@ -27,19 +26,19 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     /**
      * Constructor
      *
-     * @param configuration  the configuration of the platform
-     * @param metrics        the metrics system of the platform
-     * @param time           the time source of the platform
-     * @param fileManager     manages all preconsensus event stream files currently on disk
+     * @param configuration    the configuration of the platform
+     * @param metrics          the metrics system of the platform
+     * @param time             the time source of the platform
+     * @param commonPcesWriter the common writer that manages file I/O
+     * @param selfId           the ID of this node
      */
     public DefaultInlinePcesWriter(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final PcesFileManager fileManager,
+            @NonNull final CommonPcesWriter commonPcesWriter,
             @NonNull final NodeId selfId) {
-        requireNonNull(fileManager, "fileManager is required");
-        this.commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
+        this.commonPcesWriter = requireNonNull(commonPcesWriter, "commonPcesWriter is required");
         this.selfId = requireNonNull(selfId, "selfId is required");
         this.fileSyncOption = configuration.getConfigData(PcesConfig.class).inlinePcesSyncOption();
 

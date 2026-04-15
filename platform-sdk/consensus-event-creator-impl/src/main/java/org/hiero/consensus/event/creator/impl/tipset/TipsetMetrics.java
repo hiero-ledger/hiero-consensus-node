@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_4_2;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.metrics.api.Metrics;
@@ -9,6 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
+import org.hiero.consensus.metrics.statistics.AverageStat;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -32,6 +35,8 @@ public class TipsetMetrics {
     private final Map<NodeId, SpeedometerMetric> tipsetParentMetrics = new HashMap<>();
     private final Map<NodeId, SpeedometerMetric> pityParentMetrics = new HashMap<>();
 
+    private final AverageStat mopMetric;
+
     /**
      * Create metrics for the tipset event creator.
      *
@@ -42,6 +47,13 @@ public class TipsetMetrics {
 
         tipsetAdvancementMetric = metrics.getOrCreate(TIPSET_ADVANCEMENT_CONFIG);
         selfishnessMetric = metrics.getOrCreate(SELFISHNESS_CONFIG);
+        mopMetric = new AverageStat(
+                metrics,
+                "platform",
+                "createdEventParents",
+                "Amount of parents newly created events have",
+                FORMAT_4_2,
+                AverageStat.WEIGHT_VOLATILE);
 
         for (final RosterEntry address : roster.rosterEntries()) {
             final NodeId nodeId = NodeId.of(address.nodeId());
@@ -105,5 +117,15 @@ public class TipsetMetrics {
     @NonNull
     public SpeedometerMetric getPityParentMetric(@NonNull final NodeId nodeId) {
         return pityParentMetrics.get(nodeId);
+    }
+
+    /**
+     * Get the metric which tracks how many other parents on average events created on this node have
+     *
+     * @return Multiple other parents metric
+     */
+    @NonNull
+    public AverageStat getMopMetric() {
+        return mopMetric;
     }
 }

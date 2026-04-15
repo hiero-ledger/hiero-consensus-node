@@ -7,7 +7,6 @@ module org.hiero.consensus.metrics {
     exports org.hiero.consensus.metrics.config;
     exports org.hiero.consensus.metrics.extensions;
     exports org.hiero.consensus.metrics.noop;
-    exports org.hiero.consensus.metrics.noop.internal;
     exports org.hiero.consensus.metrics.platform;
     exports org.hiero.consensus.metrics.platform.prometheus;
     exports org.hiero.consensus.metrics.statistics;

@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult.resourceExhaustionFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.contractIDToBesuAddress;
@@ -23,6 +24,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -53,6 +55,7 @@ public class TransactionProcessor {
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
     private final GasCalculator gasCalculator;
+    private final HEVM hevm;
 
     public TransactionProcessor(
             @NonNull final FrameBuilder frameBuilder,
@@ -61,7 +64,8 @@ public class TransactionProcessor {
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
             @NonNull final FeatureFlags featureFlags,
-            @NonNull final GasCalculator gasCalculator) {
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull HEVM hevm) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
@@ -69,6 +73,7 @@ public class TransactionProcessor {
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
         this.gasCalculator = requireNonNull(gasCalculator);
+        this.hevm = hevm;
     }
 
     /**
@@ -187,7 +192,8 @@ public class TransactionProcessor {
                 tracer,
                 messageCall,
                 contractCreation,
-                gasCharges);
+                gasCharges,
+                hevm);
 
         // Add code delegation result
         result = result.withCodeDelegationResult(codeDelegationResult);
@@ -293,6 +299,9 @@ public class TransactionProcessor {
             } else {
                 parties = partiesWhenContractRequired(to, sender, relayer, transaction, updater);
             }
+        }
+        if (transaction.isEthereumTransaction()) {
+            validateTrue(transaction.nonce() == parties.sender().getNonce(), WRONG_NONCE);
         }
         return parties;
     }

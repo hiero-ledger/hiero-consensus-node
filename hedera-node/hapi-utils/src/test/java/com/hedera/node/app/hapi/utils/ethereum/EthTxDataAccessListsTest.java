@@ -175,6 +175,27 @@ class EthTxDataAccessListsTest {
         assertEquals("Access list item does not contain expected number of elements", thrown.getMessage());
     }
 
+    private static Stream<RawTransactionHolder> provideTransactionsWhereAccessListHasWrongAddress() {
+        final byte[] addr1 = fillBytes(17, 0x10);
+        final Object[] accessList = {new Object[] {addr1, new byte[] {0x01}}};
+        final byte[] accessListBytes = RLPEncoder.sequence(accessList);
+        return Stream.of(
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListBytes),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListBytes),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessListBytes));
+    }
+
+    @MethodSource("provideTransactionsWhereAccessListHasWrongAddress")
+    @ParameterizedTest(name = "Transaction.AccessListHasWrongAddress {0}")
+    void throwsWhenAccessListHasWrongAddress(final RawTransactionHolder raw) {
+        // When:
+        final EthTxData tx = EthTxData.populateEthTxData(raw.data());
+        assertNotNull(tx);
+        // Then:
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessList);
+        assertEquals("Access list item address is not 20 bytes length", thrown.getMessage());
+    }
+
     private static Stream<RawTransactionHolder> provideTransactionsWhereStorageKeyIsNotList() {
         final byte[] addr1 = fillBytes(20, 0x10);
         final Object[] accessList = {new Object[] {addr1, new byte[] {0x01}}};
@@ -194,5 +215,27 @@ class EthTxDataAccessListsTest {
         // Then:
         final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessList);
         assertEquals("Access list storage keys should be a list", thrown.getMessage());
+    }
+
+    private static Stream<RawTransactionHolder> provideTransactionsWhereStorageKeyHasWrongKey() {
+        final byte[] addr1 = fillBytes(20, 0x10);
+        final byte[] key1 = fillBytes(17, 0x10);
+        final Object[] accessList = {new Object[] {addr1, new Object[] {key1}}};
+        final byte[] accessListBytes = RLPEncoder.sequence(accessList);
+        return Stream.of(
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListBytes),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListBytes),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessListBytes));
+    }
+
+    @MethodSource("provideTransactionsWhereStorageKeyHasWrongKey")
+    @ParameterizedTest(name = "Transaction.StorageKeyHasWrongKey {0}")
+    void throwsWhenStorageKeyHasWrongKey(final RawTransactionHolder raw) {
+        // When:
+        final EthTxData tx = EthTxData.populateEthTxData(raw.data());
+        assertNotNull(tx);
+        // Then:
+        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractAccessList);
+        assertEquals("Expected 32 bytes but got 17", thrown.getMessage());
     }
 }

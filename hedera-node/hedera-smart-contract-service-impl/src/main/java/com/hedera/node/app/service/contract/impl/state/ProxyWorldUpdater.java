@@ -129,7 +129,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public @Nullable HederaEvmAccount getHederaAccount(@NonNull AccountID accountId) {
+    public @Nullable AbstractMutableEvmAccount getHederaAccount(@NonNull AccountID accountId) {
         final Address address;
         if (accountId.hasAlias()) {
             address = pbjToBesuAddress(accountId.aliasOrThrow());
@@ -140,7 +140,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 return null;
             }
         }
-        return address == null ? null : (HederaEvmAccount) get(address);
+        return address == null ? null : get(address);
     }
 
     /**
@@ -149,7 +149,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     @Override
     public ContractID getHederaContractId(@NonNull final Address address) {
         requireNonNull(address);
-        final var account = (HederaEvmAccount) get(address);
+        final var account = get(address);
         if (account == null) {
             // Also return ids for pending creations
             if (pendingCreation != null && pendingCreation.address().equals(address)) {
@@ -166,13 +166,28 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         return account.hederaContractId();
     }
 
+    public ContractID getHederaContractIdNotThrowing(Address address) {
+        var account = get(address);
+        if (account != null) return account.hederaContractId();
+        // Also return ids for pending creations
+        if (pendingCreation != null && pendingCreation.address().equals(address))
+            return entityIdFactory().newContractId(pendingCreation.number());
+
+        if (!contractMustBePresent) {
+            return isLongZero(address)
+                    ? asNumberedContractId(entityIdFactory(), address)
+                    : asEvmContractId(entityIdFactory(), address);
+        }
+        return null; // Instead of throwing IAE
+    }
+
     @Override
     public @NonNull Bytes entropy() {
         return pbjToTuweniBytes(enhancement.operations().entropy());
     }
 
     @Override
-    public @Nullable HederaEvmAccount getHederaAccount(@NonNull ContractID contractId) {
+    public @Nullable AbstractMutableEvmAccount getHederaAccount(@NonNull ContractID contractId) {
         requireNonNull(contractId);
         contractId = enhancement.operations().shardAndRealmValidated(contractId);
         final Address address;
@@ -185,7 +200,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 return null;
             }
         }
-        return address == null ? null : (HederaEvmAccount) get(address);
+        return address == null ? null : get(address);
     }
 
     @Override
@@ -324,7 +339,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public @Nullable Account get(@NonNull final Address address) {
+    public @Nullable AbstractMutableEvmAccount get(@NonNull Address address) {
         return evmFrameState.getAccount(address);
     }
 
@@ -332,7 +347,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public MutableAccount getAccount(@NonNull final Address address) {
+    public AbstractMutableEvmAccount getAccount(@NonNull final Address address) {
         return evmFrameState.getMutableAccount(address);
     }
 

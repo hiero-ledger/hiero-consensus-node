@@ -53,6 +53,7 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
     protected ToLongFunction<Object> dataCounter = data -> 1L;
 
     protected boolean unhandledTaskMetricEnabled = false;
+    protected boolean inflightTaskMetricEnabled = false;
     protected boolean busyFractionMetricEnabled = false;
 
     protected Duration sleepDuration = Duration.ofNanos(100);
@@ -103,6 +104,9 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
         }
         if (configuration.unhandledTaskMetricEnabled() != null) {
             withUnhandledTaskMetricEnabled(configuration.unhandledTaskMetricEnabled());
+        }
+        if (configuration.inflightTaskMetricEnabled() != null) {
+            withInflightTaskMetricEnabled(configuration.inflightTaskMetricEnabled());
         }
         if (configuration.busyFractionMetricEnabled() != null) {
             withBusyFractionMetricsEnabled(configuration.busyFractionMetricEnabled());
@@ -206,6 +210,16 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
     @NonNull
     public AbstractTaskSchedulerBuilder<OUT> withUnhandledTaskMetricEnabled(final boolean enabled) {
         this.unhandledTaskMetricEnabled = enabled;
+        return this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public AbstractTaskSchedulerBuilder<OUT> withInflightTaskMetricEnabled(final boolean enabled) {
+        this.inflightTaskMetricEnabled = enabled;
         return this;
     }
 

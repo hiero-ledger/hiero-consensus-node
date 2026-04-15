@@ -28,7 +28,7 @@ import javax.tools.StandardLocation;
  * An annotation processor that creates documentation and constants for config data records.
  */
 @SupportedAnnotationTypes(ConfigProcessorConstants.CONFIG_DATA_ANNOTATION)
-@SupportedSourceVersion(SourceVersion.RELEASE_21)
+@SupportedSourceVersion(SourceVersion.RELEASE_25)
 public final class ConfigDataAnnotationProcessor extends AbstractProcessor {
 
     @Override

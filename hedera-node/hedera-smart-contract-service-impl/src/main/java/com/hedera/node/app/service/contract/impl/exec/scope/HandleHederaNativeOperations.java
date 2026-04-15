@@ -7,8 +7,9 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.se
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.independentStepDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -37,6 +38,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Map;
 import java.util.SortedSet;
 import javax.inject.Inject;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -138,7 +140,8 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
                         .cryptoCreateAccount(synthHollowAccountCreation(evmAddress, unlimitedAutoAssociationsEnabled()))
                         .build(),
                 CryptoCreateStreamBuilder.class,
-                DISPATCH_ONLY_NOOP_FEE_CHARGING);
+                DISPATCH_ONLY_NOOP_FEE_CHARGING,
+                HandleContext.ConsensusThrottling.ON);
         try {
             return context.dispatch(dispatchOpts).status();
         } catch (HandleException e) {
@@ -156,13 +159,15 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
             @NonNull Bytes evmAddress, @NonNull Key key, @NonNull Bytes delegationAddress) {
-        final var dispatchOpts = independentStepDispatch(
+        final var dispatchOpts = stepDispatch(
                 context.payer(),
                 TransactionBody.newBuilder()
                         .cryptoCreateAccount(synthAccountCreationWithKeyAndCodeDelegation(
                                 evmAddress, key, delegationAddress, unlimitedAutoAssociationsEnabled()))
                         .build(),
-                CryptoCreateStreamBuilder.class);
+                CryptoCreateStreamBuilder.class,
+                NOOP_SIGNED_TX_CUSTOMIZER,
+                new HandleContext.DispatchMetadata(Map.of()));
         try {
             return context.dispatch(dispatchOpts).status();
         } catch (HandleException e) {

@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.constructable;
 
-import com.swirlds.common.merkle.synchronization.task.InternalDataLesson;
-import com.swirlds.common.merkle.synchronization.task.LeafDataLesson;
-import com.swirlds.common.merkle.synchronization.task.Lesson;
-import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -34,15 +30,10 @@ public final class ConstructableRegistration {
     }
 
     /**
-     * Registers {@link Lesson}, {@link InternalDataLesson}, {@link QueryResponse},
-     * {@link LeafDataLesson}, and {@link SerializableLong}.
+     * Registers {@link SerializableLong}.
      */
     public static void registerSyncConstructables() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructable(new ClassConstructorPair(Lesson.class, Lesson::new));
-        registry.registerConstructable(new ClassConstructorPair(InternalDataLesson.class, InternalDataLesson::new));
-        registry.registerConstructable(new ClassConstructorPair(QueryResponse.class, QueryResponse::new));
-        registry.registerConstructable(new ClassConstructorPair(LeafDataLesson.class, LeafDataLesson::new));
         registry.registerConstructable(new ClassConstructorPair(SerializableLong.class, SerializableLong::new));
     }
 

@@ -115,6 +115,12 @@ public abstract class AbstractNode implements HederaNode {
                         .resolve(Hedera.APP_NAME)
                         .resolve("" + getNodeId())
                         .resolve(Hedera.SWIRLD_NAME);
+            case PCES_DIR ->
+                workingDir
+                        .resolve(DATA_DIR)
+                        .resolve(SAVED_STATES_DIR)
+                        .resolve("preconsensus-events")
+                        .resolve("" + getNodeId());
         };
     }
 

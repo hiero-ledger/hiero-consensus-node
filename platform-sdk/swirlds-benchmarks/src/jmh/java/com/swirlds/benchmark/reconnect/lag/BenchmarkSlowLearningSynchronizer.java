@@ -8,7 +8,6 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.function.Supplier;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -57,12 +56,10 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
     protected AsyncOutputStream buildOutputStream(
             @NonNull final StandardWorkGroup workGroup,
             @NonNull final SerializableDataOutputStream out,
-            @NonNull final Supplier<Boolean> alive,
             @NonNull final ReconnectConfig reconnectConfig) {
         return new BenchmarkSlowAsyncOutputStream(
                 out,
                 workGroup,
-                alive,
                 randomSeed,
                 delayStorageMicroseconds,
                 delayStorageFuzzRangePercent,

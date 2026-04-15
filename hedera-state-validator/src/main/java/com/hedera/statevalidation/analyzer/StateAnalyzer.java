@@ -12,7 +12,6 @@ import com.hedera.statevalidation.util.LongCountArray;
 import com.hedera.statevalidation.util.reflect.BucketIterator;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.MerkleDbDataSource;
-import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileIterator;
 import com.swirlds.merkledb.files.DataFileReader;
@@ -53,7 +52,7 @@ public final class StateAnalyzer {
         updateReport(
                 report,
                 vds.getKeyToPath().getFileCollection(),
-                ((LongList) vds.getKeyToPath().getBucketIndexToBucketLocation()).size(),
+                vds.getKeyToPath().getBucketIndexToBucketLocation().size(),
                 Report::setKeyToPathReport,
                 obj -> {
                     final ParsedBucket bucket = new ParsedBucket();

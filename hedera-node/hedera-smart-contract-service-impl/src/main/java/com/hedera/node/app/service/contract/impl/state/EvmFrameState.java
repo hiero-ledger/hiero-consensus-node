@@ -13,8 +13,6 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.account.Account;
-import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -137,7 +135,7 @@ public interface EvmFrameState {
      * @return the read-only account; or {@code null} if the account is missing, deleted, or expired
      */
     @Nullable
-    Account getAccount(Address address);
+    AbstractMutableEvmAccount getAccount(Address address);
 
     /**
      * Returns the mutable account with the given address, or {@code null} if the account is missing,
@@ -148,7 +146,7 @@ public interface EvmFrameState {
      * @return the mutable account; or {@code null} if the account is missing, deleted, or expired
      */
     @Nullable
-    MutableAccount getMutableAccount(Address address);
+    AbstractMutableEvmAccount getMutableAccount(Address address);
 
     /**
      * Returns the storage value for the account with the given contract id and key.

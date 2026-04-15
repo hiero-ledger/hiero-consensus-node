@@ -884,7 +884,6 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                             .payingWith(OWNER)
                             .via("associateAndSupplyTokens"),
                     withOpContext((spec, opLog) -> {
-
                         // Create hollow account with token transfer in one atomic batch
                         final var atomicBatchTransactionFirst = atomicBatch(
                                         createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(

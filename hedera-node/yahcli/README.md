@@ -32,7 +32,10 @@ appear below.
 19. [(DAB) Creating a node](#dab-creating-a-node)
 20. [(DAB) Deleting a node](#dab-deleting-a-node)
 21. [(DAB) Updating a node](#dab-updating-a-node)
-21. [Running `ivy` acceptance tests](#running-ivy-acceptance-tests)
+22. [Creating a registered node](#creating-a-registered-node)
+23. [Updating a registered node](#updating-a-registered-node)
+24. [Deleting a registered node](#deleting-a-registered-node)
+25. [Running `ivy` acceptance tests](#running-ivy-acceptance-tests)
 
 # Setting up the working directory
 
@@ -792,6 +795,8 @@ to accept rewards. This value defaults to `true` (declines the rewards) if not s
 
 The `--grpcProxyEndpoint` option, given in the form `{<IPV4>|<FQDN>}:<PORT>`, can be used to specify a gRPC proxy endpoint for the node. This is optional.
 
+The `--associatedRegisteredNode` option can be used to associate one or more registered node IDs with the new node. For example, `--associatedRegisteredNode 1 2 3` associates registered nodes 1, 2, and 3 with the new node. This is optional.
+
 :warning: If the payer and admin keys do not meet the signing requirements of the new node's fee collection account,
 there must be a key in the target network's _keys/_ directory for that account.
 
@@ -865,6 +870,60 @@ begin accepting reward payments, or `--stopDecliningRewards` to stop accepting r
 no default values.
 
 A node's gRPC proxy endpoint can also be updated with the `--grpcProxyEndpoint` option, given in the form `{<IPV4>|<FQDN>}:<PORT>`. This is optional.
+
+The `--associatedRegisteredNode` option can be used to associate one or more registered node IDs with the node. For example, `--associatedRegisteredNode 1 2 3` associates registered nodes 1, 2, and 3 with the node. Passing `--associatedRegisteredNode` with no values clears any previously associated registered nodes. This is optional.
+
+# Creating a registered node
+
+To create a new registered node, you can use the `registeredNodes create` command. The required options are:
+1. A path to a _.pem_, _.words_, or _.hex_ file containing an admin key for the registered node (`-k/--adminKey`).
+2. At least one endpoint: `--blockNodeEndpoint`, `--mirrorNodeEndpoint`, `--rpcRelayEndpoint`, or `--generalServiceEndpoint`.
+
+The optional `-d/--description` argument provides a description for the new registered node.
+
+Endpoint formats:
+- Block node endpoints are given in the form `addr:port:blockNodeApi[:tls]`.
+- Mirror node and RPC relay endpoints are given in the form `addr:port[:tls]`.
+- General service endpoints are given in the form `addr:port[:description][:tls]`.
+
+Multiple endpoints of each type can be specified by repeating the option.
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n localhost -p 2 registeredNodes create \
+  --adminKey adminKey.pem \
+  --description 'My block node' \
+  --blockNodeEndpoint 10.0.0.1:8080:PUBLISH:tls \
+  --mirrorNodeEndpoint mirror.example.com:443:tls \
+  --generalServiceEndpoint indexer.example.com:9090:Custom indexer service:tls
+```
+
+# Updating a registered node
+
+To update a registered node, you can use the `registeredNodes update` command. The only required option is the node ID to update (`-n/--nodeId`).
+
+Optional arguments include:
+- `-d/--description` to update the description.
+- `--blockNodeEndpoint`, `--mirrorNodeEndpoint`, `--rpcRelayEndpoint`, `--generalServiceEndpoint` to update endpoints.
+- `-k/--adminKey` to provide the current admin key (can be omitted if the yahcli payer key is the same as the admin key).
+- `-nk/--newAdminKey` to rotate to a new admin key.
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n localhost -p 2 registeredNodes update \
+  --nodeId 1 \
+  --adminKey adminKey.pem \
+  --description 'Updated description' \
+  --rpcRelayEndpoint relay.example.com:8545
+```
+
+# Deleting a registered node
+
+To delete a registered node, you can use the `registeredNodes delete` command. The only required option is the node ID to delete (`-n/--nodeId`). In general you will also want to provide the `-k/--adminKey` option with the path to the admin key for the registered node being deleted (this can be omitted if the yahcli payer key is the same as the admin key).
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n localhost -p 2 registeredNodes delete \
+  --nodeId 1 \
+  --adminKey adminKey.pem
+```
 
 # Running `ivy` acceptance tests
 

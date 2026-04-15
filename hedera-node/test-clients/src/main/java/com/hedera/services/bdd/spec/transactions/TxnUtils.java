@@ -121,6 +121,11 @@ public class TxnUtils {
     private static final Pattern POSNEG_NUMERIC_LITERAL_PATTERN = Pattern.compile("^-?\\d+");
     private static final int BANNER_WIDTH = 80;
     private static final int BANNER_BOUNDARY_THICKNESS = 2;
+    /**
+     * Maximum memo length to include in log output, aligned with the default value of
+     * {@code hedera.transaction.maxMemoUtf8Bytes}.
+     */
+    private static final int MAX_LOGGED_MEMO_LENGTH = 100;
     // Wait just a bit longer than the 2-second block period to be certain we've ended the period
     private static final java.time.Duration END_OF_BLOCK_PERIOD_SLEEP_PERIOD = java.time.Duration.ofMillis(2_200L);
     // Wait just over a second to give the record stream file a chance to close
@@ -696,7 +701,13 @@ public class TxnUtils {
      * @throws InvalidProtocolBufferException when protocol buffer is invalid
      */
     public static String toReadableString(final Transaction grpcTransaction) throws InvalidProtocolBufferException {
-        final TransactionBody body = extractTransactionBody(grpcTransaction);
+        TransactionBody body = extractTransactionBody(grpcTransaction);
+        final String memo = body.getMemo();
+        if (memo.length() > MAX_LOGGED_MEMO_LENGTH) {
+            body = body.toBuilder()
+                    .setMemo(memo.substring(0, MAX_LOGGED_MEMO_LENGTH) + "... <truncated " + memo.length() + " bytes>")
+                    .build();
+        }
         return "body="
                 + TextFormat.shortDebugString(body)
                 + "; sigs="

@@ -7,6 +7,7 @@ import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMU
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV067;
+import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
@@ -21,8 +22,10 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
+import com.hedera.node.config.data.ContractsConfig;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -32,9 +35,9 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -81,14 +84,15 @@ public interface V067Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                gasCalculator);
+                gasCalculator,
+                null);
     }
 
     @Provides
     @Singleton
     @ServicesV067
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesV067 @NonNull final EVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
+            @ServicesV067 @NonNull final HEVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
                 evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
     }
@@ -97,7 +101,7 @@ public interface V067Module {
     @Singleton
     @ServicesV067
     static CustomMessageCallProcessor provideMessageCallProcessor(
-            @ServicesV067 @NonNull final EVM evm,
+            @ServicesV067 @NonNull final HEVM evm,
             @ServicesV067 @NonNull final FeatureFlags featureFlags,
             @ServicesV067 @NonNull final AddressChecks addressChecks,
             @ServicesV067 @NonNull final PrecompileContractRegistry registry,
@@ -107,25 +111,33 @@ public interface V067Module {
                 evm, featureFlags, registry, addressChecks, systemContracts, contractMetrics);
     }
 
+    // spotless:off
     @Provides
     @Singleton
     @ServicesV067
-    static EVM provideEVM(
+    static HEVM provideEVM(
             @ServicesV067 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
-            @CustomOps @NonNull final Set<Operation> customOps) {
+            @CustomOps @NonNull final Set<Operation> customOps,
+            @NonNull final Supplier<ContractsConfig> contractsConfigSupplier,
+            @ServicesV067 @NonNull final FeatureFlags featureFlags,
+            @ServicesV067 @NonNull final AddressChecks addressChecks) {
 
-        oneTimeEVMModuleInitialization();
-
+        KZGPointEvalPrecompiledContract.init();
         // Use Cancun EVM with 0.67 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
         HederaOperationsRegistry.forVersion(EvmSpecVersion.CANCUN)
                 .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+        if (contractsConfigSupplier.get().useBonnevilleEVM()) {
+            return new BonnevilleEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN, featureFlags, addressChecks);
+        } else {
+            return new     HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+        }
     }
+    // spotless:on
 
     @Provides
     @Singleton

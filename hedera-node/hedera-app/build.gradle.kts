@@ -45,9 +45,9 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
-    requires("tuweni.bytes")
     requires("uk.org.webcompere.systemstubs.core")
     requires("uk.org.webcompere.systemstubs.jupiter")
+    requires("tuweni.bytes")
 
     exportsTo("org.hiero.base.utility") // access package "utils" (maybe rename to "util")
     opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection

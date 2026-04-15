@@ -6,6 +6,8 @@ import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HO
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
+import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.ZERO_KEY;
+import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
@@ -15,6 +17,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanc
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewHook;
@@ -71,8 +74,11 @@ import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.spec.utilops.embedded.MutateStatesStoreOp;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewAccountOp;
@@ -80,6 +86,7 @@ import com.hedera.services.bdd.spec.utilops.embedded.ViewKVStateOp;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -192,7 +199,9 @@ public class RepeatableEvmHookStoreTests {
                 accountEvmHookStore(HOOK_OWNER.name(), EVM_HOOK_ID).putMappingEntry(Bytes.EMPTY, PREIMAGE_ZERO_A_ENTRY),
                 assertOwnerHasEvmHookSlotUsageChange(HOOK_OWNER.name(), origCount, 1),
                 assertEvmHookHasFirstOrderedSlots(
-                        EVM_HOOK_ID, List.of(Pair.of(slotKeyOfMappingEntry(ZERO, PREIMAGE_ZERO_A_ENTRY), A))));
+                        EVM_HOOK_ID,
+                        List.of(Pair.of(slotKeyOfMappingEntry(ZERO, PREIMAGE_ZERO_A_ENTRY), A)),
+                        HOOK_OWNER.name()));
     }
 
     @Order(6)
@@ -220,10 +229,12 @@ public class RepeatableEvmHookStoreTests {
                         .putMappingEntry(A, F_E_ENTRY)
                         .putSlot(F, E),
                 assertOwnerHasEvmHookSlotUsageChange(HOOK_OWNER.name(), origCount, 4),
-                assertEvmHookHasFirstOrderedSlots(EVM_HOOK_ID, List.of(Pair.of(D, E), Pair.of(B, C))),
+                assertEvmHookHasFirstOrderedSlots(
+                        EVM_HOOK_ID, List.of(Pair.of(D, E), Pair.of(B, C)), HOOK_OWNER.name()),
                 assertEvmHookHasFirstOrderedSlots(
                         EVM_HOOK_WITH_ADMIN_ID,
-                        List.of(Pair.of(F, E), Pair.of(slotKeyOfMappingEntry(leftPad32(A), F_E_ENTRY), E))));
+                        List.of(Pair.of(F, E), Pair.of(slotKeyOfMappingEntry(leftPad32(A), F_E_ENTRY), E)),
+                        HOOK_OWNER.name()));
     }
 
     @Order(8)
@@ -440,6 +451,121 @@ public class RepeatableEvmHookStoreTests {
                 }));
     }
 
+    @Order(15)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> mappingEntriesHashingToLeadingZerosDecrementCountOnHookStoreRemoval(
+            @Contract(contract = "StorageLinkedListHook", creationGas = 5_000_000) SpecContract contract) {
+        final AtomicLong entityCountedStorageSlots = new AtomicLong();
+        final AtomicLong totalHookStorageSlots = new AtomicLong();
+        final Supplier<HapiSpecOperation> assertZeroStorageCounts = () -> blockingOrder(
+                viewAccount(
+                        "owner",
+                        account -> assertEquals(0, account.numberEvmHookStorageSlots(), "Expected zero storage slots")),
+                doingContextual(spec -> viewHook(
+                        HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder()
+                                        .accountId(toPbj(spec.registry().getAccountID("owner"))))
+                                .hookId(42L)
+                                .build(),
+                        hookState -> assertEquals(0, hookState.numStorageSlots()))));
+        return hapiTest(
+                contract.getInfo(),
+                // Create an account with a hook that puts a zero into an empty slot when invoked with calldata 0x01
+                cryptoCreate("owner").withHooks(accountAllowanceHook(42L, contract.name())),
+                // Take a snapshot of total hook storage slots before---Map.size() works since this is a FakeState
+                doingContextual(spec -> totalHookStorageSlots.set(spec.repeatableEmbeddedHederaOrThrow()
+                        .state()
+                        .getReadableStates(ContractService.NAME)
+                        .get(V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID)
+                        .size())),
+                // Also take a snapshot of the hook storage slot count in EntityCounts
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts entityCounts) ->
+                                entityCountedStorageSlots.set(entityCounts.numEvmHookStorageSlots())),
+                sourcing(assertZeroStorageCounts),
+                // This mapping entry hashes to a key with leading zeros, put it twice
+                accountEvmHookStore("owner", 42L)
+                        .payingWith("owner")
+                        .putMappingEntry(
+                                Bytes.EMPTY,
+                                EvmHookMappingEntry.newBuilder()
+                                        .key(Bytes.fromHex("0217"))
+                                        .value(A)
+                                        .build()),
+                accountEvmHookStore("owner", 42L)
+                        .payingWith("owner")
+                        .putMappingEntry(
+                                Bytes.EMPTY,
+                                EvmHookMappingEntry.newBuilder()
+                                        .key(Bytes.fromHex("0217"))
+                                        .value(B)
+                                        .build()),
+                // Remove it via mapping entry hook store
+                accountEvmHookStore("owner", 42L).removeMappingEntry(Bytes.EMPTY, Bytes.fromHex("0217")),
+                // Assert entity counts is back to its starting point
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts entityCounts) ->
+                                assertEquals(entityCountedStorageSlots.get(), entityCounts.numEvmHookStorageSlots())),
+                sourcing(assertZeroStorageCounts),
+                // Confirm the underlying hook storage slots didn't change either
+                doingContextual(spec -> {
+                    final ReadableKVState<EvmHookSlotKey, SlotValue> hookStorage =
+                            spec.repeatableEmbeddedHederaOrThrow()
+                                    .state()
+                                    .getReadableStates(ContractService.NAME)
+                                    .get(V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID);
+                    assertEquals(totalHookStorageSlots.get(), hookStorage.size());
+                }));
+    }
+
+    @Order(16)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> hookStoreCanRemoveSlotOriginatingFromEvmSStore(
+            @Contract(contract = "ManagedTransferCap", creationGas = 5_000_000) SpecContract contract,
+            @FungibleToken(name = "Managed Cap Token", initialSupply = 10_000, maxSupply = 10_000, decimals = 0)
+                    SpecFungibleToken token) {
+        final long hookId = 123L;
+        return hapiTest(
+                token.getInfo(),
+                contract.getInfo(),
+                // Create the receiver-sig-required account that accepts up to configured amount of fungible
+                // value in base units (e.g. tinybar for HBAR, or whole units for our zero-decimal MCT token)
+                cryptoCreate("cappedCredits")
+                        .receiverSigRequired(true)
+                        .withHooks(accountAllowanceHook(hookId, contract.name())),
+                tokenAssociate("cappedCredits", token.name()),
+                // Set a max credit cap of 500 units at slot 0 in hook storage
+                accountEvmHookStore("cappedCredits", hookId)
+                        .payingWith("cappedCredits")
+                        .putSlot(
+                                Bytes.EMPTY,
+                                minimalKey(Bytes.wrap(BigInteger.valueOf(500L).toByteArray()))),
+                // Transfer 200 units of the MCT token from treasury to capped-credits account signing with just the
+                // treasury and payer account, using a pre-post hook authorization for the receiver sig requirement
+                cryptoTransfer(TokenMovement.moving(200, token.name())
+                                .between(token.treasury().name(), "cappedCredits"))
+                        .withPrePostHookFor("cappedCredits", hookId, 100_000L, "")
+                        .signedBy(DEFAULT_PAYER, token.treasury().name()),
+                viewAccount("cappedCredits", account -> assertEquals(1, account.numberEvmHookStorageSlots())),
+                // Confirm the allowPost() call reduced slot0 to 300
+                assertEvmHookHasFirstOrderedSlots(
+                        hookId,
+                        List.of(Pair.of(
+                                ZERO_KEY,
+                                leftPad32(Bytes.wrap(BigInteger.valueOf(300L).toByteArray())))),
+                        "cappedCredits"),
+                // Now delete slot0 by setting empty bytes
+                accountEvmHookStore("cappedCredits", hookId)
+                        .payingWith("cappedCredits")
+                        .putSlot(Bytes.EMPTY, Bytes.EMPTY),
+                viewAccount("cappedCredits", account -> assertEquals(0, account.numberEvmHookStorageSlots())),
+                assertEvmHookHasFirstOrderedSlots(hookId, List.of(), "cappedCredits"));
+    }
+
     @Order(99)
     @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     Stream<DynamicTest> cannotManageStorageOfHooksOnceCreatorIsDeleted(@Account SpecAccount beneficiary) {
@@ -455,13 +581,12 @@ public class RepeatableEvmHookStoreTests {
     }
 
     private static SpecOperation assertEvmHookHasFirstOrderedSlots(
-            final long hookId, final List<Pair<Bytes, Bytes>> slots) {
+            final long hookId, final List<Pair<Bytes, Bytes>> slots, String owner) {
         return doingContextual(spec -> {
             final var store =
                     new ReadableEvmHookStoreImpl(spec.embeddedStateOrThrow().getReadableStates(ContractService.NAME));
             final var registry = spec.registry();
-            final var hookEntityId =
-                    new HookEntityId(new OneOf<>(ACCOUNT_ID, toPbj(registry.getAccountID(HOOK_OWNER.name()))));
+            final var hookEntityId = new HookEntityId(new OneOf<>(ACCOUNT_ID, toPbj(registry.getAccountID(owner))));
             final var HookId = new HookId(hookEntityId, hookId);
             final var hookState = store.getEvmHook(HookId);
             assertNotNull(hookState, "hook" + hookId + " not found");

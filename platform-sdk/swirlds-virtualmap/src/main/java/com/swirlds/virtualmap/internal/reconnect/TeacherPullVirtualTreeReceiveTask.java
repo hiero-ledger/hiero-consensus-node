@@ -11,6 +11,7 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -35,6 +36,7 @@ public class TeacherPullVirtualTreeReceiveTask {
     private final AsyncInputStream in;
     private final AsyncOutputStream out;
     private final TeacherPullVirtualTreeView view;
+    private final AtomicInteger tasksDone;
 
     private final RateLimiter rateLimiter;
     private final int sleepNanos;
@@ -55,11 +57,13 @@ public class TeacherPullVirtualTreeReceiveTask {
             final StandardWorkGroup workGroup,
             final AsyncInputStream in,
             final AsyncOutputStream out,
-            final TeacherPullVirtualTreeView view) {
+            final TeacherPullVirtualTreeView view,
+            final AtomicInteger tasksDone) {
         this.workGroup = workGroup;
         this.in = in;
         this.out = out;
         this.view = view;
+        this.tasksDone = tasksDone;
 
         final int maxRate = reconnectConfig.teacherMaxNodesPerSecond();
         if (maxRate > 0) {
@@ -111,8 +115,6 @@ public class TeacherPullVirtualTreeReceiveTask {
                 requestCounter++;
                 if (request.getPath() == Path.INVALID_PATH) {
                     logger.info(RECONNECT.getMarker(), "Teaching is complete as requested by the learner");
-                    // Acknowledge the final request
-                    out.sendAsync(new PullVirtualTreeResponse(view, Path.INVALID_PATH, true, -1, -1, null));
                     break;
                 }
                 final long path = request.getPath();
@@ -145,6 +147,13 @@ public class TeacherPullVirtualTreeReceiveTask {
             Thread.currentThread().interrupt();
         } catch (final Exception ex) {
             workGroup.handleError(ex);
+        } finally {
+            // Once all teacher tasks are done, finish the async out. All messages currently
+            // scheduled to send to the learner will be processed before the async output
+            // thread is terminated
+            if (tasksDone.decrementAndGet() == 0) {
+                out.done();
+            }
         }
     }
 }

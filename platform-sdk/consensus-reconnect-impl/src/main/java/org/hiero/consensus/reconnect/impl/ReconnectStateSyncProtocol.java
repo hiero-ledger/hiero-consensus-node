@@ -66,9 +66,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @NonNull
     @Override
     public ReconnectStatePeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
@@ -88,9 +85,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
                 stateLifecycleManager);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus status) {
         platformStatus.set(status);

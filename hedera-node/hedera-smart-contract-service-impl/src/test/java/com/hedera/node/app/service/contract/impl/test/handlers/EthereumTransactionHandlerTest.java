@@ -37,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
@@ -55,8 +56,8 @@ import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.EthereumTransactionStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
-import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -150,7 +151,7 @@ class EthereumTransactionHandlerTest {
     private EthereumTransactionHandler subject;
 
     @Mock
-    private HederaEvmAccount senderAccount;
+    private AbstractMutableEvmAccount senderAccount;
 
     @Mock
     private HederaGasCalculator gasCalculator;
@@ -258,7 +259,8 @@ class EthereumTransactionHandlerTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
-                null);
+                null,
+                CodeDelegationResult.empty());
         given(callRecordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(callRecordBuilder);
         given(callRecordBuilder.contractCallResult(expectedResult)).willReturn(callRecordBuilder);
         given(recordBuilder.ethereumHash(Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.getEthereumHash())))
@@ -315,7 +317,8 @@ class EthereumTransactionHandlerTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
-                null);
+                null,
+                CodeDelegationResult.empty());
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.contractCreateResult(expectedResult)).willReturn(createRecordBuilder);
@@ -563,7 +566,7 @@ class EthereumTransactionHandlerTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void handleSetsNewSenderNonceWhenPresent() {
+    void handleSetsRollbackCallback() {
         given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.hydratedEthTxData())
@@ -594,7 +597,8 @@ class EthereumTransactionHandlerTest {
                         null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
-                null);
+                null,
+                CodeDelegationResult.empty());
 
         given(createRecordBuilder.createdContractID(CALLED_CONTRACT_ID)).willReturn(createRecordBuilder);
         given(createRecordBuilder.evmCreateTransactionResult(any())).willReturn(createRecordBuilder);

@@ -229,6 +229,9 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
 
     /**
      * Change the ownership of the NFTs from old treasury to new treasury.
+     * If you approve a spender for a treasury-owned NFT, this approval exists **independent of the exact treasury account**.
+     * That is, if Alice has approval to spend a treasury-owned serial #123 of non-fungible token type 0.0.N, she does not lose that approval just because the 0.0.N admin updates the token treasury.
+     * The approval lasts until it is explicitly removed using the active treasury key.
      * NOTE: This updates account's numOwnedNfts and tokenRelation's balance and puts to modifications on state.
      *
      * @param fromTreasuryRel old treasury relationship

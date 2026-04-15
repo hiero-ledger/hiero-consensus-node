@@ -58,6 +58,7 @@ class CallOutcomeTest {
                 EvmTransactionResult.DEFAULT,
                 null,
                 null,
+                null,
                 null);
         abortedCall.addCallDetailsTo(contractCallRecordBuilder, context, entityIdFactory);
         verify(contractCallRecordBuilder).contractCallResult(any());
@@ -78,6 +79,7 @@ class CallOutcomeTest {
                 SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
+                null,
                 null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
     }
@@ -97,6 +99,7 @@ class CallOutcomeTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ethTxData, updater, Bytes.EMPTY, null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 Bytes.EMPTY,
+                null,
                 null);
         assertEquals(
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
@@ -117,6 +120,7 @@ class CallOutcomeTest {
                 SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
+                null,
                 null);
         assertNull(outcome.recipientIdIfCreated());
     }
@@ -134,6 +138,7 @@ class CallOutcomeTest {
                 null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
                 SUCCESS_RESULT.signerNonce(),
+                null,
                 null,
                 null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientId());

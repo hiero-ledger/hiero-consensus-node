@@ -57,8 +57,6 @@ public class HintsContext {
     @Nullable
     private Map<Long, Integer> nodePartyIds;
 
-    private long schemeId;
-
     @Inject
     public HintsContext(
             @NonNull final HintsLibrary library,
@@ -92,7 +90,6 @@ public class HintsContext {
         }
         this.construction = requireNonNull(construction);
         nodePartyIds = asNodePartyIds(construction.hintsSchemeOrThrow().nodePartyIds());
-        schemeId = this.construction.constructionId();
     }
 
     /**

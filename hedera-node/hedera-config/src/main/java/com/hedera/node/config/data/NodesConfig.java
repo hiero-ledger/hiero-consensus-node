@@ -18,9 +18,19 @@ import com.swirlds.config.api.ConfigProperty;
  * @param updateAccountIdAllowed Whether the account ID can be updated
  * @param minPerPeriodNodeRewardUsd A minimum daily node reward amount in USD (applies even to inactive nodes)
  * @param targetYearlyNodeRewardsUsd The target USD node rewards
+ * @param blockNodeRewardsEnabled feature flag for enabling block node reward payments (HIP-1357)
+ * @param targetYearlyBlockNodeRewardsUsd A target yearly block node reward amount in USD (HIP-1357).
+ *                                        This is the estimated dollar cost of operating a Tier 1 block node
+ *                                        distributed to all registered Tier 1 block node operators.
+ *                                        Zero disables block node rewards.
  * @param numPeriodsToTargetUsd The number of periods to achieve the target USD node rewards
  * @param adjustNodeFees Whether node fees can be reduced by the average node fees already collected during that period
  * @param activeRoundsPercent A percentage value relating to active nodes
+ * @param registeredNodesEnabled Whether registered node operations are enabled
+ * @param maxRegisteredServiceEndpoint The maximum number of registered service endpoints a registered node may have
+ * @param maxRegisteredFqdnSize The maximum FQDN size for registered service endpoints
+ * @param maxAssociatedRegisteredNodes The maximum number of associated registered nodes a consensus node may reference
+ * @param maxGeneralServiceDescriptionUtf8Bytes The maximum number of UTF-8 bytes for a general service endpoint description
  */
 @ConfigData("nodes")
 public record NodesConfig(
@@ -55,6 +65,13 @@ public record NodesConfig(
         @ConfigProperty(defaultValue = "25000") @NetworkProperty
         long targetYearlyNodeRewardsUsd,
 
+        /* Block node rewards HIP-1357 configurations */
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean blockNodeRewardsEnabled,
+
+        @ConfigProperty(defaultValue = "36000") @NetworkProperty
+        long targetYearlyBlockNodeRewardsUsd,
+
         @ConfigProperty(defaultValue = "365") @NetworkProperty
         long numPeriodsToTargetUsd,
 
@@ -74,4 +91,19 @@ public record NodesConfig(
         boolean webProxyEndpointsEnabled,
         /* Fee collection account enabled */
         @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean feeCollectionAccountEnabled) {}
+        boolean feeCollectionAccountEnabled,
+        /* Block Node Discoverability HIP-1137 */
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean registeredNodesEnabled,
+
+        @ConfigProperty(defaultValue = "50") @NetworkProperty
+        int maxRegisteredServiceEndpoint,
+
+        @ConfigProperty(defaultValue = "250") @NetworkProperty
+        int maxRegisteredFqdnSize,
+
+        @ConfigProperty(defaultValue = "20") @NetworkProperty
+        int maxAssociatedRegisteredNodes,
+
+        @ConfigProperty(defaultValue = "100") @NetworkProperty
+        int maxGeneralServiceDescriptionUtf8Bytes) {}

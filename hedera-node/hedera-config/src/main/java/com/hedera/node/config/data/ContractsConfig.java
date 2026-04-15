@@ -151,17 +151,20 @@ public record ContractsConfig(
         @ConfigProperty(value = "evm.nonExtantContractsFail", defaultValue = "0") @NetworkProperty
         Set<Long> evmNonExtantContractsFail,
 
-        @ConfigProperty(value = "evm.version", defaultValue = "v0.70") @NetworkProperty
+        @ConfigProperty(value = "evm.version", defaultValue = "v0.67") @NetworkProperty
         String evmVersion,
-
-        @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
-        boolean nativeLibVerificationHaltEnabled,
 
         @ConfigProperty(value = "evm.pectra.enabled", defaultValue = "true") @NetworkProperty
         boolean evmPectraEnabled,
+
+        @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
+        boolean nativeLibVerificationHaltEnabled,
 
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
         boolean metricsSmartContractPrimaryEnabled,
 
         @ConfigProperty(value = "metrics.smartContract.secondary.enabled", defaultValue = "true") @NetworkProperty
-        boolean metricsSmartContractSecondaryEnabled) {}
+        boolean metricsSmartContractSecondaryEnabled,
+
+        @ConfigProperty(value = "evm.UseBonnevilleEVM", defaultValue = "false") @NetworkProperty
+        boolean useBonnevilleEVM) {}

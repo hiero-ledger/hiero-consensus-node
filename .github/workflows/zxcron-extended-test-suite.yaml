@@ -20,6 +20,7 @@ on:
 permissions:
   id-token: write
   actions: write
+  issues: write
   pull-requests: write
   statuses: write
   checks: write
@@ -310,6 +311,17 @@ jobs:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
 
+  report-flaky-tests:
+    name: Report Flaky Tests
+    needs:
+      - xts-execution
+    if: ${{ !cancelled() && always() }}
+    uses: ./.github/workflows/800-call-report-flaky-test.yaml
+    with:
+      workflow-context: main-scheduled
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+
   tag-for-promotion:
     name: Tag as XTS-Passing
     runs-on: hl-cn-default-lin-sm
@@ -380,6 +392,7 @@ jobs:
       - fetch-xts-candidate
       - xts-execution
       - tag-for-promotion
+      - report-flaky-tests
     if: ${{ (needs.fetch-xts-candidate.result == 'success' &&
       needs.xts-execution.result == 'success' &&
       needs.tag-for-promotion.result == 'success') &&
@@ -387,6 +400,196 @@ jobs:
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        with:
+          checkout: "true"
+          checkout-ref: main
+          checkout-fetch-depth: "1"
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        if: ${{ needs.report-flaky-tests.outputs.flaky-count > 0 }}
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+        run: |
+          title="XTS Flaky Test Report (${{ needs.fetch-xts-candidate.outputs.xts-info }})"
+
+          FLAKY_LIST=$(echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"')
+
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "XTS tests passed but flaky tests were detected."
+            echo "Flaky Test(s):"
+            echo "${FLAKY_LIST}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        if: ${{ needs.report-flaky-tests.outputs.flaky-count > 0 }}
+        run: |
+          echo "## Rootly Summary:" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        if: ${{ needs.report-flaky-tests.outputs.flaky-count > 0 }}
+        uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: "CITR General"
+          set_as_noise: "false"
+          alert_urgency: "Low"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
+
+      - name: Build Slack Payload Message
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
+        run: |
+          FLAKY_SECTION=""
+          if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
+            COLOR="#FFA500"
+            HEADER=":warning: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed with Flaky Tests"
+            DESCRIPTION="*XTS Job Succeeded but flaky tests were detected. Test panel status below*"
+
+            FLAKY_LIST=""
+            while IFS= read -r line; do
+              class=$(echo "${line}" | jq -r '.class')
+              method=$(echo "${line}" | jq -r '.method')
+              issue_url=$(echo "${line}" | jq -r '.issue_url')
+              issue_number=$(echo "${line}" | jq -r '.issue_number')
+              is_new=$(echo "${line}" | jq -r '.is_new')
+              status=""
+              if [[ "${is_new}" == "true" ]]; then
+                status=" (New)"
+              fi
+              FLAKY_LIST="${FLAKY_LIST}• \`${class}#${method}\` — <${issue_url}|#${issue_number}>${status}\n"
+            done < <(echo "${FLAKY_TESTS_JSON}" | jq -c '.[]')
+
+            FLAKY_SECTION=',{"type":"divider"},{"type":"section","text":{"type":"mrkdwn","text":"*Flaky Tests (failed initially but passed on retry):*\n'"${FLAKY_LIST}"'"}}'
+          else
+            COLOR="#00FF00"
+            HEADER=":tada: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed"
+            DESCRIPTION="*XTS Job Succeeded. Test panel status below*"
+          fi
+
+          cat <<EOF > slack_payload.json
+          {
+            "attachments": [
+              {
+                "color": "${COLOR}",
+                "blocks": [
+                  {
+                    "type": "header",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "${HEADER}",
+                      "emoji": true
+                    }
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "${DESCRIPTION}"
+                    },
+                    "fields": [
+                      {
+                        "type": "plain_text",
+                        "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "XTS Execution: ${{ needs.xts-execution.result }}"
+                      },
+                      {
+                        "type": "plain_text",
+                        "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
+                      }
+                    ]
+                  }${FLAKY_SECTION},
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Workflow and Commit Information*\nFor a full list of executed tests see \`Workflow run URL\` below"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Source Commit*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Commit author*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run ID*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": " ${{ github.run_id }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow run URL*:"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "divider"
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Commit List*:"
+                    },
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
 
       - name: Report Success (slack)
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
@@ -394,108 +597,7 @@ jobs:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
           webhook-type: incoming-webhook
           payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                {
-                  "color": "#00FF00",
-                  "blocks": [
-                    {
-                      "type": "header",
-                      "text": {
-                        "type": "plain_text",
-                        "text": ":tada: XTS - eXtended Test Suite Passing Report (${{ needs.fetch-xts-candidate.outputs.xts-info }}) Passed",
-                        "emoji": true
-                      }
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*XTS Job Succeeded. Test panel status below*"
-                      },
-                      "fields": [
-                        {
-                          "type": "plain_text",
-                          "text": "Fetch XTS Candidate Tag: ${{ needs.fetch-xts-candidate.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "XTS Execution: ${{ needs.xts-execution.result }}"
-                        },
-                        {
-                          "type": "plain_text",
-                          "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Workflow and Commit Information*\nFor a full list of executed tests see `Workflow run URL` below"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Source Commit*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}>"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Commit author*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit-author }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run ID*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": " ${{ github.run_id }}"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "*Workflow run URL*:"
-                        },
-                        {
-                          "type": "mrkdwn",
-                          "text": "<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "divider"
-                    },
-                    {
-                      "type": "section",
-                      "text": {
-                        "type": "mrkdwn",
-                        "text": "*Commit List*:"
-                      },
-                      "fields": [
-                        {
-                          "type": "mrkdwn",
-                          "text": "${{ needs.fetch-xts-candidate.outputs.commit-list }}"
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
+          payload-file-path: slack_payload.json
 
   report-failure:
     name: Report XTS execution failure
@@ -504,6 +606,7 @@ jobs:
       - fetch-xts-candidate
       - xts-execution
       - tag-for-promotion
+      - report-flaky-tests
     if: ${{ (needs.fetch-xts-candidate.result != 'success' ||
       needs.xts-execution.result != 'success' ||
       needs.tag-for-promotion.result != 'success') &&
@@ -584,6 +687,8 @@ jobs:
         id: rootly-summary
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
         run: |
           title="The eXtended Test Suite job failed (${{ needs.fetch-xts-candidate.outputs.xts-info }})."
 
@@ -599,6 +704,11 @@ jobs:
               echo "XTS tests failed due to a ${{ needs.xts-execution.outputs.failure-mode }} error."
               echo "Failing Test(s):"
               bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.xts-execution.outputs.failed-tests }}"
+              echo "------------------------------------"
+            fi
+            if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
+              echo "Flaky Test(s) (failed initially but passed on retry):"
+              echo "${FLAKY_TESTS_JSON}" | jq -r '.[] | "• \(.class)#\(.method) — \(.issue_url)"'
               echo "------------------------------------"
             fi
             echo "Commit information:"
@@ -637,7 +747,29 @@ jobs:
 
       - name: Build Slack Payload Message
         id: payload
+        env:
+          FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
+          FLAKY_COUNT: ${{ needs.report-flaky-tests.outputs.flaky-count }}
         run: |
+          FLAKY_SECTION=""
+          if [[ "${FLAKY_COUNT}" -gt 0 ]] && [[ -n "${FLAKY_TESTS_JSON}" ]] && [[ "${FLAKY_TESTS_JSON}" != "[]" ]]; then
+            FLAKY_LIST=""
+            while IFS= read -r line; do
+              class=$(echo "${line}" | jq -r '.class')
+              method=$(echo "${line}" | jq -r '.method')
+              issue_url=$(echo "${line}" | jq -r '.issue_url')
+              issue_number=$(echo "${line}" | jq -r '.issue_number')
+              is_new=$(echo "${line}" | jq -r '.is_new')
+              status=""
+              if [[ "${is_new}" == "true" ]]; then
+                status=" (New)"
+              fi
+              FLAKY_LIST="${FLAKY_LIST}• \`${class}#${method}\` — <${issue_url}|#${issue_number}>${status}\n"
+            done < <(echo "${FLAKY_TESTS_JSON}" | jq -c '.[]')
+
+            FLAKY_SECTION=',{"type":"divider"},{"type":"section","text":{"type":"mrkdwn","text":"*Flaky Tests (failed initially but passed on retry):*\n'"${FLAKY_LIST}"'"}}'
+          fi
+
           cat <<EOF > slack_payload.json
           {
             "attachments": [
@@ -675,7 +807,7 @@ jobs:
                         "text": "Tag as XTS-Passing: ${{ needs.tag-for-promotion.result }}"
                       }
                     ]
-                  },
+                  }${FLAKY_SECTION},
                   {
                     "type": "divider"
                   },

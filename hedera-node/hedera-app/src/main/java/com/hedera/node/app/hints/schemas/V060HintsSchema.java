@@ -36,8 +36,6 @@ public class V060HintsSchema extends Schema<SemanticVersion> {
             StateKey.KeyOneOfType.HINTSSERVICE_I_CRS_PUBLICATIONS.protoOrdinal();
     public static final String CRS_PUBLICATIONS_STATE_LABEL = computeLabel(HintsService.NAME, CRS_PUBLICATIONS_KEY);
 
-    private static final long MAX_CRS_PUBLICATIONS = 1L << 10;
-
     private final HintsContext signingContext;
 
     public V060HintsSchema(@NonNull final HintsContext signingContext) {

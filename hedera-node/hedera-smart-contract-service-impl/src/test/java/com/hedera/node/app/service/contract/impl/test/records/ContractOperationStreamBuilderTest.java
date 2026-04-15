@@ -71,7 +71,8 @@ class ContractOperationStreamBuilderTest {
                         List.of(new StorageAccesses(
                                 ContractID.DEFAULT,
                                 List.of(new StorageAccess(UInt256.MAX_VALUE, UInt256.ZERO, UInt256.ZERO)))),
-                        null));
+                        null),
+                null);
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
         final var builder = subject.withCommonFieldsSetFrom(outcome, context, entityIdFactory);
 
@@ -91,6 +92,7 @@ class ContractOperationStreamBuilderTest {
                 null,
                 null,
                 EvmTransactionResult.newBuilder().gasUsed(1L).build(),
+                null,
                 null,
                 null,
                 null);

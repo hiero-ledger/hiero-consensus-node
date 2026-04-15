@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.token.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -44,7 +43,6 @@ import org.junit.jupiter.api.Tag;
  */
 @HapiTestLifecycle
 @Tag(ATOMIC_BATCH)
-@Tag(MATS)
 class AtomicTokenMetadataSpecs {
 
     private static final String PRIMARY = "primary";

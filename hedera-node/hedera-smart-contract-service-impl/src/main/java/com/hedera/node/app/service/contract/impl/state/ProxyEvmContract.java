@@ -12,7 +12,7 @@ import org.hyperledger.besu.datatypes.Hash;
  */
 public class ProxyEvmContract extends AbstractProxyEvmAccount {
 
-    public ProxyEvmContract(final AccountID accountID, @NonNull final EvmFrameState state) {
+    public ProxyEvmContract(AccountID accountID, DispatchingEvmFrameState state) {
         super(accountID, state);
     }
 

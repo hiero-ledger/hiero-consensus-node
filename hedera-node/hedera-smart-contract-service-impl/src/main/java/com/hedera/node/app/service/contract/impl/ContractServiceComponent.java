@@ -14,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
+import com.hedera.node.config.data.ContractsConfig;
 import dagger.BindsInstance;
 import dagger.Component;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -57,6 +58,7 @@ public interface ContractServiceComponent {
                 @BindsInstance ContractMetrics contractMetrics,
                 @BindsInstance SystemContractMethodRegistry systemContractMethodRegistry,
                 @BindsInstance @CustomOps Set<Operation> customOps,
+                @BindsInstance Supplier<ContractsConfig> contractsConfigSupplier,
                 @BindsInstance EntityIdFactory entityIdFactory,
                 @BindsInstance NativeLibVerifier nativeLibVerifier);
     }

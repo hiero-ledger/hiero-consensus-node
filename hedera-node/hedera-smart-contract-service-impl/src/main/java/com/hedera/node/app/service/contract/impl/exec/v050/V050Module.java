@@ -36,6 +36,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSyst
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -47,7 +48,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -96,14 +96,15 @@ public interface V050Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                gasCalculator);
+                gasCalculator,
+                null);
     }
 
     @Provides
     @Singleton
     @ServicesV050
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesV050 @NonNull final EVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
+            @ServicesV050 @NonNull final HEVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
                 evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
     }
@@ -112,7 +113,7 @@ public interface V050Module {
     @Singleton
     @ServicesV050
     static CustomMessageCallProcessor provideMessageCallProcessor(
-            @ServicesV050 @NonNull final EVM evm,
+            @ServicesV050 @NonNull final HEVM evm,
             @ServicesV050 @NonNull final FeatureFlags featureFlags,
             @ServicesV050 @NonNull final AddressChecks addressChecks,
             @ServicesV050 @NonNull final PrecompileContractRegistry registry,
@@ -125,7 +126,7 @@ public interface V050Module {
     @Provides
     @Singleton
     @ServicesV050
-    static EVM provideEVM(
+    static HEVM provideEVM(
             @ServicesV050 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
@@ -139,7 +140,7 @@ public interface V050Module {
                 .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        return new EVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+        return new HEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
     }
 
     @Provides

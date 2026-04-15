@@ -29,9 +29,10 @@ public class CommonPcesWriter {
     private final PcesFileManager fileManager;
 
     /**
-     * The current file that is being written to.
+     * The current file that is being written to. Volatile so the shutdown hook thread
+     * sees the latest value written by the handle thread.
      */
-    private PcesMutableFile currentMutableFile;
+    private volatile PcesMutableFile currentMutableFile;
 
     /**
      * The current minimum ancient indicator required to be considered non-ancient. Only read and written on the handle
@@ -131,6 +132,22 @@ public class CommonPcesWriter {
         }
 
         averageSpanUtilization = new LongRunningAverage(pcesConfig.spanUtilizationRunningAverageLength());
+
+        Runtime.getRuntime()
+                .addShutdownHook(new Thread(
+                        () -> {
+                            if (currentMutableFile != null) {
+                                try {
+                                    currentMutableFile.sync();
+                                    currentMutableFile.close();
+                                    logger.info("Shutdown hook: synced and closed current PCES file");
+                                } catch (final IOException e) {
+                                    logger.error(
+                                            EXCEPTION.getMarker(), "Shutdown hook: failed to sync/close PCES file", e);
+                                }
+                            }
+                        },
+                        "pces-shutdown-sync"));
     }
 
     /**
@@ -327,6 +344,21 @@ public class CommonPcesWriter {
                 currentMutableFile.close();
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    /**
+     * Syncs the current mutable file to disk, ensuring all written data is durable.
+     * This should be called after the wiring pipeline has been flushed, so that no
+     * more writes are in-flight.
+     */
+    public void syncCurrentFile() {
+        if (currentMutableFile != null) {
+            try {
+                currentMutableFile.sync();
+            } catch (final IOException e) {
+                throw new UncheckedIOException("Failed to sync current PCES file", e);
             }
         }
     }

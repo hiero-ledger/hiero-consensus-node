@@ -34,6 +34,7 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -45,7 +46,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -84,14 +84,15 @@ public interface V030Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                gasCalculator);
+                gasCalculator,
+                null);
     }
 
     @Provides
     @Singleton
     @ServicesV030
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesV030 @NonNull final EVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
+            @ServicesV030 @NonNull final HEVM evm, @NonNull final Set<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
                 evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
     }
@@ -100,7 +101,7 @@ public interface V030Module {
     @Singleton
     @ServicesV030
     static CustomMessageCallProcessor provideMessageCallProcessor(
-            @ServicesV030 @NonNull final EVM evm,
+            @ServicesV030 @NonNull final HEVM evm,
             @ServicesV030 @NonNull final FeatureFlags featureFlags,
             @ServicesV030 @NonNull final AddressChecks addressChecks,
             @ServicesV030 @NonNull final PrecompileContractRegistry registry,
@@ -113,7 +114,7 @@ public interface V030Module {
     @Provides
     @Singleton
     @ServicesV030
-    static EVM provideEVM(
+    static HEVM provideEVM(
             @ServicesV030 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
@@ -124,7 +125,7 @@ public interface V030Module {
                 .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        return new EVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.LONDON);
+        return new HEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.LONDON);
     }
 
     @Provides

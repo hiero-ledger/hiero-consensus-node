@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
 import static com.hedera.hapi.node.state.hints.CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
 import static java.util.Objects.requireNonNull;
@@ -428,33 +429,64 @@ public class HintsControllerImpl implements HintsController {
             final long nodeId, @NonNull final PreprocessingVote vote, @NonNull final WritableHintsStore hintsStore) {
         requireNonNull(vote);
         requireNonNull(hintsStore);
-        if (!construction.hasHintsScheme() && !votes.containsKey(nodeId)) {
-            hintsStore.addPreprocessingVote(nodeId, constructionId(), vote);
-            if (vote.hasPreprocessedKeys()) {
-                votes.put(nodeId, vote);
-            } else if (vote.hasCongruentNodeId()) {
-                final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
-                if (congruentVote != null && congruentVote.hasPreprocessedKeys()) {
-                    votes.put(nodeId, congruentVote);
-                }
-            }
-            final var outputWeights = votes.entrySet().stream()
-                    .collect(groupingBy(
-                            entry -> entry.getValue().preprocessedKeysOrThrow(),
-                            summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
-            final var maybeWinningOutputs = outputWeights.entrySet().stream()
-                    .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
-                    .map(Map.Entry::getKey)
-                    .findFirst();
-            maybeWinningOutputs.ifPresent(keys -> {
-                construction = hintsStore.setHintsScheme(
-                        construction.constructionId(), keys, nodePartyIds, weights.targetNodeWeights());
-                log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
-                onHintsFinished.accept(hintsStore, construction, context);
-            });
-            return true;
+        if (votes.containsKey(nodeId)) {
+            log.info(
+                    "Skipping already-counted preprocessing vote from node{} for construction #{}",
+                    nodeId,
+                    construction.constructionId());
+            return false;
         }
-        return false;
+        if (construction.hasHintsScheme()) {
+            final var schemeSummary = construction.hintsSchemeOrThrow().hasPreprocessedKeys()
+                    ? summarizePreprocessedKeys(
+                            construction.hintsSchemeOrThrow().preprocessedKeysOrThrow())
+                    : "complete";
+            log.info(
+                    "Skipping preprocessing vote from node{} for construction #{} because the hinTS scheme is already {}",
+                    nodeId,
+                    construction.constructionId(),
+                    schemeSummary);
+            return false;
+        }
+        hintsStore.addPreprocessingVote(nodeId, constructionId(), vote);
+        PreprocessedKeys countedKeys = null;
+        if (vote.hasPreprocessedKeys()) {
+            countedKeys = vote.preprocessedKeysOrThrow();
+            votes.put(nodeId, vote);
+        } else if (vote.hasCongruentNodeId()) {
+            final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
+            if (congruentVote != null && congruentVote.hasPreprocessedKeys()) {
+                countedKeys = congruentVote.preprocessedKeysOrThrow();
+                votes.put(nodeId, congruentVote);
+            }
+        }
+        log.info(
+                "Accepted preprocessing vote from node{} for construction #{}: {}",
+                nodeId,
+                construction.constructionId(),
+                summarizeVote(vote, countedKeys));
+        final var outputWeights = votes.entrySet().stream()
+                .collect(groupingBy(
+                        entry -> entry.getValue().preprocessedKeysOrThrow(),
+                        summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
+        log.info(
+                "Now have preprocessing votes with weights {} for construction #{}",
+                summarizeOutputWeights(outputWeights),
+                construction.constructionId());
+        final var maybeWinningOutputs = outputWeights.entrySet().stream()
+                .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
+                .map(Map.Entry::getKey)
+                .findFirst();
+        maybeWinningOutputs.ifPresent(keys -> {
+            construction = hintsStore.setHintsScheme(
+                    construction.constructionId(), keys, nodePartyIds, weights.targetNodeWeights());
+            log.info(
+                    "Completed hinTS scheme for construction #{} with {}",
+                    construction.constructionId(),
+                    summarizePreprocessedKeys(keys));
+            onHintsFinished.accept(hintsStore, construction, context);
+        });
+        return true;
     }
 
     @Override
@@ -702,11 +734,22 @@ public class HintsControllerImpl implements HintsController {
                                         entry -> weights.targetWeightOf(entry.getKey()),
                                         (a, b) -> a,
                                         TreeMap::new));
+                        log.info(
+                                "Calling preprocess for construction #{} with crsHash={}, hintKeyHashes={}, aggregatedWeights={}, numParties={}",
+                                construction.constructionId(),
+                                sha384Hex(crs),
+                                summarizeHintKeys(hintKeys),
+                                aggregatedWeights,
+                                numParties);
                         final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
                         final var preprocessedKeys = PreprocessedKeys.newBuilder()
                                 .verificationKey(Bytes.wrap(output.verificationKey()))
                                 .aggregationKey(Bytes.wrap(output.aggregationKey()))
                                 .build();
+                        log.info(
+                                "Computed preprocessing output for construction #{}: {}",
+                                construction.constructionId(),
+                                summarizePreprocessedKeys(preprocessedKeys));
                         // Prefer to vote for a congruent node's preprocessed keys if one exists
                         long congruentNodeId = -1;
                         for (final var entry : votes.entrySet()) {
@@ -716,12 +759,19 @@ public class HintsControllerImpl implements HintsController {
                             }
                         }
                         if (congruentNodeId != -1) {
-                            log.info("Voting for congruent node's preprocessed keys: {}", congruentNodeId);
+                            log.info(
+                                    "Voting for congruent node{}'s preprocessed keys for construction #{}: {}",
+                                    congruentNodeId,
+                                    construction.constructionId(),
+                                    summarizePreprocessedKeys(preprocessedKeys));
                             submissions
                                     .submitHintsVote(construction.constructionId(), congruentNodeId)
                                     .join();
                         } else {
-                            log.info("Voting for own preprocessed keys");
+                            log.info(
+                                    "Voting for own preprocessed keys for construction #{}: {}",
+                                    construction.constructionId(),
+                                    summarizePreprocessedKeys(preprocessedKeys));
                             submissions
                                     .submitHintsVote(construction.constructionId(), preprocessedKeys)
                                     .join();
@@ -733,6 +783,48 @@ public class HintsControllerImpl implements HintsController {
                     }
                 },
                 executor);
+    }
+
+    private static @NonNull String summarizeVote(
+            @NonNull final PreprocessingVote vote, @Nullable final PreprocessedKeys countedKeys) {
+        requireNonNull(vote);
+        if (vote.hasPreprocessedKeys()) {
+            return "preprocessedKeys{" + summarizePreprocessedKeys(vote.preprocessedKeysOrThrow()) + "}";
+        }
+        if (vote.hasCongruentNodeId()) {
+            final var summary = "congruentNodeId=" + vote.congruentNodeIdOrThrow();
+            return countedKeys == null
+                    ? summary + " (not yet resolved)"
+                    : summary + " -> preprocessedKeys{" + summarizePreprocessedKeys(countedKeys) + "}";
+        }
+        return "<empty vote>";
+    }
+
+    private static @NonNull List<String> summarizeOutputWeights(
+            @NonNull final Map<PreprocessedKeys, Long> outputWeights) {
+        requireNonNull(outputWeights);
+        return outputWeights.entrySet().stream()
+                .map(entry -> "preprocessedKeys{" + summarizePreprocessedKeys(entry.getKey()) + "}, weight="
+                        + entry.getValue())
+                .sorted()
+                .toList();
+    }
+
+    private static @NonNull Map<Integer, String> summarizeHintKeys(@NonNull final Map<Integer, Bytes> hintKeys) {
+        requireNonNull(hintKeys);
+        final Map<Integer, String> summary = new TreeMap<>();
+        hintKeys.forEach((partyId, hintsKey) -> summary.put(partyId, sha384Hex(hintsKey)));
+        return summary;
+    }
+
+    private static @NonNull String summarizePreprocessedKeys(@NonNull final PreprocessedKeys keys) {
+        requireNonNull(keys);
+        return "vkHash=" + sha384Hex(keys.verificationKey()) + ", akHash=" + sha384Hex(keys.aggregationKey());
+    }
+
+    private static @NonNull String sha384Hex(@NonNull final Bytes bytes) {
+        requireNonNull(bytes);
+        return noThrowSha384HashOf(bytes).toHex();
     }
 
     @VisibleForTesting

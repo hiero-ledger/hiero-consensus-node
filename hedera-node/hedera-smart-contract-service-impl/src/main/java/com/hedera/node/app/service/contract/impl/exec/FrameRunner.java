@@ -19,9 +19,12 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
+import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -32,7 +35,6 @@ import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
@@ -74,7 +76,8 @@ public class FrameRunner {
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final GasCharges gasCharges) {
+            @NonNull final GasCharges gasCharges,
+            @NonNull HEVM hevm) {
         requireNonNull(frame);
         requireNonNull(tracer);
         requireNonNull(senderId);
@@ -83,14 +86,19 @@ public class FrameRunner {
 
         final var recipientAddress = frame.getRecipientAddress();
         // We compute the called contract's Hedera id up front because it could
-        // selfdestruct, preventing us from looking up its id after the fact
+        // self-destruct, preventing us from looking up its id after the fact
         final var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
-
-        // Now run the transaction implied by the frame
         tracer.traceOriginAction(frame);
-        final var stack = frame.getMessageFrameStack();
-        while (!stack.isEmpty()) {
-            runToCompletion(stack.peekFirst(), tracer, messageCall, contractCreation);
+
+        if (hevm instanceof BonnevilleEVM bonneville) {
+            bonneville.setProcessors(messageCall, (CustomContractCreationProcessor) contractCreation);
+            runToCompletion(frame, tracer, messageCall, contractCreation);
+        } else {
+            // Now run the transaction implied by the frame
+            final var stack = frame.getMessageFrameStack();
+            while (!stack.isEmpty()) {
+                runToCompletion(stack.peekFirst(), tracer, messageCall, contractCreation);
+            }
         }
         tracer.sanitizeTracedActions(frame);
 
@@ -153,10 +161,8 @@ public class FrameRunner {
                 f.setState(EXCEPTIONAL_HALT);
                 f.setExceptionalHaltReason(maybeFailureToPropagate.exceptionalHaltReason());
                 // Finalize the CONTRACT_ACTION for the propagated halt frame as well
-                maybeFailureToPropagate
-                        .exceptionalHaltReason()
-                        .ifPresent(reason -> tracer.tracePostExecution(
-                                f, new Operation.OperationResult(frame.getRemainingGas(), reason)));
+                var reason = maybeFailureToPropagate.exceptionalHaltReasonOrNull();
+                if (reason != null) tracer.traceNotExecuting(f);
             });
         }
     }

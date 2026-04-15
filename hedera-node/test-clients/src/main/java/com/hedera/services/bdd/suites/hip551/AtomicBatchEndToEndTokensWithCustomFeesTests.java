@@ -25,10 +25,8 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchFee;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -2386,9 +2384,9 @@ public class AtomicBatchEndToEndTokensWithCustomFeesTests {
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(OWNER).balance(ONE_BILLION_HBARS),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(NEW_TREASURY_WITH_UNLIMITED_AUTO_ASSOCIATIONS)
-                        .balance(ONE_MILLION_HBARS)
+                        .balance(ONE_HUNDRED_HBARS)
                         .maxAutomaticTokenAssociations(-1),
                 cryptoCreate(RECEIVER_ASSOCIATED_FIRST).balance(ONE_HBAR),
                 cryptoCreate(RECEIVER_ASSOCIATED_SECOND).balance(ONE_HBAR),

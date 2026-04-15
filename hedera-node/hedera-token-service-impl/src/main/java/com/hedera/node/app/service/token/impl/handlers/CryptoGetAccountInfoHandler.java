@@ -37,7 +37,6 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hederahashgraph.api.proto.java.FeeData;
@@ -134,7 +133,6 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
         requireNonNull(context);
 
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
-        final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var stakingConfig = context.configuration().getConfigData(StakingConfig.class);
         final var accountStore = context.createStore(ReadableAccountStore.class);
         final var tokenRelationStore = context.createStore(ReadableTokenRelationStore.class);
@@ -147,7 +145,7 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
             return Optional.empty();
         } else {
             final var info = AccountInfo.newBuilder();
-            info.ledgerId(ledgerConfig.id());
+            info.ledgerId(context.ledgerId());
             info.key(account.key());
 
             // Set this field with the account's id since that's guaranteed to be a numeric 0.0.X id;

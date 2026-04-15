@@ -468,7 +468,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
             final var json = PendingProof.JSON.toJSON(pendingProof);
             try {
-                Files.writeString(pathOf(blockNumber, name -> name + ".pnd.json"), json);
+                Files.writeString(pendingProofPath(nodeScopedBlockDir, blockNumber), json);
             } catch (IOException e) {
                 logger.error("Error flushing pending proof metadata #{}", blockNumber, e);
             }
@@ -476,15 +476,10 @@ public class FileBlockItemWriter implements BlockItemWriter {
                     "Flushed pending block #{} ({}, {})",
                     blockNumber,
                     pathOf(blockNumber, pendingFileName),
-                    pathOf(blockNumber, name -> name + ".pnd.json"));
+                    pendingProofPath(nodeScopedBlockDir, blockNumber));
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }
-    }
-
-    @Override
-    public void jumpToBlockAfterFreeze(long blockNumber) {
-        // no-op
     }
 
     /**

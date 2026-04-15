@@ -206,9 +206,15 @@ message CryptoCreateTransactionBody {
     repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 19;
 
     /**
-     * The delegated contract address for the account.
-     * If this field is set, a call to the account's address within a smart contract will
-     * result in the code of the authorized contract being executed.
+     * The initial delegated contract address to set for the new account.
+     * <p>
+     * If set, the value MUST be 20 bytes long (EVM address).
+     * A value of `0x0000000000000000000000000000000000000000` will be ignored.
+     *
+     * If this field is set on the account, anytime a call is made to the account's address
+     * (either an EVM call within HSCS or a child call dispatched by CryptoTransfer)
+     * the EVM code of the contract referenced by `delegation_address` will be
+     * executed in the context of the account.
      */
     bytes delegation_address = 20;
 }

@@ -26,19 +26,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Processor for handling code delegations for EIP-7702 transactions.
  */
 public record CodeDelegationProcessor(long chainId) {
-    private static final Logger LOG = LoggerFactory.getLogger(CodeDelegationProcessor.class);
+    private static final Logger LOG = LogManager.getLogger(CodeDelegationProcessor.class);
 
     // The half of the secp256k1 curve order, used to validate the signature.
     private static final BigInteger HALF_CURVE_ORDER =
@@ -173,6 +173,7 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
+            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress);
             if (!proxyWorldUpdater.createAccountWithKeyAndCodeDelegation(
                     authorityAddress, authorizer.publicKey(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(EntryIgnoreReason.OTHER);
@@ -208,6 +209,7 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
+            state.addValidDelegation(authorizer.publicKey(), authorityAddress, delegatedContractAddress);
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(EntryIgnoreReason.OTHER);
@@ -247,14 +249,17 @@ public record CodeDelegationProcessor(long chainId) {
     }
 
     private static class CodeDelegationProcessingState {
+        private final long initialLazyCreationGasAvailable;
         private long remainingLazyCreationGasAvailable;
         private long totalLazyCreationGasCharged;
         private int numAuthorizationsEligibleForRefund;
         private int successfullyProcessedAuthorizations;
         private final Map<CodeDelegationResult.EntryIgnoreReason, Integer> numIgnoredEntriesByReason = new HashMap<>();
         private final List<Address> accessedAddresses = new ArrayList<>();
+        private final List<CodeDelegationResult.ValidDelegation> validDelegations = new ArrayList<>();
 
         CodeDelegationProcessingState(final long lazyCreationGasAvailable) {
+            this.initialLazyCreationGasAvailable = lazyCreationGasAvailable;
             this.remainingLazyCreationGasAvailable = lazyCreationGasAvailable;
         }
 
@@ -283,13 +288,20 @@ public record CodeDelegationProcessor(long chainId) {
             accessedAddresses.add(accessedAddress);
         }
 
+        void addValidDelegation(byte[] authorityEcdsaPublicKey, Address authorityAddress, Address delegationTarget) {
+            validDelegations.add(new CodeDelegationResult.ValidDelegation(
+                    Bytes.wrap(authorityEcdsaPublicKey), authorityAddress, delegationTarget));
+        }
+
         public CodeDelegationResult toResult() {
             return new CodeDelegationResult(
+                    initialLazyCreationGasAvailable,
                     totalLazyCreationGasCharged,
                     numAuthorizationsEligibleForRefund,
                     successfullyProcessedAuthorizations,
                     numIgnoredEntriesByReason,
-                    accessedAddresses);
+                    accessedAddresses,
+                    validDelegations);
         }
     }
 }

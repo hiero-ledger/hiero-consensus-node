@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.evm;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -43,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -65,6 +65,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@OrderedInIsolation
 @HapiTestLifecycle
 public class Evm38ValidationSuite {
     private static final Logger LOG = LogManager.getLogger(Evm38ValidationSuite.class);
@@ -130,7 +131,6 @@ public class Evm38ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceOfAccountsAndContracts() {
         final var contract = "BalanceChecker";
         final var BALANCE = 10L;
@@ -262,7 +262,6 @@ public class Evm38ValidationSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceForExtCodeOperation() {
         final var contract = "ExtCodeOperationsChecker";
         final var invalidAddress = "0x0000000000000000000000000000000000123456";

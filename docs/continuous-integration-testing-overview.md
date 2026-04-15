@@ -3,7 +3,7 @@
 The series of workflows that make up the Continuous Integration Testing and Release (CITR) process are intended
 to drive rapid development and release of code within the Hedera Hashgraph services and platform codebase. This
 document aims to define key terms associated with CITR and to provide best practices for developers and
-maintainers as they introduce new code to the `hedera-services` repository.
+maintainers as they introduce new code to the `hiero-consensus-node` repository.
 
 ## Definitions
 
@@ -18,7 +18,7 @@ The first phase of the CITR implementation focuses entirely on the introduction 
 two major components of CITR: MATS and XTS.
 
 MATS is the Minimal Acceptable Test Suite; this suite of tests is run against every pull request (PR) that is opened in
-the `hashgraph/hedera-services` repository.
+the `hiero-ledger/hiero-consensus-node` repository.
 
 XTS is the eXtended Test Suite; this suite of tests is run against the latest commit on the main branch every three
 hours (provided there is a new commit to run against).
@@ -41,21 +41,18 @@ The XTS text suite consists of the following tests:
 - hapi-tests-time-consuming
 
 It also includes the following JRS Panels
-- JRS Panel:
-- Configuration file: `configs/suites/GCP-PRCheck-Abbrev-4N.json`
-- Custom job name: `Platform SDK`
 - Hedera Node JRS Panel:
 - Configuration file: `configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json`
-- Custom job name: `Abbrev Update Test`
+- Custom job name: `<Job Prefix> Abbrev Update Test`
 
 ### Dry-Running XTS Tests
 
-There is an additional workflow: `ZXF: Extended Test Suite - Dry Run` which is available for use within the
-`hashgraph/hedera-services` repository.
+There is an additional workflow: `[CITR] XTS Dry Run` which is available for use within the
+`hiero-ledger/hiero-consensus-node` repository.
 
 The XTS Dry-Run workflow runs a provided commit on any branch through the same XTS tests that would be run against the
 latest on main every three hours. This workflow is run with a manual trigger and will execute in parallel to any
-other actions ongoing in the `hashgraph/hedera-services` repository.
+other actions ongoing in the `hiero-ledger/hiero-consensus-node` repository.
 
 A developer can manually trigger a run using the parameters in the web UI:
 
@@ -71,7 +68,7 @@ The branch name, for JRS Panel output
 Or manually using the github CLI:
 
 ```bash
-cd ${REPO_ROOT}/hedera-services
+cd ${REPO_ROOT}/hiero-consensus-node
 gh workflow run ./.github/workflows/flow-dry-run-extended-test-suite.yaml -f commit_sha=`git rev-parse HEAD` -f branch_name='<branch_name>'
 ```
 

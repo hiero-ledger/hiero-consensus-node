@@ -6,7 +6,7 @@ import static com.hedera.node.app.workflows.handle.stack.SavepointStackImpl.cast
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.records.FinalizeContext;
@@ -33,13 +33,13 @@ public class TokenContextImpl implements TokenContext, FinalizeContext {
             @NonNull final Configuration configuration,
             @NonNull final SavepointStackImpl stack,
             @NonNull final Instant consensusTime,
-            @NonNull final WritableEntityCounters entityCounters) {
+            @NonNull final WritableEntityIdStore writableEntityIdStore) {
         this.stack = stack;
         requireNonNull(stack, "stack must not be null");
         this.configuration = requireNonNull(configuration, "configuration must not be null");
 
         this.readableStoreFactory = new ReadableStoreFactoryImpl(stack);
-        this.writableStoreFactory = new WritableStoreFactory(stack, TokenService.NAME, entityCounters);
+        this.writableStoreFactory = new WritableStoreFactory(stack, TokenService.NAME, writableEntityIdStore);
         this.consensusTime = requireNonNull(consensusTime, "consensusTime must not be null");
     }
 

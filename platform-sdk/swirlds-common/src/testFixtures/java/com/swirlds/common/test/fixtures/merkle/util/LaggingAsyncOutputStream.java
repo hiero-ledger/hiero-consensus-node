@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.function.Supplier;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -24,10 +23,9 @@ public class LaggingAsyncOutputStream extends AsyncOutputStream {
     public LaggingAsyncOutputStream(
             final SerializableDataOutputStream out,
             final StandardWorkGroup workGroup,
-            final Supplier<Boolean> isAlive,
             final long latencyMilliseconds,
             final ReconnectConfig reconnectConfig) {
-        super(out, workGroup, isAlive, reconnectConfig);
+        super(out, workGroup, reconnectConfig);
         this.messageTimes = new LinkedBlockingQueue<>();
         this.latencyMilliseconds = latencyMilliseconds;
     }

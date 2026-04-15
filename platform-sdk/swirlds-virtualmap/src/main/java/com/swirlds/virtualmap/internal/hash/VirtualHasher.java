@@ -40,46 +40,12 @@ import org.hiero.base.crypto.Hash;
  */
 public final class VirtualHasher {
 
-    // When virtual tree is of size 1 (only the root node and a single leaf), root hash should
-    // include the hash for path 1 (leaf), but not for path 2. This marker Hash object is used
-    // as path 2 input hash for the root hashing task. Null hash cannot be used here as it would
-    // trigger loading path 2 hash from disk
-    public static final Hash NO_PATH2_HASH = new Hash();
-
     /**
      * Use this for all logging, as controlled by the optional data/log4j2.xml file
      */
     private static final Logger logger = LogManager.getLogger(VirtualHasher.class);
 
-    private static volatile ForkJoinPool hashingPool = null;
-
-    /**
-     * This method is invoked from a non-static method, passing the provided configuration.
-     * Consequently, the hashing pool will be initialized using the configuration provided
-     * with the first call of the hash method. Subsequent calls will reuse the same pool.
-     */
-    private static ForkJoinPool getHashingPool(final @NonNull VirtualMapConfig virtualMapConfig) {
-        requireNonNull(virtualMapConfig);
-
-        ForkJoinPool pool = hashingPool;
-        if (pool == null) {
-            synchronized (VirtualHasher.class) {
-                pool = hashingPool;
-                if (pool == null) {
-                    pool = new ForkJoinPool(
-                            virtualMapConfig.getNumHashThreads(),
-                            ForkJoinPool.defaultForkJoinWorkerThreadFactory,
-                            (t, e) -> logger.error(
-                                    EXCEPTION.getMarker(),
-                                    "Virtual hasher thread terminated with exception: {}",
-                                    StackTrace.getStackTrace(e)),
-                            true);
-                    hashingPool = pool;
-                }
-            }
-        }
-        return pool;
-    }
+    private final ForkJoinPool hashingPool;
 
     /**
      * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
@@ -110,31 +76,56 @@ public final class VirtualHasher {
      */
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
+    private final VirtualMapConfig virtualMapConfig;
+
     /**
-     * Indicate to the virtual hasher that it has been shut down. This method does not interrupt threads, but
-     * it indicates to threads that an interrupt may happen, and that the interrupt should not be treated as
-     * an error.
+     * @param virtualMapConfig platform configuration for VirtualMap
+     */
+    public VirtualHasher(final @NonNull VirtualMapConfig virtualMapConfig) {
+        requireNonNull(virtualMapConfig);
+        this.virtualMapConfig = virtualMapConfig;
+        hashingPool = new ForkJoinPool(
+                virtualMapConfig.getNumHashThreads(),
+                ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+                (t, e) -> logger.error(
+                        EXCEPTION.getMarker(),
+                        "Virtual hasher thread terminated with exception: {}",
+                        StackTrace.getStackTrace(e)),
+                true);
+    }
+
+    /**
+     * Indicate to the virtual hasher that it has been shut down. This method shuts down the
+     * hashing pool.
      */
     public void shutdown() {
         shutdown.set(true);
+        hashingPool.shutdown();
     }
 
-    public static Hash hashInternal(final Hash left, final Hash right) {
+    /**
+     * Calculates a hash for an internal node from its left and right child hashes.
+     *
+     * <p>The left hash must always be provided. The right hash is typically provided, too.
+     * However, this method may also be called with a null right hash to calculate a root
+     * hash for a tree with only one leaf node.
+     */
+    public static byte[] hashInternal(@NonNull final byte[] left, @Nullable final byte[] right) {
         return hashInternal(left, right, MESSAGE_DIGEST_THREAD_LOCAL.get());
     }
 
-    private static Hash hashInternal(final Hash left, final Hash right, final WritableMessageDigest wmd) {
+    private static byte[] hashInternal(final byte[] left, final byte[] right, final WritableMessageDigest wmd) {
         // Unique value to make sure internal node hashes are different from leaf hashes. This
         // value indicates the number of child nodes. All internal virtual nodes have 2 children
         // except a root node in a tree with just one element / leaf. In this and only this case,
         // the right hash will be set to a marker NO_PATH2_HASH hash object
-        wmd.writeByte(right == NO_PATH2_HASH ? (byte) 0x01 : (byte) 0x02);
-        left.getBytes().writeTo(wmd);
-        if (right != NO_PATH2_HASH) { // use identity check rather than equals
-            right.getBytes().writeTo(wmd);
+        wmd.writeByte(right == null ? (byte) 0x01 : (byte) 0x02);
+        wmd.writeBytes(left);
+        if (right != null) {
+            wmd.writeBytes(right);
         }
         // Note that the digest is reset after the call to digest()
-        return new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+        return wmd.digest();
     }
 
     // A task that can supply hashes to other tasks. There are two hash producer task
@@ -175,7 +166,7 @@ public final class VirtualHasher {
         private final int height;
 
         // Hash inputs, at least two
-        private final Hash[] ins;
+        private final byte[][] ins;
 
         // Number of input dependencies set for this task, either other tasks, or
         // nulls, which indicate the hash will be loaded from disk. No synchronization,
@@ -191,7 +182,7 @@ public final class VirtualHasher {
             super(pool, 1 + (1 << height));
             this.path = path;
             this.height = height;
-            this.ins = new Hash[1 << height];
+            this.ins = new byte[1 << height][];
         }
 
         // Notifies this task that one of its input hashes will be provided by
@@ -226,7 +217,7 @@ public final class VirtualHasher {
             return inputsInitialized == (1 << height);
         }
 
-        void setHash(final long path, @NonNull final Hash hash) {
+        void setHash(final long path, @NonNull final byte[] hash) {
             assert Path.getRank(this.path) + height == Path.getRank(path)
                     : this.path + " " + Path.getRank(this.path) + " " + height + " " + path + " " + Path.getRank(path);
             assert hash != null;
@@ -239,7 +230,7 @@ public final class VirtualHasher {
 
         Hash getResult() {
             assert isDone();
-            return ins[0];
+            return new Hash(ins[0], Cryptography.DEFAULT_DIGEST_TYPE);
         }
 
         @Override
@@ -279,7 +270,7 @@ public final class VirtualHasher {
             final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
             while (len > 1) {
                 for (int i = 0; i < len / 2; i++) {
-                    Hash left = ins[i * 2];
+                    byte[] left = ins[i * 2];
                     final long leftPath = rankPath + i * 2;
                     assert (leftPath < lastLeafPath) || (lastLeafPath == 1);
                     final boolean leftIsLeaf = leftPath >= firstLeafPath;
@@ -287,39 +278,38 @@ public final class VirtualHasher {
                         assert currentRank == taskRank + height;
                         // Need to load the hash from hashChunk
                         if ((height == defaultChunkHeight) || leftIsLeaf) {
-                            left = hashChunk.getHashAtPath(leftPath);
+                            left = hashChunk.getHashBytesAtPath(leftPath);
                         } else {
                             // Get left's left and right child hashes and hashInternal() them
-                            left = hashChunk.calcHash(leftPath, firstLeafPath, lastLeafPath);
+                            left = hashChunk.calcHashBytes(leftPath, firstLeafPath, lastLeafPath);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
                         if ((currentRank == chunkLastRank) || leftIsLeaf) {
-                            hashChunk.setHashAtPath(leftPath, left);
+                            hashChunk.setHashBytesAtPath(leftPath, left);
                         }
                     }
 
-                    Hash right = ins[i * 2 + 1];
+                    byte[] right = ins[i * 2 + 1];
                     final long rightPath = rankPath + i * 2 + 1;
                     assert (rightPath <= lastLeafPath) || (lastLeafPath == 1);
                     final boolean rightIsLeaf = rightPath >= firstLeafPath;
                     if (rightPath > lastLeafPath) {
                         assert rightPath == 2;
                         assert right == null;
-                        right = NO_PATH2_HASH;
                     } else if (right == null) {
                         assert currentRank == taskRank + height;
                         // Need to load the hash from hashChunk
                         if ((height == defaultChunkHeight) || rightIsLeaf) {
-                            right = hashChunk.getHashAtPath(rightPath);
+                            right = hashChunk.getHashBytesAtPath(rightPath);
                         } else {
                             // Get right's left and right child hashes and hashInternal() them
-                            right = hashChunk.calcHash(rightPath, firstLeafPath, lastLeafPath);
+                            right = hashChunk.calcHashBytes(rightPath, firstLeafPath, lastLeafPath);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
                         if ((currentRank == chunkLastRank) || rightIsLeaf) {
-                            hashChunk.setHashAtPath(rightPath, right);
+                            hashChunk.setHashBytesAtPath(rightPath, right);
                         }
                     }
 
@@ -364,7 +354,7 @@ public final class VirtualHasher {
         protected boolean onExecute() {
             final WritableMessageDigest wmd = MESSAGE_DIGEST_THREAD_LOCAL.get();
             leaf.writeToForHashing(wmd);
-            final Hash hash = new Hash(wmd.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+            final byte[] hash = wmd.digest();
             listener.onLeafHashed(leaf);
             out.setHash(path, hash);
             return true;
@@ -441,8 +431,6 @@ public final class VirtualHasher {
      * 		No leaf in {@code sortedDirtyLeaves} may have a path greater than {@code lastLeafPath}.
      * @param listener
      *      Hash listener. May be {@code null}
-     * @param virtualMapConfig
-     *      Platform configuration for VirtualMap
      * @return
      *      The hash of the root of the tree, or {@code null} if the list of dirty leaves is empty
      */
@@ -453,8 +441,7 @@ public final class VirtualHasher {
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            final @Nullable VirtualHashListener listener,
-            final @NonNull VirtualMapConfig virtualMapConfig) {
+            final @Nullable VirtualHashListener listener) {
         requireNonNull(hashChunkPreloader);
         requireNonNull(virtualMapConfig);
 
@@ -469,9 +456,8 @@ public final class VirtualHasher {
         // Let the listener know we have started hashing.
         this.listener.onHashingStarted(firstLeafPath, lastLeafPath);
 
-        final ForkJoinPool pool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
-                ? thread.getPool()
-                : getHashingPool(virtualMapConfig);
+        final ForkJoinPool pool =
+                Thread.currentThread() instanceof ForkJoinWorkerThread thread ? thread.getPool() : hashingPool;
 
         final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(
                 () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));

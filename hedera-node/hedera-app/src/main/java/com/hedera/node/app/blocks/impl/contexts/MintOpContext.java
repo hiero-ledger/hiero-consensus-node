@@ -15,6 +15,7 @@ import java.util.List;
  * A {@link TranslationContext} implementation with metadata for a token mint.
  *
  * @param memo The memo for the transaction
+ * @param transactionExchangeRates The exchange rate for the transaction
  * @param txnId The transaction ID
  * @param signedTx The transaction
  * @param functionality The functionality of the transaction

@@ -411,56 +411,6 @@ class EthTxDataTest {
     }
 
     @Test
-    void whiteBoxEncodingErrors() {
-        final var oneByte = new byte[] {1};
-
-        final EthTxData ethTxDataWithAccessList = new EthTxData(
-                oneByte,
-                EthTxData.EthTransactionType.EIP1559,
-                oneByte,
-                1,
-                oneByte,
-                oneByte,
-                oneByte,
-                1,
-                oneByte,
-                BigInteger.ONE,
-                oneByte,
-                oneByte,
-                null,
-                null,
-                null,
-                1,
-                oneByte,
-                oneByte,
-                oneByte);
-        assertThrows(IllegalStateException.class, ethTxDataWithAccessList::encodeTx);
-
-        // Type 1
-        final EthTxData ethTsDataEIP2930 = new EthTxData(
-                oneByte,
-                EthTxData.EthTransactionType.EIP2930,
-                oneByte,
-                1,
-                oneByte,
-                oneByte,
-                oneByte,
-                1,
-                oneByte,
-                BigInteger.ONE,
-                oneByte,
-                oneByte,
-                null,
-                null,
-                null,
-                1,
-                oneByte,
-                oneByte,
-                oneByte);
-        assertThrows(IllegalStateException.class, ethTsDataEIP2930::encodeTx);
-    }
-
-    @Test
     void roundTripTests() {
         EthTxData parsed = EthTxData.populateEthTxData(Hex.decode(RAW_TX_TYPE_0));
         assertNotNull(parsed);

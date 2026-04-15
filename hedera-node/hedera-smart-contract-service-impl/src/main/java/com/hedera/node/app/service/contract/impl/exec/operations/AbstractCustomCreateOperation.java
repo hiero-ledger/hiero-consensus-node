@@ -125,16 +125,17 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         frame.decrementRemainingGas(cost);
         sender.incrementNonce();
 
-        final var value = Wei.wrap(frame.getStackItem(0));
-        final var inputOffset = clampedToLong(frame.getStackItem(1));
-        final var inputSize = clampedToLong(frame.getStackItem(2));
-        final var inputData = frame.readMemory(inputOffset, inputSize);
         final var contractAddress = setupPendingCreation(frame);
-
         if (contractAddress == null) {
             fail(frame);
             return;
         }
+
+        final var value = Wei.wrap(frame.getStackItem(0));
+        final var inputOffset = clampedToLong(frame.getStackItem(1));
+        final var inputSize = clampedToLong(frame.getStackItem(2));
+        final var inputData = frame.readMemory(inputOffset, inputSize);
+        final var code = new Code(inputData);
 
         final var childGasStipend = gasCalculator().gasAvailableForChildCreate(frame.getRemainingGas());
         frame.decrementRemainingGas(childGasStipend);
@@ -150,7 +151,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
                 .sender(senderAddress)
                 .value(value)
                 .apparentValue(value)
-                .code(new Code(inputData))
+                .code(code)
                 .completer(child -> complete(frame, child))
                 .build();
         frame.incrementRemainingGas(cost);

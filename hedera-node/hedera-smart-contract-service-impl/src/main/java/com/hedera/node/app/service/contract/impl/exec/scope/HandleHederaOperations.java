@@ -11,7 +11,8 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.THRE
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationForExternalization;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.independentStepDispatch;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
@@ -43,8 +44,6 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -60,9 +59,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import javax.inject.Inject;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -91,30 +88,6 @@ public class HandleHederaOperations implements HederaOperations {
     private final EntityIdFactory entityIdFactory;
     private final List<GasChargingEvent> gasChargingEvents = new ArrayList<>(1);
     private final ContractMetrics contractMetrics;
-
-    /**
-     * The types of events that occur when charging gas.
-     */
-    private enum GasChargingAction {
-        /**
-         * An account is charged for gas.
-         */
-        CHARGE,
-        /**
-         * An account is refunded for unused gas.
-         */
-        REFUND,
-    }
-
-    /**
-     * An event that occurs when charging gas.
-     * @param action the action that occurred
-     * @param accountId the account that was charged or refunded
-     * @param amount the amount of gas charged or refunded
-     * @param withNonceIncrement whether the account's nonce was incremented
-     */
-    private record GasChargingEvent(
-            GasChargingAction action, AccountID accountId, long amount, boolean withNonceIncrement) {}
 
     @Inject
     public HandleHederaOperations(
@@ -265,22 +238,12 @@ public class HandleHederaOperations implements HederaOperations {
         gasChargingEvents.add(new GasChargingEvent(GasChargingAction.REFUND, payerId, amount, false));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void replayGasChargingIn(@NonNull final FeeCharging.Context feeChargingContext) {
-        requireNonNull(feeChargingContext);
-        final Map<AccountID, Long> netCharges = new LinkedHashMap<>();
-        for (final var event : gasChargingEvents) {
-            if (event.action() == GasChargingAction.CHARGE) {
-                netCharges.merge(event.accountId(), event.amount(), Long::sum);
-                if (event.withNonceIncrement()) {
-                    final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-                    tokenServiceApi.incrementSenderNonce(event.accountId());
-                }
-            } else {
-                netCharges.merge(event.accountId(), -event.amount(), Long::sum);
-            }
-        }
-        netCharges.forEach((payerId, amount) -> feeChargingContext.charge(payerId, new Fees(0, amount, 0), null));
+    public List<GasChargingEvent> gasChargingEvents() {
+        return this.gasChargingEvents;
     }
 
     /**
@@ -576,8 +539,12 @@ public class HandleHederaOperations implements HederaOperations {
         final var body =
                 TransactionBody.newBuilder().cryptoUpdateAccount(cryptoUpdate).build();
 
-        final var streamBuilder =
-                context.dispatch(independentStepDispatch(context.payer(), body, CryptoUpdateStreamBuilder.class));
+        final var streamBuilder = context.dispatch(setupDispatch(
+                context.payer(),
+                body,
+                CryptoUpdateStreamBuilder.class,
+                DISPATCH_ONLY_NOOP_FEE_CHARGING,
+                HandleContext.ConsensusThrottling.ON));
         return streamBuilder.status() == SUCCESS;
     }
 }

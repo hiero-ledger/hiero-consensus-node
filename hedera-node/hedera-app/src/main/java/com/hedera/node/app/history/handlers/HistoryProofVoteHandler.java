@@ -58,7 +58,7 @@ public class HistoryProofVoteHandler implements TransactionHandler {
                     context.creatorInfo().nodeId(),
                     constructionId);
             controller.addProofVote(
-                    nodeId, op.voteOrElse(HistoryProofVote.DEFAULT), context.consensusNow(), historyStore);
+                    nodeId, op.voteOrElse(HistoryProofVote.DEFAULT), context.consensusNow(), historyStore, tssConfig);
         });
     }
 }

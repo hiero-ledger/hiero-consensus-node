@@ -171,6 +171,19 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
+    void cryptoUpdateWithDelegationAddressIsRejected() {
+        final var txn = new CryptoUpdateBuilder()
+                .withKey(key)
+                .withDelegationAddress(Bytes.fromHex("cafebabe"))
+                .build();
+
+        //        given(pureChecksContext.body()).willReturn(txn);
+
+        // TODO(Pectra): verify the feature flag
+        //        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), NOT_SUPPORTED);
+    }
+
+    @Test
     void cryptoUpdateNewSignatureKeyWaivedVanilla() throws PreCheckException {
         final var txn = new CryptoUpdateBuilder().withKey(key).build();
 
