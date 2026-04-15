@@ -24,9 +24,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintFungibleFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintNftFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -175,14 +177,8 @@ public class TokenMintSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenMint fungible with large payer key - extra processing bytes fee")
         final Stream<DynamicTest> tokenMintFungibleLargeKeyExtraProcessingBytesFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(
-                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     newKeyNamed(SUPPLY_KEY),
@@ -192,10 +188,10 @@ public class TokenMintSimpleFeesTest {
                             .supplyKey(SUPPLY_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20))),
                     mintToken(FUNGIBLE_TOKEN, 100L)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .signedBy(PAYER, SUPPLY_KEY)
                             .via(tokenMintTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -208,17 +204,8 @@ public class TokenMintSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenMint fungible with very large payer key below oversize - extra processing bytes fee")
         final Stream<DynamicTest> tokenMintFungibleVeryLargeKeyBelowOversizeFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(sigs(
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(41)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     newKeyNamed(SUPPLY_KEY),
@@ -228,10 +215,10 @@ public class TokenMintSimpleFeesTest {
                             .supplyKey(SUPPLY_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41))),
                     mintToken(FUNGIBLE_TOKEN, 100L)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41)))
                             .signedBy(PAYER, SUPPLY_KEY)
                             .via(tokenMintTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -377,14 +364,8 @@ public class TokenMintSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenMint NFT with large payer key - extra processing bytes fee")
         final Stream<DynamicTest> tokenMintNftLargeKeyExtraProcessingBytesFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(
-                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     newKeyNamed(SUPPLY_KEY),
@@ -394,10 +375,10 @@ public class TokenMintSimpleFeesTest {
                             .supplyKey(SUPPLY_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20))),
                     mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("metadata1")))
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .signedBy(PAYER, SUPPLY_KEY)
                             .via(tokenMintTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -716,7 +697,7 @@ public class TokenMintSimpleFeesTest {
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                         validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                txnSize -> expectedTokenMintNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(INNER_ID, "4"));
