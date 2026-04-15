@@ -90,6 +90,13 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
                 lastRunningHash);
     }
 
+    @Override
+    public void closeCurrentBlock(final long currentBlockNumber) {
+        closeWriter(asHashObject(getRunningHash()), currentBlockNumber);
+        writer = null;
+        this.currentBlockNumber = currentBlockNumber;
+    }
+
     /** {@inheritDoc} */
     @Override
     public void close() {

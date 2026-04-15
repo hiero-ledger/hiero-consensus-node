@@ -13,6 +13,8 @@ import com.swirlds.config.api.ConfigProperty;
  * @param maxTransactionBytesPerEvent  the maximum number of bytes that a single event may contain, not including the
  *                                     event headers. if a single transaction exceeds this limit, then the event will
  *                                     contain the single transaction only
+ * @param saveStatePeriod              the frequency of writes of a state to disk every this many seconds
+ * @param periodicSnapshotsEnabled     whether periodic snapshots are enabled
  */
 @ConfigData("hedera")
 public record HederaConfig(
@@ -77,4 +79,8 @@ public record HederaConfig(
         int throttleTransactionQueueSize,
 
         @ConfigProperty(value = "transaction.maximumPermissibleUnhealthySeconds", defaultValue = "1") @NodeProperty
-        long maximumPermissibleUnhealthySeconds) {}
+        long maximumPermissibleUnhealthySeconds,
+
+        @ConfigProperty(defaultValue = "30") @NetworkProperty int saveStatePeriod,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean periodicSnapshotsEnabled) {}

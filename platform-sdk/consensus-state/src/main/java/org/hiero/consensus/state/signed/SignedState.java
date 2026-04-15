@@ -104,6 +104,11 @@ public class SignedState {
     private StateToDiskReason stateToDiskReason;
 
     /**
+     * If not null, the application requested that this state be written to disk for the given reason.
+     */
+    private StateToDiskReason requestedStateToSaveReason;
+
+    /**
      * Indicates whether this signed state has been saved to disk.
      * <p>
      * Note: this value only applies to signed states that are saved inside the normal workflow: states that are dumped
@@ -457,6 +462,25 @@ public class SignedState {
      */
     public boolean isStateToSave() {
         return stateToDiskReason != null;
+    }
+
+    /**
+     * Records that the application requested this state be saved to disk if the platform's save pipeline accepts it.
+     *
+     * @param reason the requested reason
+     */
+    public void requestStateToSave(@NonNull final StateToDiskReason reason) {
+        requestedStateToSaveReason = requireNonNull(reason);
+    }
+
+    /**
+     * Returns the application's requested save reason, if one was provided.
+     *
+     * @return the requested reason or null
+     */
+    @Nullable
+    public StateToDiskReason getRequestedStateToSaveReason() {
+        return requestedStateToSaveReason;
     }
 
     /**

@@ -6,7 +6,7 @@ maxOutgoingSyncs,                              1
 reconnect.active,                              1
 reconnect.reconnectWindowSeconds,              -1
 showInternalStats,                             1
-state.saveStatePeriod,                         300
+hedera.saveStatePeriod,                        300
 useLoopbackIp,                                 false
 waitAtStartup,                                 false
 state.mainClassNameOverride,                   com.hedera.services.ServicesMain

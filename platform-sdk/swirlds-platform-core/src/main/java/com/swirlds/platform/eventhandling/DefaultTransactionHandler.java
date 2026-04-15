@@ -26,6 +26,7 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.platform.metrics.RoundHandlingMetrics;
 import com.swirlds.platform.metrics.TransactionMetrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.SealConsensusRoundResult;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig;
@@ -348,10 +349,10 @@ public class DefaultTransactionHandler implements TransactionHandler {
             updateLastFrozenTime(stateLifecycleManager.getMutableState());
         }
         final VirtualMapState state = stateLifecycleManager.getMutableState();
-        final boolean isBoundary = consensusStateEventHandler.onSealConsensusRound(consensusRound, state);
+        final SealConsensusRoundResult sealResult = consensusStateEventHandler.onSealConsensusRound(consensusRound, state);
         final ReservedSignedState reservedSignedState;
-        if (isBoundary || freezeRoundReceived) {
-            if (freezeRoundReceived && !isBoundary) {
+        if (sealResult.shouldSignState() || freezeRoundReceived) {
+            if (freezeRoundReceived && !sealResult.shouldSignState()) {
                 logger.error(EXCEPTION.getMarker(), """
                                 The freeze round {} is not a boundary round. The freeze state will be saved to disk, \
                                 but the app may not have done some work that it needs to (like finishing a block). The \
@@ -370,6 +371,9 @@ public class DefaultTransactionHandler implements TransactionHandler {
                     freezeRoundReceived,
                     true,
                     consensusRound.isPcesRound());
+            if (sealResult.requestedStateToSaveReason() != null) {
+                signedState.requestStateToSave(sealResult.requestedStateToSaveReason());
+            }
 
             reservedSignedState = signedState.reserve("transaction handler output");
 

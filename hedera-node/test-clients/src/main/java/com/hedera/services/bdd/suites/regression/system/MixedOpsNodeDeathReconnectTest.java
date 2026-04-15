@@ -13,6 +13,8 @@ import static com.hedera.services.bdd.suites.regression.system.MixedOperations.b
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
+
+import java.time.Duration;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -35,7 +37,7 @@ public class MixedOpsNodeDeathReconnectTest implements LifecycleTest {
                         // Validate we can initially submit transactions to 0.0.5 (node id 2)
                         cryptoCreate("nobody").setNode("5"),
                         // Run some mixed transactions
-                        burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                        burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(40)),
                         FakeNmt.shutdownWithin(byNodeId(RECONNECT_NODE_ID), SHUTDOWN_TIMEOUT),
                         logIt("Node id " + RECONNECT_NODE_ID + " is supposedly down"),
                         sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()))

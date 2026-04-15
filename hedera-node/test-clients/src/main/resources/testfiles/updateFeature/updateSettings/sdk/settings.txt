@@ -15,7 +15,7 @@ reconnect.active,                              0
 reconnect.reconnectWindowSeconds,              300
 showDbStats,                                   0
 showInternalStats,                             1
-state.saveStatePeriod,                         900
+hedera.saveStatePeriod,                        900
 state.signedStateDisk,                         5
 state.signedStateKeep,                         100
 throttle7extra,                                0.5

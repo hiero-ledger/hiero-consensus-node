@@ -126,6 +126,14 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     void endRound(@NonNull State state);
 
     /**
+     * Ensures the current record file is closed at round end so the resulting state can safely be saved.
+     *
+     * @param state the mutable state to update
+     * @return true if there is no open record file after this call
+     */
+    boolean closeRecordFileAtRoundEnd(@NonNull State state);
+
+    /**
      * Closes this BlockRecordManager and wait for any threads to finish.
      */
     @Override

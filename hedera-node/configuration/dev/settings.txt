@@ -8,7 +8,7 @@ sync.syncProtocolPermitCount,                  2                            # di
                                           #           State           #
                                           #############################
 
-state.saveStatePeriod,                         30                          # differs from mainnet
+hedera.saveStatePeriod,                        30                          # differs from mainnet
 state.mainClassNameOverride,                   com.hedera.services.ServicesMain
 
                                           #############################

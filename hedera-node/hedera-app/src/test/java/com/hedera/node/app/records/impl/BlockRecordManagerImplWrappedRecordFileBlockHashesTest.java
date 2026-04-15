@@ -1638,6 +1638,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         }
 
         @Override
+        public void closeCurrentBlock(final long currentBlockNumber) {
+            // no-op
+        }
+
+        @Override
         public void writeRecordStreamItems(final Stream<SingleTransactionRecord> recordStreamItems) {
             // consume stream
             recordStreamItems.forEach(ignore -> {});

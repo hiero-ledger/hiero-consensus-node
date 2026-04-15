@@ -13,6 +13,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.SealConsensusRoundResult;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.State;
@@ -62,7 +63,8 @@ public class TransactionHandlerTester implements AutoCloseable {
 
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
 
-        when(consensusStateEventHandler.onSealConsensusRound(any(), any())).thenReturn(true);
+        when(consensusStateEventHandler.onSealConsensusRound(any(), any()))
+                .thenReturn(SealConsensusRoundResult.signableButSavedStateNotNeeded());
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
                 platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
         stateLifecycleManager.initWithState(state.getState());

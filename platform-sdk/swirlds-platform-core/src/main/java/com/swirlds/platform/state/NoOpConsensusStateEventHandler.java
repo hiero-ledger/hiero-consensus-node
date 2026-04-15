@@ -37,9 +37,9 @@ public enum NoOpConsensusStateEventHandler implements ConsensusStateEventHandler
     }
 
     @Override
-    public boolean onSealConsensusRound(@NonNull Round round, @NonNull State state) {
+    public @NonNull SealConsensusRoundResult onSealConsensusRound(@NonNull Round round, @NonNull State state) {
         // no-op
-        return true;
+        return SealConsensusRoundResult.signableButSavedStateNotNeeded();
     }
 
     @Override

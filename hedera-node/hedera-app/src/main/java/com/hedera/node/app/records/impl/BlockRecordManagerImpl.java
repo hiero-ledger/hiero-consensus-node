@@ -172,6 +172,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final var states = state.getReadableStates(BlockRecordService.NAME);
             final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
             this.lastBlockInfo = blockInfoState.get();
+            logger.info("RESTART Last block info: {}", this.lastBlockInfo);
             assert this.lastBlockInfo != null : "Cannot be null, because this state is created at genesis";
             final var runningHashState = states.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID);
             lastRunningHashes = runningHashState.get();
@@ -236,6 +237,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public boolean willOpenNewBlock(@NonNull final Instant consensusTime, @NonNull final State state) {
+        if (lastBlockInfo.recordFileOpenPending()) {
+            return true;
+        }
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             return true;
         }
@@ -311,6 +315,25 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * {@inheritDoc}
      */
     public boolean startUserTransaction(@NonNull final Instant consensusTime, @NonNull final State state) {
+        if (lastBlockInfo.recordFileOpenPending()) {
+            logger.info("Forced Transition due to Saved State");
+            final var now = new Timestamp(consensusTime.getEpochSecond(), consensusTime.getNano());
+            lastBlockInfo = lastBlockInfo
+                    .copyBuilder()
+                    .consTimeOfLastHandledTxn(now)
+                    .firstConsTimeOfCurrentBlock(now)
+                    .recordFileOpenPending(false)
+                    .build();
+            putLastBlockInfo(state);
+            streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), lastBlockInfo.lastBlockNumber() + 1, consensusTime);
+            if (writeWrappedRecordFileBlockHashesToDisk() || liveWritePrevWrappedRecordHashes()) {
+                beginTrackingNewBlock(streamFileProducer.getRunningHash());
+            }
+            if (streamMode == RECORDS) {
+                quiescenceController.startingBlock(lastBlockInfo.lastBlockNumber() + 1);
+            }
+            return true;
+        }
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             // This is the first transaction of the first block, so set both the firstConsTimeOfCurrentBlock
             // and the current consensus time to now
@@ -395,11 +418,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
             }
 
+            logger.info("Normal Block Transition");
             lastBlockInfo = infoOfJustFinished(
                     lastBlockInfo,
                     justFinishedBlockNumber,
                     lastBlockHashBytes,
                     consensusTime,
+                    false,
                     wrappedRecordBlockRootHash,
                     wrappedIntermediateHashes,
                     wrappedIntermediateLeafCount);
@@ -428,6 +453,75 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public boolean closeRecordFileAtRoundEnd(@NonNull final State state) {
+        requireNonNull(state);
+        if (lastBlockInfo.recordFileOpenPending() || EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
+            return true;
+        }
+
+        final var lastBlockHashBytes = streamFileProducer.getRunningHash();
+        final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
+
+        Bytes wrappedRecordBlockRootHash = lastBlockInfo.previousWrappedRecordBlockRootHash();
+        List<Bytes> wrappedIntermediateHashes = lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes();
+        long wrappedIntermediateLeafCount = lastBlockInfo.wrappedIntermediateBlockRootsLeafCount();
+        final var votingComplete = migrationRootHashVotingComplete(state);
+        final var queueingEnabled = migrationRootHashVotingQueueingEnabled(state, justFinishedBlockNumber);
+
+        if (currentBlockStartRunningHash != null) {
+            final var justFinishedBlockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
+            if ((votingBlockNumInitialized() || votingComplete) && liveWritePrevWrappedRecordHashes()) {
+                final var wrappedRecordFileBlockHashes =
+                        updateWrappedBlockHashes(justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
+                if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
+                    logger.info(
+                            "Enqueueing wrapped record block hashes for block {} because migration voting is still pending",
+                            justFinishedBlockNumber);
+                    appendMigrationWrappedHashes(state, justFinishedBlockNumber, wrappedRecordFileBlockHashes);
+                }
+                if (votingComplete) {
+                    wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
+                    wrappedIntermediateHashes = prevWrappedRecordBlockHashes.intermediateHashingState();
+                    wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
+                }
+            }
+            if (writeWrappedRecordFileBlockHashesToDisk()) {
+                appendWrappedRecordFileBlockHashesToDisk(
+                        justFinishedBlockNumber, justFinishedBlockCreationTime, lastBlockHashBytes);
+            }
+        } else if (liveWritePrevWrappedRecordHashes() && votingComplete) {
+            wrappedRecordBlockRootHash = previousWrappedRecordBlockRootHash;
+            wrappedIntermediateHashes = prevWrappedRecordBlockHashes.intermediateHashingState();
+            wrappedIntermediateLeafCount = prevWrappedRecordBlockHashes.leafCount();
+        }
+
+        lastBlockInfo = infoOfJustFinished(
+                lastBlockInfo,
+                justFinishedBlockNumber,
+                lastBlockHashBytes,
+                null,
+                true,
+                wrappedRecordBlockRootHash,
+                wrappedIntermediateHashes,
+                wrappedIntermediateLeafCount);
+
+        final var states = state.getWritableStates(BlockRecordService.NAME);
+        final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+        putLastBlockInfo(state);
+        ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+
+        streamFileProducer.closeCurrentBlock(justFinishedBlockNumber);
+        finishTrackingClosedBlock();
+        if (streamMode == RECORDS) {
+            quiescenceController.finishHandlingInProgressBlock();
+            if (quiescenceController.switchTracker(justFinishedBlockNumber + 1)) {
+                quiescenceController.blockFullySigned(justFinishedBlockNumber);
+            }
+        }
+        return true;
     }
 
     private void appendMigrationWrappedHashes(
@@ -545,6 +639,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var states = state.getWritableStates(BlockRecordService.NAME);
         final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
         blockInfoState.put(lastBlockInfo);
+        logger.info("BlockInfo updated {}", lastBlockInfo);
     }
 
     /**
@@ -571,6 +666,12 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     private void beginTrackingNewBlock(@NonNull final Bytes startRunningHash) {
         this.currentBlockStartRunningHash = requireNonNull(startRunningHash);
+        this.currentBlockRecordStreamItems.clear();
+        this.currentBlockSidecarRecords.clear();
+    }
+
+    private void finishTrackingClosedBlock() {
+        this.currentBlockStartRunningHash = null;
         this.currentBlockRecordStreamItems.clear();
         this.currentBlockSidecarRecords.clear();
     }
@@ -722,7 +823,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public @NonNull Timestamp blockTimestamp() {
-        return lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
+        return lastBlockInfo.recordFileOpenPending()
+                ? lastBlockInfo.firstConsTimeOfLastBlockOrThrow()
+                : lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow();
     }
 
     /**
@@ -758,6 +861,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.firstConsTimeOfCurrentBlock(),
                 asTimestamp(consensusTime),
                 lastBlockInfo.lastIntervalProcessTime(),
+                lastBlockInfo.recordFileOpenPending(),
                 lastBlockInfo.previousWrappedRecordBlockRootHash(),
                 lastBlockInfo.wrappedIntermediatePreviousBlockRootHashes(),
                 lastBlockInfo.wrappedIntermediateBlockRootsLeafCount(),
@@ -845,7 +949,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final BlockInfo lastBlockInfo,
             final long justFinishedBlockNumber,
             @NonNull final Bytes hashOfJustFinishedBlock,
-            @NonNull final Instant currentBlockFirstTransactionTime,
+            @Nullable final Instant currentBlockFirstTransactionTime,
+            final boolean recordFileOpenPending,
             @NonNull final Bytes wrappedRecordBlockRootHash,
             @NonNull final List<Bytes> wrappedIntermediateHashes,
             final long wrappedIntermediateLeafCount) {
@@ -870,10 +975,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 Bytes.wrap(newBlockHashesBytes),
                 lastBlockInfo.consTimeOfLastHandledTxn(),
                 lastBlockInfo.migrationRecordsStreamed(),
-                new Timestamp(
-                        currentBlockFirstTransactionTime.getEpochSecond(), currentBlockFirstTransactionTime.getNano()),
+                currentBlockFirstTransactionTime == null
+                        ? EPOCH
+                        : new Timestamp(
+                                currentBlockFirstTransactionTime.getEpochSecond(), currentBlockFirstTransactionTime.getNano()),
                 lastBlockInfo.lastUsedConsTime(),
                 lastBlockInfo.lastIntervalProcessTime(),
+                recordFileOpenPending,
                 wrappedRecordBlockRootHash,
                 wrappedIntermediateHashes,
                 wrappedIntermediateLeafCount,

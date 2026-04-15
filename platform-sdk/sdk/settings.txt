@@ -15,8 +15,6 @@ sync.syncProtocolPermitCount,             2
                                           #############################
                                           #           State           #
                                           #############################
-state.saveStatePeriod,                    60
-
                                           #############################
                                           #      Event Creation       #
                                           #############################

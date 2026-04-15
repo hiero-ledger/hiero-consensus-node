@@ -48,6 +48,9 @@ public final class BlockRecordService implements Service {
             .firstConsTimeOfCurrentBlock(EPOCH)
             .lastUsedConsTime(EPOCH)
             .lastIntervalProcessTime(EPOCH)
+//            .votingComplete(true)
+//            .votingCompletionDeadlineBlockNumber(0)
+            .recordFileOpenPending(false)
             .build();
     /**
      * The running hashes at genesis.

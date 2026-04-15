@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
@@ -24,14 +23,17 @@ public class BlockContentsValidator implements BlockStreamValidator {
     private static final int REASONABLE_NUM_PENDING_PROOFS_AT_FREEZE = 3;
 
     public static void main(String[] args) {
-        final var node0Dir = Paths.get("hedera-node/test-clients")
-                .resolve(workingDirFor(0, "hapi"))
+        final var node0Dir = Paths.get(
+                        "/Users/derektriley/git/workspace-1/hiero-consensus-node/hedera-node/test-clients/build/hapi-test/node0/data/blockStreams/block-11.12.3")
                 .toAbsolutePath()
                 .normalize();
-        final var validator = new BlockContentsValidator();
-        final var blocks =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
-        validator.validateBlocks(blocks);
+        final var node2Dir = Paths.get(
+                        "/Users/derektriley/git/workspace-1/hiero-consensus-node/hedera-node/test-clients/build/hapi-test/node2/data/blockStreams/block-11.12.5")
+                .toAbsolutePath()
+                .normalize();
+        final var node0Blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir);
+        final var node2Blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node2Dir);
+        printFirstDifference(node0Blocks, node2Blocks);
     }
 
     public static final Factory FACTORY = spec -> new BlockContentsValidator();
@@ -127,5 +129,79 @@ public class BlockContentsValidator implements BlockStreamValidator {
             Assertions.fail("Round starting at index " + startIndex + " has no event headers or state changes");
         }
         return currentIndex;
+    }
+
+    private static void printFirstDifference(final List<Block> node0Blocks, final List<Block> node2Blocks) {
+        final var commonBlockCount = Math.min(node0Blocks.size(), node2Blocks.size());
+        for (int blockIndex = 0; blockIndex < commonBlockCount; blockIndex++) {
+            final var node0Block = node0Blocks.get(blockIndex);
+            final var node2Block = node2Blocks.get(blockIndex);
+            final var node0Items = node0Block.items();
+            final var node2Items = node2Block.items();
+            final var commonItemCount = Math.min(node0Items.size(), node2Items.size());
+            for (int itemIndex = 0; itemIndex < commonItemCount; itemIndex++) {
+                final var node0Item = node0Items.get(itemIndex);
+                final var node2Item = node2Items.get(itemIndex);
+                if (!node0Item.equals(node2Item)) {
+                    System.out.printf(
+                            """
+                            First differing block item found:
+                              blockIndex=%d
+                              node0BlockNumber=%d
+                              node2BlockNumber=%d
+                              itemIndex=%d
+                              node0ItemKind=%s
+                              node2ItemKind=%s
+                              node0Item=%s
+                              node2Item=%s
+                            """,
+                            blockIndex,
+                            blockNumberOf(node0Block),
+                            blockNumberOf(node2Block),
+                            itemIndex,
+                            node0Item.item().kind(),
+                            node2Item.item().kind(),
+                            node0Item,
+                            node2Item);
+                    return;
+                }
+            }
+            if (node0Items.size() != node2Items.size()) {
+                System.out.printf(
+                        """
+                        First differing block found due to item count mismatch:
+                          blockIndex=%d
+                          node0BlockNumber=%d
+                          node2BlockNumber=%d
+                          node0ItemCount=%d
+                          node2ItemCount=%d
+                        """,
+                        blockIndex,
+                        blockNumberOf(node0Block),
+                        blockNumberOf(node2Block),
+                        node0Items.size(),
+                        node2Items.size());
+                return;
+            }
+        }
+        if (node0Blocks.size() != node2Blocks.size()) {
+            System.out.printf(
+                    """
+                    Block stream sizes differ:
+                      node0BlockCount=%d
+                      node2BlockCount=%d
+                    """,
+                    node0Blocks.size(),
+                    node2Blocks.size());
+            return;
+        }
+        System.out.println("No differing block item found between node0Dir and node2Dir.");
+    }
+
+    private static long blockNumberOf(final Block block) {
+        final var items = block.items();
+        return !items.isEmpty() && items.getFirst().hasBlockHeader()
+                ? items.getFirst().blockHeaderOrThrow().number()
+                : -1;
     }
 }

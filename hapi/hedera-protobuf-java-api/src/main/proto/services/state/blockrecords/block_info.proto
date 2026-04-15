@@ -129,6 +129,12 @@ message BlockInfo {
     proto.Timestamp last_interval_process_time = 8;
 
     /**
+     * A flag indicating the previous round seal closed the current record file and the
+     * next handled user transaction must open a fresh record file.
+     */
+    bool record_file_open_pending = 9;
+
+    /**
      * The root hash of the previous wrapped record block.
      */
     bytes previous_wrapped_record_block_root_hash = 10;
@@ -167,4 +173,5 @@ message BlockInfo {
      * Wrapped hashes captured while voting is pending.
      */
     repeated com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes migration_wrapped_hashes = 16;
+
 }

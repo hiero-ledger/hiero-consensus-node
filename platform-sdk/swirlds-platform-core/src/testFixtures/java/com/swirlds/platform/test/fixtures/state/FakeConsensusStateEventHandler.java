@@ -4,6 +4,7 @@ package com.swirlds.platform.test.fixtures.state;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.SealConsensusRoundResult;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
@@ -34,10 +35,10 @@ public enum FakeConsensusStateEventHandler implements ConsensusStateEventHandler
     }
 
     @Override
-    public boolean onSealConsensusRound(@NonNull Round round, @NonNull State state) {
+    public @NonNull SealConsensusRoundResult onSealConsensusRound(@NonNull Round round, @NonNull State state) {
         // Touch this round
         round.getRoundNum();
-        return true;
+        return SealConsensusRoundResult.signableButSavedStateNotNeeded();
     }
 
     @Override

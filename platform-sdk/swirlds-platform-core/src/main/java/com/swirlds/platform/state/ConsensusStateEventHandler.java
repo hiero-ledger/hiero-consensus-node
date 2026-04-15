@@ -47,11 +47,13 @@ public interface ConsensusStateEventHandler {
 
     /**
      * Called by the platform after it has made all its changes to this state for the given round.
+     *
      * @param round the round whose platform state changes are completed
-     * @return true if sealing this round completes a block, in effect signaling if it is safe to
-     * sign this round's state
+     * @return the result of sealing the round, including whether it is safe to sign the round's state
+     *     and whether the application closed the active record file while doing so
      */
-    boolean onSealConsensusRound(@NonNull Round round, @NonNull State state);
+    @NonNull
+    SealConsensusRoundResult onSealConsensusRound(@NonNull Round round, @NonNull State state);
 
     /**
      * Called when the platform is initializing the network state.

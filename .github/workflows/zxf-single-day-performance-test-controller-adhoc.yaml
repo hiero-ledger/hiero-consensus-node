@@ -49,7 +49,7 @@ on:
         required: false
         default: ""
         type: string
-        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+        description: 'Add props to settings.txt, e.g. "hedera.saveStatePeriod, 300". Newline is "\n"'
       crypto-bench-merkle-db-java-args:
         required: true
         default: "-XX:+UseZGC -XX:+ZGenerational -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=12g -XX:MaxDirectMemorySize=24g -Xmx90g"

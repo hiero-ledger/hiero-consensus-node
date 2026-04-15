@@ -63,5 +63,5 @@ public record BlockRecordStreamConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean computeHashesFromWrappedRecordBlocks,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean liveWritePrevWrappedRecordHashes) {}

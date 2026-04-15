@@ -59,7 +59,7 @@ on:
         required: false
         default: ""
         type: string
-        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+        description: 'Add props to settings.txt, e.g. "hedera.saveStatePeriod, 300". Newline is "\n"'
       run_NLGDparams:
         required: false
         default: "-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m"

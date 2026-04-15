@@ -17,8 +17,9 @@ import org.hiero.consensus.state.signed.SignedState;
  */
 public interface SavedStateController {
     /**
-     * Determine if a signed state should be written to disk. If the state should be written, the state will be marked
-     * and then written to disk outside the scope of this class.
+     * Determine if a signed state should be written to disk. If the state should be written, the state will already
+     * carry a save reason from the application or another upstream component, and will be marked and written to disk
+     * outside the scope of this class.
      *
      * @param stateWithHashComplexity the state in question
      */
@@ -27,8 +28,8 @@ public interface SavedStateController {
     StateWithHashComplexity markSavedState(@NonNull StateWithHashComplexity stateWithHashComplexity);
 
     /**
-     * Notifies the controller that a signed state was received from another node during reconnect. The controller saves
-     * its timestamp and marks it to be written to disk.
+     * Notifies the controller that a signed state was received from another node during reconnect so it can be marked
+     * to be written to disk.
      *
      * @param reservedSignedState the signed state that was received from another node during reconnect
      */

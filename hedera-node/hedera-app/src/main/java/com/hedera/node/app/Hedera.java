@@ -22,11 +22,15 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTimeOf;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.FIRST_ROUND_AFTER_GENESIS;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.FREEZE_STATE;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 
 import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -123,6 +127,7 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.SealConsensusRoundResult;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SwirldMain;
@@ -142,6 +147,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
@@ -150,7 +156,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiPredicate;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -168,8 +174,10 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.snapshot.StateToDiskReason;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 
@@ -335,6 +343,10 @@ public final class Hedera
      */
     private Platform platform;
     /**
+     * The consensus timestamp of the most recent state snapshot Hedera intentionally requested.
+     */
+    private Instant lastSavedStateConsensusTime;
+    /**
      * The current status of the platform.
      */
     private PlatformStatus platformStatus = STARTING_UP;
@@ -377,7 +389,7 @@ public final class Hedera
     /**
      * The action to take, if any, when a consensus round is sealed.
      */
-    private final BiPredicate<Round, State> onSealConsensusRound;
+    private final BiFunction<Round, State, SealConsensusRoundResult> onSealConsensusRound;
 
     private final boolean quiescenceEnabled;
 
@@ -573,8 +585,7 @@ public final class Hedera
                         rosterServiceImpl,
                         platformStateService)
                 .forEach(servicesRegistry::register);
-        final var blockStreamsEnabled = isBlockStreamEnabled();
-        onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
+        onSealConsensusRound = this::manageSealRound;
         stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration);
     }
 
@@ -767,6 +778,7 @@ public final class Hedera
         }
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
+        lastSavedStateConsensusTime = trigger == GENESIS ? null : consensusTimestampOf(state);
 
         // Verify the WRAPS proving key hash (if configured)
         if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
@@ -1052,10 +1064,10 @@ public final class Hedera
      * of transactions in the event of an incident
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
+    public @NonNull SealConsensusRoundResult onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
         requireNonNull(state);
         requireNonNull(round);
-        return onSealConsensusRound.test(round, state);
+        return onSealConsensusRound.apply(round, state);
     }
 
     /*==================================================================================================================
@@ -1382,6 +1394,67 @@ public final class Hedera
         state.registerCommitListener(boundaryStateChangeListener);
         state.registerCommitListener(immediateStateChangeListener);
         return state;
+    }
+
+    private @NonNull SealConsensusRoundResult manageSealRound(@NonNull final Round round, @NonNull final State state) {
+        if (streamMode == RECORDS) {
+            return manageRecordsSealRound(round, state);
+        }
+        return manageBlockSealRound(round, state);
+    }
+
+    private @NonNull SealConsensusRoundResult manageBlockSealRound(
+            @NonNull final Round round, @NonNull final State state) {
+        final var closesBlock = manageBlockEndRound(round, state);
+        if (!closesBlock) {
+            return SealConsensusRoundResult.notSignable();
+        }
+        final var requestedSaveReason = requestedSaveReasonFor(round, state);
+        if (requestedSaveReason == null) {
+            return SealConsensusRoundResult.signableButSavedStateNotNeeded();
+        }
+        final var recordFileClosed = daggerApp.blockRecordManager().closeRecordFileAtRoundEnd(state);
+        if (recordFileClosed) {
+            lastSavedStateConsensusTime = round.getConsensusTimestamp();
+            return SealConsensusRoundResult.signableWithSavedStateReason(requestedSaveReason);
+        }
+        return SealConsensusRoundResult.signableButSavedStateNotNeeded();
+    }
+
+    private @NonNull SealConsensusRoundResult manageRecordsSealRound(
+            @NonNull final Round round, @NonNull final State state) {
+        final var requestedSaveReason = requestedSaveReasonFor(round, state);
+        if (requestedSaveReason == null) {
+            return SealConsensusRoundResult.signableButSavedStateNotNeeded();
+        }
+        final var recordFileClosed = daggerApp.blockRecordManager().closeRecordFileAtRoundEnd(state);
+        if (recordFileClosed) {
+            lastSavedStateConsensusTime = round.getConsensusTimestamp();
+            return SealConsensusRoundResult.signableWithSavedStateReason(requestedSaveReason);
+        }
+        return SealConsensusRoundResult.signableButSavedStateNotNeeded();
+    }
+
+    private @Nullable StateToDiskReason requestedSaveReasonFor(@NonNull final Round round, @NonNull final State state) {
+        if (isFreezeRound(state, round.getRoundNum())) {
+            return FREEZE_STATE;
+        }
+        if (lastSavedStateConsensusTime == null) {
+            return FIRST_ROUND_AFTER_GENESIS;
+        }
+        final var hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
+        final int saveStatePeriod = hederaConfig.saveStatePeriod();
+        return saveStatePeriod > 0
+                        && hederaConfig.periodicSnapshotsEnabled()
+                        && (round.getConsensusTimestamp().getEpochSecond() / saveStatePeriod)
+                                > (lastSavedStateConsensusTime.getEpochSecond() / saveStatePeriod)
+                ? PERIODIC_SNAPSHOT
+                : null;
+    }
+
+    private boolean isFreezeRound(@NonNull final State state, final long roundNum) {
+        final var platformStateStore = new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
+        return platformStateStore.getLatestFreezeRound() == roundNum;
     }
 
     private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {

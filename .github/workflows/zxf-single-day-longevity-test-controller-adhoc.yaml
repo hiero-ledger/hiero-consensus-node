@@ -58,7 +58,7 @@ on:
         required: false
         default: ""
         type: string
-        description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+        description: 'Add props to settings.txt, e.g. "hedera.saveStatePeriod, 300". Newline is "\n"'
       reconnect-uptime:
         required: false
         default: "600"

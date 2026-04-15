@@ -20,6 +20,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static org.mockito.ArgumentMatchers.notNull;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
@@ -280,6 +281,64 @@ final class BlockRecordManagerTest extends AppTestBase {
                 USER_PUBLIC_KEY,
                 TEST_BLOCKS,
                 STARTING_BLOCK);
+    }
+
+    @Test
+    void roundSealCloseMarksPendingRecordOpenUntilNextTransaction() {
+        final var startingBlockNumber = BLOCK_NUM;
+        app.stateMutator(NAME)
+                .withSingletonState(
+                        BLOCKS_STATE_ID,
+                        BlockInfo.newBuilder()
+                                .lastBlockNumber(startingBlockNumber - 1)
+                                .firstConsTimeOfLastBlock(FIRST_CONS_TIME_OF_LAST_BLOCK)
+                                .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                .consTimeOfLastHandledTxn(CONSENSUS_TIME)
+                                .migrationRecordsStreamed(true)
+                                .firstConsTimeOfCurrentBlock(CONSENSUS_TIME)
+                                .lastUsedConsTime(CONSENSUS_TIME)
+                                .lastIntervalProcessTime(EPOCH)
+                                .build())
+                .commit();
+
+        final var state = app.workingStateAccessor().getState();
+        final var producer = mock(BlockRecordStreamProducer.class);
+        given(producer.getRunningHash()).willReturn(STARTING_RUNNING_HASH_OBJ.hash());
+        final var wrappedRecordHashesDiskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        final var nextConsensusTime = FORCED_BLOCK_SWITCH_TIME.plusSeconds(1);
+
+        try (final var blockRecordManager = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                quiescenceController,
+                quiescedHeartbeat,
+                platform,
+                wrappedRecordHashesDiskWriter,
+                InitTrigger.RESTART)) {
+            assertThat(blockRecordManager.closeRecordFileAtRoundEnd(state)).isTrue();
+
+            final var sealedBlockInfo = state.getWritableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                    .get();
+            assertThat(sealedBlockInfo).isNotNull();
+            assertThat(sealedBlockInfo.lastBlockNumber()).isEqualTo(startingBlockNumber);
+            assertThat(sealedBlockInfo.recordFileOpenPending()).isTrue();
+            assertThat(sealedBlockInfo.firstConsTimeOfCurrentBlock()).isEqualTo(EPOCH);
+
+            blockRecordManager.startUserTransaction(nextConsensusTime, state);
+
+            final var reopenedBlockInfo = state.getWritableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                    .get();
+            assertThat(reopenedBlockInfo).isNotNull();
+            assertThat(reopenedBlockInfo.recordFileOpenPending()).isFalse();
+            assertThat(reopenedBlockInfo.firstConsTimeOfCurrentBlock())
+                    .isEqualTo(new Timestamp(nextConsensusTime.getEpochSecond(), nextConsensusTime.getNano()));
+        }
+
+        verify(producer).closeCurrentBlock(startingBlockNumber);
+        verify(producer).switchBlocks(eq(startingBlockNumber), eq(startingBlockNumber + 1), eq(nextConsensusTime));
     }
 
     @Test

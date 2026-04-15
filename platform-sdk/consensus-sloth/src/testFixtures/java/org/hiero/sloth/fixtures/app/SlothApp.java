@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.SealConsensusRoundResult;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
@@ -219,8 +220,9 @@ public class SlothApp implements ConsensusStateEventHandler {
      * {@inheritDoc}
      */
     @Override
-    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final State state) {
-        return false;
+    public @NonNull SealConsensusRoundResult onSealConsensusRound(
+            @NonNull final Round round, @NonNull final State state) {
+        return SealConsensusRoundResult.notSignable();
     }
 
     /**

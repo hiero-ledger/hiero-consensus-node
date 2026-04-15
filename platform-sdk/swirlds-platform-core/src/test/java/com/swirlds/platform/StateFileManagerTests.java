@@ -8,6 +8,7 @@ import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroySta
 import static java.nio.file.Files.exists;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.FATAL_ERROR;
+import static org.hiero.consensus.state.snapshot.StateToDiskReason.FIRST_ROUND_AFTER_GENESIS;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.ISS;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -178,6 +179,37 @@ class StateFileManagerTests {
     }
 
     @Test
+    @DisplayName("Application requested periodic save overrides platform cadence")
+    void requestedPeriodicSaveOverridesPlatformCadence() {
+        final TestConfigBuilder configBuilder = new TestConfigBuilder()
+                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, testDirectory.toFile().toString());
+        final PlatformContext localContext = TestPlatformContextBuilder.create()
+                .withConfiguration(configBuilder.getOrCreateConfig())
+                .build();
+        final SavedStateController controller = new DefaultSavedStateController(localContext);
+
+        final SignedState initialState = new RandomSignedStateGenerator()
+                .setConsensusTimestamp(Instant.ofEpochSecond(100))
+                .setRound(1)
+                .build();
+        controller.registerSignedStateFromDisk(initialState);
+
+        final SignedState requestedState = new RandomSignedStateGenerator()
+                .setConsensusTimestamp(Instant.ofEpochSecond(120))
+                .setRound(2)
+                .build();
+        requestedState.requestStateToSave(PERIODIC_SNAPSHOT);
+
+        final ReservedSignedState reservedSignedState = requestedState.reserve("requested periodic save");
+        controller.markSavedState(new StateWithHashComplexity(reservedSignedState, 1));
+
+        assertEquals(
+                PERIODIC_SNAPSHOT,
+                requestedState.getStateToDiskReason(),
+                "execution-layer requested save reason should be honored even inside the same platform period");
+    }
+
+    @Test
     @DisplayName("Save ISS Signed State")
     void saveISSignedState() throws IOException, ParseException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
@@ -208,7 +240,6 @@ class StateFileManagerTests {
         final int stateSavePeriod = 100;
         final int statesOnDisk = 3;
         final TestConfigBuilder configBuilder = new TestConfigBuilder()
-                .withValue(StateConfig_.SAVE_STATE_PERIOD, stateSavePeriod)
                 .withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk)
                 .withValue(
                         StateCommonConfig_.SAVED_STATE_DIRECTORY,
@@ -263,6 +294,11 @@ class StateFileManagerTests {
                     .setConsensusTimestamp(timestamp)
                     .setRound(round)
                     .build();
+            if (nextBoundary == null) {
+                signedState.requestStateToSave(FIRST_ROUND_AFTER_GENESIS);
+            } else if (CompareTo.isGreaterThanOrEqualTo(timestamp, nextBoundary)) {
+                signedState.requestStateToSave(PERIODIC_SNAPSHOT);
+            }
             final ReservedSignedState reservedSignedState = signedState.reserve("initialTestReservation");
 
             initLifecycleManagerAndMakeStateImmutable(reservedSignedState.get());
