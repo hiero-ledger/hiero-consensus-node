@@ -24,8 +24,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAcco
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicCreateWithCustomFeeFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -518,10 +518,8 @@ public class TopicCreateCustomFeeSimpleFeesTest {
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                         validateChargedUsdWithinWithTxnSize(
                                 createTopicTxn,
-                                txnSize -> expectedTopicCreateNetworkFeeOnlyUsd(Map.of(
-                                        SIGNATURES, 1L,
-                                        KEYS, 0L,
-                                        PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedNetworkOnlyFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 1.0),
                         validateChargedAccount(createTopicTxn, "4"));
             }

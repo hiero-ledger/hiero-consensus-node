@@ -22,7 +22,9 @@ import com.hedera.node.config.converter.ScaleFactorConverter;
 import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ApiPermissionConfig;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -115,6 +117,8 @@ public final class ConfigUtils {
                 .withConfigDataType(PcesConfig.class)
                 .withConfigDataType(BasicConfig.class)
                 .withConfigDataType(MetricsConfig.class)
+                .withConfigDataType(BlockRecordStreamConfig.class)
+                .withConfigDataType(BlockStreamJumpstartConfig.class)
                 .withSource(new SimpleConfigSource().withValue("merkleDb.usePbj", false))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.minNumberOfFilesInCompaction", 2))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
