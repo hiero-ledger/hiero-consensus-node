@@ -66,20 +66,13 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
         addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
-        final var hookInfo = getHookInfo(op);
+        final var config = simpleFeeContext.feeContext().configuration();
+        final var hookInfo =
+                getHookInfo(op, config.getConfigData(ContractsConfig.class).maxGasPerTransaction());
         if (hookInfo.numHookInvocations() > 0) {
-            final var config = simpleFeeContext.feeContext().configuration();
-            // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
-            // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
-            final long effectiveGasLimit = Math.max(
-                    0,
-                    Math.min(
-                            hookInfo.numHookInvocations()
-                                    * config.getConfigData(ContractsConfig.class)
-                                            .maxGasPerSec(),
-                            hookInfo.totalGasLimitOfHooks()));
             addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, hookInfo.numHookInvocations());
-            addExtraFee(feeResult, serviceDef, GAS, feeSchedule, effectiveGasLimit);
+            // We clamp each gas limit summed by the hook info in the [0, maxTxGasLimit] range already
+            addExtraFee(feeResult, serviceDef, GAS, feeSchedule, hookInfo.totalGasLimitOfHooks());
         }
 
         if (simpleFeeContext.feeContext() != null) {

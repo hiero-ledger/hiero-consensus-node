@@ -1460,21 +1460,18 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiver").withHooks(accountAllowanceHook(3L, TRUE_ALLOWANCE_HOOK.name())),
                 getAccountBalance("sender").exposingBalanceTo(senderBefore::set),
                 getAccountBalance("receiver").exposingBalanceTo(receiverBefore::set),
-                doWithStartupConfig("contracts.maxGasPerSec", property -> cryptoTransfer(
+                doWithStartupConfig("contracts.maxGasPerTransaction", property -> cryptoTransfer(
                                 movingHbar(1).between("sender", "receiver"))
                         .withPreHookFor("sender", 1L, 25_000L, "")
                         .withPreHookFor("receiver", 3L, 3 * Long.parseLong(property), "")
                         .payingWith("sender")
                         .fee(500 * THOUSAND_HBAR)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
-                        .via("exploitFailedHookTransfer")),
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
                 getAccountBalance("sender").exposingBalanceTo(senderAfter::set),
                 getAccountBalance("receiver").exposingBalanceTo(receiverAfter::set),
                 withOpContext((spec, opLog) -> {
-                    assertEquals(receiverBefore.get(), receiverAfter.get(), "receiver balance changed");
-                    final long senderGain = senderAfter.get() - senderBefore.get();
-                    assertTrue(senderGain > 0, "POC failed, payer isn't over refunded");
-                    System.out.println("Payer balance jumped from" + senderBefore.get() + " to " + senderAfter.get());
+                    assertEquals(receiverBefore.get(), receiverAfter.get(), "receiver balance should be unchanged");
+                    assertTrue(senderBefore.get() - senderAfter.get() > 0, "sender balance should be debited");
                 }));
     }
 
