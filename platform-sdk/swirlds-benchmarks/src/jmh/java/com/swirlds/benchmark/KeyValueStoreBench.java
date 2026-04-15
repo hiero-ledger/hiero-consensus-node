@@ -53,7 +53,7 @@ public class KeyValueStoreBench extends BaseBench {
         // Write files
         long start = System.currentTimeMillis();
         for (int i = 0; i < numFiles; i++) {
-            store.updateValidKeyRange(0, maxKey);
+            store.updateValidKeyRange(0, maxKey - 1);
             store.startWriting();
             resetKeys();
             for (int j = 0; j < numRecords; ++j) {

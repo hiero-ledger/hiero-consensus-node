@@ -29,8 +29,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -366,14 +368,11 @@ public class CryptoCreateSimpleFeesTest {
         @DisplayName(
                 "CryptoCreate signed txn above NODE_INCLUDED_BYTES threshold - full charging with extra PROCESSING_BYTES")
         final Stream<DynamicTest> cryptoCreateAboveProcessingBytesThresholdFullFeesWithExtrasCharged() {
-            // create large key
-            final KeyShape largeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate("largeKeyAccount")
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .key(PAYER_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER)
@@ -402,16 +401,11 @@ public class CryptoCreateSimpleFeesTest {
         @HapiTest
         @DisplayName("CryptoCreate very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
         final Stream<DynamicTest> cryptoCreateVeryLargeTxnProcessingBytesFullFeesWithExtrasCharged() {
-            // threshOf(1, 41×SIMPLE) — pushes serialized size very close below 6KB range
-            final KeyShape veryLargeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(41)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate("veryLargeKeyAccount")
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41)))
                             .key(PAYER_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER)
@@ -784,16 +778,11 @@ public class CryptoCreateSimpleFeesTest {
             @HapiTest
             @DisplayName("CryptoCreate very large txn (just above 6KB) - fails on ingest")
             final Stream<DynamicTest> cryptoCreateVeryLargeTxnAboveSixKBProcessingBytesFailsOnIngest() {
-                // threshOf(1, 43×SIMPLE) — pushes serialized size just above 6KB range
-                final KeyShape veryLargeKeyShape = threshOf(
-                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
                 return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(43)),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate("veryLargeKeyAccount")
+                                .sigControl(forKey(PAYER_KEY, allOnSigControl(43)))
                                 .key(PAYER_KEY)
                                 .payingWith(PAYER)
                                 .signedBy(PAYER)
