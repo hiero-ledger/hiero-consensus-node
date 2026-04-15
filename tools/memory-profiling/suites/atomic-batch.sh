@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Atomic Batch suite - runs all subtasks sequentially (matches CI: hl-cn-hapi-lin-lg)
+# HAPI Tests (Atomic Batch) - matches CI job hapi-tests-atomic-batch
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 "$SCRIPT_DIR/run-test.sh" atomic-batch-full \

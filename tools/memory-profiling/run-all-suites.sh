@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Runs all 9 suite-level tests sequentially, collecting peak memory for each.
+# Runs all HAPI CI suites sequentially, collecting peak memory for each.
 # Results are saved to results/ directory and summarized at the end.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-SUITES=(crypto misc misc-records token time-consuming state-throttling simple-fees smart-contracts atomic-batch)
+SUITES=(misc misc-records-crypto token-time-consuming simple-fees-nd-reconnect smart-contracts-iss restart atomic-batch state-throttling)
 FAILED=()
 
 for suite in "${SUITES[@]}"; do

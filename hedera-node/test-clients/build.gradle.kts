@@ -514,9 +514,9 @@ tasks.register<Test>("testSubprocessConcurrent") {
     systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
     systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
     // Limit concurrent test classes to prevent transaction backlog
-    // Use fixed strategy with parallelism based on node count: 3 nodes → 3 threads, 4 nodes → 2
+    // Use fixed strategy with parallelism based on node count: 3 nodes → 4 threads, 4 nodes → 3
     // threads
-    val testParallelism = if ((networkSize.toIntOrNull() ?: 4) <= 3) 3 else 2
+    val testParallelism = if ((networkSize.toIntOrNull() ?: 4) <= 3) 4 else 3
     systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
     systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "$testParallelism")
     systemProperty(

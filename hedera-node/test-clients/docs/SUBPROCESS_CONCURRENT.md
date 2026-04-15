@@ -22,7 +22,7 @@ The `hapiTestCrypto` PR check runs all three phases in order:
 | 3     | `hapiTestCryptoSerial`   | `testSubprocess`           | Serial crypto tests   |
 
 - `testSubprocessConcurrent` excludes `SERIAL` tests except `CONCURRENT_SUBPROCESS_VALIDATION`
-- Parallel execution uses fixed parallelism strategy with 4 concurrent threads
+- Parallel execution uses a fixed-parallelism strategy sized to the network: **4 concurrent threads** for 3-node networks, **3 concurrent threads** for 4+ node networks (see `hapi.spec.network.size` handling in `hedera-node/test-clients/build.gradle.kts`)
 
 ## Validation for Subprocess Concurrent
 

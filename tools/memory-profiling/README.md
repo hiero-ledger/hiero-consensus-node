@@ -4,7 +4,7 @@ Measures peak memory usage of HAPI test suites using Docker cgroup metrics. The 
 
 ## Prerequisites
 
-- Docker Desktop (with at least 16 GB allocated to Docker)
+- Docker Desktop (with at least 18 GB RAM and 10 CPUs allocated to Docker)
 - Bash shell
 
 ## Directory Structure
@@ -12,39 +12,29 @@ Measures peak memory usage of HAPI test suites using Docker cgroup metrics. The 
 ```
 tools/memory-profiling/
 ├── Dockerfile                  # Temurin 25 image (matches CI)
-├── docker-compose.yml          # Container config with 16G limit
+├── docker-compose.yml          # Container config with 10 CPU / 18G RAM limit
 ├── entrypoint.sh               # Container entrypoint (UID remapping, runs once)
 ├── measure-cgroup-peak.sh      # Reads cgroup memory.peak inside container
 ├── run-test.sh                 # Core runner: container up -> test -> save result -> container down
 ├── collect-results.sh          # Aggregates results into a summary table + CSV
-├── run-all-suites.sh           # Runs all 9 suite scripts sequentially
-├── run-all-subtasks.sh         # Runs all 22 subtask scripts individually
+├── run-all-suites.sh           # Runs all 8 suite scripts sequentially
+├── run-all-subtasks.sh         # Runs all subtask scripts individually
 ├── results/                    # Output directory (persists across runs, git-ignored)
-├── suites/                     # Suite-level scripts (match CI jobs exactly)
-│   ├── crypto.sh
-│   ├── misc.sh
-│   ├── misc-records.sh
-│   ├── token.sh
-│   ├── time-consuming.sh
-│   ├── state-throttling.sh
-│   ├── simple-fees.sh
-│   ├── smart-contracts.sh
-│   └── atomic-batch.sh
-└── subtasks/                   # Individual Gradle task scripts
-    ├── crypto/                 # hapiTestCrypto, hapiTestCryptoEmbedded, hapiTestCryptoSerial
-    ├── misc/                   # hapiTestMisc, hapiTestMiscEmbedded, hapiTestMiscRepeatable, hapiTestMiscSerial
-    ├── misc-records/           # hapiTestMiscRecords, hapiTestMiscRecordsSerial
-    ├── token/                  # hapiTestToken, hapiTestTokenSerial
-    ├── time-consuming/         # hapiTestTimeConsuming, hapiTestTimeConsumingSerial
-    ├── state-throttling/       # hapiTestStateThrottling
-    ├── simple-fees/            # hapiTestSimpleFees, hapiEmbeddedSimpleFees, hapiTestSimpleFeesSerial
-    ├── smart-contracts/        # hapiTestSmartContract, hapiTestSmartContractSerial
-    └── atomic-batch/           # hapiTestAtomicBatch, hapiTestAtomicBatchSerial, hapiTestAtomicBatchEmbedded
+├── suites/                     # Suite-level scripts (one per HAPI CI job in zxc-execute-hapi-tests.yaml)
+│   ├── misc.sh                          # HAPI Tests (Misc)
+│   ├── misc-records-crypto.sh           # HAPI Tests (Misc Records, Crypto & Misc Serial)
+│   ├── token-time-consuming.sh          # HAPI Tests (Token & Time Consuming)
+│   ├── simple-fees-nd-reconnect.sh      # HAPI Tests (Simple Fees & ND Reconnect)
+│   ├── smart-contracts-iss.sh           # HAPI Tests (Smart Contracts & ISS)
+│   ├── restart.sh                       # HAPI Tests (Restart)
+│   ├── atomic-batch.sh                  # HAPI Tests (Atomic Batch)
+│   └── state-throttling.sh              # HAPI Tests (State Throttling)
+└── subtasks/                   # Individual Gradle task scripts (not kept in sync with CI groupings)
 ```
 
 ## How It Works
 
-Each test runs in a fresh Docker container with a 16 GB memory limit. When the test completes, the script reads the kernel's cgroup `memory.peak` value — the true high-water mark of all memory used by every process in the container. This is the same metric the OS uses to decide whether to OOM-kill, so it maps directly to runner sizing.
+Each test runs in a fresh Docker container limited to 10 CPUs and 18 GB RAM (matching the candidate runner config). When the test completes, the script reads the kernel's cgroup `memory.peak` value — the true high-water mark of all memory used by every process in the container (anonymous RSS + file cache + kernel accounting). This is the same metric the OS uses to decide whether to OOM-kill, so it maps directly to runner sizing.
 
 A fresh container is created per test to ensure the cgroup peak counter starts at zero.
 
@@ -59,37 +49,23 @@ cd tools/memory-profiling
 ### Run a single suite (chains subtasks like CI does)
 
 ```bash
-./suites/crypto.sh
+./suites/misc-records-crypto.sh
 ```
 
-This runs `hapiTestCrypto && hapiTestCryptoEmbedded && hapiTestCryptoSerial` sequentially in one container, matching how CI executes the Crypto job. The peak memory reflects the combined run.
+This runs the full `hapiTestMiscRecords && hapiTestMiscRecordsSerial && hapiTestCrypto && hapiTestCryptoEmbedded && hapiTestCryptoSerial && hapiTestMiscSerial` chain in one container, matching how CI executes that job. The peak memory reflects the combined run.
 
-### Run a single subtask in isolation
-
-```bash
-./subtasks/crypto/hapiTestCrypto.sh
-```
-
-This runs only `hapiTestCrypto` in its own fresh container, so you can see how much memory that specific Gradle task uses on its own.
-
-### Run all 9 suites
+### Run all 8 suites
 
 ```bash
 ./run-all-suites.sh
 ```
 
-### Run all 22 subtasks individually
-
-```bash
-./run-all-subtasks.sh
-```
-
 ### Run specific suites selectively
 
 ```bash
-./suites/crypto.sh
-./suites/token.sh
-./suites/smart-contracts.sh
+./suites/token-time-consuming.sh
+./suites/smart-contracts-iss.sh
+./suites/simple-fees-nd-reconnect.sh
 ```
 
 Results accumulate in `results/` across runs — they are not cleared automatically.
@@ -100,10 +76,10 @@ To test whether a suite fits within a smaller runner, override the memory limit:
 
 ```bash
 # Edit docker-compose.yml and change the memory limit
-# deploy.resources.limits.memory: 8G
+# deploy.resources.limits.memory: 12G
 
 # Or run the container directly with a custom limit
-docker compose run --rm --memory=8g memory-measure \
+docker compose run --rm --memory=12g --cpus=8 memory-measure \
   /usr/local/bin/measure-cgroup-peak.sh bash -lc './gradlew hapiTestCrypto --no-daemon'
 ```
 
@@ -170,21 +146,22 @@ exit_code=0
 
 ## CI Runner Mapping
 
-For reference, these are the current CI runner assignments:
+For reference, these are the current CI runner assignments (from `.github/workflows/zxc-execute-hapi-tests.yaml`):
 
-|      Suite       |     CI Runner     |    Size     |
-|------------------|-------------------|-------------|
-| Crypto           | hl-cn-hapi-lin-lg | Large       |
-| Misc             | hl-cn-hapi-lin-md | Medium      |
-| Misc Records     | hl-cn-hapi-lin-xl | Extra Large |
-| Token            | hl-cn-hapi-lin-xl | Extra Large |
-| Time Consuming   | hl-cn-hapi-lin-lg | Large       |
-| State Throttling | hl-cn-hapi-lin-md | Medium      |
-| Simple Fees      | hl-cn-hapi-lin-md | Medium      |
-| Smart Contracts  | hl-cn-hapi-lin-lg | Large       |
-| Atomic Batch     | hl-cn-hapi-lin-lg | Large       |
+|               Suite                |     CI Runner     |
+|------------------------------------|-------------------|
+| Misc                               | hl-cn-hapi-lin-lg |
+| Misc Records, Crypto & Misc Serial | hl-cn-hapi-lin-lg |
+| Token & Time Consuming             | hl-cn-hapi-lin-lg |
+| Simple Fees & ND Reconnect         | hl-cn-hapi-lin-lg |
+| Smart Contracts & ISS              | hl-cn-hapi-lin-lg |
+| Restart                            | hl-cn-hapi-lin-lg |
+| Atomic Batch                       | hl-cn-hapi-lin-lg |
+| State Throttling                   | hl-cn-hapi-lin-lg |
 
-Compare the measured peak memory against each runner's available RAM to determine if a runner is oversized or undersized.
+BN Comms (`hapiTestBlockNodeCommunication`) is excluded — it runs in XTS on a dedicated `hl-cn-hapi-bn-lin-xl` runner and is out of scope for this profiling.
+
+Compare the measured peak memory against the candidate runner spec (10 CPU / 18G RAM) to determine if it fits.
 
 ## Clearing Results
 
@@ -198,6 +175,6 @@ rm results/*.txt results/SUMMARY.csv
 
 **Docker build fails with UID conflict**: The Dockerfile handles existing UID 1000 users in the base image. If you still hit issues, run `docker compose build --no-cache` from the `tools/memory-profiling/` directory.
 
-**Container runs out of memory (OOM-killed)**: Increase the memory limit in `docker-compose.yml` under `deploy.resources.limits.memory`. The default is 16G.
+**Container runs out of memory (OOM-killed)**: Increase the memory limit in `docker-compose.yml` under `deploy.resources.limits.memory`. The default is 18G.
 
 **Tests fail but memory is still recorded**: The measurement script captures peak memory regardless of test exit code. A failed test's memory reading is still valid for runner sizing purposes.
