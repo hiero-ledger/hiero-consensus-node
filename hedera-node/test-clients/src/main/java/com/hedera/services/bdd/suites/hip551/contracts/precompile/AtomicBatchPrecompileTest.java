@@ -2639,6 +2639,7 @@ class AtomicBatchPrecompileTest {
                             .alsoAuthorizing(TokenKeyType.FEE_SCHEDULE_KEY),
                     updateTokenFeeSchedules
                             .call("updateFungibleFixedHbarFee", fungibleToken, 10L, feeCollector)
+                            .gas(200_000_000L)
                             .wrappedInBatchOperation(DEFAULT_BATCH_OPERATOR),
                     fungibleToken
                             .getInfo()
