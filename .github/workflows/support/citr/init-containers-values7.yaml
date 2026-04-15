@@ -14,7 +14,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 46
+            cpu: 42
             memory: 256Gi
           limits:
             cpu: 48
@@ -25,7 +25,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 46
+            cpu: 42
             memory: 256Gi
           limits:
             cpu: 48
@@ -36,7 +36,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 46
+            cpu: 42
             memory: 256Gi
           limits:
             cpu: 48
@@ -47,7 +47,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 46
+            cpu: 42
             memory: 256Gi
           limits:
             cpu: 48
@@ -58,7 +58,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 46
+            cpu: 42
             memory: 256Gi
           limits:
             cpu: 48
@@ -69,7 +69,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 46
+            cpu: 42
             memory: 256Gi
           limits:
             cpu: 48
@@ -80,7 +80,7 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 46
+            cpu: 42
             memory: 256Gi
           limits:
             cpu: 48
@@ -122,7 +122,7 @@ defaults:
   root:
     resources:
       requests:
-        cpu: 46
+        cpu: 42
         memory: 256Gi
       limits:
         cpu: 48
