@@ -33,7 +33,7 @@ public class VirtualMapEditBench extends VirtualMapBaseBench {
 
     @Override
     String benchmarkName() {
-        return "VirtualMapBench";
+        return "VirtualMapEditBench";
     }
 
     /**
