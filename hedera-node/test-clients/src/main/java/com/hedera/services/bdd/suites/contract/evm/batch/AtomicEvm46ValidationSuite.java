@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.contract.evm.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -416,7 +415,6 @@ class AtomicEvm46ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> directCallWithValueToExistingCryptoAccountResultsInSuccess() {
 
         AtomicReference<AccountID> mirrorAccountID = new AtomicReference<>();
@@ -1480,7 +1478,6 @@ class AtomicEvm46ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> testDelegateCallOperationsForSystemAccounts() {
         final var contract = "CallOperationsCheckerSuccess";
         final var functionName = "delegateCall";

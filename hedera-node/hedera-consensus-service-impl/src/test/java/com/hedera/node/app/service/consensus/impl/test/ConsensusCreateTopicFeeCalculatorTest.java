@@ -84,7 +84,8 @@ public class ConsensusCreateTopicFeeCalculatorTest {
                         makeServiceFee(
                                 HederaFunctionality.CONSENSUS_CREATE_TOPIC,
                                 498500000L,
-                                makeExtraIncluded(Extra.SIGNATURES, 1))))
+                                makeExtraIncluded(Extra.KEYS, 0),
+                                makeExtraIncluded(Extra.CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE, 0))))
                 .build();
     }
 }

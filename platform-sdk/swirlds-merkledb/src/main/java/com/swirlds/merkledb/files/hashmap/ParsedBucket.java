@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
@@ -152,6 +153,14 @@ public final class ParsedBucket extends Bucket {
 
     public void forEachEntry(final Consumer<BucketEntry> consumer) {
         entries.forEach(consumer);
+    }
+
+    /**
+     * Returns an unmodifiable view of the entries in this bucket.
+     */
+    @NonNull
+    public List<BucketEntry> getEntries() {
+        return Collections.unmodifiableList(entries);
     }
 
     public void readFrom(final ReadableSequentialData in) {

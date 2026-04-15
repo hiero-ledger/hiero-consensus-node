@@ -19,7 +19,7 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 
 /**
- * Provides the {@link CallTranslator} implementations for the HTS system contract at address 0x16c.
+ * Provides the {@link CallTranslator} implementations for the HTS system contract at address 0x167.
  */
 @Module
 public interface Hts0x167TranslatorsModule {

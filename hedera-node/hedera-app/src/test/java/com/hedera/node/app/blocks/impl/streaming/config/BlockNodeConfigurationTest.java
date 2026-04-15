@@ -143,7 +143,7 @@ class BlockNodeConfigurationTest {
 
         assertThatThrownBy(builder::build)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Message size hard limit must be greater than or equal to soft limit size");
+                .hasMessage("Message size hard limit (100) must be greater than or equal to soft limit size (1000)");
     }
 
     @Test
@@ -209,7 +209,7 @@ class BlockNodeConfigurationTest {
 
     @Test
     void testFromBlockNodeConfig_nullInput() {
-        assertThatThrownBy(() -> BlockNodeConfiguration.from(null))
+        assertThatThrownBy(() -> BlockNodeConfiguration.from(null, 6_000_000L))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("config must be specified");
     }
@@ -242,7 +242,7 @@ class BlockNodeConfigurationTest {
                         .build())
                 .build();
 
-        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg);
+        final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg, 36L * 1024 * 1024);
         assertThat(config.address()).isEqualTo("localhost");
         assertThat(config.streamingPort()).isEqualTo(8080);
         assertThat(config.servicePort()).isEqualTo(8081);

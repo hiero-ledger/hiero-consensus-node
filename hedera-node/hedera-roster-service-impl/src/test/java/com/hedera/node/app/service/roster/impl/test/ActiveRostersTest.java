@@ -176,6 +176,20 @@ class ActiveRostersTest {
     }
 
     @Test
+    void detectsCutoverBootstrap() {
+        BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
+        BDDMockito.given(rosterStore.getPreviousRosterHash()).willReturn(B_ROSTER_HASH);
+        BDDMockito.given(rosterStore.get(A_ROSTER_HASH)).willReturn(A_ROSTER);
+
+        final var activeRosters = ActiveRosters.from(rosterStore, true, () -> true, () -> true);
+
+        assertEquals(ActiveRosters.Phase.BOOTSTRAP, activeRosters.phase());
+        assertEquals(A_ROSTER_HASH, activeRosters.sourceRosterHash());
+        assertEquals(A_ROSTER_HASH, activeRosters.targetRosterHash());
+        assertSame(A_ROSTER, activeRosters.targetRoster());
+    }
+
+    @Test
     void ignoresCandidateWhenHistoryProofIsInProgress() {
         BDDMockito.given(rosterStore.getCurrentRosterHash()).willReturn(A_ROSTER_HASH);
         BDDMockito.given(rosterStore.getCandidateRosterHash()).willReturn(B_ROSTER_HASH);
@@ -184,7 +198,7 @@ class ActiveRostersTest {
 
         final var activeRosters = ActiveRosters.from(rosterStore, true, () -> false, () -> true);
 
-        assertEquals(ActiveRosters.Phase.HANDOFF, activeRosters.phase());
+        assertEquals(ActiveRosters.Phase.BOOTSTRAP, activeRosters.phase());
         assertEquals(A_ROSTER_HASH, activeRosters.currentRosterHash());
         assertSame(A_ROSTER, activeRosters.currentRoster());
     }

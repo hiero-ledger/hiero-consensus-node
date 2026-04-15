@@ -64,10 +64,13 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFeesFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenNftUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUpdateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.AIRDROPS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.QUERY_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CLAIM_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_NFT_FEE;
@@ -263,7 +266,7 @@ public class TokenServiceFeesSuite {
                                         moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))
                                 .tokenTransfers(includingNonfungibleMovement(
                                         movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER)))),
-                safeValidateChargedUsd("claimTxn", 0.001, 0.001),
+                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
                 // assert balance fungible tokens
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 10),
                 // assert balances NFT
@@ -920,8 +923,6 @@ public class TokenServiceFeesSuite {
 
     @HapiTest
     final Stream<DynamicTest> tokenGetInfoFeeChargedAsExpected() {
-        final var expectedTokenGetInfo = 0.000102;
-
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
@@ -933,13 +934,11 @@ public class TokenServiceFeesSuite {
                         .initialSupply(1000L),
                 getTokenInfo(FUNGIBLE_TOKEN).via("getTokenInfo").payingWith(OWNER),
                 sleepFor(1000),
-                safeValidateChargedUsd("getTokenInfo", expectedTokenGetInfo, expectedTokenGetInfo));
+                validateFees("getTokenInfo", 0.000102, QUERY_BASE_FEE));
     }
 
     @HapiTest
     final Stream<DynamicTest> tokenGetNftInfoFeeChargedAsExpected() {
-        final var expectedTokenGetNftInfo = 0.000102;
-
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 newKeyNamed(SUPPLY_KEY),
@@ -967,7 +966,7 @@ public class TokenServiceFeesSuite {
                                 copyFromUtf8("g"))),
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).via("getTokenInfo").payingWith(TOKEN_TREASURY),
                 sleepFor(3000),
-                safeValidateChargedUsd("getTokenInfo", expectedTokenGetNftInfo, expectedTokenGetNftInfo));
+                validateFees("getTokenInfo", 0.000102, QUERY_BASE_FEE));
     }
 
     @HapiTest

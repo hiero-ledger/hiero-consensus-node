@@ -174,4 +174,21 @@ public interface FeeCharging {
     default boolean bypassForExtraHandlerCharges() {
         return false;
     }
+
+    /**
+     * Signals the charging strategy should take any compensating actions for a dispatch rollback.
+     */
+    default void rollback() {
+        // No-op
+    }
+
+    /**
+     * Returns a customized fee charging context appropriate for the strategy.
+     * @param ctx the base dispatch context
+     * @return a customized context, if needed
+     */
+    default Context customized(@NonNull final Context ctx) {
+        requireNonNull(ctx);
+        return ctx;
+    }
 }

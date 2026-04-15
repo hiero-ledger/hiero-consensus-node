@@ -48,6 +48,7 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
+import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -139,6 +140,7 @@ public class RecordStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
+                RegisteredNodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder,
                 HookDispatchStreamBuilder {
@@ -1001,6 +1003,13 @@ public class RecordStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public StreamBuilder blockNumber(@Nullable final Long blockNumber) {
+        // No op for stream mode records
+        return this;
+    }
+
     /**
      * Sets the receipt topicID.
      *
@@ -1084,6 +1093,13 @@ public class RecordStreamBuilder
     @NonNull
     public RecordStreamBuilder nodeID(long nodeId) {
         transactionReceiptBuilder.nodeId(nodeId);
+        return this;
+    }
+
+    @Override
+    @NonNull
+    public RecordStreamBuilder registeredNodeID(final long registeredNodeID) {
+        transactionReceiptBuilder.registeredNodeId(registeredNodeID);
         return this;
     }
 

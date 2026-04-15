@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.addressbook.impl.schemas.V068AddressBookSchema;
+import com.hedera.node.app.service.addressbook.impl.schemas.V073AddressBookSchema;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,10 +35,11 @@ class AddressBookServiceImplTest {
         final var schemaRegistry = mock(SchemaRegistry.class);
         ArgumentCaptor<Schema> schemaCaptor = ArgumentCaptor.forClass(Schema.class);
         subject.registerSchemas(schemaRegistry);
-        verify(schemaRegistry, times(2)).register(schemaCaptor.capture());
+        verify(schemaRegistry, times(3)).register(schemaCaptor.capture());
         final var schemas = schemaCaptor.getAllValues();
-        assertThat(schemas).hasSize(2);
+        assertThat(schemas).hasSize(3);
         assertThat(schemas.get(0)).isInstanceOf(V053AddressBookSchema.class);
         assertThat(schemas.get(1)).isInstanceOf(V068AddressBookSchema.class);
+        assertThat(schemas.get(2)).isInstanceOf(V073AddressBookSchema.class);
     }
 }

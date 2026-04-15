@@ -8,6 +8,7 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
+import com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
@@ -134,7 +135,8 @@ public interface HandleWorkflowModule {
             @NonNull final UtilHandlers utilHandlers,
             @NonNull final AddressBookHandlers addressBookHandlers,
             @NonNull final HintsHandlers hintsHandlers,
-            @NonNull final HistoryHandlers historyHandlers) {
+            @NonNull final HistoryHandlers historyHandlers,
+            @NonNull final MigrationRootHashVoteHandler migrationRootHashVoteHandler) {
         return new TransactionHandlers(
                 consensusHandlers.consensusCreateTopicHandler(),
                 consensusHandlers.consensusUpdateTopicHandler(),
@@ -190,6 +192,9 @@ public interface HandleWorkflowModule {
                 addressBookHandlers.nodeCreateHandler(),
                 addressBookHandlers.nodeUpdateHandler(),
                 addressBookHandlers.nodeDeleteHandler(),
+                addressBookHandlers.registeredNodeCreateHandler(),
+                addressBookHandlers.registeredNodeUpdateHandler(),
+                addressBookHandlers.registeredNodeDeleteHandler(),
                 tokenHandlers.tokenClaimAirdropHandler(),
                 hintsHandlers.keyPublicationHandler(),
                 hintsHandlers.preprocessingVoteHandler(),
@@ -199,6 +204,7 @@ public interface HandleWorkflowModule {
                 historyHandlers.historyProofKeyPublicationHandler(),
                 historyHandlers.historyProofSignatureHandler(),
                 historyHandlers.historyProofVoteHandler(),
-                hintsHandlers.crsPublicationHandler());
+                hintsHandlers.crsPublicationHandler(),
+                migrationRootHashVoteHandler);
     }
 }

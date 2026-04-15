@@ -15,7 +15,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
-import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
+import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.hooks.ProxyEvmHook;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
@@ -32,7 +32,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ProxyEvmHookTest {
 
     @Mock
-    private EvmFrameState state;
+    private DispatchingEvmFrameState state;
 
     private final EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
 

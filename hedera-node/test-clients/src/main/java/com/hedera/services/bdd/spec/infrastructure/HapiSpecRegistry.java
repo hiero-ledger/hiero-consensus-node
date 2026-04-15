@@ -440,6 +440,14 @@ public class HapiSpecRegistry {
         put(String.valueOf(nodeId), name);
     }
 
+    public void saveRegisteredNodeId(String name, long registeredNodeId) {
+        put(name, Long.valueOf(registeredNodeId));
+    }
+
+    public long getRegisteredNodeId(String name) {
+        return get(name, Long.class);
+    }
+
     public void saveScheduleId(String name, ScheduleID id) {
         put(name, id);
         put(asScheduleString(id), name);

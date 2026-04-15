@@ -21,9 +21,20 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("modules")
 public record ModulesConfig(
-        @ConfigProperty(defaultValue = "") String eventCreator,
-        @ConfigProperty(defaultValue = "") String eventIntake,
-        @ConfigProperty(defaultValue = "") String pces,
-        @ConfigProperty(defaultValue = "") String hashgraph,
-        @ConfigProperty(defaultValue = "") String gossip,
-        @ConfigProperty(defaultValue = "") String reconnect) {}
+        @ConfigProperty(defaultValue = "org.hiero.consensus.event.creator.impl")
+        String eventCreator,
+
+        @ConfigProperty(defaultValue = "org.hiero.consensus.event.intake.impl")
+        String eventIntake,
+
+        @ConfigProperty(defaultValue = "org.hiero.consensus.pces.impl")
+        String pces,
+
+        @ConfigProperty(defaultValue = "org.hiero.consensus.hashgraph.impl")
+        String hashgraph,
+
+        @ConfigProperty(defaultValue = "org.hiero.consensus.gossip.impl")
+        String gossip,
+
+        @ConfigProperty(defaultValue = "org.hiero.consensus.reconnect.impl")
+        String reconnect) {}

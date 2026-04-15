@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asPosNodeId;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusUpdateTopic;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.BoolValue;
@@ -24,6 +25,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.AssociatedRegisteredNodeList;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
@@ -59,6 +61,11 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     @Nullable
     private byte[] newGrpcCertificateHash;
+
+    @Nullable
+    private List<Long> associatedRegisteredNode;
+
+    private boolean hasAssociatedRegisteredNode = false;
 
     private Optional<Key> newAdminKey = Optional.empty();
     private Optional<String> newAdminKeyName = Optional.empty();
@@ -110,6 +117,12 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     public HapiNodeUpdate grpcCertificateHash(@NonNull final byte[] grpcCertificateHash) {
         this.newGrpcCertificateHash = grpcCertificateHash;
+        return this;
+    }
+
+    public HapiNodeUpdate associatedRegisteredNode(@NonNull final List<Long> ids) {
+        this.associatedRegisteredNode = requireNonNull(ids);
+        this.hasAssociatedRegisteredNode = true;
         return this;
     }
 
@@ -197,6 +210,12 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
                             }
                             if (grpcWebProxyEndpoint != null) {
                                 builder.setGrpcProxyEndpoint(fromPbj(grpcWebProxyEndpoint));
+                            }
+                            if (hasAssociatedRegisteredNode) {
+                                builder.setAssociatedRegisteredNodeList(AssociatedRegisteredNodeList.newBuilder()
+                                        .addAllAssociatedRegisteredNode(
+                                                associatedRegisteredNode != null ? associatedRegisteredNode : List.of())
+                                        .build());
                             }
                         });
         return builder -> builder.setNodeUpdate(opBody);

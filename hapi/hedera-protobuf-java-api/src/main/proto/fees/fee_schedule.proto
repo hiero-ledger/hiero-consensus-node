@@ -101,6 +101,8 @@ enum Extra {
   RECORDS=21;
   STATE_BYTES=22;       // For state-persisting operations (file uploads)
   PROCESSING_BYTES=23;  // For node/network processing fees
+  CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES=24;
+  CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES=25;
 }
 
 /**
@@ -203,6 +205,19 @@ message ServiceFeeDefinition {
    * transaction type, and the transaction will be charged the standard fee.
    */
   VariableRateDefinition high_volume_rates = 5;
+
+  /**
+   * If true, the node and network fee components are not charged for this
+   * transaction type. The service fee (base_fee + extras) still applies.
+   *
+   * <p>This flag is intended for transaction types that are paid through
+   * alternative mechanisms (e.g., gas for smart contract calls) or that
+   * are privileged system operations exempt from standard fees.
+   *
+   * <p>If `free` is also true, `free` takes precedence and the transaction
+   * is entirely free.
+   */
+  bool node_network_fee_exempt = 6;
 }
 
 /**

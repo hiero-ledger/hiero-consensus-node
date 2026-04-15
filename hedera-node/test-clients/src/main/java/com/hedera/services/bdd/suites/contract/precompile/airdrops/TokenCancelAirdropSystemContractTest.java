@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungiblePendingAirdrop;
@@ -70,7 +69,6 @@ public class TokenCancelAirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Can cancel 1 fungible airdrop")
-    @Tag(MATS)
     public Stream<DynamicTest> cancelAirdrop() {
         return hapiTest(
                 receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0)),
@@ -90,7 +88,6 @@ public class TokenCancelAirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Can cancel 1 nft airdrop")
-    @Tag(MATS)
     public Stream<DynamicTest> cancelNftAirdrop(@NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft) {
         return hapiTest(
                 sender.associateTokens(nft),
@@ -235,9 +232,10 @@ public class TokenCancelAirdropSystemContractTest {
 
     @HapiTest
     @DisplayName("Fails to cancel airdrop without having any pending airdrops")
-    public Stream<DynamicTest> failToCancelAirdropWhenThereAreNoPending() {
+    public Stream<DynamicTest> failToCancelAirdropWhenThereAreNoPending(
+            @FungibleToken final SpecFungibleToken neverAirdropped) {
         return hapiTest(cancelAirdrop
-                .call("cancelAirdrop", sender, receiver, token)
+                .call("cancelAirdrop", sender, receiver, neverAirdropped)
                 .payingWith(sender)
                 .via("cancelAirdrop")
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_PENDING_AIRDROP_ID)));

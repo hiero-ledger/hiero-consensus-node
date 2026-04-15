@@ -13,10 +13,10 @@ public final class TestStateUtils {
      */
     public static void destroyStateLifecycleManager(
             final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
-        if (!stateLifecycleManager.getMutableState().isDestroyed()) {
+        while (!stateLifecycleManager.getMutableState().isDestroyed()) {
             stateLifecycleManager.getMutableState().release();
         }
-        if (stateLifecycleManager.getLatestImmutableState() != null
+        while (stateLifecycleManager.getLatestImmutableState() != null
                 && !stateLifecycleManager.getLatestImmutableState().isDestroyed()) {
             stateLifecycleManager.getLatestImmutableState().release();
         }

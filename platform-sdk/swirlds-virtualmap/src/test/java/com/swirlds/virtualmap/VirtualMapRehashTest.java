@@ -14,7 +14,6 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.test.fixtures.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
@@ -110,7 +109,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
 
         // Internal node (path 0) should also be hashed
         assertEquals(
-                VirtualHasher.hashInternal(correctHash, correctHash2),
+                VirtualHashChunk.hashInternal(correctHash, correctHash2),
                 vm.getRecords().rootHash(),
                 "Root hash should be computed");
 

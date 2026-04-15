@@ -25,10 +25,8 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
@@ -61,8 +59,29 @@ public class BlockStreamEventBuilder {
     /** The index of the current event within the current block */
     private int eventIndexWithinBlock = 0;
 
-    /** The set of parent hashes that reference events in another block. Useful for verifying calculated hash integrity. */
-    private final Set<Hash> crossBlockParentHashes = new HashSet<>();
+    /** Cross-block parent references with context about both parent and child events. */
+    private final List<CrossBlockParentRef> crossBlockParentRefs = new ArrayList<>();
+
+    /** Current block index, used for cross-block parent tracking. */
+    private int currentBlockIndex = 0;
+
+    /**
+     * Details about a cross-block parent reference: the parent's descriptor and the child event that references it.
+     *
+     * @param parentDescriptor the parent event's descriptor (hash, creator, birth round)
+     * @param childCreatorId the creator node ID of the child event
+     * @param childBirthRound the birth round of the child event
+     * @param childBlockIndex the block index containing the child event
+     */
+    public record CrossBlockParentRef(
+            @NonNull EventDescriptor parentDescriptor, long childCreatorId, long childBirthRound, int childBlockIndex) {
+
+        /** Returns the parent event hash. */
+        @NonNull
+        public Hash parentHash() {
+            return new Hash(parentDescriptor.hash());
+        }
+    }
 
     /**
      * Constructor.
@@ -115,15 +134,15 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Returns the set of parent hashes that reference events outside the current block.
+     * Returns cross-block parent references with context about both parent and child events.
      *
-     * @return the set of cross-block parent hashes
+     * @return the list of cross-block parent references
      */
-    public Set<Hash> getCrossBlockParentHashes() {
+    public List<CrossBlockParentRef> getCrossBlockParentRefs() {
         if (events.isEmpty()) {
             reconstructEventsFromBlocks();
         }
-        return crossBlockParentHashes;
+        return crossBlockParentRefs;
     }
 
     /**
@@ -135,8 +154,9 @@ public class BlockStreamEventBuilder {
      * as each event's hash must be calculated and stored before it can be referenced by subsequent events as a parent.
      */
     private void reconstructEventsFromBlocks() {
-        for (final Block block : blocks) {
-            startOfBlock();
+        for (int blockIdx = 0; blockIdx < blocks.size(); blockIdx++) {
+            final Block block = blocks.get(blockIdx);
+            startOfBlock(blockIdx);
 
             for (final BlockItem item : block.items()) {
                 final var itemKind = item.item().kind();
@@ -167,7 +187,8 @@ public class BlockStreamEventBuilder {
         currentTransactions.add(TransactionWrapper.ofTransactionHash(redactedItem.signedTransactionHash()));
     }
 
-    private void startOfBlock() {
+    private void startOfBlock(final int blockIndex) {
+        currentBlockIndex = blockIndex;
         eventIndexWithinBlock = 0;
         currentTransactions.clear();
         eventIndexToEvent.clear();
@@ -234,7 +255,8 @@ public class BlockStreamEventBuilder {
         }
 
         // Resolve parent hashes from EventHeader parent references
-        final List<EventDescriptor> resolvedParents = resolveParentReferences(eventHeader.parents(), eventIndexToEvent);
+        final List<EventDescriptor> resolvedParents =
+                resolveParentReferences(eventHeader.parents(), eventIndexToEvent, eventCore);
 
         final List<Bytes> transactionBytes = new ArrayList<>();
         for (final TransactionWrapper wrappedTransaction : wrappedTransactions) {
@@ -266,11 +288,13 @@ public class BlockStreamEventBuilder {
      *
      * @param parentReferences original parent references from EventHeader
      * @param eventIndexToHash lookup map for event hashes
+     * @param childEventCore the EventCore of the child event referencing these parents
      * @return resolved parent descriptors with proper hashes
      */
     private List<EventDescriptor> resolveParentReferences(
             @NonNull final List<ParentEventReference> parentReferences,
-            @NonNull final Map<Integer, PlatformEvent> eventIndexToHash) {
+            @NonNull final Map<Integer, PlatformEvent> eventIndexToHash,
+            @NonNull final EventCore childEventCore) {
 
         final List<EventDescriptor> resolvedParents = new ArrayList<>();
 
@@ -289,14 +313,15 @@ public class BlockStreamEventBuilder {
                     break;
 
                 case EVENT_DESCRIPTOR:
-                    // Parent is already an EventDescriptor (outside current block)
+                    // Parent is already an EventDescriptor (outside current block). Collect the
+                    // reference with context for later validation in validateEventHashChain().
                     final EventDescriptor parentDescriptor = parentRef.parent().as();
                     resolvedParents.add(parentDescriptor);
-                    final Hash parentHash = new Hash(parentDescriptor.hash());
-                    if (!eventHashToEvent.containsKey(parentHash)) {
-                        fail("Unable to find event matching parent hash %s", parentHash);
-                    }
-                    crossBlockParentHashes.add(new Hash(parentDescriptor.hash()));
+                    crossBlockParentRefs.add(new CrossBlockParentRef(
+                            parentDescriptor,
+                            childEventCore.creatorNodeId(),
+                            childEventCore.birthRound(),
+                            currentBlockIndex));
                     break;
 
                 default:

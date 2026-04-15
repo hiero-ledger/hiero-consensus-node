@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.suites.utils.contracts.SimpleBytesResult.bigIntResult;
@@ -22,7 +21,6 @@ public class GasPriceSuite {
     static SpecContract gasPriceContract;
 
     @HapiTest
-    @Tag(MATS)
     public Stream<DynamicTest> getGasPrice() {
         return hapiTest(gasPriceContract
                 .call("getTxGasPrice")
@@ -33,7 +31,6 @@ public class GasPriceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     public Stream<DynamicTest> getLastGasPrice() {
         return hapiTest(
                 gasPriceContract

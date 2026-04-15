@@ -316,9 +316,7 @@ public class HapiFileUpdate extends HapiTxnOp<HapiFileUpdate> {
     @Override
     protected List<Function<HapiSpec, Key>> defaultSigners() {
         List<Function<HapiSpec, Key>> signers = new ArrayList<>(oldDefaults());
-        if (newWaclKey.isPresent()) {
-            signers.add(spec -> spec.registry().getKey(newWaclKey.get()));
-        }
+        newWaclKey.ifPresent(s -> signers.add(spec -> spec.registry().getKey(s)));
         return signers;
     }
 
