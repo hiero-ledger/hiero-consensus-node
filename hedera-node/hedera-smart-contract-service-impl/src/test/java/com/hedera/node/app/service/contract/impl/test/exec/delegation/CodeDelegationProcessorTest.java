@@ -20,7 +20,7 @@ import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationP
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
-import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -31,7 +31,6 @@ import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.account.Account;
-import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -217,7 +216,7 @@ class CodeDelegationProcessorTest {
 
     @Test
     void createsNewAccountAndDelegatesWhenMissingAndNonceZero() {
-        final var acct = mock(MutableAccount.class);
+        final var acct = mock(AbstractMutableEvmAccount.class);
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AA");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
@@ -255,7 +254,7 @@ class CodeDelegationProcessorTest {
 
     @Test
     void createsProducesRecordWhenInsufficientGas() {
-        final var acct = mock(MutableAccount.class);
+        final var acct = mock(AbstractMutableEvmAccount.class);
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AA");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
@@ -325,7 +324,7 @@ class CodeDelegationProcessorTest {
 
     @Test
     void updatesExistingAccountWithEmptyCodeAndMatchingNonce() {
-        final var acct = mock(HederaEvmAccount.class);
+        final var acct = mock(AbstractMutableEvmAccount.class);
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AC");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
@@ -362,7 +361,7 @@ class CodeDelegationProcessorTest {
 
     @Test
     void blocksWhenExistingAccountHasNonDelegatedNonEmptyCode() {
-        final var acct = mock(MutableAccount.class);
+        final var acct = mock(AbstractMutableEvmAccount.class);
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AD");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
@@ -395,7 +394,7 @@ class CodeDelegationProcessorTest {
 
     @Test
     void skipsWhenExistingAccountNonceMismatch() {
-        final var acct = mock(MutableAccount.class);
+        final var acct = mock(AbstractMutableEvmAccount.class);
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AE");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
@@ -430,7 +429,7 @@ class CodeDelegationProcessorTest {
     @Test
     void zeroAddressClearsCode() {
         final var del = mock(CodeDelegation.class);
-        final var acct = mock(HederaEvmAccount.class);
+        final var acct = mock(AbstractMutableEvmAccount.class);
 
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
         final var zeroAddr = Address.ZERO;

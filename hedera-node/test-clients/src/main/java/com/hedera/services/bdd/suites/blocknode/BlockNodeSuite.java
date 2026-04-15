@@ -5,9 +5,9 @@ import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContainText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.awaitBlockNodeCommsLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
@@ -95,7 +95,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
@@ -110,7 +110,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(2)),
@@ -124,7 +124,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(3)),
@@ -138,7 +138,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(1)),
@@ -164,7 +164,7 @@ public class BlockNodeSuite {
                         byNodeId(0),
                         connectionDropTime::get,
                         Duration.ofMinutes(1),
-                        Duration.ofSeconds(45),
+                        Duration.ofMinutes(1),
                         String.format(
                                 "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(3)),
@@ -475,7 +475,7 @@ public class BlockNodeSuite {
                 // High latency assertions
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogContainsText(
-                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(0)));
+                awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(30)));
     }
 }

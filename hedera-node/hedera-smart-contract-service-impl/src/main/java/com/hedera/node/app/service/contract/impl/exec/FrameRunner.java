@@ -24,6 +24,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -75,7 +76,8 @@ public class FrameRunner {
             @NonNull final ActionSidecarContentTracer tracer,
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
-            @NonNull final GasCharges gasCharges) {
+            @NonNull final GasCharges gasCharges,
+            @NonNull HEVM hevm) {
         requireNonNull(frame);
         requireNonNull(tracer);
         requireNonNull(senderId);
@@ -88,10 +90,7 @@ public class FrameRunner {
         final var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
         tracer.traceOriginAction(frame);
 
-        // <Soapbox> Pass these golden instances to Bonneville through this
-        // silly back door channel, because the endless wrappers & injectors
-        // stop me from doing it the obvious way - CNC. </soapbox>
-        if (messageCall._evm instanceof BonnevilleEVM bonneville) {
+        if (hevm instanceof BonnevilleEVM bonneville) {
             bonneville.setProcessors(messageCall, (CustomContractCreationProcessor) contractCreation);
             runToCompletion(frame, tracer, messageCall, contractCreation);
         } else {

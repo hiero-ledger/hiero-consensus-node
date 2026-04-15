@@ -99,7 +99,8 @@ public interface V051Module {
                 contractCreationProcessor,
                 featureFlags,
                 codeFactory,
-                gasCalculator);
+                gasCalculator,
+                null);
     }
 
     @Provides

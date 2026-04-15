@@ -31,6 +31,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -44,7 +45,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
@@ -336,7 +336,7 @@ class CustomMessageCallProcessorTest {
     void codeDelegationToPrecompileIsNoOp() {
         given(registry.get(ADDRESS_6)).willReturn(nativePrecompile);
         final var eoaAddress = Address.fromHexString("0x1234");
-        final var eoaAccount = mock(Account.class);
+        final var eoaAccount = mock(AbstractMutableEvmAccount.class);
         given(eoaAccount.getCode()).willReturn(Bytes.concatenate(CODE_DELEGATION_PREFIX, ADDRESS_6));
         given(proxyWorldUpdater.get(eoaAddress)).willReturn(eoaAccount);
         given(frame.getContractAddress()).willReturn(eoaAddress);
@@ -358,7 +358,7 @@ class CustomMessageCallProcessorTest {
         givenExecutingFrame();
         given(registry.get(ADDRESS_6)).willReturn(nativePrecompile);
         final var eoaAddress = Address.fromHexString("0x1234");
-        final var eoaAccount = mock(Account.class);
+        final var eoaAccount = mock(AbstractMutableEvmAccount.class);
         given(eoaAccount.getCode()).willReturn(Bytes.concatenate(CODE_DELEGATION_PREFIX, ADDRESS_6));
         given(proxyWorldUpdater.get(eoaAddress)).willReturn(eoaAccount);
         given(frame.getContractAddress()).willReturn(eoaAddress);

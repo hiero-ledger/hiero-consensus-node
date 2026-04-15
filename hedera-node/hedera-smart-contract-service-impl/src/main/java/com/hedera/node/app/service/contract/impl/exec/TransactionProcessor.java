@@ -24,6 +24,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmContext;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
@@ -56,6 +57,7 @@ public class TransactionProcessor {
     private final FeatureFlags featureFlags;
     private final CodeFactory codeFactory;
     private final GasCalculator gasCalculator;
+    private final HEVM hevm;
 
     public TransactionProcessor(
             @NonNull final FrameBuilder frameBuilder,
@@ -65,7 +67,8 @@ public class TransactionProcessor {
             @NonNull final ContractCreationProcessor contractCreation,
             @NonNull final FeatureFlags featureFlags,
             @NonNull final CodeFactory codeFactory,
-            @NonNull final GasCalculator gasCalculator) {
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull HEVM hevm) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
@@ -74,6 +77,7 @@ public class TransactionProcessor {
         this.featureFlags = requireNonNull(featureFlags);
         this.codeFactory = requireNonNull(codeFactory);
         this.gasCalculator = requireNonNull(gasCalculator);
+        this.hevm = hevm;
     }
 
     /**
@@ -193,7 +197,8 @@ public class TransactionProcessor {
                 tracer,
                 messageCall,
                 contractCreation,
-                gasCharges);
+                gasCharges,
+                hevm);
 
         // Add code delegation result
         result = result.withCodeDelegationResult(codeDelegationResult);
