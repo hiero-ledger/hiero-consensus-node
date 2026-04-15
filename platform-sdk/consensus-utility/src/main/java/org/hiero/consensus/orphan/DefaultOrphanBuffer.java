@@ -65,12 +65,17 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
     private final SequenceMap<EventDescriptorWrapper, List<OrphanedEvent>> missingParentMap;
 
     /**
+     * First sequence number assigned to an event. Has to be greater than {@link PlatformEvent#UNASSIGNED_SEQUENCE_NUMBER}
+     */
+    private final long FIRST_ASSIGNED_SEQUENCE_NUMBER = 1;
+
+    /**
      * Tracks a monotonically increasing sequence number for events in the buffer.
      * <p>
      * This variable is used to assign a unique, sequential identifier to each event as it is released from the orphan
      * buffer. The sequence number ensures that events can be ordered topologically, even if they arrive out of order.
      */
-    private final AtomicLong eventSequenceNumber = new AtomicLong(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER + 1);
+    private final AtomicLong eventSequenceNumber = new AtomicLong(FIRST_ASSIGNED_SEQUENCE_NUMBER);
 
     /**
      * Constructor
@@ -221,7 +226,7 @@ public class DefaultOrphanBuffer implements OrphanBuffer {
             unorphanedEvents.add(nonOrphan);
             eventsWithParents.put(nonOrphanDescriptor, nonOrphan);
             assignNGen(nonOrphan, eventsWithParents);
-            nonOrphan.setSequenceNumber(eventSequenceNumber.incrementAndGet());
+            nonOrphan.setSequenceNumber(eventSequenceNumber.getAndIncrement());
 
             // since this event is no longer an orphan, we need to recheck all of its children to see if any might
             // not be orphans anymore

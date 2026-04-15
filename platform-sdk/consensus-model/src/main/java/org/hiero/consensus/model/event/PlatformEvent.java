@@ -67,20 +67,19 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /**
-     * Represents an unassigned sequence number in a {@code PlatformEvent}.
-     * This constant is used as a placeholder to indicate that a specific
-     * sequence number has not yet been assigned to an event.
-     *
-     * The value of {@code UNASSIGNED_SEQUENCE_NUMBER} is defined as {@code -1}.
-     * This value is chosen because sequence numbers are typically non-negative,
-     * making {@code -1} a clear and unambiguous indicator of the unassigned state.
+     * Represents an unassigned sequence number in a {@code PlatformEvent}. This constant is used as a placeholder to
+     * indicate that a specific sequence number has not yet been assigned to an event.
+     * <p>
+     * The value of {@code UNASSIGNED_SEQUENCE_NUMBER} is defined as {@code -1}. This value is chosen because sequence
+     * numbers are non-negative, making {@code -1} a clear and unambiguous indicator of the unassigned state.
      */
     public static final long UNASSIGNED_SEQUENCE_NUMBER = -1;
 
     /**
-     * Represents the sequence number assigned to this event. The sequence number is unique and increments
-     * with each event created, providing a way to identify the order of events. If the sequence number is
-     * not assigned, it will hold the value of {@code UNASSIGNED_SEQUENCE_NUMBER}.
+     * Represents the sequence number assigned to this event. The sequence number is unique and increments with each
+     * event released from orphan buffer, providing a way to identify the order of events, which can be used for
+     * topological ordering. If the sequence number is not assigned, it will hold the value of
+     * {@code UNASSIGNED_SEQUENCE_NUMBER}.
      */
     private long sequenceNumber = UNASSIGNED_SEQUENCE_NUMBER;
 
@@ -234,6 +233,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
 
     /**
      * The sequence number of this event.
+     *
      * @return the sequence number of this event.
      */
     public long getSequenceNumber() {
