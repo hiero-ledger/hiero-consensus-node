@@ -9,6 +9,7 @@ import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
@@ -25,6 +26,11 @@ public class TokenFeeScheduleUpdateFeeCalculator implements ServiceFeeCalculator
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_FEE_SCHEDULE_UPDATE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
+
+        var op = txnBody.tokenFeeScheduleUpdateOrThrow();
+        if (!op.customFees().isEmpty()) {
+            addExtraFee(feeResult, serviceDef, Extra.TOKEN_CREATE_WITH_CUSTOM_FEE, feeSchedule, 1);
+        }
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {
