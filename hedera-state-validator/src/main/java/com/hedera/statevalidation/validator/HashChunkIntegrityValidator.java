@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -28,12 +31,16 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
     private final AtomicLong pathMismatchCount = new AtomicLong(0);
     private final AtomicLong hashMismatchCount = new AtomicLong(0);
     private final AtomicLong chunkHeightMismatchCount = new AtomicLong(0);
+    private final AtomicLong indexMismatchCount = new AtomicLong(0);
+    private final AtomicLong storeMismatchCount = new AtomicLong(0);
 
     private VirtualMap virtualMap;
     private MerkleDbDataSource vds;
     private long firstLeafPath;
     private long lastLeafPath;
     private int hashChunkHeight;
+    private LongList IdToDiskLocationHashChunks;
+    private MemoryIndexDiskKeyValueStore hashStore;
 
     /**
      * {@inheritDoc}
@@ -64,6 +71,9 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
         this.firstLeafPath = vds.getFirstLeafPath();
         this.lastLeafPath = vds.getLastLeafPath();
         this.hashChunkHeight = vds.getHashChunkHeight();
+
+        this.IdToDiskLocationHashChunks = vds.getIdToDiskLocationHashChunks();
+        this.hashStore = vds.getHashChunkStore();
     }
 
     /**
@@ -74,6 +84,26 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
         try {
             final long chunkId = hashChunk.getChunkId();
             final long hashChunkPath = hashChunk.path();
+
+            try {
+                final BufferedData rawStoreBytes = hashStore.get(chunkId);
+                if (rawStoreBytes == null) {
+                    storeMismatchCount.incrementAndGet();
+                    log.error("Hash store cross-check failed: store returned null for chunk ID {}", chunkId);
+                    return;
+                }
+
+                final VirtualHashChunk chunkFromStore = VirtualHashChunk.parseFrom(rawStoreBytes, hashChunkHeight);
+                if (!chunkFromStore.equals(hashChunk)) {
+                    storeMismatchCount.incrementAndGet();
+                    log.error("Hash chunk mismatch for ID {}: iterator vs store differ", chunkId);
+                    return;
+                }
+            } catch (Exception ex) {
+                storeMismatchCount.incrementAndGet();
+                log.error("Failed to parse hash chunk from store for ID {}. error={}", chunkId, ex.getMessage());
+                return;
+            }
 
             final long expectedChunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
             if (expectedChunkPath != hashChunkPath) {
@@ -151,6 +181,8 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                 && idMismatchCount.get() == 0
                 && pathMismatchCount.get() == 0
                 && hashMismatchCount.get() == 0
+                && storeMismatchCount.get() == 0
+                && indexMismatchCount.get() == 0
                 && chunkHeightMismatchCount.get() == 0;
 
         if (!ok) {
@@ -159,6 +191,7 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                     ("%s validation failed. "
                                     + "successCount=%d vs expectedCount=%d, "
                                     + "idMismatchCount=%d, pathMismatchCount=%d, hashMismatchCount=%d, "
+                                    + "indexMismatchCount=%d, storeMismatchCount=%d, "
                                     + "chunkHeightMismatchCount=%d, exceptionCount=%d")
                             .formatted(
                                     getName(),
@@ -167,6 +200,8 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                                     idMismatchCount.get(),
                                     pathMismatchCount.get(),
                                     hashMismatchCount.get(),
+                                    indexMismatchCount.get(),
+                                    storeMismatchCount.get(),
                                     chunkHeightMismatchCount.get(),
                                     exceptionCount.get()));
         }
