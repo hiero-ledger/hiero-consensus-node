@@ -487,6 +487,7 @@
           "name": "TokenReject",
           "baseFee": 9000000,
           "extras": [
+            {"name": "NFT_UPDATE", "includedCount": 1}
           ]
         },
         {
