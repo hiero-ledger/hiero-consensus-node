@@ -1997,6 +1997,34 @@ public class FeesChargingUtils {
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 
+    /**
+     * SimpleFees formula for TokenFeeScheduleUpdate (with custom fees):
+     * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode + nodeFeeFromBytesUsd(txnSize))
+     * network = node * NETWORK_MULTIPLIER
+     * service = TOKEN_FEE_SCHEDULE_UPDATE_BASE + TOKEN_CREATE_WITH_CUSTOM_FEE
+     * total   = node + network + service
+     */
+    private static double expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(long sigs, int txnSize) {
+        // ----- node fees -----
+        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
+        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
+        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee + nodeFeeFromBytesUsd(txnSize);
+
+        // ----- network fees -----
+        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
+
+        return nodeFee + networkFee + TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD + TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
+    }
+
+    /**
+     * Overload when extras are provided in a map.
+     */
+    public static double expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(final Map<Extra, Long> extras) {
+        return expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
+                extras.getOrDefault(Extra.SIGNATURES, 0L),
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+    }
+
     // -------- ScheduleSign simple fees utils ---------//
 
     /**

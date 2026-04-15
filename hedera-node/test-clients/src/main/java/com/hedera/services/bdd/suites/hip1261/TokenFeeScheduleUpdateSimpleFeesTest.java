@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fra
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeNoFallback;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeWithFallback;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -37,6 +38,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
@@ -125,10 +127,62 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             .via(feeScheduleUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             feeScheduleUpdateTxn,
-                            txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                            txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(feeScheduleUpdateTxn, PAYER));
+        }
+
+        @HapiTest
+        @DisplayName("TokenFeeScheduleUpdate charges TOKEN_CREATE_WITH_CUSTOM_FEE — parity with TokenCreate")
+        final Stream<DynamicTest> tokenFeeScheduleUpdateChargesCustomFeeSurcharge() {
+            return hapiTest(
+                    newKeyNamed(FEE_SCHEDULE_KEY),
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate(FEE_COLLECTOR).balance(0L),
+                    // PATH A: Create token with 1 custom fee directly
+                    tokenCreate("tokenA")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(1_000L)
+                            .treasury(PAYER)
+                            .feeScheduleKey(FEE_SCHEDULE_KEY)
+                            .withCustom(fixedHbarFee(1L, FEE_COLLECTOR))
+                            .payingWith(PAYER)
+                            .via("createWithFees"),
+                    // PATH B.1: Create the same token WITHOUT custom fees
+                    tokenCreate("tokenB")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(1_000L)
+                            .treasury(PAYER)
+                            .feeScheduleKey(FEE_SCHEDULE_KEY)
+                            .payingWith(PAYER)
+                            .via("createWithoutFees"),
+                    // PATH B.2: add the same custom fee via TokenFeeScheduleUpdate
+                    tokenFeeScheduleUpdate("tokenB")
+                            .withCustom(fixedHbarFee(1L, FEE_COLLECTOR))
+                            .payingWith(PAYER)
+                            .signedBy(PAYER, FEE_SCHEDULE_KEY)
+                            .via("feeScheduleUpdate"),
+                    assertionsHold((spec, log) -> {
+                        final var recA = getTxnRecord("createWithFees");
+                        final var recB = getTxnRecord("createWithoutFees");
+                        final var recBUpd = getTxnRecord("feeScheduleUpdate");
+                        allRunFor(spec, recA, recB, recBUpd);
+
+                        final long feeA = recA.getResponseRecord().getTransactionFee();
+                        final long feeB = recB.getResponseRecord().getTransactionFee();
+                        final long feeBUpd = recBUpd.getResponseRecord().getTransactionFee();
+                        final long feeBTotal = feeB + feeBUpd;
+
+                        // After the fix, Path B pays the $1 TOKEN_CREATE_WITH_CUSTOM_FEE surcharge
+                        // on the update leg, plus a second TokenCreate base fee and a
+                        // FeeScheduleUpdate base fee — so Path B total must exceed Path A total
+                        // (before the fix, Path B was cheaper, bypassing the surcharge).
+                        assertTrue(
+                                feeBTotal > feeA,
+                                "Path B total (" + feeBTotal + ") must exceed Path A total (" + feeA
+                                        + ") — the $1 surcharge must not be bypassable via TokenFeeScheduleUpdate");
+                    }));
         }
 
         @HapiTest
@@ -157,7 +211,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             .via(feeScheduleUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             feeScheduleUpdateTxn,
-                            txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                            txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                     Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(feeScheduleUpdateTxn, PAYER));
@@ -188,7 +242,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             .via(feeScheduleUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             feeScheduleUpdateTxn,
-                            txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                            txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                     Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(feeScheduleUpdateTxn, PAYER));
@@ -227,7 +281,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                     }),
                     validateChargedUsdWithinWithTxnSize(
                             feeScheduleUpdateTxn,
-                            txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                            txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                     Map.of(SIGNATURES, 21L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(feeScheduleUpdateTxn, PAYER));
@@ -256,7 +310,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             .via(feeScheduleUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             feeScheduleUpdateTxn,
-                            txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                            txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
@@ -288,7 +342,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             .via(feeScheduleUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             feeScheduleUpdateTxn,
-                            txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                            txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
@@ -321,7 +375,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             .via(feeScheduleUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             feeScheduleUpdateTxn,
-                            txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                            txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
@@ -348,7 +402,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             .via(feeScheduleUpdateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             feeScheduleUpdateTxn,
-                            txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                            txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
         }
@@ -720,7 +774,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                                 .hasKnownStatus(INVALID_SIGNATURE),
                         validateChargedUsdWithinWithTxnSize(
                                 feeScheduleUpdateTxn,
-                                txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                                txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(feeScheduleUpdateTxn, PAYER));
@@ -740,7 +794,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                                 .hasKnownStatus(INVALID_TOKEN_ID),
                         validateChargedUsdWithinWithTxnSize(
                                 feeScheduleUpdateTxn,
-                                txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                                txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(feeScheduleUpdateTxn, PAYER));
@@ -766,7 +820,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                                 .hasKnownStatus(TOKEN_HAS_NO_FEE_SCHEDULE_KEY),
                         validateChargedUsdWithinWithTxnSize(
                                 feeScheduleUpdateTxn,
-                                txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                                txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(feeScheduleUpdateTxn, PAYER));
@@ -807,7 +861,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                                 .hasPrecheck(DUPLICATE_TRANSACTION),
                         validateChargedUsdWithinWithTxnSize(
                                 feeScheduleUpdateTxn,
-                                txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
+                                txnSize -> expectedTokenFeeScheduleUpdateWithCustomFeesFullFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(feeScheduleUpdateTxn, PAYER));
