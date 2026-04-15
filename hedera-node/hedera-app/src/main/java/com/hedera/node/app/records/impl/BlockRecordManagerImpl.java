@@ -262,7 +262,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
         final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
         final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
-        // Only write to the wrapped hashes file if live writing isn't enabled
         appendWrappedRecordFileBlockHashesToDisk(
                 currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
     }
