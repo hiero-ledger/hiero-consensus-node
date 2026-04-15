@@ -16,12 +16,7 @@ import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
-import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
-import com.hedera.node.app.service.contract.impl.state.StorageAccess;
-import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
-import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
-import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.contract.impl.state.*;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +29,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
@@ -67,12 +61,12 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     }
 
     /**
-     * When accessing account while executing hook, return a proxy account that
+     * When accessing the account while executing hook, return a proxy account that
      * fetches the bytecode from the hook store using the hookId.
      * Otherwise, delegate to the parent class to handle.
      */
     @Override
-    public @Nullable MutableAccount getMutableAccount(@NonNull final Address address) {
+    public @Nullable AbstractMutableEvmAccount getMutableAccount(@NonNull Address address) {
         if (address.equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
             return new ProxyEvmHook(this, hook, codeFactory, entityIdFactory);
         }
