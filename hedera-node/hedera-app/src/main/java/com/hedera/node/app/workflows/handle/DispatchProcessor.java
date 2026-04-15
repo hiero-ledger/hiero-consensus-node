@@ -22,6 +22,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -177,7 +178,7 @@ public class DispatchProcessor {
         } catch (HandleException e) {
             final var feeCharging = dispatch.feeChargingOrElse(appFeeCharging);
             feeCharging.rollback();
-            rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
+            rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
             chargePayer(dispatch, validation, false);
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext()::dispatch);
         } catch (ThrottleException e) {
@@ -233,7 +234,7 @@ public class DispatchProcessor {
             @NonNull final FeeCharging.Validation validation,
             @NonNull final ResponseCodeEnum status) {
         dispatch.feeChargingOrElse(appFeeCharging).rollback();
-        rollback(status, dispatch.stack(), dispatch.streamBuilder());
+        rollback(status, dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
         chargePayer(dispatch, validation, true);
         dispatchUsageManager.trackFeePayments(dispatch);
     }
@@ -284,15 +285,19 @@ public class DispatchProcessor {
 
     /**
      * Rolls back the stack and sets the status of the transaction in case of a failure.
-     * @param status        the status to set
-     * @param stack         the save point stack to rollback
+     * @param status the status to set
+     * @param stack the save point stack to rollback
+     * @param builder the stream builder
+     * @param feeAccumulator the fee accumulator to reset after rollback
      */
     private void rollback(
             @NonNull final ResponseCodeEnum status,
             @NonNull final SavepointStackImpl stack,
-            @NonNull final StreamBuilder builder) {
+            @NonNull final StreamBuilder builder,
+            @NonNull final FeeAccumulator feeAccumulator) {
         builder.status(status);
         stack.rollbackFullStack();
+        feeAccumulator.resetRefundableFees();
     }
 
     /**
