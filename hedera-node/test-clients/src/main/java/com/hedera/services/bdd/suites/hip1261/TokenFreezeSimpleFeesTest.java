@@ -25,10 +25,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAcco
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFreezeFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFreezeNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnfreezeFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnfreezeNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -187,14 +188,8 @@ public class TokenFreezeSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenFreeze with large payer key - extra processing bytes fee")
         final Stream<DynamicTest> tokenFreezeLargeKeyExtraProcessingBytesFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(
-                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
@@ -205,11 +200,11 @@ public class TokenFreezeSimpleFeesTest {
                             .freezeDefault(false)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20))),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     tokenFreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .signedBy(PAYER, FREEZE_KEY)
                             .via(freezeTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -222,17 +217,8 @@ public class TokenFreezeSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenFreeze with very large payer key below oversize - extra processing bytes fee")
         final Stream<DynamicTest> tokenFreezeVeryLargeKeyBelowOversizeExtraProcessingBytesFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(sigs(
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(40)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
@@ -243,11 +229,11 @@ public class TokenFreezeSimpleFeesTest {
                             .freezeDefault(false)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(40))),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     tokenFreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(40)))
                             .signedBy(PAYER, FREEZE_KEY)
                             .via(freezeTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -329,14 +315,8 @@ public class TokenFreezeSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenUnfreeze with large payer key - extra processing bytes fee")
         final Stream<DynamicTest> tokenUnfreezeLargeKeyExtraProcessingBytesFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(
-                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
@@ -347,11 +327,11 @@ public class TokenFreezeSimpleFeesTest {
                             .freezeDefault(true)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20))),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     tokenUnfreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .signedBy(PAYER, FREEZE_KEY)
                             .via(unfreezeTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -365,17 +345,8 @@ public class TokenFreezeSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenUnfreeze with very large payer key below oversize - extra processing bytes fee")
         final Stream<DynamicTest> tokenUnfreezeVeryLargeKeyBelowOversizeExtraProcessingBytesFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(sigs(
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(40)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS),
@@ -386,11 +357,11 @@ public class TokenFreezeSimpleFeesTest {
                             .freezeDefault(true)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(40))),
                     tokenAssociate(ACCOUNT, TOKEN).payingWith(ACCOUNT),
                     tokenUnfreeze(TOKEN, ACCOUNT)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(40)))
                             .signedBy(PAYER, FREEZE_KEY)
                             .via(unfreezeTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -825,7 +796,7 @@ public class TokenFreezeSimpleFeesTest {
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                         validateChargedUsdWithinWithTxnSize(
                                 freezeTxn,
-                                txnSize -> expectedTokenFreezeNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(freezeTxn, "4"));
@@ -1228,7 +1199,7 @@ public class TokenFreezeSimpleFeesTest {
                                 .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                         validateChargedUsdWithinWithTxnSize(
                                 unfreezeTxn,
-                                txnSize -> expectedTokenUnfreezeNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(unfreezeTxn, "4"));

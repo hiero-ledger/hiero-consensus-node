@@ -131,6 +131,8 @@ jobs:
     name: "HAPI Tests (Misc)"
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}]
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -233,10 +235,25 @@ jobs:
             hedera-node/yahcli/build/hapi-test/**/*.log
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-misc.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-misc-records:
     name: "HAPI Tests (Misc Records)"
     if: ${{ inputs.enable-hapi-tests-misc-records == 'true' }}
     runs-on: hl-cn-hapi-lin-xl
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -321,10 +338,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-misc-records.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-crypto:
     name: "HAPI Tests (Crypto)"
     if: ${{ inputs.enable-hapi-tests-crypto == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -409,10 +441,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-crypto.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-simple-fees:
     name: "HAPI Tests (Simple Fees)"
     if: ${{ inputs.enable-hapi-tests-simplefees == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -497,10 +544,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-simplefees.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-token:
     name: "HAPI Tests (Token)"
     if: ${{ inputs.enable-hapi-tests-token == 'true' }}
     runs-on: hl-cn-hapi-lin-xl
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -585,10 +647,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-token.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-smart-contracts:
     name: "HAPI Tests (Smart Contracts)"
     if: ${{ inputs.enable-hapi-tests-smart-contract == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -673,10 +750,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-smart-contract.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-time-consuming:
     name: "HAPI Tests (Time Consuming)"
     if: ${{ inputs.enable-hapi-tests-time-consuming == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -761,10 +853,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-time-consuming.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-restart:
     name: "HAPI Tests (Restart)"
     if: ${{ inputs.enable-hapi-tests-restart == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -849,10 +956,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-restart.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-nd-reconnect:
     name: "HAPI Tests (ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-nd-reconnect == 'true' }}
     runs-on: hl-cn-hapi-lin-xl
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -937,10 +1059,26 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "skipped"
+          ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-nd-reconnect.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-iss:
     name: "HAPI Tests (ISS)"
     if: ${{ inputs.enable-hapi-tests-iss == 'true' }}
     runs-on: hl-cn-hapi-lin-md
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -1025,10 +1163,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-iss.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-bn-comms:
     name: "HAPI Tests (BN Comms)"
     if: ${{ inputs.enable-hapi-tests-bn-communication == 'true' }}
     runs-on: hl-cn-hapi-bn-lin-xl
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -1111,10 +1264,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
     if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -1199,10 +1367,25 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-atomic-batch.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   hapi-tests-state-throttling:
     name: "HAPI Tests (State Throttling)"
     if: ${{ inputs.enable-hapi-tests-state-throttling == 'true' }}
     runs-on: hl-cn-hapi-lin-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -1287,6 +1470,19 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "skipped" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-state-throttling.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   set-failure-mode:
     name: "Set Failure Mode"
     runs-on: hl-cn-default-lin-sm
@@ -1330,19 +1526,33 @@ jobs:
             "${{ needs.hapi-tests-state-throttling.result || 'skipped' }}"
           )
 
-          # final outputs
+          job_failure_modes=(
+            "${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-misc-records.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-crypto.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-simple-fees.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-token.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-smart-contracts.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-time-consuming.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-restart.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-nd-reconnect.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-iss.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-bn-comms.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-atomic-batch.outputs.failure-mode || 'none' }}"
+            "${{ needs.hapi-tests-state-throttling.outputs.failure-mode || 'none' }}"
+          )
+
           failure_mode="none"
 
-          has_failure() {
-            local arr=("$@")
-            for status in "${arr[@]}"; do
-              [[ "${status}" == "failure" ]] && return 0
-            done
-            return 1
-          }
-
-          if has_failure "${job_statuses[@]}"; then
-            failure_mode="general"
-          fi
+          for i in "${!job_statuses[@]}"; do
+            if [[ "${job_statuses[$i]}" == "failure" ]]; then
+              mode="${job_failure_modes[$i]}"
+              if [[ "${failure_mode}" == "none" ]]; then
+                failure_mode="${mode}"
+              elif [[ "${mode}" == "workflow" ]]; then
+                failure_mode="workflow"
+              fi
+            fi
+          done
 
           echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
