@@ -168,6 +168,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
      */
     @Override
     protected void onInvocationTearDown() throws Exception {
+        verifyMap(teacherData, reconnectedMap);
+
         reconnectedMap.release();
 
         super.onInvocationTearDown();
@@ -216,8 +218,6 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 delayNetworkFuzzRangePercent,
                 new NodeId(),
                 configuration);
-
-        verifyMap(teacherData, reconnectedMap);
     }
 
     static void main() throws Exception {

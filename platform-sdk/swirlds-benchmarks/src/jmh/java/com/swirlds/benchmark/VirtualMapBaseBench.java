@@ -22,16 +22,13 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public abstract class VirtualMapBaseBench extends BaseBench {
 
-    protected static final Logger logger = LogManager.getLogger(VirtualMapBench.class);
+    protected static final Logger logger = LogManager.getLogger(VirtualMapBaseBench.class);
 
     protected static final String SAVED = "saved";
     protected static final String SNAPSHOT = "snapshot";
     protected static final long SNAPSHOT_DELAY = 20_000;
 
     protected MerkleDbDataSourceBuilder dataSourceBuilder;
-
-    /* This map may be pre-created on demand and reused between benchmarks/iterations */
-    protected VirtualMap virtualMapP;
 
     /* Run snapshots periodically */
     private boolean doSnapshots;
@@ -72,8 +69,6 @@ public abstract class VirtualMapBaseBench extends BaseBench {
      */
     @Override
     protected void onTrialTearDown() throws Exception {
-        releaseAndCloseMap(virtualMapP);
-        virtualMapP = null;
         hasher.shutdown();
 
         super.onTrialTearDown();
