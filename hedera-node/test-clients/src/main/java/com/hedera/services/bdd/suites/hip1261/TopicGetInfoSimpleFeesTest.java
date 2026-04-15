@@ -4,10 +4,6 @@ package com.hedera.services.bdd.suites.hip1261;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
-import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
-import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
-import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
-import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -15,7 +11,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedGetTopicInfoFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
@@ -24,8 +22,6 @@ import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.keys.KeyShape;
-import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -97,19 +93,13 @@ public class TopicGetInfoSimpleFeesTest {
         @DisplayName("GetTopicInfo - large payer key charges extra signatures fee")
         final Stream<DynamicTest> getTopicInfoLargePayerKeyExtraFee() {
             final String PAYER_KEY = "payerKey";
-            KeyShape largeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigning = largeKeyShape.signedWith(
-                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     createTopic(TOPIC).payingWith(PAYER).signedBy(PAYER),
                     getTopicInfo(TOPIC)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigning))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .via("getTopicInfoQuery"),
                     validateChargedUsdWithinWithTxnSize(
                             "getTopicInfoQuery",

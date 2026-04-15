@@ -12,11 +12,13 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -170,6 +172,7 @@ public class Hip1259DisabledTests {
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoCreate("trigger").payingWith(GENESIS),
                 sleepForBlockPeriod(),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
                 EmbeddedVerbs.<NodeRewards>viewSingleton(
                         TokenService.NAME,
                         NODE_REWARDS_STATE_ID,

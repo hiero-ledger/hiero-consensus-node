@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess.blockFrom;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
@@ -27,6 +28,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -45,8 +47,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.TransactionResult;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
+import com.hedera.node.app.blocks.BlockStreamService;
+import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.service.token.TokenService;
@@ -374,14 +379,13 @@ public class RepeatableHip1064Tests {
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Start a new period and leave only node1 as inactive
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> {
-                    assertEquals(3, nodeRewards.numRoundsInStakingPeriod());
                     assertEquals(4, nodeRewards.nodeActivities().size());
                     assertEquals(expectedNodeFees.get(), nodeRewards.nodeFeesCollected());
                     return nodeRewards
                             .copyBuilder()
                             .nodeActivities(NodeActivity.newBuilder()
                                     .nodeId(1)
-                                    .numMissedJudgeRounds(3)
+                                    .numMissedJudgeRounds(nodeRewards.numRoundsInStakingPeriod())
                                     .build())
                             .build();
                 }),
@@ -676,6 +680,11 @@ public class RepeatableHip1064Tests {
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
                 sleepForBlockPeriod(),
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                // Simple hack to ensure the round starting the next block sees a next-staking-period time
+                syncBlockEndTimeToSpecTime(),
+                sleepForBlockPeriod(),
+                doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
+                // Close a final block to capture the node reqard payment
                 sleepForBlockPeriod(),
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),
                 doingContextual(spec -> allRunFor(
@@ -901,5 +910,12 @@ public class RepeatableHip1064Tests {
         assertEquals(expectedMinNodeReward.getAsLong(), bodyAdjustments.get(6L));
         // node1 credit
         assertEquals(expectedMinNodeReward.getAsLong(), bodyAdjustments.get(4L));
+    }
+
+    private static SpecOperation syncBlockEndTimeToSpecTime() {
+        return sourcingContextual(spec -> EmbeddedVerbs.<BlockStreamInfo>mutateSingleton(
+                BlockStreamService.NAME, V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID, info -> info.copyBuilder()
+                        .blockEndTime(asTimestamp(spec.consensusTime()))
+                        .build()));
     }
 }

@@ -35,12 +35,43 @@ public abstract class BaseBench {
 
     private static final Logger logger = LogManager.getLogger(BaseBench.class);
 
+    /**
+     * Number of outer iterations. Meaning depends on the benchmark:
+     * data files written, VirtualMap copy-cycles, etc.
+     * <p>
+     * {@code numFiles × numRecords} is the total number of operations.
+     * Full-population benchmarks also use this product as the map size.
+     */
     @Param({"100"})
     public int numFiles;
 
+    /**
+     * Number of operations per iteration.
+     *
+     * @see #numFiles
+     */
     @Param({"100000"})
     public int numRecords;
 
+    /**
+     * Upper bound of the key space for random-access and low-level storage benchmarks.
+     * <p>
+     * In random-access benchmarks ({@code CryptoBench},
+     * {@code VirtualMapBench.update/create/delete}), keys are drawn from
+     * {@code [0, maxKey)}. The ratio to {@code numFiles × numRecords}
+     * controls density: smaller means update-heavy, larger means create-heavy.
+     * <p>
+     * In {@code VirtualMapBench.read()}, used as the exact map population
+     * size — all keys in {@code [0, maxKey)} are inserted, then read
+     * randomly. Map copies during population are spaced to avoid OOM.
+     * <p>
+     * In low-level storage benchmarks ({@code DataFileCollectionBench},
+     * {@code HalfDiskMapBench}, {@code KeyValueStoreBench}), used as
+     * the physical index capacity.
+     * <p>
+     * Not used by {@code ReconnectBench}, which derives map size
+     * from {@code numFiles × numRecords}.
+     */
     @Param({"1000000"})
     public int maxKey;
 

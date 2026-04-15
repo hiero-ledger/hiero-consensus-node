@@ -48,7 +48,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTAndNFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAirdropSurchargeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
@@ -997,7 +997,7 @@ public class TokenAirdropSimpleFeesTest {
                                     .hasKnownStatus(INVALID_PAYER_SIGNATURE),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.01),
                             getTxnRecord(INNER_ID).logged(),
@@ -1031,7 +1031,7 @@ public class TokenAirdropSimpleFeesTest {
                                     .hasKnownStatus(INSUFFICIENT_TX_FEE),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.01),
                             getTxnRecord(INNER_ID).logged(),
@@ -1064,7 +1064,7 @@ public class TokenAirdropSimpleFeesTest {
                                     .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.01),
                             getTxnRecord(INNER_ID).logged(),
