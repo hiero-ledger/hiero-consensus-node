@@ -19,7 +19,9 @@ Usage: solo-wrb-jumpstart.sh [--nodes 3|4]
 Environment:
   INITIAL_RELEASE_TAG           Deploy release tag (default: v0.73.0-rc.1)
   UPGRADE_VERSION               Solo upgrade-version for network upgrade
-                                (default: local-build upgrade uses v0.73.0-rc.1; explicit value uses tag-based upgrade)
+                                (explicit value uses tag-based upgrade)
+  LOCAL_BUILD_UPGRADE_TAG       Optional placeholder tag passed to Solo for local-build upgrades
+                                (default: v0.73.0-rc.5)
   LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars
                                 (used when UPGRADE_VERSION is not set; default: <repo>/hedera-node/data)
   DEPLOY_APP_PROPS_FILE         application.properties used for initial deploy
@@ -90,7 +92,7 @@ fi
 CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
 INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0-rc.1}"
 UPGRADE_VERSION="${UPGRADE_VERSION:-${UPGRADE_LOCAL_VERSION:-}}"
-LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.73.0-rc.1}"
+LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.73.0-rc.5}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
@@ -1038,8 +1040,12 @@ if [[ -z "${UPGRADE_VERSION}" ]]; then
     exit 1
   }
   USE_LOCAL_BUILD_FOR_UPGRADE="true"
+  [[ -n "${LOCAL_BUILD_UPGRADE_TAG}" ]] || {
+    echo "LOCAL_BUILD_UPGRADE_TAG is empty; set LOCAL_BUILD_UPGRADE_TAG or UPGRADE_VERSION explicitly" >&2
+    exit 1
+  }
   UPGRADE_VERSION="${LOCAL_BUILD_UPGRADE_TAG}"
-  log "Using fixed upgrade-version ${UPGRADE_VERSION} for local build upgrade; local build Implementation-Version is ${local_build_version}"
+  log "Using placeholder upgrade-version ${UPGRADE_VERSION} for local build upgrade; local build Implementation-Version is ${local_build_version}"
 else
   log "Using explicit upgrade-version override: ${UPGRADE_VERSION}"
 fi

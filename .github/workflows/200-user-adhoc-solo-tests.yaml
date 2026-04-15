@@ -19,7 +19,7 @@ on:
         type: string
         default: "v0.73.0-rc.1"
       upgrade-tag:
-        description: "Optional solo upgrade-version override. Leave blank to use the local build with Solo upgrade-version pinned to v0.73.0-rc.1."
+        description: "Optional solo upgrade-version override. Leave blank to use the local build with placeholder tag v0.73.0-rc.5."
         required: false
         type: string
         default: ""
