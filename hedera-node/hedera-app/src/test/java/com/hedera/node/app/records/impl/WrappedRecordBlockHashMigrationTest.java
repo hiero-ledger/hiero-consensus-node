@@ -346,6 +346,29 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     @Test
+    void skipsHashMatchCheckWhenCurrentBlockHashesNotPopulated() throws Exception {
+        // When both currentBlock*Hash properties are empty, the new check is skipped and the
+        // migration proceeds even though the file entry would not match empty hashes.
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(entryWithHashes(i, fillHash((byte) 0xCC), fillHash((byte) 0xDD)));
+        }
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+
+        final var jsConfig = new BlockStreamJumpstartConfig(
+                98,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.EMPTY,
+                Bytes.EMPTY);
+
+        subject.execute(StreamMode.RECORDS, config, jsConfig, false);
+        assertThat(subject.result()).isNotNull();
+    }
+
+    @Test
     void returnsEarlyWhenJumpstartBlockEntryNotFoundInRecentHashes() throws Exception {
         // Jumpstart block 93 is within [first=90, last=100] range but the entry itself is missing.
         final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();

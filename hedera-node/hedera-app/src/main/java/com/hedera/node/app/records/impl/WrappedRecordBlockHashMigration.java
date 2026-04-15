@@ -207,6 +207,15 @@ public class WrappedRecordBlockHashMigration {
     private boolean validateJumpstartBlockHashesMatch(
             @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
             @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes) {
+        // Either hash might be empty; only execute this check when both are populated
+        final var jumpstartTimestampHash = jumpstartConfig.currentBlockConsensusTimestampHash();
+        final var jumpstartOutputHash = jumpstartConfig.currentBlockOutputItemsTreeRootHash();
+        if (jumpstartTimestampHash.length() == 0 || jumpstartOutputHash.length() == 0) {
+            log.info(
+                    "Jumpstart currentBlockConsensusTimestampHash and/or currentBlockOutputItemsTreeRootHash not populated; skipping jumpstart hash match check");
+            return true;
+        }
+
         final var jumpstartBlockNum = jumpstartConfig.blockNum();
         final var matchingEntry = allRecentWrappedRecordHashes.entries().stream()
                 .filter(e -> e.blockNumber() == jumpstartBlockNum)
@@ -219,20 +228,20 @@ public class WrappedRecordBlockHashMigration {
                     RESUME_MESSAGE);
             return false;
         }
-        if (!matchingEntry.consensusTimestampHash().equals(jumpstartConfig.currentBlockConsensusTimestampHash())) {
+        if (!matchingEntry.consensusTimestampHash().equals(jumpstartTimestampHash)) {
             log.warn(
                     "Jumpstart currentBlockConsensusTimestampHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
                     jumpstartBlockNum,
-                    jumpstartConfig.currentBlockConsensusTimestampHash(),
+                    jumpstartTimestampHash,
                     matchingEntry.consensusTimestampHash(),
                     RESUME_MESSAGE);
             return false;
         }
-        if (!matchingEntry.outputItemsTreeRootHash().equals(jumpstartConfig.currentBlockOutputItemsTreeRootHash())) {
+        if (!matchingEntry.outputItemsTreeRootHash().equals(jumpstartOutputHash)) {
             log.warn(
                     "Jumpstart currentBlockOutputItemsTreeRootHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
                     jumpstartBlockNum,
-                    jumpstartConfig.currentBlockOutputItemsTreeRootHash(),
+                    jumpstartOutputHash,
                     matchingEntry.outputItemsTreeRootHash(),
                     RESUME_MESSAGE);
             return false;
@@ -322,8 +331,9 @@ public class WrappedRecordBlockHashMigration {
                 foundError = true;
             }
         }
+        // currentBlock*Hash properties may not be present; only validate length when populated
         final var timestampHash = jumpstartConfig.currentBlockConsensusTimestampHash();
-        if (timestampHash.length() != HASH_SIZE) {
+        if (timestampHash.length() != 0 && timestampHash.length() != HASH_SIZE) {
             log.error(
                     "Jumpstart currentBlockConsensusTimestampHash has invalid length {} (expected {}). {}",
                     timestampHash.length(),
@@ -332,7 +342,7 @@ public class WrappedRecordBlockHashMigration {
             foundError = true;
         }
         final var outputHash = jumpstartConfig.currentBlockOutputItemsTreeRootHash();
-        if (outputHash.length() != HASH_SIZE) {
+        if (outputHash.length() != 0 && outputHash.length() != HASH_SIZE) {
             log.error(
                     "Jumpstart currentBlockOutputItemsTreeRootHash has invalid length {} (expected {}). {}",
                     outputHash.length(),
