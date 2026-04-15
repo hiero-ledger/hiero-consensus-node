@@ -30,11 +30,12 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDissociateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -202,15 +203,13 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
         @DisplayName(
                 "TokenAssociate - large key txn above NODE_INCLUDED_BYTES threshold - extra PROCESSING_BYTES charged")
         final Stream<DynamicTest> tokenAssociateLargeKeyExtraProcessingBytesFee() {
-            final KeyShape largeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     cryptoCreate(TREASURY),
-                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
                     tokenAssociate(ACCOUNT, TOKEN1)
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .payingWith(ACCOUNT)
                             .signedBy(ACCOUNT)
                             .via(tokenAssociateTxn),
@@ -234,18 +233,13 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenAssociate - very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
         final Stream<DynamicTest> tokenAssociateVeryLargeKeyBelowOversizeFee() {
-            final KeyShape veryLargeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     cryptoCreate(TREASURY),
-                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(57)),
                     cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
                     tokenAssociate(ACCOUNT, TOKEN1)
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(57)))
                             .payingWith(ACCOUNT)
                             .signedBy(ACCOUNT)
                             .via(tokenAssociateTxn),
@@ -343,16 +337,14 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
         @DisplayName(
                 "TokenDissociate - large key txn above NODE_INCLUDED_BYTES threshold - extra PROCESSING_BYTES charged")
         final Stream<DynamicTest> tokenDissociateLargeKeyExtraProcessingBytesFee() {
-            final KeyShape largeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     cryptoCreate(TREASURY),
-                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
                     tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                     tokenDissociate(ACCOUNT, TOKEN1)
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .payingWith(ACCOUNT)
                             .signedBy(ACCOUNT)
                             .via(tokenDissociateTxn),
@@ -376,19 +368,14 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenDissociate - very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
         final Stream<DynamicTest> tokenDissociateVeryLargeKeyBelowOversizeFee() {
-            final KeyShape veryLargeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     cryptoCreate(TREASURY),
-                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(57)),
                     cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
                     tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                     tokenDissociate(ACCOUNT, TOKEN1)
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(57)))
                             .payingWith(ACCOUNT)
                             .signedBy(ACCOUNT)
                             .via(tokenDissociateTxn),
@@ -630,19 +617,13 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenAssociate - very large txn (above 6KB) - fails on ingest")
             final Stream<DynamicTest> tokenAssociateTransactionOversizeFailsOnIngest() {
-                final KeyShape veryLargeKeyShape = threshOf(
-                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
                 return hapiTest(
                         cryptoCreate(TREASURY),
-                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(70)),
                         cryptoCreate(ACCOUNT).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
                         tokenAssociate(ACCOUNT, TOKEN1)
+                                .sigControl(forKey(PAYER_KEY, allOnSigControl(70)))
                                 .payingWith(ACCOUNT)
                                 .signedBy(ACCOUNT)
                                 .via(tokenAssociateTxn)
@@ -752,7 +733,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                         validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                txnSize -> expectedTokenAssociateNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(INNER_ID, "0.0.4"));
@@ -998,22 +979,16 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenDissociate - very large txn (above 6KB) - fails on ingest")
             final Stream<DynamicTest> tokenDissociateTransactionOversizeFailsOnIngest() {
-                final KeyShape veryLargeKeyShape = threshOf(
-                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
                 return hapiTest(
                         cryptoCreate(TREASURY),
                         newKeyNamed("adminKey"),
-                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(70)),
                         cryptoCreate(ACCOUNT).key("adminKey").balance(ONE_HUNDRED_HBARS),
                         tokenCreate(TOKEN1).tokenType(FUNGIBLE_COMMON).treasury(TREASURY),
                         tokenAssociate(ACCOUNT, TOKEN1).payingWith(ACCOUNT),
                         cryptoUpdate(ACCOUNT).key(PAYER_KEY),
                         tokenDissociate(ACCOUNT, TOKEN1)
+                                .sigControl(forKey(PAYER_KEY, allOnSigControl(70)))
                                 .payingWith(ACCOUNT)
                                 .signedBy(ACCOUNT)
                                 .via(tokenDissociateTxn)
@@ -1123,7 +1098,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                         validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                txnSize -> expectedTokenDissociateNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(INNER_ID, "0.0.4"));
