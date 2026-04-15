@@ -18,6 +18,8 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @Fork(value = 1)
 @BenchmarkMode(Mode.AverageTime)
@@ -51,7 +53,7 @@ public class KeyValueStoreBench extends BaseBench {
         // Write files
         long start = System.currentTimeMillis();
         for (int i = 0; i < numFiles; i++) {
-            store.updateValidKeyRange(0, maxKey);
+            store.updateValidKeyRange(0, maxKey - 1);
             store.startWriting();
             resetKeys();
             for (int j = 0; j < numRecords; ++j) {
@@ -90,5 +92,13 @@ public class KeyValueStoreBench extends BaseBench {
         }
 
         store.close();
+    }
+
+    static void main() throws Exception {
+        new Runner(new OptionsBuilder()
+                        .include(KeyValueStoreBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
+                .run();
     }
 }

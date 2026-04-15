@@ -26,6 +26,8 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @Fork(value = 1)
 @BenchmarkMode(Mode.AverageTime)
@@ -461,12 +463,11 @@ public class CryptoBench extends VirtualMapBench {
         finalMap.getDataSource().close();
     }
 
-    public static void main(String[] args) throws Exception {
-        final CryptoBench bench = new CryptoBench();
-        bench.setupTrial();
-        bench.setupInvocation();
-        bench.transferPrefetch();
-        bench.tearDownInvocation();
-        bench.tearDownTrial();
+    static void main() throws Exception {
+        new Runner(new OptionsBuilder()
+                        .include(CryptoBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
+                .run();
     }
 }
