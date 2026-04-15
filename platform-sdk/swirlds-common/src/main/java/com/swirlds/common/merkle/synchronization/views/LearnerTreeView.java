@@ -8,7 +8,6 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 /**
  * A "view" into a merkle tree (or subtree) used to perform a reconnect operation. This view is used to access
  * the tree by the learner.
- *
  */
 public interface LearnerTreeView {
 

@@ -88,16 +88,6 @@ public class FakeNmt {
     }
 
     /**
-     * Returns an operation that restarts the node with the given name.
-     *
-     * @param name the name of the node to restart
-     * @return the operation that restarts the node
-     */
-    public static TryToStartNodesOp restartNode(@NonNull final String name) {
-        return restartNode(NodeSelector.byName(name));
-    }
-
-    /**
      * Returns an operation that restarts the selected nodes with the given config version.
      *
      * @param selector the selector for the nodes to restart
@@ -107,16 +97,6 @@ public class FakeNmt {
     public static TryToStartNodesOp restartWithConfigVersion(
             @NonNull final NodeSelector selector, final int configVersion) {
         return new TryToStartNodesOp(selector, configVersion);
-    }
-
-    /**
-     * Returns an operation that shuts down the named node within the given timeout.
-     * @param name the name of the node to shut down
-     * @param timeout the timeout for the shutdown
-     * @return the operation that shuts down the node
-     */
-    public static ShutdownWithinOp shutdownWithin(@NonNull final String name, @NonNull final Duration timeout) {
-        return shutdownWithin(NodeSelector.byName(name), timeout);
     }
 
     /**

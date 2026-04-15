@@ -22,6 +22,8 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @Fork(value = 1)
 @BenchmarkMode(Mode.AverageTime)
@@ -39,8 +41,8 @@ public class DataFileCollectionBench extends BaseBench {
 
     @Benchmark
     public void compaction() throws Exception {
-        String storeName = "compactionBench";
-        setTestDir(storeName);
+        final String storeName = "compactionBench";
+        setStoreDir(storeName);
 
         logger.info(RUN_DELIMITER);
 
@@ -49,7 +51,7 @@ public class DataFileCollectionBench extends BaseBench {
         final BenchmarkRecord[] map = new BenchmarkRecord[verify ? maxKey : 0];
         final MerkleDbConfig dbConfig = getConfig(MerkleDbConfig.class);
         final var store =
-                new DataFileCollection(dbConfig, getTestDir(), storeName, null, (dataLocation, dataValue) -> {}) {
+                new DataFileCollection(dbConfig, getStoreDir(), storeName, null, (dataLocation, dataValue) -> {}) {
                     BenchmarkRecord read(long dataLocation) throws IOException {
                         final BufferedData recordData = readDataItem(dataLocation);
                         if (recordData == null) {
@@ -62,7 +64,7 @@ public class DataFileCollectionBench extends BaseBench {
                     }
                 };
 
-        final var compactor = new DataFileCompactor(storeName, store, index, null, null, null, null);
+        final var compactor = new DataFileCompactor(store, index, null, null, null, null);
 
         // Write files
         long start = System.currentTimeMillis();
@@ -104,5 +106,13 @@ public class DataFileCollectionBench extends BaseBench {
 
         store.close();
         index.close();
+    }
+
+    static void main() throws Exception {
+        new Runner(new OptionsBuilder()
+                        .include(DataFileCollectionBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
+                .run();
     }
 }

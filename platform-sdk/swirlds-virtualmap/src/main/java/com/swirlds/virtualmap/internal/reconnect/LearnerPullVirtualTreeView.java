@@ -99,10 +99,14 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
+     * @param reconnectConfig
+     *      the reconnect configuration
      * @param vmapLearner
      * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
+     * @param traversalOrder
+     *      the traversal order defining which paths to request
      * @param mapStats
-     *      A ReconnectMapStats object to collect reconnect metrics
+     *      a ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPullVirtualTreeView(
             @NonNull final ReconnectConfig reconnectConfig,
@@ -117,6 +121,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         this.mapStats = Objects.requireNonNull(mapStats, "mapStats is null");
     }
 
+    /** {@inheritDoc} */
     @Override
     public void startLearnerTasks(
             final StandardWorkGroup workGroup, final AsyncInputStream in, final AsyncOutputStream out) {
@@ -153,6 +158,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     /**
      * Determines if a given path refers to a leaf of the tree.
+     *
      * @param path a path
      * @return true if leaf, false if internal
      */
@@ -191,11 +197,11 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     // This method is called concurrently from multiple threads
     void responseReceived(final PullVirtualTreeResponse response) {
-        final long responsePath = response.getPath();
+        final long responsePath = response.path();
         if (responsePath == 0) {
             logger.info(RECONNECT.getMarker(), "Root response received from the teacher");
-            final long firstLeafPath = response.getFirstLeafPath();
-            final long lastLeafPath = response.getLastLeafPath();
+            final long firstLeafPath = response.firstLeafPath();
+            final long lastLeafPath = response.lastLeafPath();
             assert rootNodeReceived.compareAndSet(false, true)
                     : "Root node must be the first node received from the teacher";
             traversalOrder.start(
@@ -220,11 +226,20 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                 anticipatedLeafPaths.remove();
             }
         }
+
+        if (responsePath != Path.ROOT_PATH) {
+            final boolean isLeaf = isLeaf(responsePath);
+            if (isLeaf) {
+                mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
+            } else {
+                mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
+            }
+        }
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
         assert rootNodeReceived.get() : "Root node must be the first node received from the teacher";
-        final long path = response.getPath();
+        final long path = response.path();
         if (reconnectState.getLastLeafPath() <= 0) {
             return;
         }
@@ -235,7 +250,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
         if (isLeaf) {
             if (!isClean) {
-                final VirtualLeafBytes<?> leaf = response.getLeafData();
+                final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null;
                 assert path == leaf.path();
                 vmapLearner.onDirtyLeaf(leaf); // may block if hashing is slower than ingest
@@ -248,7 +263,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     /**
      * Returns the ReconnectMapStats object.
-     * @return the ReconnectMapStats object.
+     *
+     * @return the ReconnectMapStats object
      */
     @NonNull
     public ReconnectMapStats getMapStats() {

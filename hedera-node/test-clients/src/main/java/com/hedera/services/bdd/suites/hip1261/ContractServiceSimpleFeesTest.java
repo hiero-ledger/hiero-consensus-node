@@ -28,12 +28,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdW
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedContractCreateSimpleFeesUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedContractDeleteSimpleFeesUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedContractUpdateSimpleFeesUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.getChargedGasForContractCall;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.getChargedGasForContractCreate;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -171,21 +173,16 @@ public class ContractServiceSimpleFeesTest {
         @HapiTest
         @DisplayName("ContractCreate with large payer key - extra signatures and processing bytes charged")
         final Stream<DynamicTest> contractCreateLargePayerKeyFeeCharged() {
-            KeyShape largeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigning = largeKeyShape.signedWith(
-                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
             final var gasUsedRef = new AtomicReference<>(0.0);
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     newKeyNamed(ADMIN_KEY),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     uploadInitCode(CONTRACT),
                     contractCreate(CONTRACT)
                             .adminKey(ADMIN_KEY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigning))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .signedBy(PAYER, ADMIN_KEY)
                             .gas(200_000L)
                             .via("createTxn"),
@@ -494,18 +491,15 @@ public class ContractServiceSimpleFeesTest {
         @HapiTest
         @DisplayName("ContractCall - large payer key extra signatures + gas charged")
         final Stream<DynamicTest> contractCallLargePayerKeyFeeCharged() {
-            final KeyShape largeKeyShape =
-                    threshOf(1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            final SigControl allSigning = largeKeyShape.signedWith(sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
             final var gasUsedRef = new AtomicReference<>(0.0);
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(10)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     uploadInitCode(CALL_CONTRACT),
                     contractCreate(CALL_CONTRACT).gas(200_000L),
                     contractCall(CALL_CONTRACT, "contractCall1Byte", (Object) new byte[] {0})
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigning))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(10)))
                             .signedBy(PAYER)
                             .gas(100_000L)
                             .via("callTxn"),
