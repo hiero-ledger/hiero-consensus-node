@@ -117,12 +117,36 @@ public final class SignedStateFileWriter {
 
     /**
      * Write all files that belong in the signed state directory into a directory.
+     * <p>
+     * This includes signature files, hash info, metadata, roster, settings, PCES files,
+     * and the state snapshot itself.
+     * <p>
+     * <b>Reservation contract:</b> The caller must reserve the state before calling this method.
+     * This method takes ownership of the reservation and guarantees that it will be released
+     * before returning, whether the operation succeeds or fails.
+     * The reservation may be released <em>during</em> execution to unblock asynchronous
+     * snapshot creation, so callers must not use the reserved state after this call.
+     * <p>
+     * <b>Sync vs async snapshot:</b> The snapshot creation strategy depends on configuration
+     * ({@link StateConfig#saveStateAsync()}) and the state's save reason:
+     * <ul>
+     *   <li><b>Synchronous</b> (default for non-periodic snapshots, or when async is disabled):
+     *       the snapshot is created inline, and the reservation is released after the snapshot
+     *       is fully written.</li>
+     *   <li><b>Asynchronous</b> (periodic snapshots with async enabled): the snapshot is
+     *       deferred to the virtual pipeline's flush operation. The reservation is released
+     *       early to allow the pipeline to flush the map copy, and this method blocks until
+     *       the flush-triggered snapshot completes or a configurable timeout
+     *       ({@link StateConfig#asyncSnapshotTimeout()}) expires.</li>
+     * </ul>
      *
      * @param platformContext       the platform context
      * @param selfId                the id of the platform
      * @param directory             the directory where all files should be placed
-     * @param reservedSignedState   the state, which should be written to a directory
+     * @param reservedSignedState   the reserved state to be written. Must be reserved by the caller;
+     *                              this method takes ownership and will release the reservation
      * @param stateLifecycleManager the state lifecycle manager
+     * @throws IOException if the snapshot creation fails, times out, or is interrupted
      */
     public static void writeSignedStateFilesToDirectory(
             @Nullable final PlatformContext platformContext,
