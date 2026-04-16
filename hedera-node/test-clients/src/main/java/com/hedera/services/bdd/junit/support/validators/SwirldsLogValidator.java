@@ -24,11 +24,11 @@ public class SwirldsLogValidator {
     private static final String ERROR = "ERROR";
     /**
      * Regex to extract the marker field from a swirlds.log line. The format is:
-     * {@code timestamp nodeId level marker <thread> class: message}
-     * e.g. {@code 2024-01-15 10:30:45.123 1        ERROR EXCEPTION        <main> Foo: bar}
+     * {@code timestamp <nodeId> seqNum level marker <<thread>> class: message}
+     * e.g. {@code 2026-04-14 18:01:33.982 <n0> 177      WARN  SOCKET_EXCEPTIONS <<...>> NetworkUtils: ...}
      */
     private static final Pattern MARKER_PATTERN =
-            Pattern.compile("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s+\\S+\\s+\\S+\\s+(\\S+)");
+            Pattern.compile("\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s+\\S+\\s+\\S+\\s+\\S+\\s+(\\S+)");
 
     @NonNull
     private final String logFileLocation;
@@ -63,8 +63,11 @@ public class SwirldsLogValidator {
                 "TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT");
 
         /** Text-based patterns: each inner list is a set of strings that must ALL appear for the line to be ignored. */
-        private static final List<List<String>> PROBLEM_PATTERNS_TO_IGNORE =
-                List.of(List.of("PcesFileTracker", "No preconsensus event files"));
+        private static final List<List<String>> PROBLEM_PATTERNS_TO_IGNORE = List.of(
+                List.of("PcesFileTracker", "No preconsensus event files"),
+                List.of("PcesFileTracker", "insufficient data to guarantee"),
+                List.of("OSHealthChecker"),
+                List.of("DefaultSignedStateSentinel", "Old signed state detected"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

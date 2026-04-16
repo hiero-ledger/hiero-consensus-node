@@ -228,6 +228,7 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
     )
+val prCheckPlatformOverrides = mapOf("hapiTestRestart" to "platformStatus.observingStatusDelay=10s")
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
 // (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be for each task in CI; set it here
@@ -320,6 +321,15 @@ tasks.register<Test>("testSubprocess") {
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)
+    }
+
+    // Gather platform-level overrides (settings.txt) into a single comma-separated list
+    val platformOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPlatformOverrides[it] }
+            .joinToString(separator = ",")
+    if (platformOverrides.isNotBlank()) {
+        systemProperty("hapi.spec.platform.overrides", platformOverrides)
     }
 
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
@@ -446,6 +456,15 @@ tasks.register<Test>("testSubprocessConcurrent") {
     // Only set the system property if non-empty
     if (testOverrides.isNotBlank()) {
         systemProperty("hapi.spec.test.overrides", testOverrides)
+    }
+
+    // Gather platform-level overrides (settings.txt) into a single comma-separated list
+    val platformOverrides =
+        gradle.startParameter.taskNames
+            .mapNotNull { prCheckPlatformOverrides[it] }
+            .joinToString(separator = ",")
+    if (platformOverrides.isNotBlank()) {
+        systemProperty("hapi.spec.platform.overrides", platformOverrides)
     }
 
     if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
