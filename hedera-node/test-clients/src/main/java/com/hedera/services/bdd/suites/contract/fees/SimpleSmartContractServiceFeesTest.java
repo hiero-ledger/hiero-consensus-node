@@ -56,6 +56,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hederahashgraph.api.proto.java.AccountAmount;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -66,8 +67,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class SimpleSmartContractServiceFeesTest {
     static final double EXPECTED_GAS_USED = 0.00184;
-    static final double ABORTED_CONTRACT_CALL_GAS_ONLY_FEE =
-            (21_000 + 32_000L /* mysterious new fee; TODO(Pectra) figure this out */) * GAS_FEE_USD;
+    static final double ABORTED_CONTRACT_CALL_GAS_ONLY_FEE = 21_000 * GAS_FEE_USD;
 
     @Contract(contract = "SmartContractsFees")
     static SpecContract contract;
@@ -188,7 +188,7 @@ public class SimpleSmartContractServiceFeesTest {
                         .via(highGasQuery),
                 validateNonZeroNodePaymentForQuery(lowGasQuery),
                 validateNonZeroNodePaymentForQuery(highGasQuery),
-                withOpContext((spec, opLog) -> {
+                withOpContext((spec, _) -> {
                     final var lowRecord = getTxnRecord(lowGasQuery);
                     final var highRecord = getTxnRecord(highGasQuery);
                     allRunFor(spec, lowRecord, highRecord);
@@ -196,12 +196,12 @@ public class SimpleSmartContractServiceFeesTest {
                     final var lowNodePayment =
                             lowRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
                                     .filter(aa -> aa.getAccountID().equals(nodeId))
-                                    .mapToLong(aa -> aa.getAmount())
+                                    .mapToLong(AccountAmount::getAmount)
                                     .sum();
                     final var highNodePayment =
                             highRecord.getResponseRecord().getTransferList().getAccountAmountsList().stream()
                                     .filter(aa -> aa.getAccountID().equals(nodeId))
-                                    .mapToLong(aa -> aa.getAmount())
+                                    .mapToLong(AccountAmount::getAmount)
                                     .sum();
                     assertTrue(
                             highNodePayment > lowNodePayment,
@@ -239,15 +239,14 @@ public class SimpleSmartContractServiceFeesTest {
     final Stream<DynamicTest> jumboEthTransactionBaseUSDFee() {
         final var payloadSize = 10 * 1024;
         final var jumboPayload = new byte[payloadSize];
-        final var jumboGasUsed = 0.0054;
+        final var jumboGasUsed = 0.01058;
         return hapiTest(
                 overriding("contracts.evm.ethTransaction.zeroHapiFees.enabled", "false"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
                 ethereumCall(calldataContract.name(), "callme", (Object) jumboPayload)
                         .fee(ONE_HUNDRED_HBARS)
-                        .gasLimit(
-                                1_000_000L) /* TODO(Pectra): this used to work with a default gas limit; perhaps default needs to be updated? */
+                        .gasLimit(200_000L)
                         .memo("TESTT")
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signedBy(SECP_256K1_SOURCE_KEY)
@@ -262,13 +261,11 @@ public class SimpleSmartContractServiceFeesTest {
                     final var totalExpected = jumboGasUsed + ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes;
                     final var withoutGasExpected = ETHEREUM_CALL_BASE_FEE + expectedFeeFromBytes;
 
-                    /* TODO(Pectra): gas usage seems to have changed
                     allRunFor(
                             spec,
                             validateChargedUsdWithin("ethCall", totalExpected, 1),
                             validateChargedUsdForGasOnly("ethCall", jumboGasUsed, 1),
                             validateChargedUsdWithoutGas("ethCall", withoutGasExpected, 1));
-                     */
                 }));
     }
 
