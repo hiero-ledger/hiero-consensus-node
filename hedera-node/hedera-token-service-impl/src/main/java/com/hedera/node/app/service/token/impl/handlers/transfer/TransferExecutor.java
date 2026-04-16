@@ -51,6 +51,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -174,8 +175,6 @@ public class TransferExecutor extends BaseTokenHandler {
             boolean skipCustomFee) {
         final var topLevelPayer = context.payer();
         transferContext.validateHbarAllowances();
-        final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
-
         // Replace all aliases in the transaction body with its account ids; use in all further steps
         final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
         List<CryptoTransferTransactionBody> txns = List.of(replacedOp);
@@ -212,11 +211,18 @@ public class TransferExecutor extends BaseTokenHandler {
                         HooksABI.FN_ALLOW_PRE,
                         numAttemptedHookCalls);
             } catch (HandleException e) {
+                final var config = context.configuration();
                 // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
                         (ctx, ignored) -> refundHookFee(
-                                context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
+                                context,
+                                ctx,
+                                hookCalls,
+                                numAttemptedHookCalls.get(),
+                                config.getConfigData(HooksConfig.class),
+                                config.getConfigData(AccountsConfig.class),
+                                topLevelPayer));
             }
         }
 
@@ -236,12 +242,18 @@ public class TransferExecutor extends BaseTokenHandler {
                         HooksABI.FN_ALLOW_POST,
                         numAttemptedHookCalls);
             } catch (HandleException e) {
-                // if hook execution failed, we still want to throw an exception but refund the charged fees
-                // for other hook calls that didn't execute
+                final var config = context.configuration();
+                // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
                         (ctx, ignored) -> refundHookFee(
-                                context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
+                                context,
+                                ctx,
+                                hookCalls,
+                                numAttemptedHookCalls.get(),
+                                config.getConfigData(HooksConfig.class),
+                                config.getConfigData(AccountsConfig.class),
+                                topLevelPayer));
             }
         }
 
@@ -259,7 +271,12 @@ public class TransferExecutor extends BaseTokenHandler {
             @NonNull final HookCalls hookCalls,
             final int numAttemptedHookCalls,
             @NonNull final HooksConfig hooksConfig,
+            @NonNull final AccountsConfig accountsConfig,
             @NonNull final AccountID payerId) {
+        if (accountsConfig.isSuperuser(payerId)) {
+            // Edge case for test env mostly; superusers aren't charged fees in the first place, don't refund them
+            return;
+        }
         final long tinycentsToRefund = getFeesToRefund(
                 hookCalls,
                 numAttemptedHookCalls,
