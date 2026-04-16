@@ -178,7 +178,7 @@ jobs:
     uses: ./.github/workflows/zxc-dependency-module-check.yaml
     needs:
       - commit-info
-      - build-and-spotless
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
