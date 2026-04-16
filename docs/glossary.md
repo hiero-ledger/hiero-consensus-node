@@ -181,7 +181,7 @@ initiates as a result of fulfilling a user-initiated transaction ( e.g.
 **Civilian Accounts**: User accounts that are not associated with any special roles or permissions
 beyond standard user functionality. These are mostly used for testing purposes. By contrast, System
 Accounts and Node Accounts are accounts that have specific roles and responsibilities within the
-environment and governance of the Hedera network.
+infrastructure and governance of the Hedera network.
 
 ## Config.txt
 
