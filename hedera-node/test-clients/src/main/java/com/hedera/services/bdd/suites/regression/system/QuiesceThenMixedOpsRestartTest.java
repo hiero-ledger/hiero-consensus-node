@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogConta
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupDuration;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -39,9 +40,9 @@ import org.junit.jupiter.api.Tag;
  * Then submits a burst of mixed operations, freezes all nodes, shuts them down, restarts them, and submits the same
  * burst of mixed operations again.
  * <p>
- * Requires {@code staking.periodMins=1440}, {@code nodes.nodeRewardsEnabled=false} and
- * {@code quiescence.enabled=true} from the Gradle task overrides so that staking period transactions
- * do not interfere with quiescence.
+ * Waits until the start of the next staking period so that staking period transactions do not
+ * interfere with quiescence. Requires {@code nodes.nodeRewardsEnabled=false} and
+ * {@code quiescence.enabled=true} from the Gradle task overrides.
  */
 @Tag(LONG_RUNNING)
 @Tag(SERIAL)
@@ -54,6 +55,9 @@ public class QuiesceThenMixedOpsRestartTest implements LifecycleTest {
         final AtomicReference<Instant> scheduleExpiry = new AtomicReference<>();
         final AtomicReference<Instant> logAssertionStart = new AtomicReference<>();
         return hapiTest(
+                // Wait until right after the next staking period boundary so staking
+                // transactions won't fire during the quiescence window
+                waitUntilStartOfNextStakingPeriod(1),
                 // Ensure the network is out of quiescence before the test logic
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 // --- actual test workflow ---
