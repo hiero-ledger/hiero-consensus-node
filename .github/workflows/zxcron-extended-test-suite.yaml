@@ -652,7 +652,7 @@ jobs:
 
       # Notification routing:
       #   test failures       -> citr-operations (detailed)
-      #   environment      -> citr-operations (summary) + citr-failures (detailed)
+      #   environment         -> citr-operations (summary) + citr-failures (detailed)
       #   canceled            -> citr-operations (summary) + citr-failures (summary)
       - name: Notify test failure detailed (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'test' }}
