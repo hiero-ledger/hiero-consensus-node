@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.opcodes;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_CREATIONS;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
@@ -232,7 +231,6 @@ public class Create2OperationSuite {
 
     @SuppressWarnings("java:S5669")
     @LeakyHapiTest(requirement = NO_CONCURRENT_CREATIONS)
-    @Tag(MATS)
     final Stream<DynamicTest> inlineCreateCanFailSafely() {
         final var tcValue = 1_234L;
         final var creation = CREATION;
@@ -292,7 +290,6 @@ public class Create2OperationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> payableCreate2WorksAsExpected() {
         final var contract = "PayableCreate2Deploy";
         AtomicReference<String> tcMirrorAddr2 = new AtomicReference<>();
@@ -311,7 +308,6 @@ public class Create2OperationSuite {
     // https://github.com/hashgraph/hedera-services/issues/2868
     @SuppressWarnings("java:S5960")
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
-    @Tag(MATS)
     final Stream<DynamicTest> create2FactoryWorksAsExpected() {
         final var tcValue = 1_234L;
         final var contract = "Create2Factory";
@@ -431,7 +427,6 @@ public class Create2OperationSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
-    @Tag(MATS)
     final Stream<DynamicTest> canCallFinalizedContractViaHapi() {
         final var contract = "FinalizedDestructible";
         final var salt = BigInteger.valueOf(1_234_567_890L);
@@ -532,7 +527,6 @@ public class Create2OperationSuite {
 
     @SuppressWarnings("java:S5669")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canUseAliasesInPrecompilesAndContractKeys() {
         final var creation2 = CREATE_2_TXN;
         final var contract = "Create2PrecompileUser";
@@ -833,7 +827,6 @@ public class Create2OperationSuite {
 
     @SuppressWarnings("java:S5669")
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
-    @Tag(MATS)
     final Stream<DynamicTest> create2InputAddressIsStableWithTopLevelCallWhetherMirrorOrAliasIsUsed() {
         final var creation2 = CREATE_2_TXN;
         final var innerCreation2 = "innerCreate2Txn";
@@ -1025,7 +1018,6 @@ public class Create2OperationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canMergeCreate2ChildWithHollowAccountHbarAndFungibleTransferUnlimitedAssociations() {
         final var tcValue = 1_234L;
         final var contract = "Create2Factory";

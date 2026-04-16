@@ -122,6 +122,16 @@ public interface TaskSchedulerBuilder<OUT> {
     TaskSchedulerBuilder<OUT> withUnhandledTaskMetricEnabled(boolean enabled);
 
     /**
+     * Set whether the in-flight task count metric should be enabled. Default false.
+     * Only supported for {@link TaskSchedulerType#CONCURRENT} schedulers.
+     *
+     * @param enabled true if the in-flight task count metric should be enabled, false otherwise
+     * @return this
+     */
+    @NonNull
+    TaskSchedulerBuilder<OUT> withInflightTaskMetricEnabled(boolean enabled);
+
+    /**
      * Set whether the busy fraction metric should be enabled. Default false.
      * <p>
      * Note: this metric is currently only compatible with non-concurrent task scheduler implementations. At a future

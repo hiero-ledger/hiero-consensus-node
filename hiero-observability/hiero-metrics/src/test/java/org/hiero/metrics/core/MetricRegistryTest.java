@@ -489,11 +489,11 @@ public class MetricRegistryTest {
     @MethodSource("exportTestParameters")
     void testExport(String name, MetricRegistry registry, TestMetricsExporter exporter) throws IOException {
         // register metrics
-        LongCounter longCounter = registry.register(LongCounter.builder("counter:long"));
+        LongCounter longCounter = registry.register(LongCounter.builder("counter_long"));
         DoubleCounter doubleCounter =
-                registry.register(DoubleCounter.builder("counter:double").addStaticLabels(new Label("sl1", "static1")));
-        LongGauge longGauge = registry.register(LongGauge.builder("gauge:long").addDynamicLabelNames("dl1", "dl2"));
-        DoubleGauge doubleGauge = registry.register(DoubleGauge.builder("gauge:double")
+                registry.register(DoubleCounter.builder("counter_double").addStaticLabels(new Label("sl1", "static1")));
+        LongGauge longGauge = registry.register(LongGauge.builder("gauge_long").addDynamicLabelNames("dl1", "dl2"));
+        DoubleGauge doubleGauge = registry.register(DoubleGauge.builder("gauge_double")
                 .addStaticLabels(new Label("sl2", "static2"))
                 .addDynamicLabelNames("dl"));
 

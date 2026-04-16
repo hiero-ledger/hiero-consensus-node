@@ -128,12 +128,13 @@ public class ConsensusNoOpModules {
         final Runnable flushIntake = () -> {};
         final Runnable flushTransactionHandling = () -> {};
         final Supplier<ReservedSignedState> latestImmutableStateSupplier = ReservedSignedState::createNullReservation;
-        final Consumer<PlatformStatusAction> statusActionConsumer = status -> {};
+        final Consumer<PlatformStatusAction> statusActionConsumer = _ -> {};
         final Runnable stateHasherFlusher = () -> {};
         final Runnable signalEndOfPcesReplay = () -> {};
         final EventPipelineTracker eventPipelineTracker = null;
 
-        final PcesModule pcesModule = createModule(PcesModule.class, configuration);
+        final PcesModule pcesModule =
+                createModule(PcesModule.class, "org.hiero.consensus.pces.noop.impl.test.fixtures");
         pcesModule.initialize(
                 model,
                 configuration,

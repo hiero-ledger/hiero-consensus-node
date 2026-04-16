@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.hip551;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
@@ -62,7 +61,6 @@ import org.junit.jupiter.api.Tag;
  * state is overwritten within the same batch.
  */
 @Tag(ATOMIC_BATCH)
-@Tag(MATS)
 class AtomicBatchOverwriteSameStateKeyTest {
 
     private static final String OPERATOR = "operator";

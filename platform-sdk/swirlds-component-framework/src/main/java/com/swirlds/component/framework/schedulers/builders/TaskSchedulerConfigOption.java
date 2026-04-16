@@ -15,6 +15,11 @@ public enum TaskSchedulerConfigOption {
      */
     BUSY_FRACTION_METRIC,
     /**
+     * If present, a metric will be created to show the number of tasks currently being executed.
+     * Only supported for {@link TaskSchedulerType#CONCURRENT} schedulers.
+     */
+    INFLIGHT_TASK_METRIC,
+    /**
      * If present, the scheduler will be capable of being flushed.
      */
     FLUSHABLE,

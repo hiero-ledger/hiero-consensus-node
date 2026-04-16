@@ -103,7 +103,6 @@ public class ActiveRosters {
             }
         }
         if (candidateRosterHash == null) {
-            // The two cases to detect BOOTSTRAP work
             if (rosterStore.getPreviousRosterHash() == null
                     || (historyEnabled && requireNonNull(activeProofInProgress).getAsBoolean())) {
                 return new ActiveRosters(Phase.BOOTSTRAP, currentRosterHash, currentRosterHash, rosterStore::get);

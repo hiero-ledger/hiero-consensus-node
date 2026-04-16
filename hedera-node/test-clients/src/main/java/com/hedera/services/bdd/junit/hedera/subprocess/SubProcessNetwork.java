@@ -71,6 +71,8 @@ import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A network of Hedera nodes started in subprocesses and accessed via gRPC. Unlike
@@ -107,6 +109,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     private long maxNodeId;
     private Network network;
+    private Map<NodeId, KeysAndCerts> nodeKeys;
     private final long shard;
     private final long realm;
 
@@ -181,7 +184,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
-        this.network = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        final var networkWithKeys = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        this.network = networkWithKeys.network();
+        this.nodeKeys = networkWithKeys.keysAndCerts();
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
         this.postInitWorkingDirActions.add(SubProcessNetwork::configurePlatformSettings);
     }
@@ -220,6 +225,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void start() {
         nodes.forEach(node -> {
             node.initWorkingDir(network);
+            writeNodeSigningKey(node);
             executePostInitWorkingDirActions(node);
             node.start();
         });
@@ -370,7 +376,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             nextPrometheusPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
-        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        final var nwk =
+                NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        network = nwk.network();
+        nodeKeys = nwk.keysAndCerts();
         refreshOverrideNetworks(ReassignPorts.YES);
     }
 
@@ -393,8 +402,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var node = getRequiredNode(selector);
         node.stopFuture();
         nodes.remove(node);
-        network = NetworkUtils.generateNetworkConfig(
+        final var nwk = NetworkUtils.generateNetworkConfig(
                 nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = nwk.network();
+        nodeKeys = nwk.keysAndCerts();
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -432,9 +443,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             node.reassignNodeAccountIdFrom(accountId);
         }
         nodes.add(insertionPoint, node);
-        network = NetworkUtils.generateNetworkConfig(
+        final var nwk = NetworkUtils.generateNetworkConfig(
                 nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = nwk.network();
+        nodeKeys = nwk.keysAndCerts();
         nodes.get(insertionPoint).initWorkingDir(network);
+        writeNodeSigningKey(nodes.get(insertionPoint));
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);
         }
@@ -664,6 +678,14 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             }
         }
         throw new RuntimeException("Could not find available port after 100 attempts");
+    }
+
+    private void writeNodeSigningKey(@NonNull final HederaNode node) {
+        final var nodeId = NodeId.of(node.getNodeId());
+        final var kac = nodeKeys.get(nodeId);
+        if (kac != null) {
+            WorkingDirUtils.writeSigningKey(node.metadata().workingDirOrThrow(), node.getNodeId(), kac);
+        }
     }
 
     public void configureApplicationProperties(HederaNode node) {

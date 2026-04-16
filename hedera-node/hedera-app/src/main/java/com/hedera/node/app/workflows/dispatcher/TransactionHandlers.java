@@ -8,6 +8,7 @@ import com.hedera.node.app.hints.handlers.HintsPreprocessingVoteHandler;
 import com.hedera.node.app.history.handlers.HistoryProofKeyPublicationHandler;
 import com.hedera.node.app.history.handlers.HistoryProofSignatureHandler;
 import com.hedera.node.app.history.handlers.HistoryProofVoteHandler;
+import com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeDeleteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeUpdateHandler;
@@ -141,4 +142,5 @@ public record TransactionHandlers(
         @NonNull HistoryProofKeyPublicationHandler historyProofKeyPublicationHandler,
         @NonNull HistoryProofSignatureHandler historyProofSignatureHandler,
         @NonNull HistoryProofVoteHandler historyProofVoteHandler,
-        @NonNull CrsPublicationHandler crsPublicationHandler) {}
+        @NonNull CrsPublicationHandler crsPublicationHandler,
+        @NonNull MigrationRootHashVoteHandler migrationRootHashVoteHandler) {}

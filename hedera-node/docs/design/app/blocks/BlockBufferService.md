@@ -65,36 +65,22 @@ are taken to attempt buffery recovery. Currently, this means forcing a connectio
 blocks are acknowledged.)
 
 Over the course of the buffer's lifecycle there are several state transitions that can occur, each with its own set of
-actions to take.
-- Zero/Low Saturation to Full Saturation
-- Back pressure is enabled
-- Switch block nodes<sup>1</sup>
-- Zero/Low Saturation to Action Stage Saturation
-- Switch block nodes<sup>1</sup>
-- Zero/Low Saturation to Zero/Low Saturation
-- No action required
-- Action Stage Saturation to Full Saturation
-- Back pressure is enabled
-- Switch block nodes<sup>1</sup>
-- Action Stage Saturation to Action Stage Saturation
-- Switch block nodes<sup>1</sup>
-- Action Stage Saturation to Zero/Low Saturation
-- No action required
-- Full Saturation to Full Saturation
-- Back pressure is enabled (though it should already be)
-- Switch block nodes<sup>1</sup>
-- Full Saturation to Action Stage Saturation
-- Disable back pressure<sup>2</sup>
-- Switch block nodes<sup>1</sup>
-- Full Saturation to Zero/Low Saturation
-- Disable back pressure<sup>2</sup>
+actions to take:
+
+|        From         |           To            | Back Pressure Action | Action Stage? |
+|---------------------|-------------------------|----------------------|---------------|
+| Zero/Low Saturation | Fully Saturated         | Enabled              | Yes           |
+| Zero/Low Saturation | Action Stage Saturation | -                    | Yes           |
+| Zero/Low Saturation | Zero/Low Saturation     | -                    | No            |
+| Action Stage        | Fully Saturated         | Enabled              | Yes           |
+| Action Stage        | Action Stage            | -                    | Yes           |
+| Action Stage        | Zero/Low Saturation     | -                    | No            |
+| Fully Saturated     | Fully Saturated         | Enabled              | Yes           |
+| Fully Saturated     | Action Stage            | Disabled             | Yes           |
+| Fully Saturated     | Zero/Low Saturation     | Disabled             | No            |
 
 Additionally, upon each iteration a secondary check will be performed to determine if back pressure needs to be disabled
 if the buffer saturation falls below the recovery threshold. This check is performed regardless of the above operations.
-
-<sup>1</sup> Switching block node connections may not happen every time. Whether or not to switch block nodes is dictated
-by a grace period between switch attempts. This is configured by `blockStream.buffer.actionGracePeriod`. If this property
-is configured to 10 seconds, then switching nodes will only happen once every 10 seconds.
 
 <sup>2</sup> Disabling back pressure has an additional gate in form of a recovery threshold. This is configured by
 `blockStream.buffer.recoveryThreshold`. If this property is configured to 70.0, then the buffer saturated must be less

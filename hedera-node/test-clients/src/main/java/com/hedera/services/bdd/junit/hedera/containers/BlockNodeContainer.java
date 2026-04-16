@@ -26,7 +26,7 @@ import org.testcontainers.utility.DockerImageName;
  * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
-    private static final String BLOCK_NODE_VERSION = "0.28.0";
+    private static final String BLOCK_NODE_VERSION = "0.30.2";
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
@@ -44,11 +44,28 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             "server-status",
             "stream-publisher",
             "stream-subscriber");
-    private static final Map<String, String> REQUIRED_EXTRA_JARS = Map.of(
-            "spotbugs-annotations-4.9.8.jar",
-            MAVEN_CENTRAL_BASE_URL + "/com/github/spotbugs/spotbugs-annotations/4.9.8/spotbugs-annotations-4.9.8.jar",
-            "disruptor-4.0.0.jar",
-            MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar");
+    private static final Map<String, String> REQUIRED_EXTRA_JARS = Map.ofEntries(
+            Map.entry(
+                    "spotbugs-annotations-4.9.8.jar",
+                    MAVEN_CENTRAL_BASE_URL
+                            + "/com/github/spotbugs/spotbugs-annotations/4.9.8/spotbugs-annotations-4.9.8.jar"),
+            Map.entry("disruptor-4.0.0.jar", MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar"),
+            // Transitive deps of the verification plugin (new in 0.29.0)
+            Map.entry(
+                    "hedera-cryptography-wraps-3.6.0.jar",
+                    MAVEN_CENTRAL_BASE_URL
+                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.6.0/hedera-cryptography-wraps-3.6.0.jar"),
+            Map.entry(
+                    "hedera-cryptography-hints-3.6.0.jar",
+                    MAVEN_CENTRAL_BASE_URL
+                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.6.0/hedera-cryptography-hints-3.6.0.jar"),
+            Map.entry(
+                    "hedera-common-nativesupport-3.6.0.jar",
+                    MAVEN_CENTRAL_BASE_URL
+                            + "/com/hedera/common/hedera-common-nativesupport/3.6.0/hedera-common-nativesupport-3.6.0.jar"),
+            Map.entry(
+                    "antlr4-runtime-4.13.2.jar",
+                    MAVEN_CENTRAL_BASE_URL + "/org/antlr/antlr4-runtime/4.13.2/antlr4-runtime-4.13.2.jar"));
     private String containerId;
 
     /**
@@ -175,7 +192,6 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
         if (!isRunning()) {
             super.start();
         }
-        waitForHealthy(Duration.ofMinutes(2));
         containerId = getContainerId();
     }
 
@@ -193,15 +209,6 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
      */
     public int getPort() {
         return getMappedPort(GRPC_PORT);
-    }
-
-    /**
-     * Waits for the block node container to be healthy by configuring the health check timeout.
-     *
-     * @param timeout the maximum duration to wait for the container's health check to pass
-     */
-    public void waitForHealthy(final Duration timeout) {
-        this.waitingFor(Wait.forHealthcheck().withStartupTimeout(timeout));
     }
 
     /**

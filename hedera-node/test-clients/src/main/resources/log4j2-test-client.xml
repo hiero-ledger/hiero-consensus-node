@@ -5,8 +5,9 @@
             <!-- 'hc' -> 'HapiClients' -->
 			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;hc&gt; %-5p  %-4L %c{1} - %m%n"/>
 		</Console>
-		<RollingFile name="RollingFile" fileName="output/hapi-client.log"
-					 filePattern="output/hapi-client.log-%d{yyyy-MM-dd}-%i.log" >
+		<RollingFile name="RollingFile"
+					 fileName="${sys:hapi.test.clients.log.file:-output/hapi-client.log}"
+					 filePattern="${sys:hapi.test.clients.log.filePattern:-output/hapi-client.log-%d{yyyy-MM-dd}-%i.log}" >
 			<PatternLayout>
 				<!-- 'tc' -> 'test-clients' -->
 				<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} &lt;tc&gt; %-5p %-4L %c{1} - %m%n</pattern>
@@ -36,7 +37,8 @@
 			<AppenderRef ref="TransactionStateLogs"/>
 		</Logger>
 
-		<Root level="INFO">
+                <Root level="INFO">
+                        <MarkerFilter marker="CONFIG" onMatch="DENY" onMismatch="NEUTRAL"/>
 			<AppenderRef ref="Console"/> 
 			<AppenderRef ref="RollingFile"/>
 		</Root>
@@ -44,5 +46,10 @@
 			<AppenderRef ref="Console"/>
 			<AppenderRef ref="RollingFile"/>
 		</Logger>
+                
+                <Logger name="com.swirlds.platform.config.internal.PlatformConfigUtils" level="INFO" additivity="false">
+                  <AppenderRef ref="Console"/>
+                  <AppenderRef ref="RollingFile"/>
+                </Logger>
 	</Loggers>
 </Configuration>

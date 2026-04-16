@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -44,8 +43,7 @@ class VirtualHasherHugeTest extends VirtualHasherTestBase {
         // Go ahead and hash. I'm just going to check that the root hash produces *something*. I'm not worried
         // in this test as to the validity of this root hash since correctness is validated heavily in other
         // tests. In this test, I just want to be sure that we complete, and that we don't run out of memory.
-        final VirtualHasher hasher = new VirtualHasher(VIRTUAL_MAP_CONFIG);
-        final Hash rootHash = hasher.hash(
+        final Hash rootHash = defaultHasher.hash(
                 CHUNK_HEIGHT,
                 chunkPath -> new VirtualHashChunk(chunkPath, CHUNK_HEIGHT),
                 LongStream.range(firstLeafPath, lastLeafPath + 1)

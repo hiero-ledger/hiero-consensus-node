@@ -14,6 +14,7 @@ description = "Consensus Performance Framework"
 testFixturesModuleInfo {
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
@@ -98,5 +99,21 @@ tasks.named<Test>("testPerformance") {
     // Allow filtering experiments via -PtestFilter="*.SomeExperiment"
     providers.gradleProperty("testFilter").orNull?.let { filter ->
         this.filter.includeTestsMatching(filter)
+    }
+
+    // Forward sloth.* project properties from the Gradle command line to the test JVM.
+    // Allows overriding BenchmarkParameters from the command line, e.g.:
+    //   ./gradlew :consensus-sloth:testPerformance -Psloth.tps=100 -Psloth.benchmarkTime=60s
+    // Note: project properties (-P) are used instead of system properties (-D) because -D flags
+    // are set on the Gradle client JVM and are not reliably forwarded to the daemon's
+    // System.getProperties().
+    project.properties
+        .filterKeys { it.startsWith("sloth.") }
+        .forEach { (key, value) -> systemProperty(key, value.toString()) }
+
+    // Allow running @Disabled tests for manual remote runs, e.g.:
+    //   ./gradlew :consensus-sloth:testPerformance -PincludeDisabled
+    if (project.hasProperty("includeDisabled")) {
+        systemProperty("junit.jupiter.conditions.deactivate", "org.junit.*Disabled*")
     }
 }

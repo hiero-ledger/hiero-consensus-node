@@ -14,6 +14,9 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeDeleteTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -23,6 +26,9 @@ import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeCreateFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeDeleteFeeCalculator;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeUpdateFeeCalculator;
+import com.hedera.node.app.service.addressbook.impl.calculator.RegisteredNodeCreateFeeCalculator;
+import com.hedera.node.app.service.addressbook.impl.calculator.RegisteredNodeDeleteFeeCalculator;
+import com.hedera.node.app.service.addressbook.impl.calculator.RegisteredNodeUpdateFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -150,6 +156,75 @@ class AddressBookFeeCalculatorsTest {
         assertThat(feeResult.getServiceBaseFeeTinycents()).isGreaterThan(0);
     }
 
+    // ─── Registered Node Fee Calculators ───────────────────────────
+
+    static Stream<RegisteredNodeTestCase> provideRegisteredNodeTestCases() {
+        return Stream.of(
+                new RegisteredNodeTestCase(
+                        new RegisteredNodeCreateFeeCalculator(),
+                        TransactionBody.newBuilder()
+                                .registeredNodeCreate(RegisteredNodeCreateTransactionBody.newBuilder()
+                                        .build())
+                                .build()),
+                new RegisteredNodeTestCase(
+                        new RegisteredNodeUpdateFeeCalculator(),
+                        TransactionBody.newBuilder()
+                                .registeredNodeUpdate(RegisteredNodeUpdateTransactionBody.newBuilder()
+                                        .build())
+                                .build()),
+                new RegisteredNodeTestCase(
+                        new RegisteredNodeDeleteFeeCalculator(),
+                        TransactionBody.newBuilder()
+                                .registeredNodeDelete(RegisteredNodeDeleteTransactionBody.newBuilder()
+                                        .build())
+                                .build()));
+    }
+
+    @ParameterizedTest(name = "{index}: {0}")
+    @MethodSource("provideRegisteredNodeTestCases")
+    @DisplayName("Registered node fee calculation throws NOT_SUPPORTED when registeredNodesEnabled is false")
+    void testRegisteredNodeFeeCalculatorsThrowWhenDisabled(RegisteredNodeTestCase testCase) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.registeredNodesEnabled", false)
+                .getOrCreateConfig();
+        lenient().when(feeContext.configuration()).thenReturn(config);
+        final var simpleFeeContext = new SimpleFeeContextImpl(feeContext, null);
+        final var feeResult = new FeeResult();
+        final var testSchedule = createTestFeeSchedule();
+
+        final var ex = assertThrows(HandleException.class, () -> testCase.calculator()
+                .accumulateServiceFee(testCase.body(), simpleFeeContext, feeResult, testSchedule));
+        assertThat(ex.getStatus()).isEqualTo(ResponseCodeEnum.NOT_SUPPORTED);
+    }
+
+    @ParameterizedTest(name = "{index}: {0}")
+    @MethodSource("provideRegisteredNodeTestCases")
+    @DisplayName("Registered node fee calculation succeeds when registeredNodesEnabled is true")
+    void testRegisteredNodeFeeCalculatorsSucceedWhenEnabled(RegisteredNodeTestCase testCase) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.registeredNodesEnabled", true)
+                .getOrCreateConfig();
+        lenient().when(feeContext.configuration()).thenReturn(config);
+        final var simpleFeeContext = new SimpleFeeContextImpl(feeContext, null);
+        final var feeResult = new FeeResult();
+        final var testSchedule = createTestFeeSchedule();
+
+        testCase.calculator().accumulateServiceFee(testCase.body(), simpleFeeContext, feeResult, testSchedule);
+        assertThat(feeResult.getServiceBaseFeeTinycents()).isGreaterThan(0);
+    }
+
+    @ParameterizedTest(name = "{index}: {0}")
+    @MethodSource("provideRegisteredNodeTestCases")
+    @DisplayName("Registered node fee calculation works when feeContext is null (skips check)")
+    void testRegisteredNodeFeeCalculatorsWithNullFeeContext(RegisteredNodeTestCase testCase) {
+        final var simpleFeeContext = new SimpleFeeContextImpl(null, null);
+        final var feeResult = new FeeResult();
+        final var testSchedule = createTestFeeSchedule();
+
+        testCase.calculator().accumulateServiceFee(testCase.body(), simpleFeeContext, feeResult, testSchedule);
+        assertThat(feeResult.getServiceBaseFeeTinycents()).isGreaterThan(0);
+    }
+
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -174,8 +249,18 @@ class AddressBookFeeCalculatorsTest {
                                 234000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
                                 makeExtraIncluded(Extra.STATE_BYTES, 1000)),
-                        makeServiceFee(HederaFunctionality.NODE_DELETE, 345000000)))
+                        makeServiceFee(HederaFunctionality.NODE_DELETE, 345000000),
+                        makeServiceFee(HederaFunctionality.REGISTERED_NODE_CREATE, 100000000),
+                        makeServiceFee(HederaFunctionality.REGISTERED_NODE_UPDATE, 200000000),
+                        makeServiceFee(HederaFunctionality.REGISTERED_NODE_DELETE, 300000000)))
                 .build();
+    }
+
+    record RegisteredNodeTestCase(ServiceFeeCalculator calculator, TransactionBody body) {
+        @Override
+        public @NonNull String toString() {
+            return calculator.getClass().getSimpleName();
+        }
     }
 
     record TestCase(

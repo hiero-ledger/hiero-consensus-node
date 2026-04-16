@@ -10,7 +10,7 @@ import java.util.Objects;
  * <p>
  * Callers may additionally categorize the metric by calling {@link #addCategory(String)}.
  * Metric name and category must not be blank and must only contain valid characters
- * defined by {@link MetricUtils#METRIC_NAME_REGEX}.
+ * defined by {@link MetricUtils#NAME_UNIT_LABEL_REGEX}.
  */
 public record MetricKey<M extends Metric>(
         @NonNull String name, @NonNull Class<M> type) {
@@ -21,7 +21,7 @@ public record MetricKey<M extends Metric>(
      * @param name the name of the metric, must not be blank
      * @param type the class type of the metric, must not be null
      * @throws NullPointerException    if name or type is {@code null}
-     * @throws IllegalArgumentException if name doesn't match regex {@value MetricUtils#METRIC_NAME_REGEX}
+     * @throws IllegalArgumentException if name doesn't match regex {@value MetricUtils#NAME_UNIT_LABEL_REGEX}
      */
     public MetricKey {
         MetricUtils.validateMetricNameCharacters(name);
@@ -39,15 +39,15 @@ public record MetricKey<M extends Metric>(
 
     /**
      * Returns a new metric key instance with the specified category prefixed to the metric name.
-     * The category and name are separated by a colon (':').
+     * The category and name are separated by an underscore ('_').
      *
      * @param category the category to prefix to the metric name, must not be blank
      * @return a new metric key instance with the category prefixed to the name
      * @throws NullPointerException     if category is {@code null}
-     * @throws IllegalArgumentException if category doesn't match regex {@value MetricUtils#METRIC_NAME_REGEX}
+     * @throws IllegalArgumentException if category doesn't match regex {@value MetricUtils#NAME_UNIT_LABEL_REGEX}
      */
     public MetricKey<M> addCategory(@NonNull String category) {
         MetricUtils.throwArgBlank(category, "category");
-        return new MetricKey<>(category + ':' + name, type);
+        return new MetricKey<>(category + '_' + name, type);
     }
 }

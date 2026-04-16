@@ -24,7 +24,7 @@ public final class DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaug
 
     /**
      * Create a metric key for a {@link DoubleGauge} with the given name. <br>
-     * Name must match {@value MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -47,7 +47,7 @@ public final class DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaug
 
     /**
      * Create a builder for a {@link DoubleGauge} with the given metric name.<br>
-     * Name must match {@value MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the metric name
      * @return the builder
@@ -131,7 +131,10 @@ public final class DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaug
             container.set(Double.doubleToRawLongBits(value));
         }
 
-        double get() {
+        /**
+         * @return the latest set value
+         */
+        public double get() {
             return Double.longBitsToDouble(container.get());
         }
 
