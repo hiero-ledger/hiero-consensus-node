@@ -10,7 +10,10 @@ import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -33,6 +36,14 @@ public class ValidContractIdsAssertion implements RecordStreamAssertion {
     private final String[] specTxnIds;
     private final Set<Timestamp> trackedTimestamps = ConcurrentHashMap.newKeySet();
 
+    /**
+     * Snapshot of txnIds already in the registry at construction time. These are inherited from
+     * {@link com.hedera.services.bdd.junit.support.TestLifecycle} shared states and belong to
+     * previous specs — not to the current test. They must be ignored during record item matching
+     * to prevent cross-test interference on shared {@code @HapiTest} networks.
+     */
+    private final Map<String, TransactionID> staleTxnIds;
+
     public ValidContractIdsAssertion(@NonNull final HapiSpec spec) {
         this(spec, new String[0]);
     }
@@ -42,6 +53,13 @@ public class ValidContractIdsAssertion implements RecordStreamAssertion {
         this.shard = spec.shard();
         this.realm = spec.realm();
         this.specTxnIds = specTxnIds;
+        // Snapshot any txnIds already present in the registry — these were inherited from
+        // shared states and belong to previous specs, not to the current test
+        final var stale = new HashMap<String, TransactionID>();
+        for (final var txnName : specTxnIds) {
+            spec.registry().getMaybeTxnId(txnName).ifPresent(id -> stale.put(txnName, id));
+        }
+        this.staleTxnIds = Map.copyOf(stale);
     }
 
     private boolean isScoped() {
@@ -56,9 +74,18 @@ public class ValidContractIdsAssertion implements RecordStreamAssertion {
         final var observedId = item.getRecord().getTransactionID();
         for (final var txnName : specTxnIds) {
             final var maybeTxnId = spec.registry().getMaybeTxnId(txnName);
-            if (maybeTxnId.isPresent() && BaseIdScreenedAssertion.baseFieldsMatch(maybeTxnId.get(), observedId)) {
-                trackedTimestamps.add(item.getRecord().getConsensusTimestamp());
-                return true;
+            if (maybeTxnId.isPresent()) {
+                final var txnId = maybeTxnId.get();
+                // Skip stale txnIds inherited from shared states — they belong to previous
+                // specs and would cause us to track timestamps from the wrong transactions
+                final var staleId = staleTxnIds.get(txnName);
+                if (staleId != null && staleId.equals(txnId)) {
+                    continue;
+                }
+                if (BaseIdScreenedAssertion.baseFieldsMatch(txnId, observedId)) {
+                    trackedTimestamps.add(item.getRecord().getConsensusTimestamp());
+                    return true;
+                }
             }
         }
         return false;
