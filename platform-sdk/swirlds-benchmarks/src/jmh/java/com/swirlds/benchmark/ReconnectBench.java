@@ -2,9 +2,11 @@
 package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+import static org.awaitility.Awaitility.await;
 
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
@@ -188,14 +190,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
         learnerMap.getDataSource().close();
         teacherMap.getDataSource().close();
 
-        // release()/close() would delete the DB files eventually but not right away.
-        // Add a short sleep to help prevent irrelevant warning messages from being printed
-        // when the Tear Down deletes test files recursively right after
-        // this current runnable finishes executing.
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException ignore) {
-        }
+        await().until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
 
         learnerMap = null;
         teacherMap = null;

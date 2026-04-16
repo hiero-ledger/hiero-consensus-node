@@ -32,6 +32,7 @@ jmhModuleInfo {
     requires("org.apache.logging.log4j")
     requiresStatic("com.github.spotbugs.annotations")
     runtimeOnly("com.swirlds.config.impl")
+    requires("awaitility")
 }
 
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))

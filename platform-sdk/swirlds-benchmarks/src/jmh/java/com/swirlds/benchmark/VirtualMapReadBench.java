@@ -3,8 +3,10 @@ package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+import static org.awaitility.Awaitility.await;
 
 import com.swirlds.benchmark.reconnect.StateBuilder;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,6 +70,8 @@ public class VirtualMapReadBench extends VirtualMapBaseBench {
     protected void onTrialTearDown() throws Exception {
         releaseAndCloseMap(virtualMap);
         virtualMap = null;
+
+        await().until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
 
         super.onTrialTearDown();
     }

@@ -3,8 +3,10 @@ package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+import static org.awaitility.Awaitility.await;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.ArrayDeque;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -64,6 +66,8 @@ public class VirtualMapEditBench extends VirtualMapBaseBench {
             virtualMap = null;
         }
         verificationMap = null;
+
+        await().until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
 
         super.onInvocationTearDown();
     }
