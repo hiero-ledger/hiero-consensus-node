@@ -246,6 +246,17 @@ class OrphanBufferTests {
         }
     }
 
+    private void assertValidSequenceNumber(final List<PlatformEvent> unorphanedEvents) {
+        for (final PlatformEvent unorphanedEvent : unorphanedEvents) {
+            assertThat(unorphanedEvent.getNGen())
+                    .withFailMessage(
+                            "Invalid sequence number value {} assigned to event {}",
+                            unorphanedEvent.getNGen(),
+                            unorphanedEvent.getHash())
+                    .isGreaterThan(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER);
+        }
+    }
+
     @Test
     @DisplayName("Test that events sorted by nGen result in a valid topological ordering")
     void topologicalOrderByNGen() {
@@ -283,6 +294,52 @@ class OrphanBufferTests {
                     assertThat(parentHashes)
                             .withFailMessage(
                                     "Parent event {} was not before the child, indicating that child {} does not have a higher nGen value.",
+                                    Mnemonics.generateMnemonic(parentDescriptor.hash()),
+                                    Mnemonics.generateMnemonic(event.getHash()))
+                            .contains(parentDescriptor.hash());
+                }
+                parentHashes.add(event.getHash());
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Test that events sorted by sequence number result in a valid topological ordering")
+    void topologicalOrderBySequenceNumber() {
+        final Configuration configuration =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Metrics metrics = new NoOpMetrics();
+        final IntakeEventCounter intakeEventCounter = mock(IntakeEventCounter.class);
+        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
+
+        final List<PlatformEvent> emittedEvents = new ArrayList<>();
+        for (final PlatformEvent intakeEvent : intakeEvents) {
+            final List<PlatformEvent> unorphanedEvents = new ArrayList<>(orphanBuffer.handleEvent(intakeEvent));
+            assertValidSequenceNumber(unorphanedEvents);
+            emittedEvents.addAll(unorphanedEvents);
+        }
+
+        // The orphan buffer should be empty now, since the event window was never shifted and all events were sent.
+        assertThat(orphanBuffer.getCurrentOrphanCount()).isEqualTo(0);
+        assertThat(emittedEvents.size()).isEqualTo(intakeEvents.size());
+
+        // Verify that when sequence number is assigned such that children always have higher values than parents by
+        // shuffling the list, then sorting by ngen and checking that parents are always before children.
+        Collections.shuffle(emittedEvents, random);
+        emittedEvents.sort(Comparator.comparingLong(PlatformEvent::getSequenceNumber));
+
+        final Set<Hash> parentHashes = new HashSet<>();
+        for (final PlatformEvent event : emittedEvents) {
+            if (event.getAllParents().isEmpty()) {
+                parentHashes.add(event.getHash());
+            } else {
+                for (final EventDescriptorWrapper parentDescriptor : event.getAllParents()) {
+                    // In this test, the event window is never advanced, so no events are discarded as ancient.
+                    // Every event sent to the orphan buffer should have been returned, therefore an event's parents
+                    // should always be encountered before the child.
+                    assertThat(parentHashes)
+                            .withFailMessage(
+                                    "Parent event {} was not before the child, indicating that child {} does not have a higher sequence value.",
                                     Mnemonics.generateMnemonic(parentDescriptor.hash()),
                                     Mnemonics.generateMnemonic(event.getHash()))
                             .contains(parentDescriptor.hash());
