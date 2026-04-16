@@ -499,6 +499,39 @@ java -jar ./validator-<version>.jar gs://bucket/prefix/4971437 apply-blocks \
  --billing-project=my-gcp-project
 ```
 
+## Updating State with an Event Stream
+
+[ApplyEventsCommand](src/main/java/com/hedera/statevalidation/ApplyEventsCommand.java) advances a given state from the current round to a later round
+by replaying transactions from event stream files. Unlike `apply-blocks` which applies pre-computed state changes from block files,
+this command re-executes transactions through the Hedera application layer.
+
+### Usage:
+
+```shell
+java -jar ./validator-<version>.jar {path-to-state-round} apply-events --event-stream-dir=<path-to-event-stream-files> \
+ --node-id=<self-id> \
+ [--out=<path to output directory>] [--expected-hash=<hash of the target state>] \
+ [--target-round=<target round>] [--ignore-partial] [--load-signing-keys]
+```
+
+### Parameters
+
+- `{path-to-state-round}` - Location of the bootstrap state files (required).
+### Options
+
+- `--event-stream-dir` (or `-d`) - Location of the event stream files (required).
+- `--out` (or `-o`) - The location where the resulting snapshot is written. Must not exist prior to invocation. Default = `./out`.
+- `--node-id` (or `-id`) - The ID of the node that is being used to recover the state. This node's keys should be available locally.
+- `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. Default = apply all available rounds.
+- `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command validates the hash of the resulting state against it.
+- `--ignore-partial` (or `-p`) - If set, any partial rounds at the end of the event stream are ignored. Default = false.
+- `--load-signing-keys` (or `-s`) - If present, load the signing keys for the node. If not present, calling `platform.sign()` will throw.
+### Notes:
+
+- This command re-executes transactions through the Hedera services layer. It requires the full application context to be available.
+- The command reads the bootstrap state, constructs an event stream round iterator, and replays each round's transactions in order.
+- For advancing state using pre-computed state changes (without re-executing transactions), use `apply-blocks` instead.
+
 ### Parameters
 
 - `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`).
