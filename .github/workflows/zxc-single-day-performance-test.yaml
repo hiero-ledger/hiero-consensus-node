@@ -478,8 +478,6 @@ jobs:
           benchmark.csvWriteFrequency,          10000
           benchmark.csvAppend,              true
           benchmark.deviceName,             md0
-          merkleDb.hashesRamToDiskThreshold,       134217728
-          merkleDb.compactionThreads,          1
           EOPROPF
 
           tar cvfz /tmp/SwirldsMerkleDB.tgz build/libs/swirlds-benchmarks-*-jmh.jar settings.txt
