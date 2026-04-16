@@ -67,6 +67,23 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /**
+     * Represents an unassigned sequence number in a {@code PlatformEvent}. This constant is used as a placeholder to
+     * indicate that a specific sequence number has not yet been assigned to an event.
+     * <p>
+     * The value of {@code UNASSIGNED_SEQUENCE_NUMBER} is defined as {@code -1}. This value is chosen because sequence
+     * numbers are non-negative, making {@code -1} a clear and unambiguous indicator of the unassigned state.
+     */
+    public static final long UNASSIGNED_SEQUENCE_NUMBER = -1;
+
+    /**
+     * Represents the sequence number assigned to this event. The sequence number is unique and increments with each
+     * event released from orphan buffer, providing a way to identify the order of events, which can be used for
+     * topological ordering. If the sequence number is not assigned, it will hold the value of
+     * {@code UNASSIGNED_SEQUENCE_NUMBER}.
+     */
+    private long sequenceNumber = UNASSIGNED_SEQUENCE_NUMBER;
+
+    /**
      * Construct a new instance from an unsigned event and a signature.
      *
      * @param unsignedEvent the unsigned event
@@ -138,6 +155,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
 
     /**
      * The origin of this event, which indicates where this event came from.
+     *
      * @return the origin of this event
      */
     public @NonNull EventOrigin getOrigin() {
@@ -211,6 +229,33 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     public void setNGen(final long nGen) {
         this.nGen = nGen;
+    }
+
+    /**
+     * The sequence number of this event.
+     *
+     * @return the sequence number of this event.
+     */
+    public long getSequenceNumber() {
+        return sequenceNumber;
+    }
+
+    /**
+     * Checks whether the sequence number for this event has been assigned.
+     *
+     * @return {@code true} if the sequence number is assigned, {@code false} otherwise.
+     */
+    public boolean hasSequenceNumber() {
+        return sequenceNumber != UNASSIGNED_SEQUENCE_NUMBER;
+    }
+
+    /**
+     * Sets the sequence number for this event.
+     *
+     * @param sequenceNumber the sequence number to be assigned to this event
+     */
+    public void setSequenceNumber(final long sequenceNumber) {
+        this.sequenceNumber = sequenceNumber;
     }
 
     /**

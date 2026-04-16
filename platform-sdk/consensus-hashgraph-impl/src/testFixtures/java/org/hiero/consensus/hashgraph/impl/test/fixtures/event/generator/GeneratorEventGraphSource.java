@@ -158,6 +158,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
             // the event sent to consensus will have its nGen value populated, we should copy this value if the caller
             // wants ngen values to be populated on the returned events
             copy.setNGen(platformEvent.getNGen());
+            copy.setSequenceNumber(platformEvent.getSequenceNumber());
         }
         return copy;
     }
