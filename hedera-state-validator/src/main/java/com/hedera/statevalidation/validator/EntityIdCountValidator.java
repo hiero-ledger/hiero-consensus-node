@@ -108,7 +108,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
         }
 
         final boolean ok;
-        if (NET_NAME.equals("Mainnet")) {
+        if (NET_NAME.equals("Mainnet") || NET_NAME.equals("Previewnet")) {
             ok = entityCounts.numAccounts() == accountCount.get()
                     && entityCounts.numAliases() == aliasesCount.get()
                     && entityCounts.numTokens() == tokenCount.get()
@@ -126,7 +126,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
                     && entityCounts.numHooks() == hookCount.get()
                     && entityCounts.numEvmHookStorageSlots() == evmHookStorageCount.get();
         } else {
-            // PreviewNet and TestNet have numEvmHookStorageSlots count validation disabled
+            // TestNet have numEvmHookStorageSlots count validation disabled
             // See https://github.com/hiero-ledger/hiero-consensus-node/issues/24802
             ok = entityCounts.numAccounts() == accountCount.get()
                     && entityCounts.numAliases() == aliasesCount.get()

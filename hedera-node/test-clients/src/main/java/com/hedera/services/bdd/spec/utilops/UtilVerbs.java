@@ -815,10 +815,6 @@ public class UtilVerbs {
         return new ContextualActionOp(action);
     }
 
-    public static WaitForStatusOp waitForActive(String name, Duration timeout) {
-        return waitForActive(NodeSelector.byName(name), timeout);
-    }
-
     public static WaitForStatusOp waitForActive(@NonNull final NodeSelector selector, @NonNull final Duration timeout) {
         return new WaitForStatusOp(selector, timeout, ACTIVE);
     }
@@ -1778,6 +1774,18 @@ public class UtilVerbs {
 
     public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator() {
         return ValidContractIdsAssertion::new;
+    }
+
+    /**
+     * Returns a sidecar ID validator scoped to only the given spec transaction IDs. When scoped, the
+     * validator only checks sidecars whose consensus timestamps match record stream items for the
+     * specified transactions, preventing cross-test interference on shared networks.
+     *
+     * @param specTxnIds the transaction names (registered via {@code .via()}) to scope validation to
+     * @return the scoped sidecar ID validator factory
+     */
+    public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator(@NonNull final String... specTxnIds) {
+        return spec -> new ValidContractIdsAssertion(spec, specTxnIds);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> allVisibleItems(
