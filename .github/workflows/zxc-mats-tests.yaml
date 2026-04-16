@@ -158,27 +158,14 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
 
-  build:
-    name: "${{ inputs.custom-job-label }} Compile Code"
-    uses: ./.github/workflows/zxc-compile-application-code.yaml
+  compile-and-spotless:
+    name: "${{ inputs.custom-job-label }} Compile and Spotless"
+    uses: ./.github/workflows/zxc-compile-and-spotless-check.yaml
     needs:
       - commit-info
     with:
       java-version: "25"
       java-distribution: "temurin"
-      ref: ${{ needs.commit-info.outputs.sha }}
-    secrets:
-      access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-
-  spotless:
-    name: "${{ inputs.custom-job-label }} Spotless"
-    uses: ./.github/workflows/zxc-spotless-check.yaml
-    needs:
-      - commit-info
-      - build
-    with:
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -191,8 +178,7 @@ jobs:
     uses: ./.github/workflows/zxc-dependency-module-check.yaml
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
@@ -206,8 +192,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-unit-tests.yaml
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -225,8 +210,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-integration-tests.yaml
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -243,8 +227,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -272,8 +255,7 @@ jobs:
     if: ${{ inputs.enable-otter-tests == 'true' }}
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -291,8 +273,7 @@ jobs:
     if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -309,8 +290,7 @@ jobs:
     if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -326,8 +306,7 @@ jobs:
     if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -346,9 +325,8 @@ jobs:
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
       - dependency-check
-      - spotless
       - mats-unit-tests
       - mats-integration-tests
       - mats-hapi-tests
@@ -366,47 +344,44 @@ jobs:
         run: |
           job_statuses=(
             ${{ needs.commit-info.result || 'skipped' }}
-            ${{ needs.build.result || 'skipped' }}
+            ${{ needs.compile-and-spotless.result || 'skipped' }}
             ${{ needs.dependency-check.result || 'skipped' }}
-            ${{ needs.spotless.result || 'skipped' }}
             ${{ needs.mats-unit-tests.result || 'skipped' }}
             ${{ needs.mats-integration-tests.result || 'skipped' }}
             ${{ needs.mats-hapi-tests.result || 'skipped' }}
             ${{ needs.mats-otter-tests.result || 'skipped' }}
             ${{ needs.mats-snyk-scan.result || 'skipped' }}
+            ${{ needs.mats-gradle-determinism.result || 'skipped' }}
+            ${{ needs.mats-docker-determinism.result || 'skipped' }}
           )
           job_failure_modes=(
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
-            ${{ needs.build.outputs.failure-mode || 'none' }}
+            ${{ needs.compile-and-spotless.outputs.failure-mode || 'none' }}
             ${{ needs.dependency-check.outputs.failure-mode || 'none' }}
-            ${{ needs.spotless.outputs.failure-mode || 'none' }}
             ${{ needs.mats-unit-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-integration-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-otter-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-gradle-determinism.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-docker-determinism.outputs.failure-mode || 'none' }}
           )
           job_names=(
             "commit-info"
-            "build"
+            "compile-and-spotless"
             "dependency-check"
-            "spotless"
             "mats-unit-tests"
             "mats-integration-tests"
             "mats-hapi-tests"
             "mats-otter-tests"
             "mats-snyk-scan"
+            "mats-gradle-determinism"
+            "mats-docker-determinism"
           )
 
           # Final outputs
           failure_mode="none"
           failed_tests=""
-
-          # go through all of the job statuses and check failure mode (none | workflow | general)
-          # if any job failed (failure-mode != none) then set the failure mode for the workflow
-          # to that jobs failure mode.
-          # only set failure mode once
-          # append the failing job to the failed-tests list.
 
           for job in "${!job_statuses[@]}"; do
             status=${job_statuses[$job]}
@@ -414,42 +389,15 @@ jobs:
             name=${job_names[$job]}
 
             if [[ "$status" == "failure" ]]; then
-              if [[ "$mode" != "none" && "$failure_mode" == "none" ]]; then
+              if [[ "${failure_mode}" == "none" ]]; then
                 failure_mode="$mode"
+              elif [[ "$mode" == "workflow" ]]; then
+                failure_mode="workflow"
               fi
               if [[ -z "$failed_tests" ]]; then
                 failed_tests="$name"
               else
                 failed_tests="$failed_tests, $name"
-              fi
-            fi
-          done
-
-          # if any determinism jobs failed, set failure mode to 'general' if not already set to something
-          # other than "none"
-          # Add the failed determinism job to the failed-tests list
-
-          determinism_statuses=(
-            ${{ needs.mats-gradle-determinism.result || 'skipped' }}
-            ${{ needs.mats-docker-determinism.result || 'skipped' }}
-          )
-          determinism_names=(
-            "mats-gradle-determinism"
-            "mats-docker-determinism"
-          )
-
-          for job in "${!determinism_statuses[@]}"; do
-            status=${determinism_statuses[$job]}
-            name=${determinism_names[$job]}
-
-            if [[ "${status}" == "failure" ]]; then
-              if [[ "${failure_mode}" == "none" ]]; then
-                failure_mode="general"
-              fi
-              if [[ -z "${failed_tests}" ]]; then
-                failed_tests="${name}"
-              else
-                failed_tests="${failed_tests}, ${name}"
               fi
             fi
           done

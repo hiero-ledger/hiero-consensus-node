@@ -815,10 +815,6 @@ public class UtilVerbs {
         return new ContextualActionOp(action);
     }
 
-    public static WaitForStatusOp waitForActive(String name, Duration timeout) {
-        return waitForActive(NodeSelector.byName(name), timeout);
-    }
-
     public static WaitForStatusOp waitForActive(@NonNull final NodeSelector selector, @NonNull final Duration timeout) {
         return new WaitForStatusOp(selector, timeout, ACTIVE);
     }
