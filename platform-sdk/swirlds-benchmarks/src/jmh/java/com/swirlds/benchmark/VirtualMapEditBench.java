@@ -62,7 +62,6 @@ public class VirtualMapEditBench extends VirtualMapBaseBench {
             final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
             verifyMap(verificationMap, finalMap);
             finalMap.release();
-            finalMap.getDataSource().close();
             virtualMap = null;
         }
         verificationMap = null;

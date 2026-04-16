@@ -106,11 +106,11 @@ public class ReconnectBench extends VirtualMapBaseBench {
             // Both maps should be restored - otherwise, something went wrong
             if (teacherMap == null || learnerMap == null) {
                 if (teacherMap != null) {
-                    releaseAndCloseMap(teacherMap);
+                    teacherMap.release();
                     teacherMap = null;
                 }
                 if (learnerMap != null) {
-                    releaseAndCloseMap(learnerMap);
+                    learnerMap.release();
                     learnerMap = null;
                 }
             }
@@ -186,15 +186,12 @@ public class ReconnectBench extends VirtualMapBaseBench {
         teacherMap.release();
         teacherMapCopy.release();
 
-        // Close all data sources
-        learnerMap.getDataSource().close();
-        teacherMap.getDataSource().close();
-
-        await().until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
-
         learnerMap = null;
         teacherMap = null;
+        teacherMapCopy = null;
         teacherData = null;
+
+        await().until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
 
         super.onTrialTearDown();
     }

@@ -7,7 +7,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutorService;
@@ -41,17 +40,6 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                     .setThreadName("hasher")
                     .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during hashing", ex))
                     .buildFactory());
-
-    protected void releaseAndCloseMap(final VirtualMap map) {
-        if (map != null) {
-            map.release();
-            try {
-                map.getDataSource().close();
-            } catch (IOException ex) {
-                throw new UncheckedIOException(ex);
-            }
-        }
-    }
 
     /**
      * {@inheritDoc}

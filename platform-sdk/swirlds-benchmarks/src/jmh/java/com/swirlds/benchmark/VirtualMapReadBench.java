@@ -68,7 +68,7 @@ public class VirtualMapReadBench extends VirtualMapBaseBench {
      */
     @Override
     protected void onTrialTearDown() throws Exception {
-        releaseAndCloseMap(virtualMap);
+        virtualMap.release();
         virtualMap = null;
 
         await().until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
