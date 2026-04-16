@@ -2,6 +2,7 @@
 package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -25,6 +26,8 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @Fork(value = 1)
 @BenchmarkMode(Mode.AverageTime)
@@ -111,8 +114,6 @@ public class CryptoBench extends VirtualMapBench {
      */
     @Benchmark
     public void transferSerial() throws Exception {
-        setTestDir("transferSerial");
-
         logger.info(RUN_DELIMITER);
 
         if (getBenchmarkConfig().enableSnapshots()) {
@@ -194,8 +195,6 @@ public class CryptoBench extends VirtualMapBench {
 
     @Benchmark
     public void transferPrefetch() throws Exception {
-        setTestDir("transferPrefetch");
-
         logger.info(RUN_DELIMITER);
 
         if (getBenchmarkConfig().enableSnapshots()) {
@@ -335,7 +334,7 @@ public class CryptoBench extends VirtualMapBench {
 
         @Override
         protected void onException(final Throwable t) {
-            t.printStackTrace();
+            logger.error("Error occurred while executing task", t);
         }
     }
 
@@ -375,7 +374,7 @@ public class CryptoBench extends VirtualMapBench {
 
         @Override
         protected void onException(final Throwable t) {
-            t.printStackTrace();
+            logger.error("Error occurred while executing task", t);
         }
 
         void send(TransferTask next) {
@@ -397,8 +396,6 @@ public class CryptoBench extends VirtualMapBench {
      */
     @Benchmark
     public void transferParallel() throws Exception {
-        setTestDir("transferParallel");
-
         logger.info(RUN_DELIMITER);
 
         if (getBenchmarkConfig().enableSnapshots()) {
@@ -466,12 +463,11 @@ public class CryptoBench extends VirtualMapBench {
         finalMap.getDataSource().close();
     }
 
-    public static void main(String[] args) throws Exception {
-        final CryptoBench bench = new CryptoBench();
-        bench.setupTrial();
-        bench.setupInvocation();
-        bench.transferPrefetch();
-        bench.tearDownInvocation();
-        bench.tearDownTrial();
+    static void main() throws Exception {
+        new Runner(new OptionsBuilder()
+                        .include(CryptoBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
+                .run();
     }
 }

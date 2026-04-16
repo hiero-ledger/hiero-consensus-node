@@ -17,7 +17,6 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import java.nio.charset.StandardCharsets;
 import java.util.Random;
 import org.hiero.base.crypto.Cryptography;
@@ -797,11 +796,11 @@ public class VirtualHashChunkTest {
         assertEquals(hash4, chunk.calcHash(4, 3, 6));
         assertEquals(hash5, chunk.calcHash(5, 3, 6));
         assertEquals(hash6, chunk.calcHash(6, 3, 6));
-        final Hash hash1 = VirtualHasher.hashInternal(hash3, hash4);
-        final Hash hash2 = VirtualHasher.hashInternal(hash5, hash6);
+        final Hash hash1 = VirtualHashChunk.hashInternal(hash3, hash4);
+        final Hash hash2 = VirtualHashChunk.hashInternal(hash5, hash6);
         assertEquals(hash1, chunk.calcHash(1, 3, 6));
         assertEquals(hash2, chunk.calcHash(2, 3, 6));
-        final Hash rootHash = VirtualHasher.hashInternal(hash1, hash2);
+        final Hash rootHash = VirtualHashChunk.hashInternal(hash1, hash2);
         assertEquals(rootHash, chunk.calcHash(0, 3, 6));
         assertEquals(rootHash, chunk.chunkRootHash(3, 6));
         assertEquals(rootHash, chunk.chunkRootHash(10, 20));
@@ -822,10 +821,10 @@ public class VirtualHashChunkTest {
         assertEquals(hash2, chunk.calcHash(2, 2, 4));
         assertEquals(hash3, chunk.calcHash(3, 2, 4));
         assertEquals(hash4, chunk.calcHash(4, 2, 4));
-        final Hash hash1 = VirtualHasher.hashInternal(hash3, hash4);
+        final Hash hash1 = VirtualHashChunk.hashInternal(hash3, hash4);
         assertEquals(hash1, chunk.calcHash(1, 2, 4));
         assertEquals(hash2, chunk.calcHash(2, 2, 4));
-        final Hash rootHash = VirtualHasher.hashInternal(hash1, hash2);
+        final Hash rootHash = VirtualHashChunk.hashInternal(hash1, hash2);
         assertEquals(rootHash, chunk.calcHash(0, 2, 4));
         assertEquals(rootHash, chunk.chunkRootHash(2, 4));
     }
@@ -845,7 +844,7 @@ public class VirtualHashChunkTest {
         final Hash calculatedRootHash = chunk.calcHash(0, 1, 1);
 
         // Expected: hash of (hash1, NO_PATH2_HASH)
-        final Hash expectedRootHash = VirtualHasher.hashInternal(hash1, VirtualHasher.NO_PATH2_HASH);
+        final Hash expectedRootHash = VirtualHashChunk.hashInternal(hash1, null);
         assertEquals(expectedRootHash, calculatedRootHash);
 
         // Also test via chunkRootHash
@@ -874,12 +873,12 @@ public class VirtualHashChunkTest {
 
         // Calculate hash at path 1 (internal rank)
         final Hash hash1Calculated = chunk.calcHash(1, 3, 6);
-        final Hash hash1Expected = VirtualHasher.hashInternal(hash3, hash4);
+        final Hash hash1Expected = VirtualHashChunk.hashInternal(hash3, hash4);
         assertEquals(hash1Expected, hash1Calculated);
 
         // Calculate hash at path 2 (internal rank)
         final Hash hash2Calculated = chunk.calcHash(2, 3, 6);
-        final Hash hash2Expected = VirtualHasher.hashInternal(hash5, hash6);
+        final Hash hash2Expected = VirtualHashChunk.hashInternal(hash5, hash6);
         assertEquals(hash2Expected, hash2Calculated);
     }
 
@@ -923,7 +922,7 @@ public class VirtualHashChunkTest {
         final Hash hash4 = chunk.calcHash(4, 7, 14); // Should calculate from paths 9-10
         assertNotNull(hash4);
 
-        final Hash expectedHash1 = VirtualHasher.hashInternal(hash3, hash4);
+        final Hash expectedHash1 = VirtualHashChunk.hashInternal(hash3, hash4);
         final Hash hash1 = chunk.calcHash(1, 7, 14);
         assertEquals(expectedHash1, hash1);
     }

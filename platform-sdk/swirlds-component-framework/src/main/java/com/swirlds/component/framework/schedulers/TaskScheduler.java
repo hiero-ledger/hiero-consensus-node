@@ -201,6 +201,17 @@ public abstract class TaskScheduler<OUT> extends TaskSchedulerInput<OUT> {
     public abstract long getUnprocessedTaskCount();
 
     /**
+     * Get the number of tasks currently being executed by this scheduler. For non-concurrent schedulers this is
+     * always 0 or 1. For concurrent schedulers this reflects the number of tasks that have started executing but
+     * have not yet completed.
+     *
+     * @return the number of in-flight tasks, or 0 if tracking is not enabled
+     */
+    public long getInflightTaskCount() {
+        return 0;
+    }
+
+    /**
      * Get this task scheduler's desired maximum desired capacity. If {@link TaskSchedulerBuilder#UNLIMITED_CAPACITY} is
      * returned, then this task scheduler does not have a maximum capacity.
      *

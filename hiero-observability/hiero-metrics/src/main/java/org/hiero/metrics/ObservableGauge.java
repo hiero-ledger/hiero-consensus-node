@@ -41,7 +41,7 @@ public final class ObservableGauge extends Metric {
 
     /**
      * Create a metric key for a {@link ObservableGauge} with the given name. <br>
-     * Name must match {@value org.hiero.metrics.core.MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value org.hiero.metrics.core.MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -64,7 +64,7 @@ public final class ObservableGauge extends Metric {
 
     /**
      * Create a builder for a {@link ObservableGauge} with the given metric name. <br>
-     * Name must match {@value org.hiero.metrics.core.MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value org.hiero.metrics.core.MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the metric name
      * @return the builder

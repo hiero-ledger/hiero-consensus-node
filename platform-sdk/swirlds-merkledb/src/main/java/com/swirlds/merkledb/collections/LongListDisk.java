@@ -97,7 +97,7 @@ public class LongListDisk extends AbstractLongList<Long> {
         TRANSFER_BUFFER_THREAD_LOCAL = new ThreadLocal<>();
         // it's initialized as 8 bytes (Long.BYTES) but likely it's going to be resized later
         TEMP_LONG_BUFFER_THREAD_LOCAL =
-                ThreadLocal.withInitial(() -> ByteBuffer.allocate(Long.BYTES).order(ByteOrder.nativeOrder()));
+                ThreadLocal.withInitial(() -> ByteBuffer.allocate(Long.BYTES).order(ByteOrder.LITTLE_ENDIAN));
     }
 
     /**
@@ -245,7 +245,7 @@ public class LongListDisk extends AbstractLongList<Long> {
     private ByteBuffer initOrGetTransferBuffer() {
         ByteBuffer buffer = TRANSFER_BUFFER_THREAD_LOCAL.get();
         if ((buffer == null) || (buffer.capacity() < memoryChunkSize)) {
-            buffer = ByteBuffer.allocate(memoryChunkSize).order(ByteOrder.nativeOrder());
+            buffer = ByteBuffer.allocate(memoryChunkSize).order(ByteOrder.LITTLE_ENDIAN);
             TRANSFER_BUFFER_THREAD_LOCAL.set(buffer);
         } else {
             // clean up the buffer
@@ -334,7 +334,7 @@ public class LongListDisk extends AbstractLongList<Long> {
      */
     @Override
     protected synchronized boolean putIfEqual(
-            final Long chunk, final int subIndex, final long oldValue, long newValue) {
+            @NonNull final Long chunk, final int subIndex, final long oldValue, long newValue) {
         chunkRecycleLock.readLock().lock();
         try {
             final ByteBuffer buf = TEMP_LONG_BUFFER_THREAD_LOCAL.get();
@@ -397,7 +397,7 @@ public class LongListDisk extends AbstractLongList<Long> {
      * {@inheritDoc}
      */
     @Override
-    protected void writeLongsData(final FileChannel fc) throws IOException {
+    protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
         final ByteBuffer transferBuffer = initOrGetTransferBuffer();
         final int totalNumOfChunks = calculateNumberOfChunks(size());
         final long currentMinValidIndex = minValidIndex.get();

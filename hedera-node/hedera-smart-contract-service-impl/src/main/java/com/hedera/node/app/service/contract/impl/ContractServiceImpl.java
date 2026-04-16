@@ -91,6 +91,7 @@ public class ContractServiceImpl implements ContractService {
                         contractMetrics,
                         systemContractMethodRegistry,
                         customOps,
+                        contractsConfigSupplier,
                         appContext.idFactory(),
                         nativeLibVerifier);
     }

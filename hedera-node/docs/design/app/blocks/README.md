@@ -51,19 +51,10 @@ The initialization flow includes:
      streaming is NOT enabled.
 2. If streaming is enabled:
    - The connection manager singleton (`BlockNodeConnectionManager`) is retrieved and the startup method is invoked.
-   - A background "worker thread" is started whose eventual job is to process block items and send them to the actively
-     connected Block Node.
-   - Finally, a Block Node is selected to be the active connection. Once this selection process is complete, an asynchronous
-     task is created and executed immediately to attempt the connection process. Note: The actual connection process is
-     asynchronous from the Consensus Node startup; if there are valid configurations but connection attempts fail, then
-     back pressure will eventually be applied, as described in documentation for the block buffer.
-   - If there are no Block Nodes available to connect to (e.g. missing or invalid connection configs) then the connection
-     manager startup process will fail by throwing an exception: `NoBlockNodesAvailableException`
-     - This error will propagate back to the Consensus Node startup where the error will be caught.
-     - If the configuration property `blockNode.shutdownNodeOnNoBlockNodes` is set to `true` then the Consensus Node will
-       immediately shut down and a fatal log message will be written. If the property is set to `false` then the Consensus
-       Node will be permitted to continue startup with only a warning message written to the log. However, keep in mind in
-       this latter scenario, eventually back pressure will engage if continued attempts to connect to a Block Node fail.
+   - A background connection monitor is started alongside the connection manager starting that will periodically check
+     whether new block node connection needs to be established. Since this is the first time the service is started, there
+     will be no active connection and thus the monitor will begin the connection establishment process.
+     - If there are no available block nodes, the monitor will continue to periodically wait for one to become available.
 3. If streaming is NOT enabled, then nothing happens.
 
 ## Block Node and Block Stream Configurations

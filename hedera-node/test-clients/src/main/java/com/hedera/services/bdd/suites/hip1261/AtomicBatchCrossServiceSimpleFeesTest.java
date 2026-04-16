@@ -72,6 +72,7 @@ import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.STATE_BYTES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_ASSOCIATE;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 
 import com.google.protobuf.ByteString;
@@ -652,8 +653,8 @@ public class AtomicBatchCrossServiceSimpleFeesTest {
                             validateInnerChargedUsdWithinWithTxnSize(
                                     "innerTxnSecond",
                                     "batchTxn",
-                                    txnSize -> expectedTokenMintNftFullFeeUsd(
-                                            Map.of(SIGNATURES, 3L, TOKEN_TYPES, 5L, PROCESSING_BYTES, (long) txnSize)),
+                                    txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
+                                            SIGNATURES, 3L, TOKEN_MINT_NFT, 5L, PROCESSING_BYTES, (long) txnSize)),
                                     0.1)));
                 }
 
@@ -1697,7 +1698,7 @@ public class AtomicBatchCrossServiceSimpleFeesTest {
                                     "batchTxn",
                                     txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                             SIGNATURES, 2L,
-                                            TOKEN_TYPES, 1L,
+                                            TOKEN_MINT_NFT, 1L,
                                             PROCESSING_BYTES, (long) txnSize)),
                                     0.1),
                             // ContractCreate fee = simple fees + gas read from the actual record

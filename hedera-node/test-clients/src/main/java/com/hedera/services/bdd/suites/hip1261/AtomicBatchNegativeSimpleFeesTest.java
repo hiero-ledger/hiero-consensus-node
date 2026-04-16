@@ -55,7 +55,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFileUpdateFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenMintFungibleFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageFullFeeUsd;
@@ -1204,7 +1204,7 @@ public class AtomicBatchNegativeSimpleFeesTest {
                         validateInnerChargedUsdWithinWithTxnSize(
                                 "innerTxnBurn",
                                 "batchTxn",
-                                txnSize -> expectedTokenBurnFungibleFullFeeUsd(
+                                txnSize -> expectedTokenBurnFullFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 1)));
             }

@@ -3,7 +3,6 @@ package com.hedera.statevalidation.validator;
 
 import com.hedera.statevalidation.util.StateUtils;
 import com.hedera.statevalidation.validator.pipeline.RehashTaskExecutor;
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -82,7 +81,10 @@ public class RehashValidator implements Validator {
             throw new ValidationException(REHASH_GROUP, "Unexpected exception: " + e.getMessage(), e);
         }
 
-        ValidationAssertions.requireEqual(originalHash, computedHash, getName());
+        if (!java.util.Objects.equals(originalHash, computedHash)) {
+            throw new ValidationException(
+                    getName(), String.format("Expected <%s> but was <%s>", originalHash, computedHash));
+        }
 
         logger.debug("It took {} ms to rehash the state", System.currentTimeMillis() - startTime);
     }
