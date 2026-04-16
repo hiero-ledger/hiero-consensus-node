@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Compile Application Code"
+name: "ZXC: Compile and Spotless Check"
 on:
   workflow_call:
     inputs:
@@ -7,6 +7,7 @@ on:
         description: "The branch, tag or SHA to checkout."
         required: false
         type: string
+        default: ""
       java-distribution:
         description: "Java JDK Distribution:"
         type: string
@@ -35,7 +36,7 @@ on:
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ jobs.compile-application-code.outputs.failure-mode }}
+        value: ${{ jobs.compile-and-spotless-check.outputs.failure-mode }}
 
 defaults:
   run:
@@ -56,8 +57,8 @@ env:
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
-  compile-application-code:
-    name: "Compile Application Code"
+  compile-and-spotless-check:
+    name: "Compile and Spotless Check"
     runs-on: hl-cn-compile-app-lin
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -68,7 +69,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
+          checkout-fetch-depth: "0"
           checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
@@ -82,15 +83,19 @@ jobs:
         id: compile-source
         run: ${GRADLE_EXEC} assemble :yahcli:yahCliJar
 
+      - name: Spotless Check
+        id: spotless-check
+        if: ${{ steps.compile-source.outcome == 'success' }}
+        run: ${GRADLE_EXEC} spotlessCheck
+
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.compile-source.outcome }}" != "success" ]]; then
-            echo "Compilation step failed."
-            echo "failure-mode=general" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.prepare-runner.outcome }}" != "success" ]]; then
-            echo "Runner preparation step failed."
+          if [[ "${{ steps.compile-source.outcome || 'skipped' }}" == "failure" \
+            || "${{ steps.spotless-check.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.prepare-runner.outcome || 'skipped' }}" != "success" ]]; then
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
