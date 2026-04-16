@@ -9,6 +9,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -77,6 +78,8 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
      */
     @Override
     public void processHashChunk(@NonNull final VirtualHashChunk hashChunk) {
+        Objects.requireNonNull(hashStore);
+
         try {
             final long chunkId = hashChunk.getChunkId();
             final long hashChunkPath = hashChunk.path();
