@@ -57,8 +57,6 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     private final Map<Address, HederaSystemContract> systemContracts;
     private final ContractMetrics contractMetrics;
 
-    public final HEVM _evm;
-
     private enum ForLazyCreation {
         YES,
         NO,
@@ -80,7 +78,6 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
             @NonNull final Map<Address, HederaSystemContract> systemContracts,
             @NonNull final ContractMetrics contractMetrics) {
         super(evm, precompiles);
-        _evm = evm;
         this.featureFlags = Objects.requireNonNull(featureFlags);
         this.precompiles = Objects.requireNonNull(precompiles);
         this.addressChecks = Objects.requireNonNull(addressChecks);
@@ -368,9 +365,5 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                 ((ActionSidecarContentTracer) operationTracer).traceNotExecuting(frame);
             }
         }
-    }
-
-    public HederaSystemContract systemContractsRead(Address key) {
-        return systemContracts.get(key);
     }
 }

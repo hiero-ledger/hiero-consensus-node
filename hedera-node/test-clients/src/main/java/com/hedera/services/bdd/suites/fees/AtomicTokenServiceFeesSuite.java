@@ -52,7 +52,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenAssociateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenBurnFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCancelAirdropFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteFullFeeUsd;
@@ -86,6 +86,7 @@ import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_ASSOCIATE;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 
 import com.google.protobuf.ByteString;
@@ -603,7 +604,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 txnFor(commonNoFees),
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(
+                                txnSize -> expectedTokenCreateFullFeeUsd(
                                         Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
@@ -688,7 +689,7 @@ class AtomicTokenServiceFeesSuite {
                         return validateInnerChargedUsdWithinWithTxnSize(
                                 uniqueNoFees,
                                 ATOMIC_BATCH,
-                                txnSize -> expectedTokenCreateFungibleFullFeeUsd(Map.of(
+                                txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
                                         KEYS, 2L,
                                         PROCESSING_BYTES, (long) txnSize)),
@@ -861,7 +862,7 @@ class AtomicTokenServiceFeesSuite {
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
-                                        TOKEN_TYPES, 1L,
+                                        TOKEN_MINT_NFT, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1);
                     } else {
@@ -919,7 +920,7 @@ class AtomicTokenServiceFeesSuite {
                                 ATOMIC_BATCH,
                                 txnSize -> expectedTokenMintNftFullFeeUsd(Map.of(
                                         SIGNATURES, 1L,
-                                        TOKEN_TYPES, 10L,
+                                        TOKEN_MINT_NFT, 10L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 1.0);
                     } else {

@@ -234,6 +234,12 @@ for EXPERIMENT in "${EXPERIMENTS_TO_RUN[@]}"; do
                     cp "$NODE_DIR/data/stats/metrics.txt" "$STATS_DIR/metrics-${NODE_NAME}.txt"
                     ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
                 fi
+                for JFR in "$NODE_DIR"/*.jfr; do
+                    if [[ -f "$JFR" ]]; then
+                        cp "$JFR" "$DEST_DIR/$(basename "$JFR")"
+                        ARTIFACT_COUNT=$((ARTIFACT_COUNT + 1))
+                    fi
+                done
             done
 
             # Copy log

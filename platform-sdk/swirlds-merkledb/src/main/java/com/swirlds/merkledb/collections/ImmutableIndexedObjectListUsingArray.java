@@ -87,6 +87,10 @@ public class ImmutableIndexedObjectListUsingArray<T extends IndexedObject> imple
             return this;
         }
 
+        if (isEmpty()) {
+            return new ImmutableIndexedObjectListUsingArray<>(arrayProvider, List.of(newObject));
+        }
+
         // Create a temp array list with just non-null objects that belong to the new list
         final List<T> newDataArray = new ArrayList<>(Arrays.asList(dataArray));
         newDataArray.removeIf(next -> next == null || next.getIndex() == newObject.getIndex());
@@ -142,7 +146,7 @@ public class ImmutableIndexedObjectListUsingArray<T extends IndexedObject> imple
     /** {@inheritDoc} */
     @Override
     public Stream<T> stream() {
-        return Arrays.stream(dataArray).filter(Objects::nonNull);
+        return isEmpty() ? Stream.empty() : Arrays.stream(dataArray).filter(Objects::nonNull);
     }
 
     @Override

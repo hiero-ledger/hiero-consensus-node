@@ -93,7 +93,7 @@ class DataFileCompactorSingleLevelTest {
                 final MerkleDbConfig config,
                 final DataFileCollection dataFileCollection,
                 final CASableLongIndex index) {
-            super("test-store", dataFileCollection, index, null, null, null, null);
+            super(dataFileCollection, index, null, null, null, null);
         }
 
         @Override

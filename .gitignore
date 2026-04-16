@@ -1094,5 +1094,6 @@ snyk-code.html
 snyk-code.json
 snyk/
 
-### Claude Code
+### AI Helpers Code
 .claude/
+**/ai.local

@@ -10,9 +10,15 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.node.config.types.BlockStreamWriterMode;
+import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.containers.BlockNodeSubscribeClient;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,6 +63,52 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
+        if (isWriterModeGrpcOnly(spec)) {
+            return submitOpViaBlockNodes(spec);
+        }
+        return submitOpViaDisk(spec);
+    }
+
+    private boolean submitOpViaBlockNodes(@NonNull final HapiSpec spec) throws Throwable {
+        final var blockNodeNetwork = resolveBlockNodeNetwork();
+        if (blockNodeNetwork == null) {
+            throw new IllegalStateException("No block node network available for GRPC-only writer mode");
+        }
+
+        final var currentBlock = findLatestBlockNumberFromBlockNodes(blockNodeNetwork);
+        final var targetBlock = currentBlock + blocksToWaitFor;
+
+        log.info(
+                "Waiting for block {} via block nodes (current block is {}, waiting for {})",
+                targetBlock,
+                currentBlock,
+                blocksToWaitFor);
+
+        final var stopTraffic = new AtomicBoolean(false);
+        CompletableFuture<?> trafficFuture = backgroundTraffic ? startBackgroundTraffic(spec, stopTraffic) : null;
+
+        try {
+            final var startTime = System.currentTimeMillis();
+            while (true) {
+                if (isBlockCompleteOnBlockNodes(blockNodeNetwork, targetBlock)) {
+                    log.info("Block {} confirmed on block nodes", targetBlock);
+                    return false;
+                }
+                if (System.currentTimeMillis() - startTime > timeout.toMillis()) {
+                    throw new RuntimeException(String.format(
+                            "Timeout waiting for block %d after %d seconds", targetBlock, timeout.toSeconds()));
+                }
+                spec.sleepConsensusTime(POLL_INTERVAL);
+            }
+        } finally {
+            if (trafficFuture != null) {
+                stopTraffic.set(true);
+                trafficFuture.join();
+            }
+        }
+    }
+
+    private boolean submitOpViaDisk(@NonNull final HapiSpec spec) throws Throwable {
         final var blockDir = spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(BLOCK_STREAMS_DIR);
         if (blockDir == null) {
             throw new IllegalStateException("Block stream directory not available");
@@ -77,29 +129,8 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
                 currentBlock,
                 blocksToWaitFor);
 
-        // Start background traffic if configured
         final var stopTraffic = new AtomicBoolean(false);
-        CompletableFuture<?> trafficFuture = null;
-        if (backgroundTraffic) {
-            trafficFuture = CompletableFuture.runAsync(() -> {
-                while (!stopTraffic.get()) {
-                    try {
-                        // Execute the background traffic operation
-                        allRunFor(
-                                spec,
-                                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))
-                                        .deferStatusResolution()
-                                        .noLogging()
-                                        .hasAnyStatusAtAll());
-                        // Advance consensus time after successful execution
-                        spec.sleepConsensusTime(BACKGROUND_TRAFFIC_INTERVAL);
-                    } catch (Exception e) {
-                        // Log but continue trying
-                        log.info("Background traffic iteration failed", e);
-                    }
-                }
-            });
-        }
+        CompletableFuture<?> trafficFuture = backgroundTraffic ? startBackgroundTraffic(spec, stopTraffic) : null;
 
         try {
             final var startTime = System.currentTimeMillis();
@@ -120,6 +151,25 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
                 trafficFuture.join();
             }
         }
+    }
+
+    private CompletableFuture<?> startBackgroundTraffic(
+            @NonNull final HapiSpec spec, @NonNull final AtomicBoolean stopTraffic) {
+        return CompletableFuture.runAsync(() -> {
+            while (!stopTraffic.get()) {
+                try {
+                    allRunFor(
+                            spec,
+                            cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))
+                                    .deferStatusResolution()
+                                    .noLogging()
+                                    .hasAnyStatusAtAll());
+                    spec.sleepConsensusTime(BACKGROUND_TRAFFIC_INTERVAL);
+                } catch (Exception e) {
+                    log.info("Background traffic iteration failed", e);
+                }
+            }
+        });
     }
 
     private long findLatestBlockNumber(Path blockDir) throws IOException {
@@ -146,5 +196,73 @@ public class HapiSpecWaitUntilNextBlock extends UtilOp {
         String fileName = path.getFileName().toString();
         return Files.isRegularFile(path)
                 && (fileName.endsWith(BLOCK_FILE_EXTENSION) || fileName.endsWith(COMPRESSED_BLOCK_FILE_EXTENSION));
+    }
+
+    @Nullable
+    private static BlockNodeNetwork resolveBlockNodeNetwork() {
+        var network = HapiSpec.TARGET_BLOCK_NODE_NETWORK.get();
+        if (network == null) {
+            network = NetworkTargetingExtension.SHARED_BLOCK_NODE_NETWORK.get();
+        }
+        return network;
+    }
+
+    private static long findLatestBlockNumberFromBlockNodes(@NonNull final BlockNodeNetwork blockNodeNetwork) {
+        final var mode = blockNodeNetwork.getBlockNodeModeById().values().stream()
+                .findFirst()
+                .orElse(BlockNodeMode.NONE);
+        if (mode == BlockNodeMode.SIMULATOR) {
+            return blockNodeNetwork.getSimulatedBlockNodeById().values().stream()
+                    .mapToLong(sim -> sim.getLastVerifiedBlockNumber())
+                    .max()
+                    .orElse(-1L);
+        } else if (mode == BlockNodeMode.REAL) {
+            long best = -1L;
+            for (final var entry : blockNodeNetwork.getBlockNodeContainerById().entrySet()) {
+                try (final var client = new BlockNodeSubscribeClient(
+                        entry.getValue().getHost(), entry.getValue().getPort())) {
+                    final long last = client.getLastAvailableBlock();
+                    if (last > best) {
+                        best = last;
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to query real block node {} for latest block", entry.getKey(), e);
+                }
+            }
+            return best;
+        }
+        return -1L;
+    }
+
+    private static boolean isBlockCompleteOnBlockNodes(
+            @NonNull final BlockNodeNetwork blockNodeNetwork, final long blockNumber) {
+        final var mode = blockNodeNetwork.getBlockNodeModeById().values().stream()
+                .findFirst()
+                .orElse(BlockNodeMode.NONE);
+        if (mode == BlockNodeMode.SIMULATOR) {
+            return blockNodeNetwork.getSimulatedBlockNodeById().values().stream()
+                    .anyMatch(sim -> sim.hasReceivedBlock(blockNumber));
+        } else if (mode == BlockNodeMode.REAL) {
+            for (final var entry : blockNodeNetwork.getBlockNodeContainerById().entrySet()) {
+                try (final var client = new BlockNodeSubscribeClient(
+                        entry.getValue().getHost(), entry.getValue().getPort())) {
+                    if (client.getLastAvailableBlock() >= blockNumber) {
+                        return true;
+                    }
+                } catch (Exception e) {
+                    log.warn("Failed to query real block node {} for block {}", entry.getKey(), blockNumber, e);
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isWriterModeGrpcOnly(@NonNull final HapiSpec spec) {
+        try {
+            final var writerMode = spec.startupProperties().get("blockStream.writerMode");
+            return BlockStreamWriterMode.GRPC.name().equals(writerMode);
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

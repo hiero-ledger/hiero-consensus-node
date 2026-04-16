@@ -590,8 +590,9 @@ public class NodeRewardManager {
     private static boolean isBlockNodeType(@NonNull final RegisteredNode registeredNode) {
         return registeredNode.serviceEndpoint().stream()
                 .anyMatch(endpoint -> endpoint.hasBlockNode()
-                        && endpoint.blockNodeOrThrow().endpointApi()
-                                == RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH);
+                        && endpoint.blockNodeOrThrow()
+                                .endpointApi()
+                                .contains(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH));
     }
 
     /**

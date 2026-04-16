@@ -17,9 +17,7 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
@@ -45,9 +43,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.block.api.BlockEnd;
@@ -99,15 +97,17 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     private BlockStreamPublishServiceClient grpcServiceClient;
     private BlockStreamMetrics metrics;
     private Pipeline<? super PublishStreamRequest> requestPipeline;
-    private ScheduledExecutorService executorService;
     private ExecutorService pipelineExecutor;
     private BlockNodeClientFactory clientFactory;
-
+    private AtomicInteger globalActiveStreamingConnectionCount;
     private ExecutorService realExecutor;
+    private BlockNodeStats stats;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
     void beforeEach() throws Exception {
+        globalActiveStreamingConnectionCount = new AtomicInteger();
+        stats = mock(BlockNodeStats.class);
         configProvider = createConfigProvider(createDefaultConfigProvider());
         nodeConfig = newBlockNodeConfig(8080, 1);
         connectionManager = mock(BlockNodeConnectionManager.class);
@@ -115,7 +115,6 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         grpcServiceClient = mock(BlockStreamPublishServiceClient.class);
         metrics = mock(BlockStreamMetrics.class);
         requestPipeline = mock(Pipeline.class);
-        executorService = mock(ScheduledExecutorService.class);
         pipelineExecutor = mock(ExecutorService.class);
 
         // Set up default behavior for pipelineExecutor using a real executor
@@ -152,11 +151,10 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                nodeConfig,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, stats),
                 connectionManager,
                 bufferService,
                 metrics,
-                executorService,
                 pipelineExecutor,
                 null,
                 clientFactory,
@@ -234,11 +232,10 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                cfgWithMax,
+                new BlockNode(configProvider, cfgWithMax, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
-                executorService,
                 pipelineExecutor,
                 null,
                 localFactory,
@@ -283,6 +280,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .as("Connection should close due to oversized item")
                 .isTrue();
 
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
+
         // Should have sent header, then ended stream due to size violation under configured limit
         verify(requestPipeline, atLeastOnce()).onNext(any(PublishStreamRequest.class));
         verify(connectionManager).notifyConnectionClosed(connection);
@@ -296,11 +295,10 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                nodeConfig,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
-                executorService,
                 pipelineExecutor,
                 null,
                 clientFactory,
@@ -384,11 +382,11 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
-
         verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
+        verify(connectionManager).notifyConnectionActive(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
-        verifyNoInteractions(connectionManager);
+        verifyNoMoreInteractions(connectionManager);
     }
 
     @Test
@@ -399,11 +397,10 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                nodeConfig,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
-                executorService,
                 pipelineExecutor,
                 null,
                 clientFactory,
@@ -435,14 +432,14 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         block.addItem(item);
 
-        // Wait for the close() path to complete; use recordConnectionClosed since it is only called from close().
+        // Wait for the close() path to complete; use notifyConnectionClosed since it is only called from close().
         final CountDownLatch connectionClosedLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
                     connectionClosedLatch.countDown();
                     return null;
                 })
-                .when(metrics)
-                .recordConnectionClosed();
+                .when(connectionManager)
+                .notifyConnectionClosed(connection);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
@@ -460,6 +457,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(endStream).isNotNull();
         assertThat(endStream.endCode()).isEqualTo(EndStream.Code.ERROR);
 
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
+
         verify(metrics).recordRequestExceedsHardLimit();
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
         verify(metrics).recordRequestLatency(anyLong());
@@ -469,8 +468,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(bufferService).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
-
         verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
+        verify(connectionManager).notifyConnectionActive(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
@@ -622,14 +621,14 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(itemsSentCount).isEqualTo(allItems.size());
 
         verify(bufferService, atLeast(numBlocks + 1)).getBlockState(anyLong());
-        verify(connectionManager, times(numBlocks))
-                .recordBlockProofSent(any(BlockNodeConfiguration.class), anyLong(), any(Instant.class));
+        verify(stats, times(numBlocks)).recordBlockProofSent(anyLong(), any(Instant.class));
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
         verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
         verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
+        verify(connectionManager).notifyConnectionActive(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
@@ -658,7 +657,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Use a latch on END_OF_BLOCK metric recording to ensure it's fully processed
         final CountDownLatch endOfBlockLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
-                    RequestOneOfType type = invocation.getArgument(0);
+                    final RequestOneOfType type = invocation.getArgument(0);
                     if (type == RequestOneOfType.END_OF_BLOCK) {
                         endOfBlockLatch.countDown();
                     }
@@ -694,11 +693,10 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                nodeConfig,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
-                executorService,
                 pipelineExecutor,
                 blockNumber, // start streaming with block 10
                 clientFactory,
@@ -713,7 +711,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(workerThread).isNotNull();
 
         // signal to close at the block boundary
-        connection.closeAtBlockBoundary();
+        connection.closeAtBlockBoundary(CloseReason.SHUTDOWN);
 
         // the worker should determine there is no block available to stream and with the flag enabled to close at the
         // nearest block boundary, the connection should be closed without sending any items
@@ -723,6 +721,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         // now the connection should be closed and all the items are sent
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.SHUTDOWN);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
 
@@ -759,11 +759,10 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                nodeConfig,
+                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
-                executorService,
                 pipelineExecutor,
                 blockNumber, // start streaming with block 10
                 clientFactory,
@@ -781,7 +780,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         block.addItem(newBlockTxItem(1_345));
 
         // now signal to close the connection at the block boundary
-        connection.closeAtBlockBoundary();
+        connection.closeAtBlockBoundary(CloseReason.SHUTDOWN);
 
         // add more items including the proof and ensure they are all sent
         block.addItem(newBlockTxItem(5_039));
@@ -794,6 +793,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         // now the connection should be closed and all the items are sent
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.SHUTDOWN);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
 
@@ -941,8 +942,18 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Create a mock Future that will throw InterruptedException when get() is called
         @SuppressWarnings("unchecked")
         final Future<Object> mockFuture = mock(Future.class);
-        when(mockFuture.get(anyLong(), any(TimeUnit.class)))
-                .thenThrow(new InterruptedException("Simulated interruption"));
+        final AtomicBoolean isFirstCall = new AtomicBoolean(true);
+        doAnswer(_ -> {
+                    // for the first call, let it pass - this is the sending of EndStream.RESET
+                    if (isFirstCall.compareAndSet(true, false)) {
+                        return null;
+                    } else {
+                        // subsequent calls are for the close operation and should fail
+                        throw new InterruptedException("Simulated interruption");
+                    }
+                })
+                .when(mockFuture)
+                .get(anyLong(), any(TimeUnit.class));
 
         // Set up the pipelineExecutor to return mock future
         doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
@@ -952,7 +963,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final CountDownLatch latch = new CountDownLatch(1);
         Thread.ofVirtual().start(() -> {
             try {
-                connection.close(true);
+                connection.close(CloseReason.CONNECTION_ERROR, true);
             } finally {
                 isInterrupted.set(Thread.currentThread().isInterrupted());
                 latch.countDown();
@@ -963,11 +974,13 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
 
         // Verify interruption was handled gracefully
-        verify(mockFuture).get(anyLong(), any(TimeUnit.class));
+        verify(mockFuture, times(2)).get(anyLong(), any(TimeUnit.class));
         verify(metrics).recordConnectionClosed();
 
         // Connection should still be CLOSED despite interruption
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
 
         assertThat(isInterrupted.get()).isTrue();
     }
@@ -1075,7 +1088,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordBlockItemsSent(anyInt());
         verify(metrics, times(totalRequestsSent)).recordRequestLatency(anyLong());
-        verify(connectionManager).recordBlockProofSent(eq(connection.configuration()), eq(10L), any(Instant.class));
+        verify(stats).recordBlockProofSent(eq(10L), any(Instant.class));
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
@@ -1085,6 +1098,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
         verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
+        verify(connectionManager).notifyConnectionActive(connection);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);

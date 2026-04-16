@@ -457,12 +457,14 @@ public interface HapiPropertySource {
     }
 
     /**
-     * Interprets the given string as a block node endpoint in the format {@code addr:port:blockNodeApi[:tls]},
-     * returning a {@link RegisteredServiceEndpoint} with a {@code BlockNodeEndpoint} type set.
+     * Interprets the given string as a block node endpoint in the format
+     * {@code addr:port:api1[,api2,...][:tls]}, returning a {@link RegisteredServiceEndpoint}
+     * with a {@code BlockNodeEndpoint} type set.
      * <p>
-     * The {@code addr} may be an IPv4 address or FQDN. The required {@code blockNodeApi} must be one of
-     * {@code OTHER}, {@code STATUS}, {@code PUBLISH}, {@code SUBSCRIBE_STREAM}, {@code STATE_PROOF}.
-     * The optional literal {@code tls} enables {@code requires_tls = true}.
+     * The {@code addr} may be an IPv4 address or FQDN. The required API list is comma-separated;
+     * each value must be one of {@code OTHER}, {@code STATUS}, {@code PUBLISH},
+     * {@code SUBSCRIBE_STREAM}, {@code STATE_PROOF}. The optional literal {@code tls} enables
+     * {@code requires_tls = true}.
      *
      * @param v the string to interpret
      * @return the parsed {@link RegisteredServiceEndpoint}
@@ -470,24 +472,29 @@ public interface HapiPropertySource {
     static RegisteredServiceEndpoint asBlockNodeEndpoint(@NonNull final String v) {
         requireNonNull(v);
         final String[] parts = v.split(":");
-        validateMinSegments(parts, 3, v, "addr:port:blockNodeApi[:tls]");
+        validateMinSegments(parts, 3, v, "addr:port:api1[,api2][:tls]");
         final String addr = parts[0];
         final int port = validatePort(Integer.parseInt(parts[1]), v);
         final var builder = RegisteredServiceEndpoint.newBuilder();
         setAddress(builder, addr);
         builder.setPort(port);
-        final RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi blockNodeApi;
-        try {
-            blockNodeApi = RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.valueOf(parts[2].toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Missing required blockNodeApi in block node endpoint '" + v
-                    + "'. Expected format: addr:port:blockNodeApi[:tls] where blockNodeApi is one of:"
-                    + " STATUS, PUBLISH, SUBSCRIBE_STREAM, STATE_PROOF, OTHER");
+        final var blockNodeBuilder = RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder();
+        for (final String apiName : parts[2].split(",", -1)) {
+            if (apiName.isEmpty()) {
+                throw new IllegalArgumentException("Empty API name in block node endpoint '" + v
+                        + "'. Expected format: addr:port:api1[,api2][:tls]");
+            }
+            try {
+                blockNodeBuilder.addEndpointApi(
+                        RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.valueOf(apiName.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid blockNodeApi '" + apiName + "' in block node endpoint '"
+                        + v + "'. Expected format: addr:port:api1[,api2][:tls] where each api is one of:"
+                        + " STATUS, PUBLISH, SUBSCRIBE_STREAM, STATE_PROOF, OTHER");
+            }
         }
-        builder.setRequiresTls(parseOptionalTls(parts, 3, v, "addr:port:blockNodeApi[:tls]"));
-        builder.setBlockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
-                .setEndpointApi(blockNodeApi)
-                .build());
+        builder.setRequiresTls(parseOptionalTls(parts, 3, v, "addr:port:api1[,api2][:tls]"));
+        builder.setBlockNode(blockNodeBuilder.build());
         return builder.build();
     }
 
