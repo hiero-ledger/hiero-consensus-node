@@ -137,15 +137,21 @@ jobs:
         # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
         run: |
           status=0
-          echo "::group::hapiTestMisc"
-          ${GRADLE_EXEC} hapiTestMisc --no-daemon || { status=1; echo "::error::hapiTestMisc failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestMiscEmbedded"
-          ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon || { status=1; echo "::error::hapiTestMiscEmbedded failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestMiscRepeatable"
-          ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon || { status=1; echo "::error::hapiTestMiscRepeatable failed"; }
-          echo "::endgroup::"
+          run_subtask() {
+            local t=$1
+            echo "::group::$t"
+            if ${GRADLE_EXEC} "$t" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::$t failed"
+            echo "❌ $t FAILED — expand group above for details"
+          }
+          run_subtask hapiTestMisc
+          run_subtask hapiTestMiscEmbedded
+          run_subtask hapiTestMiscRepeatable
           exit $status
 
       - name: YahCLI Subprocess Regression Tests
@@ -268,24 +274,24 @@ jobs:
           LANG: en_US.UTF-8
         run: |
           status=0
-          echo "::group::hapiTestMiscRecords"
-          ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon || { status=1; echo "::error::hapiTestMiscRecords failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestMiscRecordsSerial"
-          ${GRADLE_EXEC} hapiTestMiscRecordsSerial --no-daemon || { status=1; echo "::error::hapiTestMiscRecordsSerial failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestCrypto"
-          ${GRADLE_EXEC} hapiTestCrypto --no-daemon || { status=1; echo "::error::hapiTestCrypto failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestCryptoEmbedded"
-          ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon || { status=1; echo "::error::hapiTestCryptoEmbedded failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestCryptoSerial"
-          ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon || { status=1; echo "::error::hapiTestCryptoSerial failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestMiscSerial"
-          ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon || { status=1; echo "::error::hapiTestMiscSerial failed"; }
-          echo "::endgroup::"
+          run_subtask() {
+            local t=$1
+            echo "::group::$t"
+            if ${GRADLE_EXEC} "$t" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::$t failed"
+            echo "❌ $t FAILED — expand group above for details"
+          }
+          run_subtask hapiTestMiscRecords
+          run_subtask hapiTestMiscRecordsSerial
+          run_subtask hapiTestCrypto
+          run_subtask hapiTestCryptoEmbedded
+          run_subtask hapiTestCryptoSerial
+          run_subtask hapiTestMiscSerial
           exit $status
 
       - name: Publish HAPI Test (Misc Records, Crypto & Misc Serial) Reports
@@ -391,18 +397,22 @@ jobs:
           LANG: en_US.UTF-8
         run: |
           status=0
-          echo "::group::hapiTestToken"
-          ${GRADLE_EXEC} hapiTestToken --no-daemon || { status=1; echo "::error::hapiTestToken failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestTokenSerial"
-          ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon || { status=1; echo "::error::hapiTestTokenSerial failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestTimeConsuming"
-          ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon || { status=1; echo "::error::hapiTestTimeConsuming failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestTimeConsumingSerial"
-          ${GRADLE_EXEC} hapiTestTimeConsumingSerial --no-daemon || { status=1; echo "::error::hapiTestTimeConsumingSerial failed"; }
-          echo "::endgroup::"
+          run_subtask() {
+            local t=$1
+            echo "::group::$t"
+            if ${GRADLE_EXEC} "$t" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::$t failed"
+            echo "❌ $t FAILED — expand group above for details"
+          }
+          run_subtask hapiTestToken
+          run_subtask hapiTestTokenSerial
+          run_subtask hapiTestTimeConsuming
+          run_subtask hapiTestTimeConsumingSerial
           exit $status
 
       - name: Publish HAPI Test (Token & Time Consuming) Reports
@@ -508,18 +518,22 @@ jobs:
           LANG: en_US.UTF-8
         run: |
           status=0
-          echo "::group::hapiTestSimpleFees"
-          ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon || { status=1; echo "::error::hapiTestSimpleFees failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestSimpleFeesEmbedded"
-          ${GRADLE_EXEC} hapiTestSimpleFeesEmbedded --no-daemon || { status=1; echo "::error::hapiTestSimpleFeesEmbedded failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestSimpleFeesSerial"
-          ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon || { status=1; echo "::error::hapiTestSimpleFeesSerial failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestNDReconnect"
-          ${GRADLE_EXEC} hapiTestNDReconnect --no-daemon || { status=1; echo "::error::hapiTestNDReconnect failed"; }
-          echo "::endgroup::"
+          run_subtask() {
+            local t=$1
+            echo "::group::$t"
+            if ${GRADLE_EXEC} "$t" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::$t failed"
+            echo "❌ $t FAILED — expand group above for details"
+          }
+          run_subtask hapiTestSimpleFees
+          run_subtask hapiTestSimpleFeesEmbedded
+          run_subtask hapiTestSimpleFeesSerial
+          run_subtask hapiTestNDReconnect
           exit $status
 
       - name: Publish HAPI Test (Simple Fees & ND Reconnect) Reports
@@ -625,15 +639,21 @@ jobs:
           LANG: en_US.UTF-8
         run: |
           status=0
-          echo "::group::hapiTestSmartContract"
-          ${GRADLE_EXEC} hapiTestSmartContract --no-daemon || { status=1; echo "::error::hapiTestSmartContract failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestSmartContractSerial"
-          ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon || { status=1; echo "::error::hapiTestSmartContractSerial failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestIss"
-          ${GRADLE_EXEC} hapiTestIss --no-daemon || { status=1; echo "::error::hapiTestIss failed"; }
-          echo "::endgroup::"
+          run_subtask() {
+            local t=$1
+            echo "::group::$t"
+            if ${GRADLE_EXEC} "$t" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::$t failed"
+            echo "❌ $t FAILED — expand group above for details"
+          }
+          run_subtask hapiTestSmartContract
+          run_subtask hapiTestSmartContractSerial
+          run_subtask hapiTestIss
           exit $status
 
       - name: Publish HAPI Test (Smart Contracts & ISS) Reports
@@ -943,15 +963,21 @@ jobs:
           LANG: en_US.UTF-8
         run: |
           status=0
-          echo "::group::hapiTestAtomicBatch"
-          ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon || { status=1; echo "::error::hapiTestAtomicBatch failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestAtomicBatchSerial"
-          ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon || { status=1; echo "::error::hapiTestAtomicBatchSerial failed"; }
-          echo "::endgroup::"
-          echo "::group::hapiTestAtomicBatchEmbedded"
-          ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon || { status=1; echo "::error::hapiTestAtomicBatchEmbedded failed"; }
-          echo "::endgroup::"
+          run_subtask() {
+            local t=$1
+            echo "::group::$t"
+            if ${GRADLE_EXEC} "$t" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::$t failed"
+            echo "❌ $t FAILED — expand group above for details"
+          }
+          run_subtask hapiTestAtomicBatch
+          run_subtask hapiTestAtomicBatchSerial
+          run_subtask hapiTestAtomicBatchEmbedded
           exit $status
 
       - name: Publish HAPI Test (Atomic Batch) Reports
