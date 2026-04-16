@@ -214,17 +214,21 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     private VirtualDataSource dataSource;
 
     /**
-     * The target path for an asynchronous snapshot operation. This field is {@code null} unless
-     * an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
-     * When set along with the {@link #snapshotFuture}, the snapshot will be written to this path during the flush operation.
+     * The target path for an asynchronous snapshot operation. Set to a non-null value when
+     * an async snapshot is requested via {@link #createSnapshotAsync(Path)}, and cleared
+     * back to {@code null} in {@link #flush()} after the snapshot completes, fails, or is cancelled.
+     * Always set and cleared together with {@link #snapshotFuture}.
      * Set/read from multiple threads.
      */
     private final AtomicReference<Path> snapshotTargetPath = new AtomicReference<>();
 
     /**
-     * A future that completes when an asynchronous snapshot operation finishes. This field is
-     * {@code null} unless an async snapshot has been requested via {@link #createSnapshotAsync(Path)}.
-     * The future is completed in {@link #flush()} after the snapshot is successfully written.
+     * A future that completes when an asynchronous snapshot operation finishes. Set to a non-null
+     * value when an async snapshot is requested via {@link #createSnapshotAsync(Path)}, and cleared
+     * back to {@code null} in {@link #flush()} after the snapshot completes, fails, or is cancelled.
+     * The future is completed normally on success, completed exceptionally on error,
+     * or may already be cancelled by the caller (e.g., on timeout) before {@link #flush()} runs.
+     * Always set and cleared together with {@link #snapshotTargetPath}.
      * Set/read from multiple threads.
      */
     private final AtomicReference<CompletableFuture<Void>> snapshotFuture = new AtomicReference<>();
@@ -1023,9 +1027,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // If an async snapshot was requested via createSnapshotAsync(), write the snapshot
             // to the target path and signal completion. This must happen after the cache flush
             // completes, so the data source contains all relevant data.
-            final Path targetPath = snapshotTargetPath.get();
             final CompletableFuture<Void> future = snapshotFuture.get();
-            if (targetPath != null && future != null) {
+            if (future != null) {
+                final Path targetPath = snapshotTargetPath.get();
+                assert targetPath != null : "snapshotTargetPath must not be null when snapshotFuture is set";
                 if (future.isCancelled()) {
                     logger.warn(
                             VIRTUAL_MERKLE_STATS.getMarker(),
@@ -1035,8 +1040,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                     dataSourceBuilder.snapshot(targetPath, dataSource);
                     future.complete(null);
                 }
-                snapshotTargetPath.set(null);
-                snapshotFuture.set(null);
             }
         } catch (final Exception e) {
             logger.error(EXCEPTION.getMarker(), "Failed to write snapshot to target path", e);
@@ -1044,6 +1047,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             if (future != null) {
                 future.completeExceptionally(e);
             }
+        } finally {
             snapshotTargetPath.set(null);
             snapshotFuture.set(null);
         }
@@ -1666,6 +1670,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *         to the specified directory
      */
     public CompletableFuture<Void> createSnapshotAsync(final @NonNull Path outputDirectory) {
+        assert snapshotFuture.get() == null : "Async snapshot already in progress for this copy";
         snapshotTargetPath.set(outputDirectory);
         final CompletableFuture<Void> future = new CompletableFuture<>();
         snapshotFuture.set(future);

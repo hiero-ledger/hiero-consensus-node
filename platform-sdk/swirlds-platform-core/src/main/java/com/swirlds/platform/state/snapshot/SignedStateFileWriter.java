@@ -189,7 +189,7 @@ public final class SignedStateFileWriter {
                     stateConfig.asyncSnapshotTimeout(),
                     e);
             if (snapshotFuture != null) {
-                snapshotFuture.cancel(false);
+                snapshotFuture.cancel(true);
             }
             throw new IOException("Async snapshot timed out for round " + signedState.getRound(), e);
         } catch (final ExecutionException e) {
@@ -209,7 +209,7 @@ public final class SignedStateFileWriter {
                     directory,
                     e);
             if (snapshotFuture != null) {
-                snapshotFuture.cancel(false);
+                snapshotFuture.cancel(true);
             }
             throw new IOException("Async snapshot interrupted for round " + signedState.getRound(), e);
         } catch (final Throwable e) {
@@ -220,7 +220,7 @@ public final class SignedStateFileWriter {
                     directory,
                     e);
             if (snapshotFuture != null) {
-                snapshotFuture.cancel(false);
+                snapshotFuture.cancel(true);
             }
             throw new IOException("Snapshot creation failed for round " + signedState.getRound(), e);
         } finally {

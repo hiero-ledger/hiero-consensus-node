@@ -189,6 +189,20 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         return Optional.ofNullable(state.getStateToDiskReason()).orElse(UNKNOWN);
     }
 
+    /**
+     * Writes the signed state to the specified directory via {@link SignedStateFileWriter}.
+     * <p>
+     * <b>Reservation contract:</b> This method passes the reservation to
+     * {@link SignedStateFileWriter#writeSignedStateToDisk}, which takes ownership and releases it.
+     * For synchronous snapshots, the reservation is released after the snapshot is written.
+     * For asynchronous snapshots (periodic snapshots with async enabled), the reservation is
+     * released early to unblock the virtual pipeline flush, and the method blocks until the
+     * flush-triggered snapshot completes or times out.
+     *
+     * @param reservedSignedState the reserved state to write
+     * @param directory           the target directory for the state files
+     * @return {@code true} if the state was written successfully, {@code false} otherwise
+     */
     private boolean saveStateTask(
             @NonNull final ReservedSignedState reservedSignedState, @NonNull final Path directory) {
         final SignedState signedState = reservedSignedState.get();
