@@ -226,10 +226,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 platform,
                 wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART)) {
-            if (!startMode.equals("GENESIS")) {
-                blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
-            }
-            assertThat(blockRecordManager.blockTimestamp()).isNotNull();
             assertThat(blockRecordManager.blockNo()).isEqualTo(blockRecordManager.lastBlockNo() + 1);
             // write a blocks & record files
             int transactionCount = 0;
@@ -238,8 +234,13 @@ final class BlockRecordManagerTest extends AppTestBase {
                 final var blockData = TEST_BLOCKS.get(i);
                 final var block = STARTING_BLOCK + i;
                 for (var record : blockData) {
-                    blockRecordManager.startUserTransaction(
-                            fromTimestamp(record.transactionRecord().consensusTimestamp()), merkleState);
+                    final var consensusTime =
+                            fromTimestamp(record.transactionRecord().consensusTimestamp());
+                    blockRecordManager.startRound(consensusTime, merkleState);
+                    if (transactionCount == 0) {
+                        assertThat(blockRecordManager.blockTimestamp()).isNotNull();
+                    }
+                    blockRecordManager.startUserTransaction(consensusTime, merkleState);
                     // check start hash if first transaction
                     if (transactionCount == 0) {
                         // check starting hash, we need to be using the correct starting hash for the tests to work
@@ -344,8 +345,10 @@ final class BlockRecordManagerTest extends AppTestBase {
                     final int batchSize = Math.min(random.nextInt(100) + 1, blockData.size() - j);
                     final var userTransactions = blockData.subList(j, j + batchSize);
                     for (var record : userTransactions) {
-                        blockRecordManager.startUserTransaction(
-                                fromTimestamp(record.transactionRecord().consensusTimestamp()), merkleState);
+                        final var consensusTime =
+                                fromTimestamp(record.transactionRecord().consensusTimestamp());
+                        blockRecordManager.startRound(consensusTime, merkleState);
+                        blockRecordManager.startUserTransaction(consensusTime, merkleState);
                         blockRecordManager.endUserTransaction(Stream.of(record), merkleState);
                         transactionCount++;
                         // collect hashes
@@ -635,8 +638,10 @@ final class BlockRecordManagerTest extends AppTestBase {
 
         private void processBlock(BlockRecordManagerImpl manager, State state, int blockIndex) {
             for (var record : TEST_BLOCKS.get(blockIndex)) {
-                manager.startUserTransaction(
-                        fromTimestamp(record.transactionRecord().consensusTimestamp()), state);
+                final var consensusTime =
+                        fromTimestamp(record.transactionRecord().consensusTimestamp());
+                manager.startRound(consensusTime, state);
+                manager.startUserTransaction(consensusTime, state);
                 manager.endUserTransaction(Stream.of(record), state);
             }
         }

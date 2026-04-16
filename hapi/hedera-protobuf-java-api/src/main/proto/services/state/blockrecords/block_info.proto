@@ -105,9 +105,11 @@ message BlockInfo {
     /**
      * A consensus timestamp.
      * <p>
-     * The consensus time of the first transaction in the current block;
-     * necessary for reconnecting nodes to detect when the current block
-     * is finished.
+     * A legacy copy of the current block's logical open time.
+     * <p>
+     * This field is retained for compatibility. It is populated when a block
+     * is opened and promoted to `first_cons_time_of_last_block` when the block
+     * closes.
      */
     Timestamp first_cons_time_of_current_block = 6;
 
@@ -131,8 +133,9 @@ message BlockInfo {
     /**
      * The logical start time of the current record block.
      * <p>
-     * Unlike `first_cons_time_of_current_block`, this value is always populated
-     * for an open block, including blocks with no user transactions.
+     * This value is populated only while a current block is open, including
+     * blocks with no user transactions. It is unset when the signed state
+     * represents a closed block boundary.
      */
     proto.Timestamp block_time = 9;
 

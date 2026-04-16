@@ -78,7 +78,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
 
             assertEquals(EPOCH, asTimestamp(mgr.consTimeOfLastHandledTxn()));
 
-            mgr.startUserTransaction(firstTxnTime, state);
+            startUserTransactionInRound(mgr, firstTxnTime, state);
 
             assertEquals(asTimestamp(firstTxnTime), asTimestamp(mgr.consTimeOfLastHandledTxn()));
         }
@@ -135,11 +135,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 diskWriter,
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary (default 2s)
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
         }
         verify(diskWriter, never()).appendAsync(any());
     }
@@ -219,14 +219,14 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
 
             final var record = sampleTxnRecord(t0, List.of(sidecar1, sidecar2));
 
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(record), state);
 
             // Cross logPeriod boundary to end record block 0 and enqueue
             final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
             mgr.endRound(state, 2L, mgr.consTimeOfLastHandledTxn());
-            mgr.startUserTransaction(t1.plusNanos(1), state);
+            startUserTransactionInRound(mgr, t1.plusNanos(1), state);
             final var captor = ArgumentCaptor.forClass(WrappedRecordFileBlockHashesComputationInput.class);
             verify(diskWriter).appendAsync(captor.capture());
             final var input = captor.getValue();
@@ -297,7 +297,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             // Trigger a block boundary immediately; since no endUserTransaction was called, there are no captured
             // items.
             final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
         }
 
         verify(diskWriter, never()).appendAsync(any());
@@ -353,11 +353,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 diskWriter,
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
         }
 
         // appendAsync should never be called when only live mode is on
@@ -416,13 +416,13 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 diskWriter,
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
             mgr.endRound(state, 2L, mgr.consTimeOfLastHandledTxn());
-            mgr.startUserTransaction(t1.plusNanos(1), state);
+            startUserTransactionInRound(mgr, t1.plusNanos(1), state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -483,11 +483,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 diskWriter,
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
         }
 
         final var queuedHashes = state.getWritableStates(BlockRecordService.NAME)
@@ -554,11 +554,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 diskWriter,
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
         }
 
         final var queuedHashes = state.getWritableStates(BlockRecordService.NAME)
@@ -619,13 +619,13 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 diskWriter,
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
             mgr.endRound(state, 2L, mgr.consTimeOfLastHandledTxn());
-            mgr.startUserTransaction(t1.plusNanos(1), state);
+            startUserTransactionInRound(mgr, t1.plusNanos(1), state);
         }
 
         verify(diskWriter).appendAsync(any());
@@ -682,7 +682,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RECONNECT)) {
             // Trigger a block boundary without any endUserTransaction calls (empty items)
             final var t1 = InstantUtils.instant(13, 1);
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
         }
         // No disk writer calls and no assertions about BlockInfo wrapped hash fields being non-empty
         verify(diskWriter, never()).appendAsync(any());
@@ -765,13 +765,13 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RESTART)) {
             // Drive a block boundary: start block 0 (EPOCH path), add items, cross period
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
             mgr.endRound(state, 2L, mgr.consTimeOfLastHandledTxn());
-            mgr.startUserTransaction(t1.plusNanos(1), state);
+            startUserTransactionInRound(mgr, t1.plusNanos(1), state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -856,15 +856,15 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             // First boundary: startUserTransaction lazily initializes currentBlockStartRunningHash from
             // the last completed block's hash, so both block closes now compute wrapped hashes.
             final var t0 = InstantUtils.instant(200, 0);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             // Add items for the second boundary
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             // Second boundary: crosses logPeriod, currentBlockStartRunningHash is set by beginTrackingNewBlock
             final var t1 = InstantUtils.instant(204, 0);
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
             mgr.endRound(state, 2L, mgr.consTimeOfLastHandledTxn());
-            mgr.startUserTransaction(t1.plusNanos(1), state);
+            startUserTransactionInRound(mgr, t1.plusNanos(1), state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -927,7 +927,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RECONNECT)) {
             // Open block 0 via EPOCH path
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             // Persist freeze block wrapped hashes
@@ -992,7 +992,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 diskWriter,
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
         }
@@ -1108,7 +1108,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 diskWriter,
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToDisk(state);
         }
 
@@ -1239,7 +1239,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RESTART)) {
             // Open first block
             final var t0 = InstantUtils.instant(200, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
 
             // Simulate vote finalization
             mgr.syncFinalizedMigrationHashes(syncedPrevHash, syncedIntermediate, 1);
@@ -1247,9 +1247,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             // Add items and cross current block boundary, causing latest block info write to state
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
             final var t1 = InstantUtils.instant(204, 1);
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
             mgr.endRound(state, 2L, mgr.consTimeOfLastHandledTxn());
-            mgr.startUserTransaction(t1.plusNanos(1), state);
+            startUserTransactionInRound(mgr, t1.plusNanos(1), state);
 
             // Simulate freeze
             mgr.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
@@ -1398,7 +1398,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RESTART)) {
             // First boundary after restart: freeze-restart with null currentBlockStartRunningHash
             final var t0 = InstantUtils.instant(200, 0);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1462,13 +1462,13 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RECONNECT)) {
             // Open block 0 (EPOCH path), add items, cross period
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
             mgr.endRound(state, 2L, mgr.consTimeOfLastHandledTxn());
-            mgr.startUserTransaction(t1.plusNanos(1), state);
+            startUserTransactionInRound(mgr, t1.plusNanos(1), state);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1532,11 +1532,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RECONNECT)) {
             // Open block 0 (EPOCH path), add items, cross period boundary
             final var t0 = InstantUtils.instant(10, 1);
-            mgr.startUserTransaction(t0, state);
+            startUserTransactionInRound(mgr, t0, state);
             mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
 
             final var t1 = InstantUtils.instant(13, 1); // crosses logPeriod boundary
-            mgr.startUserTransaction(t1, state);
+            startUserTransactionInRound(mgr, t1, state);
         }
 
         // Wrapped hash fields should remain at defaults because blockNum <= 0 skips the live path
@@ -1626,5 +1626,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         private static java.time.Instant instant(final long seconds, final int nanos) {
             return java.time.Instant.ofEpochSecond(seconds, nanos);
         }
+    }
+
+    private static void startUserTransactionInRound(
+            final BlockRecordManagerImpl mgr, final java.time.Instant consensusTime, final State state) {
+        mgr.startRound(consensusTime, state);
+        mgr.startUserTransaction(consensusTime, state);
     }
 }

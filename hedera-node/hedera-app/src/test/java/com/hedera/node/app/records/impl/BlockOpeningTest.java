@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -87,21 +88,23 @@ class BlockOpeningTest {
         subject.startRound(CONSENSUS_NOW, state);
 
         assertTrue(subject.willOpenNewBlock(CONSENSUS_NOW, state));
-        assertEquals(asTimestamp(CONSENSUS_NOW), readBlockInfo().blockTime());
+        assertEquals(asTimestamp(CONSENSUS_NOW), subject.blockTimestamp());
+        assertEquals(null, readBlockInfo().blockTime());
         verify(streamFileProducer).switchBlocks(-1, 0, CONSENSUS_NOW);
     }
 
     @Test
     void roundStartDoesNotOpenAnotherBlockWhenOneIsAlreadyOpen() {
-        setupPersistentState(baseBlockInfo()
-                .firstConsTimeOfCurrentBlock(asTimestamp(CONSENSUS_NOW))
-                .blockTime(asTimestamp(CONSENSUS_NOW))
-                .build());
+        given(streamFileProducer.getRunningHash()).willReturn(Bytes.wrap(new byte[48]));
+        setupPersistentState(baseBlockInfo().build());
+
+        subject.startRound(CONSENSUS_NOW, state);
 
         subject.startRound(CONSENSUS_NOW.plusSeconds(1), state);
 
         assertFalse(subject.willOpenNewBlock(CONSENSUS_NOW.plusSeconds(1), state));
-        verify(streamFileProducer, never()).switchBlocks(anyLong(), anyLong(), any());
+        verify(streamFileProducer).switchBlocks(-1, 0, CONSENSUS_NOW);
+        verify(streamFileProducer, never()).switchBlocks(anyLong(), anyLong(), eq(CONSENSUS_NOW.plusSeconds(1)));
     }
 
     @Test
@@ -126,7 +129,8 @@ class BlockOpeningTest {
         verify(streamFileProducer).initRunningHash(any());
         verify(streamFileProducer).switchBlocks(0, 1, CONSENSUS_NOW);
         verify(streamFileProducer, never()).getRunningHash();
-        assertEquals(asTimestamp(CONSENSUS_NOW), readBlockInfo().blockTime());
+        assertEquals(asTimestamp(CONSENSUS_NOW), subject.blockTimestamp());
+        assertEquals(null, readBlockInfo().blockTime());
     }
 
     @Test
@@ -186,28 +190,24 @@ class BlockOpeningTest {
                         .firstConsTimeOfLastBlock(new Timestamp(8, 0))
                         .blockHashes(priorBlockHash)
                         .consTimeOfLastHandledTxn(lastHandledTime)
-                        .firstConsTimeOfCurrentBlock(asTimestamp(currentBlockTime))
                         .lastUsedConsTime(lastHandledTime)
-                        .blockTime(asTimestamp(currentBlockTime))
                         .build(),
                 RunningHashes.newBuilder().runningHash(priorBlockHash).build());
 
+        subject.startRound(currentBlockTime, state);
         subject.endRound(state, 112, Instant.ofEpochSecond(100, 0));
 
         assertEquals(3L, readBlockInfo().lastBlockNumber());
         assertEquals(asTimestamp(currentBlockTime), readBlockInfo().firstConsTimeOfLastBlock());
         assertEquals(Timestamp.DEFAULT, readBlockInfo().firstConsTimeOfCurrentBlock());
-        assertEquals(Timestamp.DEFAULT, readBlockInfo().blockTime());
+        assertEquals(null, readBlockInfo().blockTime());
         assertEquals(endRunningHash, readRunningHashes().runningHash());
         verify(streamFileProducer).closeBlock(3);
     }
 
     @Test
     void maybeQuiesceStartsHeartbeatOnQuiesceCommandChange() {
-        setupPersistentState(baseBlockInfo()
-                .firstConsTimeOfCurrentBlock(asTimestamp(CONSENSUS_NOW))
-                .blockTime(asTimestamp(CONSENSUS_NOW))
-                .build());
+        setupPersistentState(baseBlockInfo().build());
         given(quiescenceController.getQuiescenceStatus()).willReturn(QUIESCE);
 
         subject.maybeQuiesce(state);
@@ -219,10 +219,7 @@ class BlockOpeningTest {
 
     @Test
     void maybeQuiesceDoesNothingWhenCommandRemainsDontQuiesce() {
-        setupPersistentState(baseBlockInfo()
-                .firstConsTimeOfCurrentBlock(asTimestamp(CONSENSUS_NOW))
-                .blockTime(asTimestamp(CONSENSUS_NOW))
-                .build());
+        setupPersistentState(baseBlockInfo().build());
         given(quiescenceController.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
 
         subject.maybeQuiesce(state);
@@ -297,7 +294,6 @@ class BlockOpeningTest {
                 .firstConsTimeOfCurrentBlock(Timestamp.DEFAULT)
                 .lastUsedConsTime(Timestamp.DEFAULT)
                 .lastIntervalProcessTime(Timestamp.DEFAULT)
-                .blockTime(Timestamp.DEFAULT)
                 .previousWrappedRecordBlockRootHash(Bytes.EMPTY)
                 .wrappedIntermediatePreviousBlockRootHashes(List.of())
                 .wrappedIntermediateBlockRootsLeafCount(0)
