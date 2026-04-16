@@ -6,9 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.platform.health.entropy.OSEntropyCheck;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 class OSEntropyCheckTests {
+
+    // Use a longer timeout for tests to avoid test failures due to slow file system operations in CI environments
+    private static final long TEST_TIMEOUT = Duration.ofSeconds(5).toMillis();
 
     /**
      * All systems this test runs on should have an entropy generator, so the test should always pass
@@ -16,7 +20,7 @@ class OSEntropyCheckTests {
     @Test
     void basicTest() {
         final OSEntropyCheck.Report report =
-                assertDoesNotThrow(() -> OSEntropyCheck.execute(), "Check should not throw");
+                assertDoesNotThrow(() -> OSEntropyCheck.execute(TEST_TIMEOUT), "Check should not throw");
         assertTrue(report.success(), "Check should succeed");
         assertNotNull(report.elapsedNanos(), "Elapsed nanos should not be null");
         assertTrue(report.elapsedNanos() > 0, "Elapsed nanos should have a positive value");
