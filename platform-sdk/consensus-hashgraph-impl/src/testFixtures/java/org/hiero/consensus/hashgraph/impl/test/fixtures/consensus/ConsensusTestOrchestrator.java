@@ -130,17 +130,6 @@ public class ConsensusTestOrchestrator {
         }
     }
 
-    // FUTURE WORK - replace this block with 
-//    @SuppressWarnings("unused") // useful for debugging
-//    public void runGui() {
-//        final ConsensusTestNode node = nodes.stream().findAny().orElseThrow();
-//        new TestGuiSource(
-//                platformContext,
-//                node.getEventEmitter().getGraphGenerator().getRoster(),
-//                new ListEventProvider(node.getOutput().getAddedEvents()))
-//                .runGui();
-//    }
-
     /**
      * Simulates removing a node from the network at restart
      * @param nodeId the node to remove
