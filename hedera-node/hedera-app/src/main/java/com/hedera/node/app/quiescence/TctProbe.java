@@ -22,6 +22,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -104,7 +105,19 @@ public class TctProbe {
         if (nearestTct == null) {
             requireNonNull(nextFreezeTime);
             requireNonNull(nextStakePeriodStart);
-            nearestTct = Collections.min(List.of(nextStakePeriodStart, nextFreezeTime));
+            // Only consider freeze/stake candidates that represent real future TCTs. `Instant.EPOCH`
+            // is used as a sentinel for "no freeze time set" and "no staking period configured"; if
+            // both fall back to the sentinel and no schedule is pending, there is no TCT yet.
+            final List<Instant> realCandidates = new ArrayList<>(2);
+            if (!nextStakePeriodStart.equals(Instant.EPOCH)) {
+                realCandidates.add(nextStakePeriodStart);
+            }
+            if (!nextFreezeTime.equals(Instant.EPOCH)) {
+                realCandidates.add(nextFreezeTime);
+            }
+            if (!realCandidates.isEmpty()) {
+                nearestTct = Collections.min(realCandidates);
+            }
         }
         return nearestTct;
     }
