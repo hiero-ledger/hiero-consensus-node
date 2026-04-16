@@ -777,8 +777,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         requireNonNull(keyBytes);
         final int keyHashCode = keyBytes.hashCode();
 
-        final long path;
-        VirtualLeafBytes<?> cached = null;
+        final VirtualLeafBytes<?> cached;
         int cacheIndex = -1;
         if (leafRecordCache != null) {
             cacheIndex = Math.abs(keyHashCode % leafRecordCacheSize);
@@ -787,50 +786,49 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // be overwritten in the cache in a different thread in parallel, but it isn't a
             // problem as cached entry key is checked below anyway
             cached = leafRecordCache[cacheIndex];
+        } else {
+            cached = null;
         }
         // If an entry is found in the cache, and entry key is the one requested
         if ((cached != null) && keyBytes.equals(cached.keyBytes())) {
-            // Some cache entries contain just key and path, but no value. If the value is there,
-            // just return the cached entry. If not, at least make use of the path
-            if (cached.valueBytes() != null) {
-                return cached;
+            // There is a cached leaf for the key. It may be a real leaf or a marker object
+            // with an invalid path, which indicates that the key is not in the data source
+            if (cached.path() == INVALID_PATH) {
+                return null;
             }
-            // Note that the path may be INVALID_PATH here, this is perfectly legal
-            path = cached.path();
-        } else {
-            // Cache miss
-            cached = null;
-            statisticsUpdater.countLeafKeyReads();
-            path = keyToPath.get(keyBytes, INVALID_PATH);
+//            if (cached.valueBytes() != null) {
+//                return cached;
+//            }
+            assert cached.valueBytes() != null;
+            return cached;
         }
 
-        // If the key didn't map to anything, we just return null
-        if (path == INVALID_PATH) {
-            // Cache the result if not already cached
-            if (leafRecordCache != null && cached == null) {
-                leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(path, keyBytes, null);
-            }
-            return null;
-        }
+        // Cache miss
+        statisticsUpdater.countLeafReads();
+//        statisticsUpdater.countLeafKeyReads();
+        final VirtualLeafBytes<?> leaf = keyToPath.get(keyBytes);
 
         // If the key returns a value from the map, but it lies outside the first/last
         // leaf path, then return null. This can happen if the map contains old keys
         // that haven't been removed.
-        if (!validLeafPathRange.withinRange(path)) {
-            return null;
+        if (leaf != null) {
+            final long path = leaf.path();
+            if (!validLeafPathRange.withinRange(path)) {
+                return null;
+            }
         }
-
-        statisticsUpdater.countLeafReads();
-        // Go ahead and lookup the value.
-        VirtualLeafBytes<?> leafBytes = VirtualLeafBytes.parseFrom(keyValueStore.get(path));
-        assert leafBytes != null && leafBytes.keyBytes().equals(keyBytes);
 
         if (leafRecordCache != null) {
             // No synchronization is needed here, see the comment above
-            leafRecordCache[cacheIndex] = leafBytes;
+            if (leaf != null) {
+                leafRecordCache[cacheIndex] = leaf;
+//            } else if (cached == null) {
+            } else {
+                leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(INVALID_PATH, keyBytes, null);
+            }
         }
 
-        return leafBytes;
+        return leaf;
     }
 
     /**
@@ -863,7 +861,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * @throws IOException If there was a problem locating the key
      */
     @Override
-    public long findKey(final Bytes keyBytes) throws IOException {
+    public long findKeyPath(final Bytes keyBytes) throws IOException {
         requireNonNull(keyBytes);
         final int keyHashCode = keyBytes.hashCode();
 
@@ -880,14 +878,23 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
 
         statisticsUpdater.countLeafKeyReads();
-        final long path = keyToPath.get(keyBytes, INVALID_PATH);
+        /*
+        final VirtualLeafBytes<?> leaf = keyToPath.get(keyBytes, keyHashCode);
 
         if (leafRecordCache != null) {
             // Path may be INVALID_PATH here. Still needs to be cached (negative result)
-            leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(path, keyBytes, null);
+//            leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(path, keyBytes, null);
+            if (leaf != null) {
+                leafRecordCache[cacheIndex] = leaf;
+            } else {
+                leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(INVALID_PATH, keyBytes, null);
+            }
         }
 
-        return path;
+        return leaf != null ? leaf.path() : INVALID_PATH;
+        */
+
+        return keyToPath.getPath(keyBytes, keyHashCode);
     }
 
     /**
@@ -1327,12 +1334,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Iterate over leaf records
         for (final VirtualLeafBytes<?> leafBytes : dirtyLeaves) {
             // Check if the record is new or moved. If not, skip the path update
-            if (leafBytes.isNewOrMoved()) {
+//            if (leafBytes.isNewOrMoved()) {
                 final long path = leafBytes.path();
                 // Update key to path index
-                keyToPath.put(leafBytes.keyBytes(), path);
+                keyToPath.put(leafBytes.keyBytes(), path, leafBytes.valueBytes());
                 statisticsUpdater.countFlushLeafKeysWritten();
-            }
+//            }
 
             // cache the record
             invalidateReadCache(leafBytes.keyBytes());

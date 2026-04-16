@@ -212,7 +212,7 @@ public final class RecordAccessor {
             return rec.path();
         }
         try {
-            return dataSource.findKey(key);
+            return dataSource.findKeyPath(key);
         } catch (final IOException ex) {
             throw new UncheckedIOException("Failed to find key in the data source", ex);
         }

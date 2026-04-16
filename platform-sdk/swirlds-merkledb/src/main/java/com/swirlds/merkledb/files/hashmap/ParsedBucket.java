@@ -3,14 +3,15 @@ package com.swirlds.merkledb.files.hashmap;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.merkledb.files.hashmap.HalfDiskHashMap.INVALID_VALUE;
 
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
@@ -79,7 +80,7 @@ public final class ParsedBucket extends Bucket {
     /** Get the size of this bucket in bytes, including header */
     public int sizeInBytes() {
         int size = 0;
-        // Include bucket index even if it has default value (zero)
+        // Include bucket index even if it has default path (zero)
         size += ProtoWriterTools.sizeOfTag(FIELD_BUCKET_INDEX, ProtoConstants.WIRE_TYPE_FIXED_32_BIT) + Integer.BYTES;
         for (final BucketEntry entry : entries) {
             size += ProtoWriterTools.sizeOfDelimited(FIELD_BUCKET_ENTRIES, entry.sizeInBytes());
@@ -88,19 +89,19 @@ public final class ParsedBucket extends Bucket {
     }
 
     /**
-     * Find a value for given key
+     * Find a path for given key
      *
      * @param keyHashCode the int hash for the key
      * @param key the key object
      * @param notFoundValue the long to return if the key is not found
-     * @return the stored value for given key or notFoundValue if nothing is stored for the key
-     * @throws IOException If there was a problem reading the value from file
+     * @return the stored path for given key or notFoundValue if nothing is stored for the key
+     * @throws IOException If there was a problem reading the path from file
      */
     public long findValue(final int keyHashCode, final Bytes key, final long notFoundValue) throws IOException {
         final int entryIndex = findEntryIndex(keyHashCode, key);
         if (entryIndex >= 0) {
             // yay! we found it
-            return entries.get(entryIndex).getValue();
+            return entries.get(entryIndex).getPath();
         } else {
             return notFoundValue;
         }
@@ -110,14 +111,20 @@ public final class ParsedBucket extends Bucket {
      * {@inheritDoc}
      */
     @Override
-    public boolean putValue(final Bytes keyBytes, final int keyHashCode, final long oldValue, final long value) {
-        final boolean needCheckOldValue = oldValue != INVALID_VALUE;
+    public boolean putLeaf(
+            @NonNull final Bytes key,
+            final int keyHashCode,
+            final long oldPath,
+            final long path,
+            @Nullable final Bytes value) {
+        final boolean needCheckOldValue = oldPath != Path.INVALID_PATH;
         try {
-            final int entryIndex = findEntryIndex(keyHashCode, keyBytes);
-            if (value == INVALID_VALUE) {
+            final int entryIndex = findEntryIndex(keyHashCode, key);
+            if (path == Path.INVALID_PATH) {
+                assert value == null;
                 if (entryIndex >= 0) { // if found
                     final BucketEntry entry = entries.get(entryIndex);
-                    if (needCheckOldValue && (oldValue != entry.getValue())) {
+                    if (needCheckOldValue && (oldPath != entry.getPath())) {
                         return false;
                     }
                     entries.remove(entryIndex);
@@ -127,26 +134,28 @@ public final class ParsedBucket extends Bucket {
                     return false;
                 }
             }
+            assert value != null;
             if (entryIndex >= 0) {
-                // yay! we found it, so update value
+                // yay! we found it, so update path
                 final BucketEntry entry = entries.get(entryIndex);
-                if (needCheckOldValue && (oldValue != entry.getValue())) {
+                if (needCheckOldValue && (oldPath != entry.getPath())) {
                     return false;
                 }
-                final long entryOldValue = entry.getValue();
+                final long entryOldValue = entry.getPath();
+                entry.setPath(path);
                 entry.setValue(value);
-                return value == entryOldValue;
+                return path == entryOldValue;
             } else {
                 if (needCheckOldValue) {
                     return false;
                 }
-                final BucketEntry newEntry = new BucketEntry(keyHashCode, value, keyBytes);
+                final BucketEntry newEntry = new BucketEntry(keyHashCode, path, key, value);
                 entries.add(newEntry);
                 checkLargestBucket();
                 return true;
             }
         } catch (IOException e) {
-            logger.error(EXCEPTION.getMarker(), "Failed putting key={} value={} in a bucket", keyBytes, value, e);
+            logger.error(EXCEPTION.getMarker(), "Failed putting key={} path={} in a bucket", key, path, e);
             throw new UncheckedIOException(e);
         }
     }
@@ -188,7 +197,7 @@ public final class ParsedBucket extends Bucket {
     }
 
     public void writeTo(final WritableSequentialData out) {
-        // Bucket index is not optional, write the value even if default (zero)
+        // Bucket index is not optional, write the path even if default (zero)
         ProtoWriterTools.writeTag(out, FIELD_BUCKET_INDEX);
         out.writeInt(bucketIndex);
         for (final BucketEntry entry : entries) {
@@ -206,7 +215,7 @@ public final class ParsedBucket extends Bucket {
         for (int index = 0; index < entryCount; index++) {
             final BucketEntry entry = entries.get(index);
             if (keyHashCode == entry.getHashCode()) {
-                if (entry.getKeyBytes().equals(keyBytes)) {
+                if (entry.getKey().equals(keyBytes)) {
                     return index;
                 }
             }
@@ -225,44 +234,48 @@ public final class ParsedBucket extends Bucket {
         for (int i = 0; i < entryCount; i++) {
             final BucketEntry entry = entries.get(i);
             final int hashCode = entry.getHashCode();
-            final long value = entry.getValue();
-            final Bytes keyBytes = entry.getKeyBytes();
-            sb.append("    ENTRY[" + i + "] value= " + value + " keyHashCode=" + hashCode + " key=" + keyBytes + "\n");
+            final long value = entry.getPath();
+            final Bytes keyBytes = entry.getKey();
+            sb.append("    ENTRY[" + i + "] path= " + value + " keyHashCode=" + hashCode + " key=" + keyBytes + "\n");
         }
         sb.append("}");
         return sb.toString();
     }
 
     /**
-     * A single entry in a bucket, which contains key hash code, value (usually, path), and full
+     * A single entry in a bucket, which contains key hash code, path (usually, path), and full
      * serialized key. A bucket may contain multiple such entries.
      *
-     * <p>This class would be a record, if it was immutable. However, when a value is updated
+     * <p>This class would be a record, if it was immutable. However, when a path is updated
      * in a bucket, and a bucket entry already exists for the same key, instead of creating a new
-     * entry, we just update the value in the existing entry.
+     * entry, we just update the path in the existing entry.
      */
     public static class BucketEntry {
 
         /** Key hash code */
         private final int hashCode;
-        /** Long value. May be updated */
-        private long value;
+        /** Long path. May be updated */
+        private long path;
         /** Key */
-        private final Bytes keyBytes;
+        private final Bytes key;
+        /** Value */
+        private Bytes value;
 
-        /** Creates new bucket entry from hash code, value, and serialized key bytes */
-        public BucketEntry(final int hashCode, final long value, @NonNull final Bytes keyBytes) {
+        /** Creates new bucket entry from hash code, path, and serialized key bytes */
+        public BucketEntry(final int hashCode, final long path, @NonNull final Bytes key, @NonNull final Bytes value) {
             this.hashCode = hashCode;
+            this.path = path;
+            this.key = key;
             this.value = value;
-            this.keyBytes = keyBytes;
         }
 
         /** Creates new bucket entry by reading its fields from the given protobuf buffer */
         public BucketEntry(final ReadableSequentialData entryData) {
             // defaults
             int hashCode = 0;
-            long value = 0;
-            Bytes keyBytes = null;
+            long path = 0;
+            Bytes key = null;
+            Bytes value = null;
 
             // read fields
             while (entryData.hasRemaining()) {
@@ -270,60 +283,78 @@ public final class ParsedBucket extends Bucket {
                 final int fieldNum = tag >> TAG_FIELD_OFFSET;
                 if (fieldNum == Bucket.FIELD_BUCKETENTRY_HASHCODE.number()) {
                     hashCode = entryData.readInt();
+                } else if (fieldNum == Bucket.FIELD_BUCKETENTRY_PATH.number()) {
+                    path = entryData.readLong();
+                } else if (fieldNum == Bucket.FIELD_BUCKETENTRY_KEY.number()) {
+                    final int keyLen = entryData.readVarInt(false);
+                    key = entryData.readBytes(keyLen);
                 } else if (fieldNum == Bucket.FIELD_BUCKETENTRY_VALUE.number()) {
-                    value = entryData.readLong();
-                } else if (fieldNum == Bucket.FIELD_BUCKETENTRY_KEYBYTES.number()) {
-                    final int bytesSize = entryData.readVarInt(false);
-                    keyBytes = entryData.readBytes(bytesSize);
+                    final int valueLen = entryData.readVarInt(false);
+                    value = entryData.readBytes(valueLen);
                 } else {
                     throw new IllegalArgumentException("Unknown bucket entry field: " + fieldNum);
                 }
             }
 
             // check required fields
-            if (keyBytes == null) {
+            if (key == null) {
                 throw new IllegalArgumentException("Null key for bucket entry");
             }
 
             this.hashCode = hashCode;
+            this.path = path;
+            this.key = key;
             this.value = value;
-            this.keyBytes = keyBytes;
         }
 
         public int getHashCode() {
             return hashCode;
         }
 
-        public long getValue() {
+        public long getPath() {
+            return path;
+        }
+
+        public void setPath(long path) {
+            this.path = path;
+        }
+
+        @NonNull
+        public Bytes getKey() {
+            return key;
+        }
+
+        @NonNull
+        public Bytes getValue() {
             return value;
         }
 
-        public void setValue(long value) {
+        public void setValue(@NonNull Bytes value) {
             this.value = value;
-        }
-
-        public Bytes getKeyBytes() {
-            return keyBytes;
         }
 
         public int sizeInBytes() {
             int size = 0;
             size += ProtoWriterTools.sizeOfTag(Bucket.FIELD_BUCKETENTRY_HASHCODE, ProtoConstants.WIRE_TYPE_FIXED_32_BIT)
                     + Integer.BYTES;
-            size += ProtoWriterTools.sizeOfTag(Bucket.FIELD_BUCKETENTRY_VALUE, ProtoConstants.WIRE_TYPE_FIXED_64_BIT)
+            size += ProtoWriterTools.sizeOfTag(Bucket.FIELD_BUCKETENTRY_PATH, ProtoConstants.WIRE_TYPE_FIXED_64_BIT)
                     + Long.BYTES;
             size += ProtoWriterTools.sizeOfDelimited(
-                    Bucket.FIELD_BUCKETENTRY_KEYBYTES, Math.toIntExact(keyBytes.length()));
+                    Bucket.FIELD_BUCKETENTRY_KEY, Math.toIntExact(key.length()));
+            size += ProtoWriterTools.sizeOfDelimited(
+                    Bucket.FIELD_BUCKETENTRY_VALUE, Math.toIntExact(value.length()));
             return size;
         }
 
         public void writeTo(final WritableSequentialData out) {
             ProtoWriterTools.writeTag(out, Bucket.FIELD_BUCKETENTRY_HASHCODE);
             out.writeInt(hashCode);
-            ProtoWriterTools.writeTag(out, Bucket.FIELD_BUCKETENTRY_VALUE);
-            out.writeLong(value);
+            ProtoWriterTools.writeTag(out, Bucket.FIELD_BUCKETENTRY_PATH);
+            out.writeLong(path);
             ProtoWriterTools.writeDelimited(
-                    out, Bucket.FIELD_BUCKETENTRY_KEYBYTES, Math.toIntExact(keyBytes.length()), keyBytes::writeTo);
+                    out, Bucket.FIELD_BUCKETENTRY_KEY, Math.toIntExact(key.length()), key::writeTo);
+            ProtoWriterTools.writeDelimited(
+                    out, Bucket.FIELD_BUCKETENTRY_VALUE, Math.toIntExact(value.length()), value::writeTo);
         }
     }
 }

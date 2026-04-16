@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static com.swirlds.benchmark.BenchmarkUtils.longToBytes;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.util.Arrays;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -56,10 +57,11 @@ public class HalfDiskMapBench extends BaseBench {
             resetKeys();
             for (int j = 0; j < numRecords; ++j) {
                 long id = nextAscKey();
-                long value = nextValue();
-                final Bytes key = longToKey(id);
-                store.put(key, value);
-                if (verify) map[(int) id] = value;
+                long path = nextValue();
+                final Bytes key = longToBytes(id, keySize);
+                final Bytes value = longToBytes(id, recordSize);
+                store.put(key, path, value);
+                if (verify) map[(int) id] = path;
             }
             store.endWriting();
         }
@@ -76,9 +78,12 @@ public class HalfDiskMapBench extends BaseBench {
         if (verify) {
             start = System.currentTimeMillis();
             for (int id = 0; id < map.length; ++id) {
-                final Bytes key = longToKey(id);
-                long value = store.get(key, INVALID_PATH);
-                if (value != map[id]) {
+                final Bytes key = longToBytes(id, keySize);
+                final VirtualLeafBytes<?> leaf = store.get(key);
+                if ((leaf == null) && (map[id] != INVALID_PATH)) {
+                    throw new RuntimeException("Bad value");
+                }
+                if ((leaf != null) && (map[id] != leaf.path())) {
                     throw new RuntimeException("Bad value");
                 }
             }

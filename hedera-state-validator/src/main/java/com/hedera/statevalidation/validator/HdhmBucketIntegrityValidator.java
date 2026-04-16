@@ -92,8 +92,8 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
             final BucketIterator bucketIterator = new BucketIterator(bucket);
             while (bucketIterator.hasNext()) {
                 final ParsedBucket.BucketEntry entry = bucketIterator.next();
-                final Bytes keyBytes = entry.getKeyBytes();
-                final long path = entry.getValue();
+                final Bytes keyBytes = entry.getKey();
+                final long path = entry.getPath();
                 // get path -> dataLocation
                 final long dataLocation = pathToDiskLocationLeafNodes.get(path);
                 if (dataLocation == 0) {

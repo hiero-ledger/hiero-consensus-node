@@ -900,7 +900,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         final long end = System.currentTimeMillis();
         statistics.recordMerge(end - start);
-        logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merged in {} ms", end - start);
+        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merged in {} ms", end - start);
     }
 
     /**
@@ -1004,7 +1004,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         flushed.set(true);
         flushLatch.countDown();
         statistics.recordFlush(end - start);
-        logger.debug(
+        logger.info(
                 VIRTUAL_MERKLE_STATS.getMarker(),
                 "Flushed {} v{} in {} ms",
                 LABEL,

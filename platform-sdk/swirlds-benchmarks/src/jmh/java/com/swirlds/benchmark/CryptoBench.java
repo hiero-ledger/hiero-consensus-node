@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static com.swirlds.benchmark.BenchmarkUtils.longToBytes;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
@@ -55,11 +55,11 @@ public class CryptoBench extends VirtualMapBench {
     }
 
     private void initializeFixedAccounts(VirtualMap virtualMap) {
-        fixedKey1 = longToKey(FIXED_KEY_ID1);
+        fixedKey1 = longToBytes(FIXED_KEY_ID1, keySize);
         if (virtualMap.get(fixedKey1, BenchmarkValueCodec.INSTANCE) == null) {
             virtualMap.put(fixedKey1, new BenchmarkValue(0), BenchmarkValueCodec.INSTANCE);
         }
-        fixedKey2 = longToKey(FIXED_KEY_ID2);
+        fixedKey2 = longToBytes(FIXED_KEY_ID2, keySize);
         if (virtualMap.get(fixedKey2, BenchmarkValueCodec.INSTANCE) == null) {
             virtualMap.put(fixedKey2, new BenchmarkValue(0), BenchmarkValueCodec.INSTANCE);
         }
@@ -135,8 +135,8 @@ public class CryptoBench extends VirtualMapBench {
             for (int j = 0; j < numRecords; ++j) {
                 long keyId1 = keys[j * KEYS_PER_RECORD];
                 long keyId2 = keys[j * KEYS_PER_RECORD + 1];
-                Bytes key1 = longToKey(keyId1);
-                Bytes key2 = longToKey(keyId2);
+                Bytes key1 = longToBytes(keyId1, keySize);
+                Bytes key2 = longToBytes(keyId2, keySize);
                 BenchmarkValue value1 = virtualMap.get(key1, BenchmarkValueCodec.INSTANCE);
                 BenchmarkValue value2 = virtualMap.get(key2, BenchmarkValueCodec.INSTANCE);
 
@@ -235,8 +235,8 @@ public class CryptoBench extends VirtualMapBench {
                 final int key = j;
                 prefetchPool.execute(() -> {
                     try {
-                        currentMap.warm(longToKey(keys[key]));
-                        currentMap.warm(longToKey(keys[key + 1]));
+                        currentMap.warm(longToBytes(keys[key], keySize));
+                        currentMap.warm(longToBytes(keys[key + 1], keySize));
                     } catch (final Exception e) {
                         logger.error("Warmup exception", e);
                     }
@@ -247,8 +247,8 @@ public class CryptoBench extends VirtualMapBench {
             for (int j = 0; j < numRecords; ++j) {
                 long keyId1 = keys[j * KEYS_PER_RECORD];
                 long keyId2 = keys[j * KEYS_PER_RECORD + 1];
-                Bytes key1 = longToKey(keyId1);
-                Bytes key2 = longToKey(keyId2);
+                Bytes key1 = longToBytes(keyId1, keySize);
+                Bytes key2 = longToBytes(keyId2, keySize);
                 BenchmarkValue value1 = virtualMap.get(key1, BenchmarkValueCodec.INSTANCE);
                 BenchmarkValue value2 = virtualMap.get(key2, BenchmarkValueCodec.INSTANCE);
 
@@ -306,7 +306,7 @@ public class CryptoBench extends VirtualMapBench {
         finalMap.getDataSource().close();
     }
 
-    static class WarmupTask extends AbstractTask {
+    class WarmupTask extends AbstractTask {
 
         VirtualMap currentMap;
         long key1, key2;
@@ -322,9 +322,9 @@ public class CryptoBench extends VirtualMapBench {
 
         @Override
         protected boolean onExecute() {
-            Bytes keyBytes1 = longToKey(key1);
+            Bytes keyBytes1 = longToBytes(key1, keySize);
             currentMap.warm(keyBytes1);
-            Bytes keyBytes2 = longToKey(key2);
+            Bytes keyBytes2 = longToBytes(key2, keySize);
             currentMap.warm(keyBytes2);
             out.send(keyBytes1, keyBytes2);
             return true;

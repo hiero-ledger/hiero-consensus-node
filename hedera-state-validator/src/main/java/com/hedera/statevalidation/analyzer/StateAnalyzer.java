@@ -148,11 +148,11 @@ public final class StateAnalyzer {
                                 var bucketIterator = new BucketIterator(parsedBucket);
                                 while (bucketIterator.hasNext()) {
                                     final ParsedBucket.BucketEntry entry = bucketIterator.next();
-                                    final long path = entry.getValue();
+                                    final long path = entry.getPath();
                                     final SerializableDataOutputStream outputStream =
                                             new SerializableDataOutputStream(arrayOutputStream);
                                     outputStream.writeByteArray(
-                                            entry.getKeyBytes().toByteArray());
+                                            entry.getKey().toByteArray());
                                     final int itemSize = outputStream.size() + /*path*/ Long.BYTES;
                                     arrayOutputStream.reset();
 

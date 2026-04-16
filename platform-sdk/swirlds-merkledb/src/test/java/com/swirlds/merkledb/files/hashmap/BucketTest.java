@@ -54,8 +54,8 @@ class BucketTest {
 
         assertEquals(
                 notFoundValue,
-                subject.findValue(missingKey.hashCode(), missingKey, notFoundValue),
-                "Should not find a value in an empty bucket");
+                subject.findLeaf(missingKey.hashCode(), missingKey, notFoundValue),
+                "Should not find a path in an empty bucket");
     }
 
     @ParameterizedTest
@@ -83,7 +83,7 @@ class BucketTest {
         // now update, check and put back
         bucket.putValue(testKeys[5], testKeys[5].hashCode(), 1234);
         assertEquals(
-                1234, bucket.findValue(testKeys[5].hashCode(), testKeys[5], -1), "Should get expected value of 1234");
+                1234, bucket.findLeaf(testKeys[5].hashCode(), testKeys[5], -1), "Should get expected path of 1234");
         bucket.putValue(testKeys[5], testKeys[5].hashCode(), 115);
         for (int j = 0; j < 10; j++) {
             checkKey(keyType, bucket, testKeys[j]);
@@ -96,7 +96,7 @@ class BucketTest {
         }
         assertEquals(
                 -1,
-                bucket.findValue(testKeys[9].hashCode(), testKeys[9], -1),
+                bucket.findLeaf(testKeys[9].hashCode(), testKeys[9], -1),
                 "Should not find entry 10 any more we deleted it");
         // now delete a middle, index 5
         bucket.putValue(testKeys[5], testKeys[5].hashCode(), INVALID_VALUE);
@@ -109,7 +109,7 @@ class BucketTest {
         }
         assertEquals(
                 -1,
-                bucket.findValue(testKeys[5].hashCode(), testKeys[5], -1),
+                bucket.findLeaf(testKeys[5].hashCode(), testKeys[5], -1),
                 "Should not find entry 5 any more we deleted it");
         // now delete first, index 0
         bucket.putValue(testKeys[0], testKeys[0].hashCode(), INVALID_VALUE);
@@ -122,7 +122,7 @@ class BucketTest {
         }
         assertEquals(
                 -1,
-                bucket.findValue(testKeys[0].hashCode(), testKeys[0], -1),
+                bucket.findLeaf(testKeys[0].hashCode(), testKeys[0], -1),
                 "Should not find entry 0 any more we deleted it");
         // add two more entries and check
         bucket.putValue(testKeys[10], testKeys[10].hashCode(), 120);
@@ -266,7 +266,7 @@ class BucketTest {
     void parsedBucketPutIfEqual(final KeyType keyType) {
         final Bytes key1 = keyType.keyConstructor.apply(1L);
         final Bucket bucket = new ParsedBucket();
-        assertDoesNotThrow(() -> bucket.putValue(key1, key1.hashCode(), INVALID_VALUE, 1));
+        assertDoesNotThrow(() -> bucket.putLeaf(key1, key1.hashCode(), INVALID_VALUE, 1));
     }
 
     @Test
@@ -278,8 +278,8 @@ class BucketTest {
         final int value = 1;
         try (final Bucket bucket = new Bucket()) {
             bucket.putValue(keyInBucket, hashCode, value);
-            assertEquals(value, bucket.findValue(hashCode, keyInBucket, -1));
-            assertEquals(-1, bucket.findValue(hashCode, keyToSearch, -1));
+            assertEquals(value, bucket.findLeaf(hashCode, keyInBucket, -1));
+            assertEquals(-1, bucket.findLeaf(hashCode, keyToSearch, -1));
         }
     }
 
@@ -292,8 +292,8 @@ class BucketTest {
         final int value = 1;
         try (final Bucket bucket = new Bucket()) {
             bucket.putValue(keyInBucket, hashCode, value);
-            assertEquals(value, bucket.findValue(hashCode, keyInBucket, -1));
-            assertEquals(-1, bucket.findValue(hashCode, keyToSearch, -1));
+            assertEquals(value, bucket.findLeaf(hashCode, keyInBucket, -1));
+            assertEquals(-1, bucket.findLeaf(hashCode, keyToSearch, -1));
         }
     }
 
@@ -306,14 +306,14 @@ class BucketTest {
         final int value = 1;
         try (final Bucket bucket = new Bucket()) {
             bucket.putValue(keyInBucket, hashCode, value);
-            assertEquals(value, bucket.findValue(hashCode, keyInBucket, -1));
-            assertEquals(-1, bucket.findValue(hashCode, keyToSearch, -1));
+            assertEquals(value, bucket.findLeaf(hashCode, keyInBucket, -1));
+            assertEquals(-1, bucket.findLeaf(hashCode, keyToSearch, -1));
         }
     }
 
     private void checkKey(KeyType keyType, Bucket bucket, Bytes key) {
         var findResult =
-                assertDoesNotThrow(() -> bucket.findValue(key.hashCode(), key, -1), "No exception should be thrown");
-        assertEquals(keyType.getKeyAsLong(key) + 100, findResult, "Should get expected value");
+                assertDoesNotThrow(() -> bucket.findLeaf(key.hashCode(), key, -1), "No exception should be thrown");
+        assertEquals(keyType.getKeyAsLong(key) + 100, findResult, "Should get expected path");
     }
 }

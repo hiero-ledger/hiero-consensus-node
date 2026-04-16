@@ -1,24 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files.hashmap;
 
-import static com.swirlds.merkledb.files.hashmap.HalfDiskHashMap.INVALID_VALUE;
-
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
- * A single key-to-path mutation. During flush, all mutations for a single bucket are
+ * A single leaf-to-path mutation. During flush, all mutations for a single bucket are
  * stored in a list and then applied to the bucket.
  *
- * @param keyBytes a key
+ * @param key a key
  * @param keyHashCode key's hash code
- * @param oldValue an old value (path). If it's HDHM.INVALID_VALUE, it means the old
- *                 value should be ignored
- * @param value a new value (path)
+ * @param oldPath an old path. If it's {@link Path#INVALID_PATH}, it means the old
+ *             path should be ignored
+ * @param path a new path. If it's {@link Path#INVALID_PATH}, it means the leaf
+ *             should be deleted
+ * @param value a value. May be null, only if the path is {@link Path#INVALID_PATH}
  */
-record BucketMutation(@NonNull Bytes keyBytes, int keyHashCode, long oldValue, long value) {
+record BucketMutation(@NonNull Bytes key, int keyHashCode, long oldPath, long path, @Nullable Bytes value) {
 
-    BucketMutation(final Bytes keyBytes, final int keyHashCode, final long value) {
-        this(keyBytes, keyHashCode, INVALID_VALUE, value);
+    BucketMutation(@NonNull final Bytes key, final int keyHashCode, final long path, @Nullable final Bytes value) {
+        this(key, keyHashCode, Path.INVALID_PATH, path, value);
     }
 }

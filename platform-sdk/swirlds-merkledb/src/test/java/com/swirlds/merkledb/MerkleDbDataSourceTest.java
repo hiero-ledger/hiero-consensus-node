@@ -840,7 +840,7 @@ class MerkleDbDataSourceTest {
                 new MerkleDbDataSource(snapshotDbPath1, config1, label, false, false);
         IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource1, i, i, 2 * i, 3 * i));
         final Bytes staleKey = testType.dataType().createVirtualLongKey(8);
-        assertEquals(8, snapshotDataSource1.findKey(staleKey));
+        assertEquals(8, snapshotDataSource1.findKeyPath(staleKey));
         snapshotDataSource1.close();
 
         // Now load snapshot 2, but with HDHM bucket index rebuilt. There must be no stale keys there
@@ -854,7 +854,7 @@ class MerkleDbDataSourceTest {
         final MerkleDbDataSource snapshotDataSource2 =
                 new MerkleDbDataSource(snapshotDbPath2, config2, label, false, false);
         IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource2, i, i, 2 * i, 3 * i));
-        assertEquals(-1, snapshotDataSource2.findKey(staleKey));
+        assertEquals(-1, snapshotDataSource2.findKeyPath(staleKey));
         snapshotDataSource2.close();
     }
 

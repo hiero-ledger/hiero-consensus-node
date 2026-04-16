@@ -176,7 +176,7 @@ public class InMemoryDataSource implements VirtualDataSource {
      * 		If there was a problem locating the key
      */
     @Override
-    public long findKey(final Bytes key) throws IOException {
+    public long findKeyPath(final Bytes key) throws IOException {
         final Long path = keyToPathMap.get(key);
         return (path == null) ? INVALID_PATH : path;
     }

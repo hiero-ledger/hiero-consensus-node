@@ -109,7 +109,7 @@ public interface VirtualDataSource {
      * @return the path or INVALID_PATH if the key is not stored
      * @throws IOException if there was a problem locating the key
      */
-    long findKey(final Bytes keyBytes) throws IOException;
+    long findKeyPath(final Bytes keyBytes) throws IOException;
 
     /**
      * Load a virtual node hash chunk with the given ID.

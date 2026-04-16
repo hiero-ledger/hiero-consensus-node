@@ -228,8 +228,8 @@ public abstract class VirtualMapReconnectTestBase {
         }
 
         @Override
-        public long findKey(final Bytes key) throws IOException {
-            return delegate.findKey(key);
+        public long findKeyPath(final Bytes key) throws IOException {
+            return delegate.findKeyPath(key);
         }
 
         @Override

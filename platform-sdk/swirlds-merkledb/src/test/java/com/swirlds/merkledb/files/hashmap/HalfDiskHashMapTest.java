@@ -109,7 +109,7 @@ class HalfDiskHashMapTest {
                 int i = 1 + random.nextInt(count);
                 final Bytes key = testType.createVirtualLongKey(i);
                 long result = map.get(key, 0);
-                assertEquals(i, result, "unexpected value of newVirtualLongKey");
+                assertEquals(i, result, "unexpected path of newVirtualLongKey");
             }
             // create snapshot
             map.snapshot(tempSnapshotDir);

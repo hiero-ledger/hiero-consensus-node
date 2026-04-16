@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Stream;
 import javax.management.MBeanServer;
@@ -18,6 +19,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 public final class Utils {
+
+    private static final Random RANDOM = new Random(98765);
 
     private static final Logger logger = LogManager.getLogger(Utils.class);
 
@@ -92,15 +95,18 @@ public final class Utils {
     /* Random utils */
 
     public static long randomLong() {
-        return ThreadLocalRandom.current().nextLong();
+//        return ThreadLocalRandom.current().nextLong();
+        return RANDOM.nextLong();
     }
 
     public static long randomLong(long bound) {
-        return ThreadLocalRandom.current().nextLong(bound);
+//        return ThreadLocalRandom.current().nextLong(bound);
+        return RANDOM.nextLong(bound);
     }
 
     public static int randomInt(int bound) {
-        return ThreadLocalRandom.current().nextInt(bound);
+//        return ThreadLocalRandom.current().nextInt(bound);
+        return RANDOM.nextInt(bound);
     }
 
     public static void toBytes(long seed, byte[] bytes) {

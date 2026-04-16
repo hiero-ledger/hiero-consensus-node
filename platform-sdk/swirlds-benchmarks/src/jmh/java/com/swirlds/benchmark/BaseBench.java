@@ -119,8 +119,6 @@ public abstract class BaseBench {
 
         verify = benchmarkConfig.verifyResult();
 
-        BenchmarkKeyUtils.setKeySize(keySize);
-
         // recordSize = keySize + valueSize
         BenchmarkValue.setValueSize(Math.max(recordSize - keySize, RECORD_SIZE_MIN));
 

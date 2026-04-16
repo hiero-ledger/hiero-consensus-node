@@ -21,13 +21,13 @@ import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -45,7 +45,7 @@ import org.hiero.base.concurrent.AbstractTask;
 
 /**
  * This is a hash map implementation where the bucket index is in RAM and the buckets are on disk.
- * It maps a VirtualKey to a long value. This allows very large maps with minimal RAM usage and the
+ * It maps a VirtualKey to a long path. This allows very large maps with minimal RAM usage and the
  * best performance profile as by using an in memory index we avoid the need for random disk writes.
  * Random disk writes are horrible performance wise in our testing.
  *
@@ -65,11 +65,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     private static final String METADATA_FILENAME_SUFFIX = "_metadata.hdhm";
     /** Bucket index file name suffix with extension */
     private static final String BUCKET_INDEX_FILENAME_SUFFIX = "_bucket_index.ll";
-    /**
-     * A marker to indicate that a value should be deleted from the map, or that there is
-     * no old value to compare against in putIfEqual/deleteIfEqual
-     */
-    protected static final long INVALID_VALUE = Long.MIN_VALUE;
 
     /**
      * The average number of entries per bucket we aim for. When map size grows and
@@ -85,7 +80,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     static final int PERCENT_START_RESIZE = 70;
 
     /** The limit on the number of concurrent read tasks in {@code endWriting()} */
-    private static final int MAX_IN_FLIGHT = 1024;
+    private static final int MAX_IN_FLIGHT = 128;
 
     /** Platform configuration */
     @NonNull
@@ -208,7 +203,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     public HalfDiskHashMap(
             final @NonNull Configuration configuration,
             final long initialCapacity,
-            final Path storeDir,
+            final java.nio.file.Path storeDir,
             final String storeName,
             final String legacyStoreName,
             final boolean preferDiskBasedIndex)
@@ -225,14 +220,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         final long bucketIndexCapacity =
                 calculateBucketIndexCapacity(merkleDbConfig.maxNumOfKeys(), goodAverageBucketEntryCount);
         this.storeName = storeName;
-        Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
+        java.nio.file.Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
         // create bucket pool
         this.bucketPool = new ReusableBucketPool(Bucket::new);
         // load or create new
         LoadedDataCallback loadedDataCallback;
         if (Files.exists(storeDir)) {
             // load metadata
-            Path metaDataFile = storeDir.resolve(storeName + METADATA_FILENAME_SUFFIX);
+            java.nio.file.Path metaDataFile = storeDir.resolve(storeName + METADATA_FILENAME_SUFFIX);
             boolean loadedLegacyMetadata = false;
             if (!Files.exists(metaDataFile)) {
                 metaDataFile = storeDir.resolve(legacyStoreName + METADATA_FILENAME_SUFFIX);
@@ -312,7 +307,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         fileCollection.updateValidKeyRange(0, numOfBuckets.get() - 1);
     }
 
-    private void writeMetadata(final Path dir) throws IOException {
+    private void writeMetadata(final java.nio.file.Path dir) throws IOException {
         try (DataOutputStream metaOut =
                 new DataOutputStream(Files.newOutputStream(dir.resolve(storeName + METADATA_FILENAME_SUFFIX)))) {
             metaOut.writeInt(METADATA_FILE_FORMAT_VERSION);
@@ -371,8 +366,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     continue;
                 }
                 bucket.forEachEntry(entry -> {
-                    final Bytes keyBytes = entry.getKeyBytes();
-                    final long path = entry.getValue();
+                    final Bytes keyBytes = entry.getKey();
+                    final long path = entry.getPath();
                     final int hashCode = entry.getHashCode();
                     try {
                         boolean removeKey = true;
@@ -431,7 +426,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     }
 
     /** {@inheritDoc} */
-    public void snapshot(final Path snapshotDirectory) throws IOException {
+    public void snapshot(final java.nio.file.Path snapshotDirectory) throws IOException {
         // create snapshot directory if needed
         Files.createDirectories(snapshotDirectory);
         // write index to file
@@ -496,7 +491,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         if (Thread.currentThread() != writingThread) {
             throw new IllegalStateException("Tried to write with different thread to startWriting()");
         }
-        // store key and value in transaction cache
+        // store key and path in transaction cache
         final int bucketIndex = computeBucketIndex(keyHashCode);
         // For most buckets, there will be just one key/path mapping update. Sometimes, two.
         // A short array list of 2 elements should work fine here. In the worst case, when
@@ -505,21 +500,22 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     }
 
     /**
-     * Put a key/value during the current writing session. The value will not be retrievable until
+     * Put a leaf during the current writing session. The leaf will not be retrievable until
      * it is committed in the {@link #endWriting()} call.
      *
      * <p>For any given key, this method may be called only once in a single writing session.
      *
-     * @param keyBytes the key to store the value for
-     * @param value the value to store for given key
+     * @param key the key to store the path for
+     * @param path the path to store for the given key
+     * @param value the value to store for the given key
      */
-    public void put(final Bytes keyBytes, final long value) {
-        put(keyBytes, keyBytes.hashCode(), value);
+    public void put(@NonNull final Bytes key, final long path, @NonNull final Bytes value) {
+        put(key, key.hashCode(), path, value);
     }
 
-    void put(final Bytes keyBytes, final int keyHashCode, final long value) {
-        final List<BucketMutation> bucketMutations = findBucketForUpdate(keyBytes, keyHashCode);
-        bucketMutations.add(new BucketMutation(keyBytes, keyHashCode, value));
+    void put(@NonNull final Bytes key, final int keyHashCode, final long path, @Nullable final Bytes value) {
+        final List<BucketMutation> bucketMutations = findBucketForUpdate(key, keyHashCode);
+        bucketMutations.add(new BucketMutation(key, keyHashCode, path, value));
     }
 
     /**
@@ -527,27 +523,27 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      *
      * <p>For any given key, this method may be called only once in a single writing session.
      *
-     * @param keyBytes The key to delete entry for
+     * @param key The key to delete entry for
      */
-    public void delete(final Bytes keyBytes) {
-        put(keyBytes, keyBytes.hashCode(), INVALID_VALUE);
+    public void delete(final Bytes key) {
+        put(key, key.hashCode(), Path.INVALID_PATH, null);
     }
 
     /**
-     * Delete a key entry from the map, if the current value is equal to the given {@code oldValue}.
-     * If {@code oldValue} is {@link #INVALID_VALUE}, no current value check is performed, and this
+     * Delete a key entry from the map, if the current path is equal to the given {@code oldPath}.
+     * If {@code oldPath} is {@link Path#INVALID_PATH}, no current path check is performed, and this
      * method is identical to {@link #delete(Bytes)}.
      *
      * <p>For any given key, this method may be called only once in a single writing session.
      *
-     * @param keyBytes the key to delete the entry for
-     * @param oldValue the value to check the current value against, or {@link #INVALID_VALUE}
-     *                 if no current value check is needed
+     * @param key the key to delete the entry for
+     * @param oldPath the path to check the current path against, or {@link Path#INVALID_PATH}
+     *                 if no current path check is needed
      */
-    public void deleteIfEqual(final Bytes keyBytes, final long oldValue) {
-        final int keyHashCode = keyBytes.hashCode();
-        final List<BucketMutation> bucketMutations = findBucketForUpdate(keyBytes, keyHashCode);
-        bucketMutations.add(new BucketMutation(keyBytes, keyHashCode, oldValue, INVALID_VALUE));
+    public void deleteIfEqual(final Bytes key, final long oldPath) {
+        final int keyHashCode = key.hashCode();
+        final List<BucketMutation> bucketMutations = findBucketForUpdate(key, keyHashCode);
+        bucketMutations.add(new BucketMutation(key, keyHashCode, oldPath, Path.INVALID_PATH, null));
     }
 
     /**
@@ -702,12 +698,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         private final int bucketIndex;
 
         // List of updates to apply to the bucket
-        private final List<BucketMutation> keyUpdates;
+        private final List<BucketMutation> updates;
 
-        ReadUpdateBucketTask(final ForkJoinPool pool, final int bucketIndex, final List<BucketMutation> keyUpdates) {
+        ReadUpdateBucketTask(final ForkJoinPool pool, final int bucketIndex, final List<BucketMutation> updates) {
             super(pool, 0);
             this.bucketIndex = bucketIndex;
-            this.keyUpdates = keyUpdates;
+            this.updates = updates;
         }
 
         private void createAndScheduleStoreTask(final Bucket bucket, final boolean bucketChanged) throws IOException {
@@ -753,12 +749,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 // An empty bucket
                 bucket.setBucketIndex(bucketIndex);
                 // Add all entries
-                assert keyUpdates != null;
-                for (int i = 0; i < keyUpdates.size(); i++) {
-                    final BucketMutation m = keyUpdates.get(i);
-                    assert m.oldValue() == INVALID_VALUE;
-                    if (m.value() != INVALID_VALUE) {
-                        bucket.addValue(m.keyBytes(), m.keyHashCode(), m.value());
+                assert updates != null;
+                for (int i = 0; i < updates.size(); i++) {
+                    final BucketMutation m = updates.get(i);
+                    assert m.oldPath() == Path.INVALID_PATH;
+                    if (m.path() != Path.INVALID_PATH) {
+                        assert m.value() != null;
+                        bucket.addValue(m.key(), m.keyHashCode(), m.path(), m.value());
                     }
                 }
                 bucketChanged = true;
@@ -779,9 +776,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     bucket.clear();
                 }
                 // Apply all updates
-                for (int i = 0; i < keyUpdates.size(); i++) {
-                    final BucketMutation m = keyUpdates.get(i);
-                    if (bucket.putValue(m.keyBytes(), m.keyHashCode(), m.oldValue(), m.value())) {
+                for (int i = 0; i < updates.size(); i++) {
+                    final BucketMutation m = updates.get(i);
+                    if (bucket.putLeaf(m.key(), m.keyHashCode(), m.oldPath(), m.path(), m.value())) {
                         bucketChanged = true;
                     }
                 }
@@ -888,29 +885,41 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     // Reading API - Multi thead safe
 
     /**
-     * Get a value from this map
+     * Get a leaf from this map.
      *
-     * @param keyBytes the key to get value for
-     * @param notFoundValue the value to return if the key was not found
-     * @return the value retrieved from the map or {notFoundValue} if no value was stored for the
+     * @param key the key to get the leaf for
+     * @return the path retrieved from the map or {@code null} if no leaf was stored for the
      *     given key
      * @throws IOException If there was a problem reading from the map
      */
-    public long get(final Bytes keyBytes, final long notFoundValue) throws IOException {
-        return get(keyBytes, keyBytes.hashCode(), notFoundValue);
+    public VirtualLeafBytes<?> get(final Bytes key) throws IOException {
+        return get(key, key.hashCode());
     }
 
-    public long get(final Bytes keyBytes, final int keyHashCode, final long notFoundValue) throws IOException {
-        if (keyBytes == null) {
-            throw new IllegalArgumentException("Can not get a null key");
+    public VirtualLeafBytes<?> get(final Bytes key, final int keyHashCode) throws IOException {
+        if (key == null) {
+            throw new IllegalArgumentException("Can not get a leaf for a null key");
         }
         final int bucketIndex = computeBucketIndex(keyHashCode);
         try (Bucket bucket = readBucket(bucketIndex)) {
             if (bucket != null) {
-                return bucket.findValue(keyHashCode, keyBytes, notFoundValue);
+                return bucket.findLeaf(key, keyHashCode);
             }
         }
-        return notFoundValue;
+        return null;
+    }
+
+    public long getPath(final Bytes key, final int keyHashCode) throws IOException {
+        if (key == null) {
+            throw new IllegalArgumentException("Can not get a path for a null key");
+        }
+        final int bucketIndex = computeBucketIndex(keyHashCode);
+        try (Bucket bucket = readBucket(bucketIndex)) {
+            if (bucket != null) {
+                return bucket.findPath(key, keyHashCode);
+            }
+        }
+        return Path.INVALID_PATH;
     }
 
     private Bucket readBucket(final int bucketIndex) throws IOException {
@@ -1004,7 +1013,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     }
 
     /**
-     * Updates the number of buckets and bucket mask bits. The new value must be a power of 2.
+     * Updates the number of buckets and bucket mask bits. The new path must be a power of 2.
      */
     private void setNumberOfBuckets(final int newValue) {
         numOfBuckets.set(newValue);
