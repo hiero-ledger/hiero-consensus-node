@@ -51,7 +51,8 @@ class LongListAdHocTest {
         final int capacity = longsPerChunk * 4096;
         return Stream.of(
                 new LongListHeap(longsPerChunk, capacity, 0),
-                new LongListOffHeap(longsPerChunk, capacity, longsPerChunk / 4));
+                new LongListOffHeap(longsPerChunk, capacity, longsPerChunk / 4),
+                new LongListSegment(longsPerChunk, capacity, longsPerChunk / 4));
     }
 
     // Tests https://github.com/hashgraph/hedera-services/issues/16860

@@ -489,7 +489,7 @@ public abstract class AbstractLongList<C> implements LongList {
      * @param newValue the new value to store
      * @return whether the newValue was set
      */
-    protected abstract boolean putIfEqual(C chunk, int subIndex, long oldValue, long newValue);
+    protected abstract boolean putIfEqual(@NonNull C chunk, int subIndex, long oldValue, long newValue);
 
     /**
      * Implements CASable.get(index)
@@ -588,7 +588,7 @@ public abstract class AbstractLongList<C> implements LongList {
      * @param fc The file channel to write to
      * @throws IOException if there was a problem writing longs
      */
-    protected abstract void writeLongsData(final FileChannel fc) throws IOException;
+    protected abstract void writeLongsData(@NonNull final FileChannel fc) throws IOException;
 
     /**
      * Lookup a long in data

@@ -69,7 +69,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(STATE_THROTTLING)
 @OrderedInIsolation
 public class SteadyStateThrottlingTest {
-    private static final int REGRESSION_NETWORK_SIZE = 4;
+    private static final int DEFAULT_NETWORK_SIZE = 4;
 
     private static final double THROUGHPUT_LIMITS_XFER_NETWORK_TPS = 100.0;
     private static final double THROUGHPUT_LIMITS_FUNGIBLE_MINT_NETWORK_TPS = 30.0;
@@ -78,7 +78,7 @@ public class SteadyStateThrottlingTest {
     private static final double CREATION_LIMITS_CRYPTO_CREATE_NETWORK_TPS = 1.0;
     private static final double BALANCE_QUERY_LIMITS_QPS = 100.0;
 
-    private static final int NETWORK_SIZE = REGRESSION_NETWORK_SIZE;
+    private static final int NETWORK_SIZE = Integer.getInteger("hapi.spec.network.size", DEFAULT_NETWORK_SIZE);
 
     private static final double EXPECTED_XFER_TPS = THROUGHPUT_LIMITS_XFER_NETWORK_TPS / NETWORK_SIZE;
     private static final double EXPECTED_FUNGIBLE_MINT_TPS = THROUGHPUT_LIMITS_FUNGIBLE_MINT_NETWORK_TPS / NETWORK_SIZE;

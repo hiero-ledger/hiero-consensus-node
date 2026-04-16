@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
@@ -148,6 +149,10 @@ public class TestingEventBuilder {
     /** The origin of this events */
     private EventOrigin origin = EventOrigin.GOSSIP;
 
+    private long sequenceNumberOverride = PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER;
+
+    private static final AtomicLong sequenceNumber = new AtomicLong(PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER + 1);
+
     /**
      * Constructor
      *
@@ -179,6 +184,17 @@ public class TestingEventBuilder {
      */
     public @NonNull TestingEventBuilder setNGen(final long nGen) {
         this.nGen = nGen;
+        return this;
+    }
+
+    /**
+     * If set to positive number, override default, automatic, always-increasing event sequence number to one specified
+     *
+     * @param sequenceNumberOverride sequence number to use for the next generated event
+     * @return this instance
+     */
+    public @NonNull TestingEventBuilder setSequenceNumberOverride(final long sequenceNumberOverride) {
+        this.sequenceNumberOverride = sequenceNumberOverride;
         return this;
     }
 
@@ -534,6 +550,11 @@ public class TestingEventBuilder {
         platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 
         platformEvent.setNGen(nGen);
+        if (sequenceNumberOverride > PlatformEvent.UNASSIGNED_SEQUENCE_NUMBER) {
+            platformEvent.setSequenceNumber(sequenceNumberOverride);
+        } else {
+            platformEvent.setSequenceNumber(sequenceNumber.getAndIncrement());
+        }
 
         if (consensusTimestamp != null || consensusOrder != null) {
             platformEvent.setConsensusData(new EventConsensusData.Builder()

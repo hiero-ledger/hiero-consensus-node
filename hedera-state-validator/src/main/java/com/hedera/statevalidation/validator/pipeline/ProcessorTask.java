@@ -105,7 +105,7 @@ public class ProcessorTask implements Callable<Void> {
 
         this.pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
         this.idToDiskLocationHashChunks = vds.getIdToDiskLocationHashChunks();
-        this.bucketIndexToBucketLocation = (LongList) vds.getKeyToPath().getBucketIndexToBucketLocation();
+        this.bucketIndexToBucketLocation = vds.getKeyToPath().getBucketIndexToBucketLocation();
 
         this.dataStats = dataStats;
     }
