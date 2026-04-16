@@ -28,16 +28,15 @@ public class TokenRejectFeeCalculator implements ServiceFeeCalculator {
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
         var fungibleCount = 0;
         var nftCount = 0;
-        for(final var rejection : op.rejections()) {
-            if(rejection.hasFungibleToken()) {
+        for (final var rejection : op.rejections()) {
+            if (rejection.hasFungibleToken()) {
                 fungibleCount += 1;
             }
-            if(rejection.hasNft()) {
+            if (rejection.hasNft()) {
                 nftCount += 1;
             }
         }
         addExtraFee(feeResult, serviceDef, Extra.NFT_UPDATE, feeSchedule, nftCount);
-
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {
