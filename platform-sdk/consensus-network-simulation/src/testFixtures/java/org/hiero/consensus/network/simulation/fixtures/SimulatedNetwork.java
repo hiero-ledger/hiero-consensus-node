@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,15 @@ public class SimulatedNetwork {
                 _ -> new LinkedList<>()));
     }
 
+    public SimulatedNetwork(final Instant now, final List<NodeId> nodes) {
+        this.now = now;
+        this.nodes = new HashSet<>(nodes);
+        eventsInTransit = nodes.stream().collect(Collectors.toMap(Function.identity(),
+                _ -> new PriorityQueue<>()));
+        eventsDelivered = nodes.stream().collect(Collectors.toMap(Function.identity(),
+                _ -> new LinkedList<>()));
+    }
+
     /**
      * Submit an event to be gossiped around the network.
      *
@@ -65,6 +75,7 @@ public class SimulatedNetwork {
             final PlatformEvent eventToDeliver = event.copyGossipedData();
             eventToDeliver.setSenderId(sender);
             eventToDeliver.setTimeReceived(deliveryTime);
+            eventToDeliver.setNGen(event.getNGen());
             final EventInTransit eventInTransit = new EventInTransit(eventToDeliver, deliveryTime);
             eventsInTransit.get(receiver).add(eventInTransit);
         }

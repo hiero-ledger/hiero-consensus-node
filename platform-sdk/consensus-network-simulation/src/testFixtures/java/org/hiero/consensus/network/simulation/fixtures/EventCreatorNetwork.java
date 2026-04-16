@@ -13,9 +13,13 @@ import com.swirlds.metrics.api.Metrics;
 import java.security.KeyPair;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.crypto.SigningImplementation;
@@ -37,15 +41,12 @@ import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 public class EventCreatorNetwork {
-    final List<DefaultEventCreationManager> eventCreators;
+    final Map<NodeId,DefaultEventCreationManager> eventCreators;
     final DefaultOrphanBuffer orphanBuffer;
     final FakeTime time;
     final Roster roster;
     final PlatformContext platformContext;
-
-    public EventCreatorNetwork(final long seed, final int numNodes) {
-        this(seed, numNodes, 1);
-    }
+    final SimulatedNetwork network;
 
     public EventCreatorNetwork(final long seed, final int numNodes, final int maxOtherParents) {
         // Build a roster with real keys
@@ -56,13 +57,13 @@ public class EventCreatorNetwork {
 
         roster = rosterBuilder.build();
 
-        eventCreators = new ArrayList<>(numNodes);
+        eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder()
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
                 .withValue("event.creation.maxOtherParents", Integer.toString(maxOtherParents))
                 .getOrCreateConfig();
-        time = new FakeTime();
+        time = new FakeTime(Instant.parse("2026-01-01T00:00:00Z"), Duration.ZERO);
 
         platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
@@ -88,9 +89,12 @@ public class EventCreatorNetwork {
             // Set platform status to ACTIVE so events can be created
             eventCreationManager.updatePlatformStatus(PlatformStatus.ACTIVE);
 
-            eventCreators.add(eventCreationManager);
+            eventCreators.put(nodeId, eventCreationManager);
         }
         orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
+        final List<NodeId> ids = roster.rosterEntries().stream().map(entry -> NodeId.of(entry.nodeId())).toList();
+        network = new SimulatedNetwork(time.now(), ids);
+        network.setUniformLatency(Duration.of(100, ChronoUnit.MICROS));
     }
 
     public Roster getRoster() {
@@ -102,18 +106,14 @@ public class EventCreatorNetwork {
     }
 
     public void setEventWindow(final EventWindow eventWindow) {
-        for (final DefaultEventCreationManager creator : eventCreators) {
+        for (final DefaultEventCreationManager creator : eventCreators.values()) {
             creator.setEventWindow(eventWindow);
         }
     }
 
-    public List<PlatformEvent> cycle(){
-        return cycle(Duration.of(100, ChronoUnit.MICROS));
-    }
-
     public List<PlatformEvent> cycle(final Duration delay){
         final List<PlatformEvent> newEvents = new ArrayList<>();
-        for (final DefaultEventCreationManager creator : eventCreators) {
+        for (final DefaultEventCreationManager creator : eventCreators.values()) {
             final PlatformEvent event = creator.maybeCreateEvent();
             if (event != null) {
                 newEvents.add(event);
@@ -127,12 +127,13 @@ public class EventCreatorNetwork {
             throw new RuntimeException("There should be no orphaned events in this benchmark");
         }
 
+        unorphanedEvents.forEach(network::submitEvent);
         time.tick(delay);
-        // Share newly created events with all nodes (simulating gossip)
-        for (final DefaultEventCreationManager creator : eventCreators) {
-            for (final PlatformEvent newEvent : newEvents) {
-                creator.registerEvent(newEvent);
-            }
+        network.tick(time.now());
+
+        for (final Entry<NodeId, DefaultEventCreationManager> entry : eventCreators.entrySet()) {
+            final List<PlatformEvent> deliveredEvents = network.getDeliveredEvents(entry.getKey());
+            deliveredEvents.forEach(entry.getValue()::registerEvent);
         }
         return newEvents;
     }
