@@ -71,7 +71,8 @@ module com.swirlds.platform.core {
             org.hiero.otter.test;
     exports com.swirlds.platform.recovery.internal to
             org.hiero.consensus.pcli,
-            com.swirlds.platform.core.test.fixtures;
+            com.swirlds.platform.core.test.fixtures,
+            com.hedera.state.validator;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

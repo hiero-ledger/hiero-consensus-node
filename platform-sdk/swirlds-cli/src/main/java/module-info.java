@@ -11,6 +11,7 @@ module org.hiero.consensus.pcli {
 
     exports org.hiero.consensus.pcli.utility;
     exports org.hiero.consensus.pcli;
+    exports org.hiero.consensus.pcli.recovery to com.hedera.state.validator;
 
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
