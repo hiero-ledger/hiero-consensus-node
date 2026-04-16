@@ -48,7 +48,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -235,7 +235,6 @@ public class TokenMintSimpleFeesTest {
         @DisplayName("TokenMint fungible with zero tokens should not charge NFT price")
         final Stream<DynamicTest> fungibleMintZeroAmountChargesNftFee() {
             return hapiTest(
-                    //                    overriding("fees.simpleFeesEnabled", "true"),
                     newKeyNamed("supplyKey"),
                     cryptoCreate("payer").balance(ONE_HUNDRED_HBARS).key("supplyKey"),
                     tokenCreate("fungibleToken")
@@ -261,8 +260,9 @@ public class TokenMintSimpleFeesTest {
                         final long oMintFee = oMint.getResponseRecord().getTransactionFee();
                         log.info("MINT: zeroMintFee(0 mint)={}, oneMintFee(1 mint)={}", zMintFee, oMintFee);
 
-                        assertTrue(
-                                oMintFee == zMintFee,
+                        assertEquals(
+                                oMintFee,
+                                zMintFee,
                                 "Expected oneMint (" + oMintFee + ") == zeroMint (" + zMintFee + ")");
                     }));
         }
