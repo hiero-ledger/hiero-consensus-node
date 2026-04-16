@@ -158,27 +158,14 @@ jobs:
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
 
-  build:
-    name: "${{ inputs.custom-job-label }} Compile Code"
-    uses: ./.github/workflows/zxc-compile-application-code.yaml
+  compile-and-spotless:
+    name: "${{ inputs.custom-job-label }} Compile and Spotless"
+    uses: ./.github/workflows/zxc-compile-and-spotless-check.yaml
     needs:
       - commit-info
     with:
       java-version: "25"
       java-distribution: "temurin"
-      ref: ${{ needs.commit-info.outputs.sha }}
-    secrets:
-      access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-
-  spotless:
-    name: "${{ inputs.custom-job-label }} Spotless"
-    uses: ./.github/workflows/zxc-spotless-check.yaml
-    needs:
-      - commit-info
-      - build
-    with:
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -191,8 +178,7 @@ jobs:
     uses: ./.github/workflows/zxc-dependency-module-check.yaml
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
@@ -206,8 +192,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-unit-tests.yaml
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -225,8 +210,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-integration-tests.yaml
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -243,8 +227,7 @@ jobs:
     uses: ./.github/workflows/zxc-execute-hapi-tests.yaml
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
@@ -272,8 +255,7 @@ jobs:
     if: ${{ inputs.enable-otter-tests == 'true' }}
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -291,8 +273,7 @@ jobs:
     if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -309,8 +290,7 @@ jobs:
     if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -326,8 +306,7 @@ jobs:
     if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - commit-info
-      - build
-      - spotless
+      - compile-and-spotless
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
@@ -346,9 +325,8 @@ jobs:
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     needs:
       - commit-info
-      - build
+      - compile-and-spotless
       - dependency-check
-      - spotless
       - mats-unit-tests
       - mats-integration-tests
       - mats-hapi-tests
@@ -366,9 +344,8 @@ jobs:
         run: |
           job_statuses=(
             ${{ needs.commit-info.result || 'skipped' }}
-            ${{ needs.build.result || 'skipped' }}
+            ${{ needs.compile-and-spotless.result || 'skipped' }}
             ${{ needs.dependency-check.result || 'skipped' }}
-            ${{ needs.spotless.result || 'skipped' }}
             ${{ needs.mats-unit-tests.result || 'skipped' }}
             ${{ needs.mats-integration-tests.result || 'skipped' }}
             ${{ needs.mats-hapi-tests.result || 'skipped' }}
@@ -379,9 +356,8 @@ jobs:
           )
           job_failure_modes=(
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
-            ${{ needs.build.outputs.failure-mode || 'none' }}
+            ${{ needs.compile-and-spotless.outputs.failure-mode || 'none' }}
             ${{ needs.dependency-check.outputs.failure-mode || 'none' }}
-            ${{ needs.spotless.outputs.failure-mode || 'none' }}
             ${{ needs.mats-unit-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-integration-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-hapi-tests.outputs.failure-mode || 'none' }}
@@ -392,9 +368,8 @@ jobs:
           )
           job_names=(
             "commit-info"
-            "build"
+            "compile-and-spotless"
             "dependency-check"
-            "spotless"
             "mats-unit-tests"
             "mats-integration-tests"
             "mats-hapi-tests"

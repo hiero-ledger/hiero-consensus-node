@@ -4,9 +4,8 @@ merge:
 
     # MATS
     - "MATS / Get Commit Info"
-    - "MATS / Standard Compile Code / Compile Application Code"
+    - "MATS / Compile and Spotless Check / Compile and Spotless Check"
     - "MATS / Unit Tests / Unit Tests"
-    - "MATS / Standard Spotless / Spotless Check"
     - "MATS / Standard Dependency (Module Info) / Dependency Module Check"
     - "MATS / HAPI Tests / HAPI Tests (Misc)"
     - "MATS / HAPI Tests / HAPI Tests (Misc Records)"
