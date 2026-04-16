@@ -1,66 +1,75 @@
-version: '3'
+# Observability stack for Swirlds Benchmarks.
+# Tuneable parameters live in .env (copy/edit values to override defaults).
 
 services:
+
+  # ── Prometheus ───────────────────────────────────────────────────────────────
   prometheus:
-    image: prom/prometheus
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.3.0}
     volumes:
-      - ./prometheus:/etc/prometheus
+      - ./prometheus:/etc/prometheus:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--web.enable-remote-write-receiver'
       - '--enable-feature=native-histograms'
     ports:
-      - "9090:9090"
+      - "${PROMETHEUS_PORT:-9090}:9090"
     networks:
-      - observe-network
+      - monitoring-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # ── Grafana ──────────────────────────────────────────────────────────────────
   grafana:
-    image: grafana/grafana-oss
+    image: ${GRAFANA_IMAGE:-grafana/grafana-oss:12.4.0}
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_PLUGIN_ALLOW_LOCAL_MODE=true
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-      - GF_INSTALL_PLUGINS=marcusolsson-csv-datasource
-      - GF_SERVER_HTTP_PORT=3001
+      - GF_INSTALL_PLUGINS=marcusolsson-csv-datasource,grafana-lokiexplore-app
+      - GF_SERVER_HTTP_PORT=${GRAFANA_PORT:-3001}
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/etc/grafana/dashboards
-      - ./../data:/benchmark-data
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - ./../data:/benchmark-data:ro
     ports:
-      - "3001:3001"
+      - "${GRAFANA_PORT:-3001}:${GRAFANA_PORT:-3001}"
     depends_on:
       - prometheus
-      - promtail
+      - loki
     networks:
-      - observe-network
+      - monitoring-network
 
+  # ── Loki ─────────────────────────────────────────────────────────────────────
   loki:
-    image: grafana/loki:latest
+    image: ${LOKI_IMAGE:-grafana/loki:3.6.7}
     ports:
-      - "3100:3100"
+      - "${LOKI_PORT:-3100}:3100"
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
-      - ./loki/:/etc/loki/
+      - ./loki:/etc/loki:ro
     networks:
-      - observe-network
+      - monitoring-network
 
-  promtail:
-    image: grafana/promtail:latest
+  # ── Alloy (log collector) ─────────────────────────────────────────────────────
+  alloy:
+    image: ${ALLOY_IMAGE:-grafana/alloy:v1.11.3}
     volumes:
-      - ./promtail/promtail.yaml:/etc/promtail/config.yaml:ro  # Read-only mount for config
-      - ../output:/shared/logs/benchmarks:ro
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ${LOGS_PATH:-../output}:/var/log/benchmarks:ro
     command:
-      - "-config.file=/etc/promtail/config.yaml"
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+    ports:
+      - "${ALLOY_UI_PORT:-12345}:12345"
     depends_on:
       - loki
-    ports:
-      - "9080:9080"
     networks:
-      - observe-network
+      - monitoring-network
 
 networks:
-  observe-network:
+  monitoring-network:
     driver: bridge

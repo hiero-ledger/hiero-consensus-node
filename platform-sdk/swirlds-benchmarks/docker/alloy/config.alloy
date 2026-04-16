@@ -1,0 +1,52 @@
+// ── File discovery ────────────────────────────────────────────────────────────
+// Watches the benchmark output directory for any *.log files produced by log4j.
+local.file_match "benchmark_logs" {
+  path_targets = [{
+    __path__ = "/var/log/benchmarks/**/*.log",
+    job       = "benchmark-logs",
+  }]
+  sync_period = "5s"
+}
+
+// ── Log pipeline ──────────────────────────────────────────────────────────────
+// Tails matched files and runs them through processing stages before forwarding.
+loki.source.file "benchmark_logs" {
+  targets    = local.file_match.benchmark_logs.targets
+  forward_to = [loki.process.parse_log4j.receiver]
+}
+
+loki.process "parse_log4j" {
+  // Merge multiline log entries into one.
+  // A new entry starts when a line begins with the log4j timestamp pattern.
+  // Continuation lines (e.g. compaction stats) start with whitespace and are
+  // appended to the previous entry.
+  stage.multiline {
+    firstline     = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3}"
+  }
+
+  // Extract the log4j timestamp: yyyy-MM-dd HH:mm:ss.SSS
+  stage.regex {
+    expression = "^(?P<ts>\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3})"
+  }
+
+  // Override Loki's ingestion timestamp with the parsed log4j timestamp so
+  // log lines appear at the correct point in time even when shipped in bulk.
+  stage.timestamp {
+    source   = "ts"
+    format   = "2006-01-02 15:04:05.000"
+    location = "America/New_York"
+    action_on_failure = "skip"
+  }
+
+  forward_to = [loki.write.loki.receiver]
+}
+
+// ── Loki writer ───────────────────────────────────────────────────────────────
+loki.write "loki" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+  external_labels = {
+    environment = "benchmark",
+  }
+}
