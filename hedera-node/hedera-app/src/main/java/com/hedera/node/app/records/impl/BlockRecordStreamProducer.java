@@ -60,6 +60,14 @@ public interface BlockRecordStreamProducer extends AutoCloseable {
             long lastBlockNumber, long newBlockNumber, @NonNull Instant newBlockFirstTransactionConsensusTime);
 
     /**
+     * Closes the current record file for the given block number without opening a new one. A subsequent call to
+     * {@link #switchBlocks(long, long, Instant)} will open the next record file.
+     *
+     * @param blockNumber the number of the block whose record file is being closed
+     */
+    void closeBlock(long blockNumber);
+
+    /**
      * Write record items to stream files. They must be in exact consensus time order! This must only be called after
      * the user transaction has been committed to state and is 100% done. So, it is called exactly once per user
      * transaction at the end, after it has been committed to state. Each call is for a complete set of transactions

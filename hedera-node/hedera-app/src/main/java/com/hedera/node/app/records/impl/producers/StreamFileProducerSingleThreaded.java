@@ -92,6 +92,13 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
 
     /** {@inheritDoc} */
     @Override
+    public void closeBlock(final long blockNumber) {
+        closeWriter(asHashObject(getRunningHash()), blockNumber);
+        writer = null;
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public void close() {
         closeWriter(asHashObject(getRunningHash()), currentBlockNumber);
 

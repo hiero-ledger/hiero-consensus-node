@@ -28,12 +28,15 @@ public final class WrappedRecordFileBlockHashesCalculator {
 
     public static WrappedRecordFileBlockHashes compute(@NonNull final WrappedRecordFileBlockHashesComputationInput in) {
         requireNonNull(in);
-        if (in.recordStreamItems().isEmpty()) {
-            throw new IllegalArgumentException("recordStreamItems must not be empty");
-        }
 
-        final var firstItem = in.recordStreamItems().getFirst();
-        final var firstConsensusTimestamp = requireNonNull(firstItem.record()).consensusTimestampOrThrow();
+        final Timestamp firstConsensusTimestamp;
+        if (in.recordStreamItems().isEmpty()) {
+            // Empty record blocks are valid; anchor consensusTimestampHash to block creation time.
+            firstConsensusTimestamp = in.blockCreationTime();
+        } else {
+            final var firstItem = in.recordStreamItems().getFirst();
+            firstConsensusTimestamp = requireNonNull(firstItem.record()).consensusTimestampOrThrow();
+        }
         final Bytes consensusTimestampHash =
                 BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(firstConsensusTimestamp));
 

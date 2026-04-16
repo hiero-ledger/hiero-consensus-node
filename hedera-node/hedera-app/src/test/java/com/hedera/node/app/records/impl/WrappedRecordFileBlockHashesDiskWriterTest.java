@@ -122,4 +122,38 @@ class WrappedRecordFileBlockHashesDiskWriterTest extends AppTestBase {
             assertEquals(List.of(e0, e1), log.entries(), "Expected entries to parse back from the on-disk file");
         }
     }
+
+    @Test
+    void appendsEntryWhenRecordItemsAreEmpty() throws IOException, ParseException {
+        final var app = appBuilder()
+                .withConfigValue("hedera.recordStream.wrappedRecordHashesDir", tmpDir.toString())
+                .withConfigValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true)
+                .build();
+
+        try (final var writer = new WrappedRecordFileBlockHashesDiskWriter(
+                app.configProvider(), java.nio.file.FileSystems.getDefault(), mock(BlockStreamMetrics.class))) {
+            final var ts0 = new Timestamp(20, 123);
+            final var in0 = new WrappedRecordFileBlockHashesComputationInput(
+                    2,
+                    ts0,
+                    SemanticVersion.DEFAULT,
+                    Bytes.wrap(new byte[48]),
+                    Bytes.wrap(new byte[48]),
+                    List.of(),
+                    List.of(),
+                    1024 * 1024);
+
+            final var expected = WrappedRecordFileBlockHashesCalculator.compute(in0);
+            writer.appendAsync(in0).join();
+
+            final var file = tmpDir.resolve(FILE_NAME);
+            assertTrue(Files.exists(file), "Expected file to be created");
+
+            final var allBytes = Files.readAllBytes(file);
+            final WrappedRecordFileBlockHashesLog log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
+                    Bytes.wrap(allBytes).toReadableSequentialData(), false, false, 64, allBytes.length);
+
+            assertEquals(List.of(expected), log.entries(), "Expected empty-item block entry to be persisted");
+        }
+    }
 }

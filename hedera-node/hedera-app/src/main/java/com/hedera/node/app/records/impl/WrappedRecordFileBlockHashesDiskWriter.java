@@ -82,17 +82,6 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
 
-        if (input.recordStreamItems().isEmpty()) {
-            logger.warn(
-                    "Skipping wrapped record-file block hashes append for block {} because recordStreamItems is empty; "
-                            + "input{startRunningHashLen={}, endRunningHashLen={}, sidecars={}}",
-                    input.blockNumber(),
-                    input.startRunningHash().length(),
-                    input.endRunningHash().length(),
-                    input.sidecarRecords().size());
-            return CompletableFuture.completedFuture(null);
-        }
-
         ensureInitialized();
 
         return tail.updateAndGet(prev -> prev.thenRunAsync(

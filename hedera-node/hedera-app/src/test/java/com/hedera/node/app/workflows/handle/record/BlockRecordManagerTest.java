@@ -250,7 +250,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                     transactionCount++;
                     // pretend rounds happen every 20 transactions
                     if (transactionCount % 20 == 0) {
-                        blockRecordManager.endRound(merkleState);
+                        blockRecordManager.endRound(merkleState, 2L, blockRecordManager.consTimeOfLastHandledTxn());
                     }
                 }
                 assertThat(block - 1).isEqualTo(blockRecordManager.lastBlockNo());
@@ -262,7 +262,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 endOfBlockHashes.add(blockRecordManager.getRunningHash());
             }
             // end the last round
-            blockRecordManager.endRound(merkleState);
+            blockRecordManager.endRound(merkleState, 2L, blockRecordManager.consTimeOfLastHandledTxn());
             // collect info for later validation
             finalRunningHash = blockRecordManager.getRunningHash();
             // try with resources will close the blockRecordManager and result in waiting for background threads to
@@ -366,7 +366,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                     j += batchSize;
                     // pretend rounds happen every 20 or so transactions
                     if (transactionCount % 20 == 0) {
-                        blockRecordManager.endRound(merkleState);
+                        blockRecordManager.endRound(merkleState, 2L, blockRecordManager.consTimeOfLastHandledTxn());
                     }
                 }
                 // VALIDATE BLOCK INFO METHODS
@@ -403,7 +403,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 endOfBlockHashes.add(blockRecordManager.getRunningHash());
             }
             // end the last round
-            blockRecordManager.endRound(merkleState);
+            blockRecordManager.endRound(merkleState, 2L, blockRecordManager.consTimeOfLastHandledTxn());
             // collect info for later validation
             finalRunningHash = blockRecordManager.getRunningHash();
             // try with resources will close the blockRecordManager and result in waiting for background threads to

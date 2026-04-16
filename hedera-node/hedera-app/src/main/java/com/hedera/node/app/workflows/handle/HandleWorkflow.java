@@ -300,9 +300,11 @@ public class HandleWorkflow {
                 migrationStateChanges.clear();
             }
         }
+        if (streamMode != BLOCKS) {
+            blockRecordManager.startRound(firstConsensusTimestampOf(round), state);
+        }
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
-        boolean transactionsDispatched = false;
         final boolean isGenesis =
                 switch (streamMode) {
                     case RECORDS ->
@@ -313,7 +315,6 @@ public class HandleWorkflow {
             final var genesisEventTime = firstEvent.getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
             systemTransactions.doGenesisSetup(genesisEventTime, state, this::doStreamingAllChanges);
-            transactionsDispatched = true;
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
             }
@@ -338,7 +339,6 @@ public class HandleWorkflow {
                         : round.iterator().next().getConsensusTimestamp();
                 dispatchedTransplantUpdates =
                         systemTransactions.dispatchTransplantUpdates(state, now, round.getRoundNum());
-                transactionsDispatched |= dispatchedTransplantUpdates;
             } catch (Exception e) {
                 logger.error("Failed to dispatch transplant updates", e);
             } finally {
@@ -371,14 +371,12 @@ public class HandleWorkflow {
                 : round.getConsensusTimestamp();
         // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
         try {
-            transactionsDispatched |=
-                    nodeFeeManager.distributeFees(state, lastUsedConsTime.plusNanos(2), systemTransactions);
+            nodeFeeManager.distributeFees(state, lastUsedConsTime.plusNanos(2), systemTransactions);
         } catch (Exception e) {
             logger.error("{} Failed to pay node fees to nodes", ALERT_MESSAGE, e);
         }
         try {
-            transactionsDispatched |=
-                    nodeRewardManager.maybeRewardActiveNodes(state, lastUsedConsTime.plusNanos(4), systemTransactions);
+            nodeRewardManager.maybeRewardActiveNodes(state, lastUsedConsTime.plusNanos(4), systemTransactions);
         } catch (Exception e) {
             logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
         }
@@ -387,7 +385,7 @@ public class HandleWorkflow {
                     .getConfiguration()
                     .getConfigData(BlockStreamConfig.class)
                     .receiptEntriesBatchSize();
-            transactionsDispatched |= handleEvents(state, round, receiptEntriesBatchSize, stateSignatureTxnCallback);
+            handleEvents(state, round, receiptEntriesBatchSize, stateSignatureTxnCallback);
             if (setLedgerIdContext.get() != null) {
                 try {
                     final var ctx = setLedgerIdContext.get();
@@ -401,18 +399,9 @@ public class HandleWorkflow {
                             ctx.proofKeys(),
                             ctx.targetNodeWeights(),
                             historyService.historyProofVerificationKey());
-                    transactionsDispatched = true;
                 } catch (Exception e) {
                     logger.error("{} Failed to externalize ledger id", ALERT_MESSAGE, e);
                 }
-            }
-
-            // Inform the BlockRecordManager that the round is complete, so it can update running hashes in state
-            // from results computed in background threads. The running hash has to be included in state, but we want
-            // to synchronize with background threads as infrequently as possible; per round is the best we can do
-            // from the perspective of the legacy record stream.
-            if (transactionsDispatched && streamMode != BLOCKS) {
-                blockRecordManager.endRound(state);
             }
 
             // Update the latest freeze round after everything is handled
@@ -554,6 +543,28 @@ public class HandleWorkflow {
         blockStreamManager.writeItem(headerItem);
     }
 
+    private static Instant firstConsensusTimestampOf(final Round round) {
+        Instant earliestEventTimestamp = null;
+        for (final ConsensusEvent consensusEvent : round) {
+            if (earliestEventTimestamp == null) {
+                final var eventTimestamp = consensusEvent.getConsensusTimestamp();
+                if (eventTimestamp != null
+                        && eventTimestamp.isAfter(Instant.EPOCH)
+                        && eventTimestamp.isBefore(round.getConsensusTimestamp())) {
+                    earliestEventTimestamp = eventTimestamp;
+                }
+            }
+            final var consensusIt = consensusEvent.consensusTransactionIterator();
+            if (consensusIt.hasNext()) {
+                return consensusIt.next().getConsensusTimestamp();
+            }
+        }
+        if (earliestEventTimestamp != null) {
+            return earliestEventTimestamp;
+        }
+        return round.getConsensusTimestamp();
+    }
+
     /**
      * Handles a platform transaction. This method is responsible for creating a {@link ParentTxn} and
      * executing the workflow for the transaction. This produces a stream of records that are then passed to the
@@ -636,7 +647,7 @@ public class HandleWorkflow {
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitCallback);
         if (topLevelTxn == null) {
             return false;
-        } else if (streamMode != BLOCKS && startsNewRecordFile) {
+        } else if (streamMode != BLOCKS) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
 

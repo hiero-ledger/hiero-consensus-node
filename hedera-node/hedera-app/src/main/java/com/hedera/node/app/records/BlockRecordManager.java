@@ -69,6 +69,15 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     boolean willOpenNewBlock(@NonNull Instant consensusTime, @NonNull State state);
 
     /**
+     * Notifies the record manager that a new consensus round has started so it can
+     * anchor the current record block's logical start time to round timing.
+     *
+     * @param blockTime the round-derived block start timestamp
+     * @param state the mutable state context
+     */
+    void startRound(@NonNull Instant blockTime, @NonNull State state);
+
+    /**
      * "Advances the consensus clock" by updating the latest top-level timestamp that the node has handled (which at
      * the time of the call, is <i>also</i> the last-used consensus timestamp).
      * @param consensusTime the most recent consensus timestamp that the node has <b>started</b> to handle
@@ -122,8 +131,10 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * {@link #endUserTransaction(Stream, State)}.
      *
      * @param state The state to update
+     * @param roundNum the consensus round number just completed
+     * @param consensusTimeCurrentRound the consensus timestamp of the current round
      */
-    void endRound(@NonNull State state);
+    void endRound(@NonNull State state, long roundNum, @NonNull Instant consensusTimeCurrentRound);
 
     /**
      * Closes this BlockRecordManager and wait for any threads to finish.

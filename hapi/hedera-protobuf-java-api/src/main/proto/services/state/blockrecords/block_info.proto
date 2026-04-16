@@ -129,6 +129,14 @@ message BlockInfo {
     proto.Timestamp last_interval_process_time = 8;
 
     /**
+     * The logical start time of the current record block.
+     * <p>
+     * Unlike `first_cons_time_of_current_block`, this value is always populated
+     * for an open block, including blocks with no user transactions.
+     */
+    proto.Timestamp block_time = 9;
+
+    /**
      * The root hash of the previous wrapped record block.
      */
     bytes previous_wrapped_record_block_root_hash = 10;

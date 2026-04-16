@@ -149,7 +149,11 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
 
             if (currentRecordFileWriter == null) {
                 // We are at the start of a new block and there is no old one to close or wait for. So just create a new
-                // one which creates a new file and writes initializes it in the background
+                // one which creates a new file and writes initializes it in the background.
+                //
+                // If closeBlock() was called earlier, currentRecordFileWriter will be non-null and resolve to null once
+                // the close finishes; that case is handled by the branch below so that we preserve the same sequencing
+                // model as origin/main while splitting close from open.
                 currentRecordFileWriter = lastRecordHashingResult.thenApply(lastRunningHash -> createBlockRecordWriter(
                         lastRunningHash, newBlockFirstTransactionConsensusTime, newBlockNumber));
             } else {
@@ -157,14 +161,17 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
                 //   (1) The running hash of the last record in the current block is available; and,
                 //   (2) We have finished writing and closed the current block's record file.
                 // The VALUE of this future, when it completes, will be the writer for the file of
-                // the new block we are just starting.
+                // the new block we are just starting. If closeBlock() was already called, the current writer future
+                // resolves to null and we simply open the next writer after the close completes.
                 currentRecordFileWriter = currentRecordFileWriter
                         .thenCombine(lastRecordHashingResult, TwoResults::new)
                         .thenApplyAsync(
                                 twoResults -> {
                                     final var writer = twoResults.a();
                                     final var lastRunningHash = twoResults.b();
-                                    closeWriter(writer, lastRunningHash);
+                                    if (writer != null) {
+                                        closeWriter(writer, lastRunningHash);
+                                    }
                                     return createBlockRecordWriter(
                                             lastRunningHash, newBlockFirstTransactionConsensusTime, newBlockNumber);
                                 },
@@ -227,6 +234,9 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
                     .thenApplyAsync(
                             twoResults -> {
                                 final var writer = twoResults.a();
+                                if (writer == null) {
+                                    return null;
+                                }
                                 final var serializedItems = twoResults.b();
                                 serializedItems.forEach(item -> {
                                     try {
@@ -240,6 +250,33 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
                             executorService);
         } finally {
             lock.unlock(); // Always unlock.
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void closeBlock(final long blockNumber) {
+        lock.lock();
+        try {
+            if (currentRecordFileWriter == null) {
+                return;
+            }
+            // Preserve the origin/main sequencing model by advancing the same writer future chain through the close.
+            // The resulting future resolves to null to indicate there is no open writer until switchBlocks() is called.
+            currentRecordFileWriter = currentRecordFileWriter
+                    .thenCombine(lastRecordHashingResult, TwoResults::new)
+                    .thenApplyAsync(
+                            twoResults -> {
+                                final var writer = twoResults.a();
+                                final var lastRunningHash = twoResults.b();
+                                if (writer != null) {
+                                    closeWriter(writer, lastRunningHash);
+                                }
+                                return null;
+                            },
+                            executorService);
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -257,8 +294,10 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
                 CompletableFuture.allOf(currentRecordFileWriter, lastRecordHashingResult)
                         .thenAccept(aVoid -> {
                             final var writer = currentRecordFileWriter.join();
-                            final var lastRunningHash = lastRecordHashingResult.join();
-                            closeWriter(writer, lastRunningHash);
+                            if (writer != null) {
+                                final var lastRunningHash = lastRecordHashingResult.join();
+                                closeWriter(writer, lastRunningHash);
+                            }
                         })
                         .join();
 

@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.RES
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -33,16 +34,16 @@ public class MixedOpsNodeDeathReconnectTest implements LifecycleTest {
                         // Run some mixed transactions
                         burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                         // Stop node 2
-                        FakeNmt.shutdownWithin("Carol", SHUTDOWN_TIMEOUT),
+                        FakeNmt.shutdownWithin(NodeSelector.byNodeId(2), SHUTDOWN_TIMEOUT),
                         logIt("Node 2 is supposedly down"),
                         sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()))
                 .when(
                         // Submit operations when node 2 is down
                         burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                         // Restart node2
-                        FakeNmt.restartNode("Carol"),
+                        FakeNmt.restartNode(NodeSelector.byNodeId(2)),
                         // Wait for node2 ACTIVE (BUSY and RECONNECT_COMPLETE are too transient to reliably poll for)
-                        waitForActive("Carol", RESTART_TO_ACTIVE_TIMEOUT))
+                        waitForActive(NodeSelector.byNodeId(2), RESTART_TO_ACTIVE_TIMEOUT))
                 .then(
                         // Run some more transactions
                         burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
