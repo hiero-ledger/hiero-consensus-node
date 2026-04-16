@@ -14,7 +14,7 @@
           "type": "header",
           "text": {
             "type": "plain_text",
-            "text": {{ printf ":warning: XTS - eXtended Test Suite Infrastructure Failure Report (%s)" (getenv "XTS_INFO" | required "XTS_INFO must be set") | data.ToJSON }},
+            "text": {{ printf ":warning: XTS - eXtended Test Suite Environment Failure Report (%s)" (getenv "XTS_INFO" | required "XTS_INFO must be set") | data.ToJSON }},
             "emoji": true
           }
         },
@@ -25,7 +25,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": "*Infrastructure issue detected — not a test failure.*"
+            "text": "*Environment issue detected.*"
           },
           "fields": [
             {

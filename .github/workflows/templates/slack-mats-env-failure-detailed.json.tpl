@@ -14,7 +14,7 @@
           "type": "header",
           "text": {
             "type": "plain_text",
-            "text": ":warning: Hiero Consensus Node - MATS Infrastructure Failure Report",
+            "text": ":warning: Hiero Consensus Node - MATS Environment Failure Report",
             "emoji": true
           }
         },
@@ -25,7 +25,7 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": "*Infrastructure issue detected on `main` — not a test failure.*"
+            "text": "*Environment issue detected on `main`.*"
           },
           "fields": [
             {

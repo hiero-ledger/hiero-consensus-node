@@ -432,14 +432,14 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         block.addItem(item);
 
-        // Wait for the close() path to complete; use recordConnectionClosed since it is only called from close().
+        // Wait for the close() path to complete; use notifyConnectionClosed since it is only called from close().
         final CountDownLatch connectionClosedLatch = new CountDownLatch(1);
         doAnswer(invocation -> {
                     connectionClosedLatch.countDown();
                     return null;
                 })
-                .when(metrics)
-                .recordConnectionClosed();
+                .when(connectionManager)
+                .notifyConnectionClosed(connection);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
