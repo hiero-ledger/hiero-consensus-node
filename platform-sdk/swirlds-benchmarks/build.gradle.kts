@@ -48,13 +48,13 @@ tasks.register<JMHTask>("jmhCrypto") {
 tasks.register<JMHTask>("jmhVirtualMapRead") {
     includes.set(listOf("VirtualMapReadBench"))
     jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap.txt"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-read.txt"))
 }
 
 tasks.register<JMHTask>("jmhVirtualMapEdit") {
     includes.set(listOf("VirtualMapEditBench"))
     jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap.txt"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
 tasks.register<JMHTask>("jmhReconnect") {
