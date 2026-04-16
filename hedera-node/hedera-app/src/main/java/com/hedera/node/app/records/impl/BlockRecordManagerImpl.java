@@ -679,11 +679,14 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     /**
      * {@inheritDoc}
+     *
+     * @return
      */
     @Override
-    public void endRound(
+    public boolean endRound(
             @NonNull final State state, final long roundNum, @NonNull final Instant consensusTimeCurrentRound) {
         this.consensusTimeCurrentRound = requireNonNull(consensusTimeCurrentRound);
+        boolean closesBlock = false;
         if (currentBlockOpen && shouldCloseCurrentBlockAtRoundEnd(roundNum)) {
             final var closeData = computeBlockCloseData(state);
             try {
@@ -703,6 +706,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     closeData.wrappedIntermediateHashes(),
                     closeData.wrappedIntermediateLeafCount());
             clearCurrentBlockTracking();
+            closesBlock = true;
         }
         // Persist the in-memory consTimeOfLastHandledTxn, and if a block was closed above, the closed-boundary state.
         updateBlockInfo(lastBlockInfo, state);
@@ -721,6 +725,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         runningHashesState.put(runningHashes);
         // Commit the changes to the merkle tree.
         ((WritableSingletonStateBase<RunningHashes>) runningHashesState).commit();
+        return closesBlock;
     }
 
     public long lastBlockNo() {

@@ -130,11 +130,12 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * This should be called <b>AFTER</b> the last end user transaction in that round has been passed to
      * {@link #endUserTransaction(Stream, State)}.
      *
-     * @param state The state to update
-     * @param roundNum the consensus round number just completed
+     * @param state                     The state to update
+     * @param roundNum                  the consensus round number just completed
      * @param consensusTimeCurrentRound the consensus timestamp of the current round
+     * @return true if a new block was closed, false otherwise
      */
-    void endRound(@NonNull State state, long roundNum, @NonNull Instant consensusTimeCurrentRound);
+    boolean endRound(@NonNull State state, long roundNum, @NonNull Instant consensusTimeCurrentRound);
 
     /**
      * Closes this BlockRecordManager and wait for any threads to finish.

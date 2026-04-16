@@ -63,8 +63,7 @@ public final class BlockRecordInfoImpl implements BlockRecordInfo {
 
     @Override
     public @NonNull Timestamp blockTimestamp() {
-        // There should always be a current block and a first consensus time within it
-        return blockInfo.firstConsTimeOfCurrentBlockOrThrow();
+        return blockInfo.blockTimeOrThrow();
     }
 
     /** {@inheritDoc} */

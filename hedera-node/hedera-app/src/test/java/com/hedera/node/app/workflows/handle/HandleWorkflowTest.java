@@ -233,11 +233,8 @@ class HandleWorkflowTest {
         final var missingCreatorId = NodeId.of(2L);
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
-        given(round.iterator())
-                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
-                        .iterator())
-                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
-                        .iterator());
+        given(round.iterator()).willAnswer(invocationOnMock -> List.of(eventFromMissingCreator, eventFromPresentCreator)
+                .iterator());
         given(eventFromPresentCreator.getCreatorId()).willReturn(presentCreatorId);
         given(eventFromMissingCreator.getCreatorId()).willReturn(missingCreatorId);
         given(networkInfo.nodeInfo(presentCreatorId.id())).willReturn(mock(NodeInfo.class));
@@ -252,8 +249,8 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
-        verify(eventFromPresentCreator).consensusTransactionIterator();
-        verify(eventFromMissingCreator).consensusTransactionIterator();
+        verify(eventFromPresentCreator, atLeastOnce()).consensusTransactionIterator();
+        verify(eventFromMissingCreator, atLeastOnce()).consensusTransactionIterator();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
                 .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());

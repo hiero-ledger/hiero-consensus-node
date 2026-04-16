@@ -573,13 +573,7 @@ public final class Hedera
                         rosterServiceImpl,
                         platformStateService)
                 .forEach(servicesRegistry::register);
-        final var blockStreamsEnabled = isBlockStreamEnabled();
-        onSealConsensusRound = blockStreamsEnabled
-                ? this::manageBlockEndRound
-                : (round, state) -> {
-                    daggerApp.blockRecordManager().endRound(state, round.getRoundNum(), round.getConsensusTimestamp());
-                    return true;
-                };
+        onSealConsensusRound = this::manageBlockEndRound;
         stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration);
     }
 
@@ -1391,6 +1385,9 @@ public final class Hedera
 
     private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
+        if (streamMode == RECORDS) {
+            return daggerApp.blockRecordManager().endRound(state, round.getRoundNum(), round.getConsensusTimestamp());
+        }
         if (streamMode != BLOCKS) {
             daggerApp.blockRecordManager().endRound(state, round.getRoundNum(), round.getConsensusTimestamp());
         }

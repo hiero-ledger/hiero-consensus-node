@@ -46,6 +46,7 @@ public final class BlockRecordService implements Service {
             .consTimeOfLastHandledTxn(EPOCH)
             .migrationRecordsStreamed(true)
             .firstConsTimeOfCurrentBlock(EPOCH)
+            .blockTime(EPOCH)
             .lastUsedConsTime(EPOCH)
             .lastIntervalProcessTime(EPOCH)
             .votingComplete(true)

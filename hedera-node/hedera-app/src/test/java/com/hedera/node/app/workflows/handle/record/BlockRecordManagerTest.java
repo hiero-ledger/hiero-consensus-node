@@ -95,7 +95,6 @@ final class BlockRecordManagerTest extends AppTestBase {
     private static final int NUM_BLOCK_HASHES_TO_KEEP = 4;
 
     private static final Timestamp FIRST_CONS_TIME_OF_LAST_BLOCK = new Timestamp(1682899224, 38693760);
-    private static final Instant FORCED_BLOCK_SWITCH_TIME = Instant.ofEpochSecond(1682899224L, 38693760);
     private static final NodeInfoImpl NODE_INFO = new NodeInfoImpl(
             0, AccountID.newBuilder().accountNum(3).build(), 10, List.of(), Bytes.EMPTY, List.of(), false, null);
     /**
@@ -233,6 +232,14 @@ final class BlockRecordManagerTest extends AppTestBase {
             for (int i = 0; i < TEST_BLOCKS.size(); i++) {
                 final var blockData = TEST_BLOCKS.get(i);
                 final var block = STARTING_BLOCK + i;
+                // Simulate a round boundary at the start of each new block (except the first).
+                // The first consensus time of a new block is >= blockPeriod (2s) after the
+                // prior block's open time, so endRound will close the prior block here.
+                if (i > 0) {
+                    final var firstConsensusTime =
+                            fromTimestamp(blockData.get(0).transactionRecord().consensusTimestamp());
+                    blockRecordManager.endRound(merkleState, i + 1L, firstConsensusTime);
+                }
                 for (var record : blockData) {
                     final var consensusTime =
                             fromTimestamp(record.transactionRecord().consensusTimestamp());
@@ -249,10 +256,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                     }
                     blockRecordManager.endUserTransaction(Stream.of(record), merkleState);
                     transactionCount++;
-                    // pretend rounds happen every 20 transactions
-                    if (transactionCount % 20 == 0) {
-                        blockRecordManager.endRound(merkleState, 2L, blockRecordManager.consTimeOfLastHandledTxn());
-                    }
                 }
                 assertThat(block - 1).isEqualTo(blockRecordManager.lastBlockNo());
                 // check block hashes
@@ -263,7 +266,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 endOfBlockHashes.add(blockRecordManager.getRunningHash());
             }
             // end the last round
-            blockRecordManager.endRound(merkleState, 2L, blockRecordManager.consTimeOfLastHandledTxn());
+            blockRecordManager.endRound(
+                    merkleState, TEST_BLOCKS.size() + 1L, blockRecordManager.consTimeOfLastHandledTxn());
             // collect info for later validation
             finalRunningHash = blockRecordManager.getRunningHash();
             // try with resources will close the blockRecordManager and result in waiting for background threads to
@@ -325,7 +329,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 platform,
                 wrappedRecordHashesDiskWriter,
                 InitTrigger.RESTART)) {
-            blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
             int transactionCount = 0;
             Bytes runningHash = STARTING_RUNNING_HASH_OBJ.hash();
@@ -338,6 +341,14 @@ final class BlockRecordManagerTest extends AppTestBase {
             for (int i = 0; i < TEST_BLOCKS.size(); i++) {
                 final var blockData = TEST_BLOCKS.get(i);
                 final var block = BLOCK_NUM + i;
+                // Simulate a round boundary at the start of each new block (except the first).
+                // The first consensus time of a new block is >= blockPeriod (2s) after the
+                // prior block's open time, so endRound will close the prior block here.
+                if (i > 0) {
+                    final var firstConsensusTime =
+                            fromTimestamp(blockData.get(0).transactionRecord().consensusTimestamp());
+                    blockRecordManager.endRound(merkleState, i + 1L, firstConsensusTime);
+                }
                 // write this blocks transactions
                 int j = 0;
                 while (j < blockData.size()) {
@@ -367,10 +378,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                         }
                     }
                     j += batchSize;
-                    // pretend rounds happen every 20 or so transactions
-                    if (transactionCount % 20 == 0) {
-                        blockRecordManager.endRound(merkleState, 2L, blockRecordManager.consTimeOfLastHandledTxn());
-                    }
                 }
                 // VALIDATE BLOCK INFO METHODS
                 // check last block number
@@ -406,7 +413,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 endOfBlockHashes.add(blockRecordManager.getRunningHash());
             }
             // end the last round
-            blockRecordManager.endRound(merkleState, 2L, blockRecordManager.consTimeOfLastHandledTxn());
+            blockRecordManager.endRound(
+                    merkleState, TEST_BLOCKS.size() + 1L, blockRecordManager.consTimeOfLastHandledTxn());
             // collect info for later validation
             finalRunningHash = blockRecordManager.getRunningHash();
             // try with resources will close the blockRecordManager and result in waiting for background threads to
@@ -637,7 +645,16 @@ final class BlockRecordManagerTest extends AppTestBase {
         }
 
         private void processBlock(BlockRecordManagerImpl manager, State state, int blockIndex) {
-            for (var record : TEST_BLOCKS.get(blockIndex)) {
+            final var records = TEST_BLOCKS.get(blockIndex);
+            // For blocks after the first, simulate a round boundary that closes the prior block.
+            // The first consensus time of the new block is at least blockPeriod (2s) later than the
+            // prior block's open time, so endRound will detect the period has elapsed and close it.
+            if (blockIndex > 0) {
+                final var firstConsensusTime =
+                        fromTimestamp(records.get(0).transactionRecord().consensusTimestamp());
+                manager.endRound(state, blockIndex + 1L, firstConsensusTime);
+            }
+            for (var record : records) {
                 final var consensusTime =
                         fromTimestamp(record.transactionRecord().consensusTimestamp());
                 manager.startRound(consensusTime, state);
@@ -731,32 +748,29 @@ final class BlockRecordManagerTest extends AppTestBase {
             }
 
             // Simulate restart: new manager with RESTART trigger reads the persisted state.
-            // The first boundary after restart has currentBlockStartRunningHash==null so it
-            // can't compute wrapped hashes for the in-progress block — but it should preserve
-            // the restored hasher state. The second boundary has tracking set up and computes
-            // a new wrapped hash leaf using the restored hasher.
+            // Each subsequent processBlock triggers a round-boundary close of the prior in-progress
+            // block, building on the restored hasher state — never zeroing it out.
             try (final var restartManager = createManager(
                     liveApp, state, mock(WrappedRecordFileBlockHashesDiskWriter.class), InitTrigger.RESTART)) {
                 processBlock(restartManager, state, 1);
                 processBlock(restartManager, state, 2);
 
-                // After the first boundary on restart (currentBlockStartRunningHash is null),
-                // the BlockInfo should preserve the restored hasher state — not zero it out.
-                // The leaf count must still equal the genesis value (not reset to 0).
+                // After processing block 2 on restart, block 1 has been closed via the round-boundary
+                // endRound, incrementing the leaf count by one from the restored genesis value.
                 final var blockInfoAfterFirstBoundary = readBlockInfo(state);
                 assertThat(blockInfoAfterFirstBoundary.wrappedIntermediateBlockRootsLeafCount())
-                        .as("First restart boundary should preserve restored leaf count")
-                        .isEqualTo(leafCountFromGenesis);
+                        .as("First restart boundary should build on restored leaf count")
+                        .isEqualTo(leafCountFromGenesis + 1);
                 assertThat(blockInfoAfterFirstBoundary.previousWrappedRecordBlockRootHash())
-                        .as("First restart boundary should preserve a non-empty root hash")
+                        .as("First restart boundary should produce a non-empty root hash")
                         .isNotEqualTo(Bytes.EMPTY);
 
                 processBlock(restartManager, state, 3);
 
                 final var blockInfo = readBlockInfo(state);
-                // The restored leaf count (1) should be carried forward and incremented.
-                // After the first real computation boundary, leaf count = restored (1) + 1 = 2.
-                assertThat(blockInfo.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(leafCountFromGenesis + 1);
+                // The restored leaf count (1) is carried forward and incremented by each subsequent
+                // close. After two real computation boundaries, leaf count = restored (1) + 2 = 3.
+                assertThat(blockInfo.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(leafCountFromGenesis + 2);
                 // The root hash should differ from the genesis value (a new block was incorporated)
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(rootHashFromGenesis);
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash().length())
