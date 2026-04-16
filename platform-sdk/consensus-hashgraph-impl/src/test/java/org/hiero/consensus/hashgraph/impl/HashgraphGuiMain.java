@@ -3,9 +3,9 @@ package org.hiero.consensus.hashgraph.impl;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
+import org.hiero.consensus.gui.runner.TestGuiSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner.TestGuiSource;
 
 /**
  * Main class for running the hashgraph GUI.
