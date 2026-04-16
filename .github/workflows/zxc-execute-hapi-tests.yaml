@@ -135,7 +135,16 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
-        run: ${GRADLE_EXEC} hapiTestMisc --no-daemon && ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon
+        run: |
+          echo "::group::hapiTestMisc"
+          ${GRADLE_EXEC} hapiTestMisc --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestMiscEmbedded"
+          ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestMiscRepeatable"
+          ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon
+          echo "::endgroup::"
 
       - name: YahCLI Subprocess Regression Tests
         id: gradle-yahcli-misc
@@ -255,7 +264,25 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon && ${GRADLE_EXEC} hapiTestMiscRecordsSerial --no-daemon && ${GRADLE_EXEC} hapiTestCrypto --no-daemon && ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon && ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon
+        run: |
+          echo "::group::hapiTestMiscRecords"
+          ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestMiscRecordsSerial"
+          ${GRADLE_EXEC} hapiTestMiscRecordsSerial --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestCrypto"
+          ${GRADLE_EXEC} hapiTestCrypto --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestCryptoEmbedded"
+          ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestCryptoSerial"
+          ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestMiscSerial"
+          ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon
+          echo "::endgroup::"
 
       - name: Publish HAPI Test (Misc Records, Crypto & Misc Serial) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -358,7 +385,19 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestToken --no-daemon && ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon && ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon && ${GRADLE_EXEC} hapiTestTimeConsumingSerial --no-daemon
+        run: |
+          echo "::group::hapiTestToken"
+          ${GRADLE_EXEC} hapiTestToken --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestTokenSerial"
+          ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestTimeConsuming"
+          ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestTimeConsumingSerial"
+          ${GRADLE_EXEC} hapiTestTimeConsumingSerial --no-daemon
+          echo "::endgroup::"
 
       - name: Publish HAPI Test (Token & Time Consuming) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -461,7 +500,19 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesEmbedded --no-daemon && ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon && ${GRADLE_EXEC} hapiTestNDReconnect --no-daemon
+        run: |
+          echo "::group::hapiTestSimpleFees"
+          ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestSimpleFeesEmbedded"
+          ${GRADLE_EXEC} hapiTestSimpleFeesEmbedded --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestSimpleFeesSerial"
+          ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestNDReconnect"
+          ${GRADLE_EXEC} hapiTestNDReconnect --no-daemon
+          echo "::endgroup::"
 
       - name: Publish HAPI Test (Simple Fees & ND Reconnect) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -564,7 +615,16 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSmartContract --no-daemon && ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon && ${GRADLE_EXEC} hapiTestIss --no-daemon
+        run: |
+          echo "::group::hapiTestSmartContract"
+          ${GRADLE_EXEC} hapiTestSmartContract --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestSmartContractSerial"
+          ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestIss"
+          ${GRADLE_EXEC} hapiTestIss --no-daemon
+          echo "::endgroup::"
 
       - name: Publish HAPI Test (Smart Contracts & ISS) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
@@ -871,7 +931,16 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon && ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon
+        run: |
+          echo "::group::hapiTestAtomicBatch"
+          ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestAtomicBatchSerial"
+          ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon
+          echo "::endgroup::"
+          echo "::group::hapiTestAtomicBatchEmbedded"
+          ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon
+          echo "::endgroup::"
 
       - name: Publish HAPI Test (Atomic Batch) Report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
