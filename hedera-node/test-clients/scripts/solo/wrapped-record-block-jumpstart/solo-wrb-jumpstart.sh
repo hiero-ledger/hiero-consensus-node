@@ -33,6 +33,8 @@ Environment:
   BLOCKS_WRAP_EXTRA_ARGS        Extra args appended to `blocks wrap ...`
   MIRROR_REST_URL               Mirror REST base URL. If set, script will not use mirror service port-forward.
   KEEP_NETWORK                  true|false (default: true)
+  GENERATED_DIR                 Base directory for generated artifacts
+                                (default: wrapped-record-block-jumpstart/generated)
   MIRROR_REST_LOCAL_PORT        Local port for mirror REST forwarding (default: 5551)
   CN_GRPC_LOCAL_PORT            Local port for consensus gRPC forwarding (default: 50211)
   RECORD_STREAMS_DIR            Local directory for downloaded record files
@@ -110,13 +112,14 @@ MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_SERVICE_NAME="${MINIO_SERVICE_NAME:-}"
 
-RECORD_STREAMS_DIR="${RECORD_STREAMS_DIR:-${SCRIPT_DIR}/recordStreams}"
-WRAPPED_BLOCKS_DIR="${WRAPPED_BLOCKS_DIR:-${SCRIPT_DIR}/wrappedBlocks}"
+GENERATED_DIR="${GENERATED_DIR:-${SCRIPT_DIR}/generated}"
+RECORD_STREAMS_DIR="${RECORD_STREAMS_DIR:-${GENERATED_DIR}/recordStreams}"
+WRAPPED_BLOCKS_DIR="${WRAPPED_BLOCKS_DIR:-${GENERATED_DIR}/wrappedBlocks}"
 
-WORK_DIR="$(mktemp -d)"
+WORK_DIR="${WORK_DIR:-${GENERATED_DIR}/work}"
 TMP_UPGRADE_APP_PROPS="${WORK_DIR}/application.properties"
-MIRROR_METADATA_SCRIPT="${WORK_DIR}/generate-mirror-metadata.js"
-JUMPSTART_PARSE_SCRIPT="${WORK_DIR}/parse-jumpstart-bin.js"
+MIRROR_METADATA_SCRIPT="${SCRIPT_DIR}/js/generate-mirror-metadata.js"
+JUMPSTART_PARSE_SCRIPT="${SCRIPT_DIR}/js/parse-jumpstart-bin.js"
 BLOCK_TIMES_FILE="${WORK_DIR}/block_times.bin"
 DAY_BLOCKS_FILE="${WORK_DIR}/day_blocks.json"
 MINIO_DOWNLOAD_LOG="${WORK_DIR}/minio-download.log"
@@ -161,7 +164,6 @@ cleanup() {
     solo consensus network destroy --deployment "${SOLO_DEPLOYMENT}" --force >/dev/null 2>&1 || true
     kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
   fi
-  rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
@@ -428,7 +430,7 @@ download_solo_record_streams_via_pod_mc() {
   local names_file="$1"
   local svc="$2"
   local svc_port="$3"
-  local pod all_objects wanted_timestamps selected_objects creds cfg
+  local pod all_objects wanted_timestamps selected_objects creds
   local endpoint selected_u="" selected_p=""
   local found=0 sig_found=0 failed=0
   local remote subpath dest
@@ -518,41 +520,10 @@ download_solo_minio_record_streams_range() {
   rm -f "${names_file}"
 }
 
-write_jumpstart_parser() {
-  cat > "${JUMPSTART_PARSE_SCRIPT}" <<'EOF'
-const fs = require("fs");
-function fail(msg) { console.error(`FAIL: ${msg}`); process.exit(1); }
-const file = process.argv[2];
-if (!file) fail("Missing jumpstart.bin path argument");
-let b;
-try { b = fs.readFileSync(file); } catch (e) { fail(`Unable to read jumpstart file '${file}': ${e.message}`); }
-if (b.length < 68) fail(`jumpstart.bin too small: ${b.length} bytes (expected at least 68)`);
-const blockNum = b.readBigInt64BE(0);
-const prevHash = b.subarray(8, 56).toString("hex");
-const leafCount = b.readBigInt64BE(56);
-const hashCount = b.readInt32BE(64);
-if (hashCount < 0) fail(`Invalid negative hashCount ${hashCount}`);
-const expected = 68 + (hashCount * 48);
-if (b.length !== expected) fail(`jumpstart.bin size mismatch: got ${b.length}, expected ${expected} (hashCount=${hashCount})`);
-const subtreeHashes = [];
-let offset = 68;
-for (let i = 0; i < hashCount; i += 1) {
-  subtreeHashes.push(b.subarray(offset, offset + 48).toString("hex"));
-  offset += 48;
-}
-console.log(`JUMPSTART_BLOCK_NUMBER=${blockNum.toString()}`);
-console.log(`JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH=${prevHash}`);
-console.log(`JUMPSTART_STREAMING_HASHER_LEAF_COUNT=${leafCount.toString()}`);
-console.log(`JUMPSTART_STREAMING_HASHER_HASH_COUNT=${hashCount}`);
-console.log(`JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES=${subtreeHashes.join(",")}`);
-EOF
-}
-
 load_jumpstart_env_from_bin() {
   local jumpstart_file="$1"
   local k v
   [[ -f "${jumpstart_file}" ]] || { echo "jumpstart.bin not found: ${jumpstart_file}" >&2; return 1; }
-  write_jumpstart_parser
   while IFS='=' read -r k v; do
     case "${k}" in
       JUMPSTART_BLOCK_NUMBER) JUMPSTART_BLOCK_NUMBER="${v}" ;;
@@ -569,117 +540,8 @@ load_jumpstart_env_from_bin() {
   export JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES
 }
 
-write_mirror_metadata_generator() {
-  cat > "${MIRROR_METADATA_SCRIPT}" <<'EOF'
-const fs = require("fs");
-const path = require("path");
-const FIRST_BLOCK_TIME = "2019-09-13T21:53:51.396440Z";
-function fail(msg) { console.error(`FAIL: ${msg}`); process.exit(1); }
-function parseTimestampToEpochNanos(tsLike) {
-  const ts = String(tsLike).replace(/_/g, ":");
-  const m = ts.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?Z$/);
-  if (!m) throw new Error(`Invalid timestamp format: ${tsLike}`);
-  const [, y, mo, d, h, mi, s, fracRaw = ""] = m;
-  const ms = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s));
-  const epochSeconds = BigInt(Math.floor(ms / 1000));
-  const fracNanos = BigInt((fracRaw + "000000000").slice(0, 9));
-  return (epochSeconds * 1_000_000_000n) + fracNanos;
-}
-function recordNameToEpochNanos(recordName) {
-  const base = path.basename(String(recordName));
-  const z = base.indexOf("Z");
-  if (z < 0) throw new Error(`Record file name does not include Z timestamp: ${recordName}`);
-  return parseTimestampToEpochNanos(base.slice(0, z + 1));
-}
-function dayFromRecordName(recordName) {
-  const base = path.basename(String(recordName));
-  const z = base.indexOf("Z");
-  if (z < 0) throw new Error(`Record file name does not include Z timestamp: ${recordName}`);
-  return base.slice(0, z + 1).replace(/_/g, ":").slice(0, 10);
-}
-function resolveNextUrl(base, next) {
-  if (!next) return "";
-  if (next.startsWith("http://") || next.startsWith("https://")) return next;
-  if (next.startsWith("/")) return `${base}${next}`;
-  return `${base}/${next}`;
-}
-async function fetchAllBlocksUpTo(mirrorBase, maxBlock) {
-  const blocks = [];
-  let nextUrl = `${mirrorBase}/api/v1/blocks?order=asc&limit=100`;
-  while (nextUrl) {
-    const response = await fetch(nextUrl);
-    if (!response.ok) throw new Error(`HTTP ${response.status} from ${nextUrl}`);
-    const body = await response.json();
-    const page = Array.isArray(body.blocks) ? body.blocks : [];
-    if (page.length === 0) break;
-    for (const b of page) {
-      const n = Number(b.number);
-      if (!Number.isFinite(n)) continue;
-      if (n > maxBlock) return blocks;
-      blocks.push({ number: n, name: b.name || "", hash: String(b.hash || "").replace(/^0x/i, "") });
-    }
-    const lastNumber = Number(page[page.length - 1].number);
-    if (Number.isFinite(lastNumber) && lastNumber >= maxBlock) break;
-    nextUrl = resolveNextUrl(mirrorBase, body.links && body.links.next);
-  }
-  return blocks;
-}
-function ensureNoBlockGaps(sortedBlocks) {
-  if (sortedBlocks.length < 2) return;
-  for (let i = 1; i < sortedBlocks.length; i += 1) {
-    const expected = sortedBlocks[i - 1].number + 1;
-    const actual = sortedBlocks[i].number;
-    if (actual !== expected) throw new Error(`Gap in mirror blocks: expected ${expected}, got ${actual}`);
-  }
-}
-async function main() {
-  const mirrorBase = String(process.env.MIRROR_REST_URL || "http://127.0.0.1:5551").replace(/\/$/, "");
-  const maxBlockRaw = process.env.MIRROR_BLOCK_NUMBER;
-  const blockTimesFile = process.env.BLOCK_TIMES_FILE;
-  const dayBlocksFile = process.env.DAY_BLOCKS_FILE;
-  if (!maxBlockRaw) fail("MIRROR_BLOCK_NUMBER is required");
-  if (!blockTimesFile) fail("BLOCK_TIMES_FILE is required");
-  if (!dayBlocksFile) fail("DAY_BLOCKS_FILE is required");
-  const maxBlock = Number(maxBlockRaw);
-  if (!Number.isInteger(maxBlock) || maxBlock < 0) fail(`Invalid MIRROR_BLOCK_NUMBER: ${maxBlockRaw}`);
-  const blocks = await fetchAllBlocksUpTo(mirrorBase, maxBlock);
-  if (blocks.length === 0) fail("Mirror returned no blocks for metadata generation");
-  blocks.sort((a, b) => a.number - b.number);
-  ensureNoBlockGaps(blocks);
-  const highest = blocks[blocks.length - 1].number;
-  if (highest < maxBlock) fail(`Mirror highest fetched block ${highest} is below requested ${maxBlock}`);
-  const firstEpochNanos = parseTimestampToEpochNanos(FIRST_BLOCK_TIME);
-  const buf = Buffer.alloc((maxBlock + 1) * 8);
-  const byDay = new Map();
-  for (const b of blocks) {
-    const epochNanos = recordNameToEpochNanos(b.name);
-    const blockTime = epochNanos - firstEpochNanos;
-    if (blockTime < 0n) fail(`Negative block time for block ${b.number}`);
-    buf.writeBigInt64BE(blockTime, b.number * 8);
-    const day = dayFromRecordName(b.name);
-    const [year, month, dayNum] = day.split("-").map(Number);
-    const prev = byDay.get(day);
-    if (!prev) {
-      byDay.set(day, { year, month, day: dayNum, firstBlockNumber: b.number, firstBlockHash: b.hash, lastBlockNumber: b.number, lastBlockHash: b.hash });
-    } else {
-      prev.lastBlockNumber = b.number;
-      prev.lastBlockHash = b.hash;
-    }
-  }
-  fs.mkdirSync(path.dirname(blockTimesFile), { recursive: true });
-  fs.mkdirSync(path.dirname(dayBlocksFile), { recursive: true });
-  fs.writeFileSync(blockTimesFile, buf);
-  const dayBlocks = Array.from(byDay.values()).sort((a, b) => a.year - b.year || a.month - b.month || a.day - b.day);
-  fs.writeFileSync(dayBlocksFile, `${JSON.stringify(dayBlocks, null, 2)}\n`);
-  console.log(`PASS: generated ${blockTimesFile} and ${dayBlocksFile}`);
-}
-main().catch((err) => { console.error(`FAIL: ${err.message}`); process.exit(1); });
-EOF
-}
-
 generate_block_node_metadata_from_mirror() {
   local max_block="$1"
-  write_mirror_metadata_generator
   export MIRROR_BLOCK_NUMBER="${max_block}"
   export BLOCK_TIMES_FILE
   export DAY_BLOCKS_FILE
@@ -903,7 +765,7 @@ compare_replay_to_migration_vote() {
     echo "replay.leafCount=${replay_leaf}"
   } > "${MIGRATION_COMPARE_LOG}"
   log "--------------------------------------------------------------------"
-  log "Migration vs Replay Comparison"Replay jumpstart block number
+  log "Migration vs Replay Comparison"
   log "  blockNumber:"
   log "    migration = ${MIGRATION_BLOCK_NUMBER}"
   log "    replay    = ${JUMPSTART_BLOCK_NUMBER}"
@@ -1051,7 +913,8 @@ else
 fi
 
 log "Cleaning previous local artifacts"
-rm -rf "${RECORD_STREAMS_DIR}" "${WRAPPED_BLOCKS_DIR}" >/dev/null 2>&1 || true
+rm -rf "${RECORD_STREAMS_DIR}" "${WRAPPED_BLOCKS_DIR}" "${WORK_DIR}" >/dev/null 2>&1 || true
+mkdir -p "${GENERATED_DIR}" "${WORK_DIR}" >/dev/null 2>&1 || true
 cleanup_stale_port_forwards
 
 log "Resetting kind cluster ${SOLO_CLUSTER_NAME}"
@@ -1117,6 +980,7 @@ run_replay_wrap_to_migration_block "${MIRROR_REST_URL}" 0 "${MIGRATION_BLOCK_NUM
 compare_replay_to_migration_vote
 
 log "SUCCESS: migration vote values match offline replay jumpstart values"
+log "Generated artifacts root: ${GENERATED_DIR}"
 log "Temp upgrade properties: ${TMP_UPGRADE_APP_PROPS}"
 log "Initial jumpstart: ${FIRST_JUMPSTART_BIN}"
 log "Replay jumpstart: ${SECOND_JUMPSTART_BIN}"
