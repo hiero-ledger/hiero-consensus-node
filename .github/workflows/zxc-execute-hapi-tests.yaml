@@ -136,15 +136,17 @@ jobs:
           LANG: en_US.UTF-8
         # Run each task in isolation with clean builds because we dynamically reconfigure Log4j for each mode
         run: |
+          status=0
           echo "::group::hapiTestMisc"
-          ${GRADLE_EXEC} hapiTestMisc --no-daemon
+          ${GRADLE_EXEC} hapiTestMisc --no-daemon || { status=1; echo "::error::hapiTestMisc failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestMiscEmbedded"
-          ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon
+          ${GRADLE_EXEC} hapiTestMiscEmbedded --no-daemon || { status=1; echo "::error::hapiTestMiscEmbedded failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestMiscRepeatable"
-          ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon
+          ${GRADLE_EXEC} hapiTestMiscRepeatable --no-daemon || { status=1; echo "::error::hapiTestMiscRepeatable failed"; }
           echo "::endgroup::"
+          exit $status
 
       - name: YahCLI Subprocess Regression Tests
         id: gradle-yahcli-misc
@@ -153,7 +155,7 @@ jobs:
           LANG: en_US.UTF-8
         run: ${GRADLE_EXEC} :yahcli:testSubprocess --no-daemon
 
-      - name: Publish HAPI Test (Misc) Report
+      - name: Publish HAPI Test (Misc) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Misc) Results"
@@ -265,26 +267,28 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
+          status=0
           echo "::group::hapiTestMiscRecords"
-          ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon
+          ${GRADLE_EXEC} hapiTestMiscRecords --no-daemon || { status=1; echo "::error::hapiTestMiscRecords failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestMiscRecordsSerial"
-          ${GRADLE_EXEC} hapiTestMiscRecordsSerial --no-daemon
+          ${GRADLE_EXEC} hapiTestMiscRecordsSerial --no-daemon || { status=1; echo "::error::hapiTestMiscRecordsSerial failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestCrypto"
-          ${GRADLE_EXEC} hapiTestCrypto --no-daemon
+          ${GRADLE_EXEC} hapiTestCrypto --no-daemon || { status=1; echo "::error::hapiTestCrypto failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestCryptoEmbedded"
-          ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon
+          ${GRADLE_EXEC} hapiTestCryptoEmbedded --no-daemon || { status=1; echo "::error::hapiTestCryptoEmbedded failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestCryptoSerial"
-          ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon
+          ${GRADLE_EXEC} hapiTestCryptoSerial --no-daemon || { status=1; echo "::error::hapiTestCryptoSerial failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestMiscSerial"
-          ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon
+          ${GRADLE_EXEC} hapiTestMiscSerial --no-daemon || { status=1; echo "::error::hapiTestMiscSerial failed"; }
           echo "::endgroup::"
+          exit $status
 
-      - name: Publish HAPI Test (Misc Records, Crypto & Misc Serial) Report
+      - name: Publish HAPI Test (Misc Records, Crypto & Misc Serial) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Misc Records, Crypto & Misc Serial) Results"
@@ -386,20 +390,22 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
+          status=0
           echo "::group::hapiTestToken"
-          ${GRADLE_EXEC} hapiTestToken --no-daemon
+          ${GRADLE_EXEC} hapiTestToken --no-daemon || { status=1; echo "::error::hapiTestToken failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestTokenSerial"
-          ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon
+          ${GRADLE_EXEC} hapiTestTokenSerial --no-daemon || { status=1; echo "::error::hapiTestTokenSerial failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestTimeConsuming"
-          ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon
+          ${GRADLE_EXEC} hapiTestTimeConsuming --no-daemon || { status=1; echo "::error::hapiTestTimeConsuming failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestTimeConsumingSerial"
-          ${GRADLE_EXEC} hapiTestTimeConsumingSerial --no-daemon
+          ${GRADLE_EXEC} hapiTestTimeConsumingSerial --no-daemon || { status=1; echo "::error::hapiTestTimeConsumingSerial failed"; }
           echo "::endgroup::"
+          exit $status
 
-      - name: Publish HAPI Test (Token & Time Consuming) Report
+      - name: Publish HAPI Test (Token & Time Consuming) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Token & Time Consuming) Results"
@@ -501,20 +507,22 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
+          status=0
           echo "::group::hapiTestSimpleFees"
-          ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon
+          ${GRADLE_EXEC} hapiTestSimpleFees --no-daemon || { status=1; echo "::error::hapiTestSimpleFees failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestSimpleFeesEmbedded"
-          ${GRADLE_EXEC} hapiTestSimpleFeesEmbedded --no-daemon
+          ${GRADLE_EXEC} hapiTestSimpleFeesEmbedded --no-daemon || { status=1; echo "::error::hapiTestSimpleFeesEmbedded failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestSimpleFeesSerial"
-          ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon
+          ${GRADLE_EXEC} hapiTestSimpleFeesSerial --no-daemon || { status=1; echo "::error::hapiTestSimpleFeesSerial failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestNDReconnect"
-          ${GRADLE_EXEC} hapiTestNDReconnect --no-daemon
+          ${GRADLE_EXEC} hapiTestNDReconnect --no-daemon || { status=1; echo "::error::hapiTestNDReconnect failed"; }
           echo "::endgroup::"
+          exit $status
 
-      - name: Publish HAPI Test (Simple Fees & ND Reconnect) Report
+      - name: Publish HAPI Test (Simple Fees & ND Reconnect) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Simple Fees & ND Reconnect) Results"
@@ -616,17 +624,19 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
+          status=0
           echo "::group::hapiTestSmartContract"
-          ${GRADLE_EXEC} hapiTestSmartContract --no-daemon
+          ${GRADLE_EXEC} hapiTestSmartContract --no-daemon || { status=1; echo "::error::hapiTestSmartContract failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestSmartContractSerial"
-          ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon
+          ${GRADLE_EXEC} hapiTestSmartContractSerial --no-daemon || { status=1; echo "::error::hapiTestSmartContractSerial failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestIss"
-          ${GRADLE_EXEC} hapiTestIss --no-daemon
+          ${GRADLE_EXEC} hapiTestIss --no-daemon || { status=1; echo "::error::hapiTestIss failed"; }
           echo "::endgroup::"
+          exit $status
 
-      - name: Publish HAPI Test (Smart Contracts & ISS) Report
+      - name: Publish HAPI Test (Smart Contracts & ISS) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Smart Contracts & ISS) Results"
@@ -637,7 +647,7 @@ jobs:
       - name: Upload HAPI Test (Smart Contracts & ISS) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Smart Contracts & ISS) Report
+          name: HAPI Test (Smart Contracts & ISS) Reports
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
@@ -729,7 +739,7 @@ jobs:
           LANG: en_US.UTF-8
         run: ${GRADLE_EXEC} hapiTestRestart
 
-      - name: Publish HAPI Test (Restart) Report
+      - name: Publish HAPI Test (Restart) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Restart) Results"
@@ -740,7 +750,7 @@ jobs:
       - name: Upload HAPI Test (Restart) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Restart) Report
+          name: HAPI Test (Restart) Reports
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
@@ -832,7 +842,7 @@ jobs:
           LANG: en_US.UTF-8
         run: ${GRADLE_EXEC} hapiTestBlockNodeCommunication
 
-      - name: Publish HAPI Test (Block Node Communication) Report
+      - name: Publish HAPI Test (Block Node Communication) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Block Node Communication) Results"
@@ -843,7 +853,7 @@ jobs:
       - name: Upload HAPI Test (Block Node Communication) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Block Node Communication) Report
+          name: HAPI Test (Block Node Communication) Reports
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
@@ -932,17 +942,19 @@ jobs:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
         run: |
+          status=0
           echo "::group::hapiTestAtomicBatch"
-          ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon
+          ${GRADLE_EXEC} hapiTestAtomicBatch --no-daemon || { status=1; echo "::error::hapiTestAtomicBatch failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestAtomicBatchSerial"
-          ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon
+          ${GRADLE_EXEC} hapiTestAtomicBatchSerial --no-daemon || { status=1; echo "::error::hapiTestAtomicBatchSerial failed"; }
           echo "::endgroup::"
           echo "::group::hapiTestAtomicBatchEmbedded"
-          ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon
+          ${GRADLE_EXEC} hapiTestAtomicBatchEmbedded --no-daemon || { status=1; echo "::error::hapiTestAtomicBatchEmbedded failed"; }
           echo "::endgroup::"
+          exit $status
 
-      - name: Publish HAPI Test (Atomic Batch) Report
+      - name: Publish HAPI Test (Atomic Batch) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (Atomic Batch) Results"
@@ -1045,7 +1057,7 @@ jobs:
           LANG: en_US.UTF-8
         run: ${GRADLE_EXEC} hapiTestStateThrottling
 
-      - name: Publish HAPI Test (State Throttling) Report
+      - name: Publish HAPI Test (State Throttling) Reports
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
         with:
           check_name: "Node: HAPI Test (State Throttling) Results"
@@ -1056,7 +1068,7 @@ jobs:
       - name: Upload HAPI Test (State Throttling) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (State Throttling) Report
+          name: HAPI Test (State Throttling) Reports
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 

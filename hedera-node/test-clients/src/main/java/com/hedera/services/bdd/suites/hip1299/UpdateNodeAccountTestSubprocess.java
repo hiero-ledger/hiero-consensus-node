@@ -30,7 +30,7 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -63,7 +63,9 @@ public class UpdateNodeAccountTestSubprocess {
             final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
             final AtomicReference<AccountID> oldNodeAccountId = new AtomicReference<>();
             final String nodeToUpdate = "3";
-            final String baseDir = workingDirFor(Long.parseLong(nodeToUpdate), null) + "/data/recordStreams/";
+            final Path recordsDir = workingDirFor(Long.parseLong(nodeToUpdate), null)
+                    .resolve("data")
+                    .resolve("recordStreams");
 
             return hapiTest(
                     cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
@@ -75,8 +77,8 @@ public class UpdateNodeAccountTestSubprocess {
                     // assert record paths
                     withOpContext((spec, log) -> {
                         final var oldRecordPath =
-                                Paths.get(baseDir + "record" + asAccountString(oldNodeAccountId.get()));
-                        final var newRecordPath = Paths.get(baseDir + "record" + asAccountString(newAccountId.get()));
+                                recordsDir.resolve("record" + asAccountString(oldNodeAccountId.get()));
+                        final var newRecordPath = recordsDir.resolve("record" + asAccountString(newAccountId.get()));
                         assertTrue(oldRecordPath.toFile().exists());
                         assertFalse(newRecordPath.toFile().exists());
                     }));

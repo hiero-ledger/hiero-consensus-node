@@ -80,7 +80,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -482,29 +482,29 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         assertEquals(classicIds, entries.stream().map(RosterEntry::nodeId).collect(toSet()), "Wrong ids");
     }
 
-    private static String recordsPath(String nodeId) {
-        return workingDirFor(Long.parseLong(nodeId), null) + "/data/recordStreams/";
+    private static Path recordsPath(String nodeId) {
+        return workingDirFor(Long.parseLong(nodeId), null).resolve("data").resolve("recordStreams");
     }
 
-    private static String blocksPath(String nodeId) {
-        return workingDirFor(Long.parseLong(nodeId), null) + "/data/blockStreams/";
+    private static Path blocksPath(String nodeId) {
+        return workingDirFor(Long.parseLong(nodeId), null).resolve("data").resolve("blockStreams");
     }
 
     private static ContextualActionOp validatePathsDoesntExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
-            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
+            final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
             assertThat(recordPath.toFile().exists()).isFalse();
 
-            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
+            final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
             assertThat(blockPath.toFile().exists()).isFalse();
         });
     }
 
     private static ContextualActionOp validatePathsExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
-            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
+            final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
             assertThat(recordPath.toFile().exists()).isTrue();
-            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
+            final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
             assertThat(blockPath.toFile().exists()).isTrue();
         });
     }

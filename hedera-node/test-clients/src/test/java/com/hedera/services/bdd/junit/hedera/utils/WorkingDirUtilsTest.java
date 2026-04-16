@@ -12,8 +12,11 @@ import org.junit.jupiter.api.parallel.Isolated;
 
 /**
  * Tests for {@link WorkingDirUtils#workingDirFor(long, String)}.
+ *
+ * <p>Isolated because it mutates the JVM-global {@code hapi.spec.subtask.name} system
+ * property that {@code workingDirFor()} reads.
  */
-@Isolated("mutates the JVM-global System property used by workingDirFor()")
+@Isolated
 class WorkingDirUtilsTest {
 
     @AfterEach
