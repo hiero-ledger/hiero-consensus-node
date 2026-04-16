@@ -50,6 +50,26 @@ public class ConsensusModuleBuilder {
      *                               or the class name does not follow the naming convention
      */
     public static <T> T createModule(@NonNull final Class<T> moduleClass, @NonNull final Configuration configuration) {
+        final String selectedModule = getSelectedModule(moduleClass, configuration);
+        return createModule(moduleClass, selectedModule);
+    }
+
+    /**
+     * Create a module implementation via {@link ServiceLoader}, selecting by JPMS module name when configured, and
+     * enforcing determinism when multiple providers are available.
+     *
+     * <p>The config property name is derived from the interface's simple name by stripping the
+     * {@code "Module"} suffix and lowercasing the first letter (e.g. {@code EventCreatorModule}
+     * becomes config key {@code "modules.eventCreator"}).
+     *
+     * @param <T>            the module interface type
+     * @param moduleClass    the module interface class (must end with {@code "Module"})
+     * @param selectedModule  the name of the module to load
+     * @return the selected module instance
+     * @throws IllegalStateException if no provider is found, multiple providers exist without explicit selection,
+     *                               or the class name does not follow the naming convention
+     */
+    public static <T> @NonNull T createModule(final @NonNull Class<T> moduleClass, final String selectedModule) {
         try {
 
             final List<Provider<T>> providers = loadProviders(moduleClass);
@@ -57,7 +77,7 @@ public class ConsensusModuleBuilder {
             if (providers.isEmpty()) {
                 throw new IllegalStateException("No " + moduleClass.getSimpleName() + " implementation found!");
             }
-            final String selectedModule = getSelectedModule(moduleClass, configuration);
+
             final Provider<T> provider;
             if ("".equals(selectedModule)) {
                 if (providers.size() > 1) {

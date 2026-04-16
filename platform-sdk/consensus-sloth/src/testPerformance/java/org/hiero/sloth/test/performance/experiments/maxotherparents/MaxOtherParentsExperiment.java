@@ -10,7 +10,6 @@ import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.specs.ContainerSpecs;
 import org.hiero.sloth.fixtures.specs.SlothSpecs;
-import org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark.BenchmarkParameters;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.TestMethodOrder;
@@ -25,7 +24,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 public class MaxOtherParentsExperiment {
 
     private static final Logger log = LogManager.getLogger(MaxOtherParentsExperiment.class);
-    public static final BenchmarkParameters DEFAULTS = BenchmarkParameters.defaults();
 
     /**
      * Test maxOtherParents=2.
@@ -34,8 +32,8 @@ public class MaxOtherParentsExperiment {
     @Order(1)
     void maxOtherParentsHalf(@NonNull final TestEnvironment env) {
         log.info("=== MaxOtherParents Experiment: maxOtherParents=half ===");
-        runBenchmark(env, "maxOtherParentsHalf", DEFAULTS, network -> {
-            network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes() / 2);
+        runBenchmark(env, "maxOtherParentsHalf", (network, params) -> {
+            network.withConfigValue("event.creation.maxOtherParents", params.numberOfNodes() / 2);
         });
     }
 
@@ -43,8 +41,8 @@ public class MaxOtherParentsExperiment {
     @Order(2)
     void maxOtherParentsTwoThirdsPlusOne(@NonNull final TestEnvironment env) {
         log.info("=== MaxOtherParents Experiment: maxOtherParents=2/3+1 ===");
-        runBenchmark(env, "maxOtherParentsTwoThirdsPlusOne", DEFAULTS, network -> {
-            network.withConfigValue("event.creation.maxOtherParents", 2 * DEFAULTS.numberOfNodes() / 3 + 1);
+        runBenchmark(env, "maxOtherParentsTwoThirdsPlusOne", (network, params) -> {
+            network.withConfigValue("event.creation.maxOtherParents", 2 * params.numberOfNodes() / 3 + 1);
         });
     }
 
@@ -55,8 +53,8 @@ public class MaxOtherParentsExperiment {
     @Order(3)
     void maxOtherParentsAll(@NonNull final TestEnvironment env) {
         log.info("=== MaxOtherParents Experiment: maxOtherParents=All ===");
-        runBenchmark(env, "maxOtherParentsAll", DEFAULTS, network -> {
-            network.withConfigValue("event.creation.maxOtherParents", DEFAULTS.numberOfNodes());
+        runBenchmark(env, "maxOtherParentsAll", (network, params) -> {
+            network.withConfigValue("event.creation.maxOtherParents", params.numberOfNodes());
         });
     }
 }

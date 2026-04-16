@@ -184,10 +184,18 @@ class ConsensusModuleBuilderTest {
     @DisplayName("Single provider with empty selection returns that provider")
     void singleMockedProviderDefaultSelection(final Class<?> moduleClass) {
         final Object impl = mock(moduleClass);
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue("modules.eventCreator", "")
+                .withValue("modules.eventIntake", "")
+                .withValue("modules.pces", "")
+                .withValue("modules.hashgraph", "")
+                .withValue("modules.gossip", "")
+                .withValue("modules.reconnect", "")
+                .getOrCreateConfig();
 
         withProviders(
                 List.of(fakeProviderWith(impl, FAKE_PROVIDER_IMPLEMENTATION_A)),
-                () -> assertSame(impl, ConsensusModuleBuilder.createModule(moduleClass, DEFAULT_CONFIG)));
+                () -> assertSame(impl, ConsensusModuleBuilder.createModule(moduleClass, configuration)));
     }
 
     @ParameterizedTest(name = "{0}")

@@ -21,7 +21,7 @@ import java.util.stream.LongStream;
  * more like a long-to-long map than a traditional list.
  *
  */
-public interface LongList extends CASableLongIndex, Closeable {
+public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
     /**
      * A LongList may not contain the non-existent data location, which is used as a sentinel for a
      * never-set index.

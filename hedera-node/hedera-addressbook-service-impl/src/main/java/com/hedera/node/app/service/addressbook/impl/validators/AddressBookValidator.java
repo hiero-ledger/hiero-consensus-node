@@ -308,7 +308,11 @@ public class AddressBookValidator {
                 INVALID_REGISTERED_ENDPOINT_TYPE);
 
         // Type-specific validation
-        if (endpointTypeKind == RegisteredServiceEndpoint.EndpointTypeOneOfType.GENERAL_SERVICE) {
+        if (endpointTypeKind == RegisteredServiceEndpoint.EndpointTypeOneOfType.BLOCK_NODE) {
+            final var apis = endpoint.blockNodeOrThrow().endpointApi();
+            validateFalse(apis.isEmpty(), INVALID_REGISTERED_ENDPOINT);
+            validateFalse(apis.stream().distinct().count() != apis.size(), INVALID_REGISTERED_ENDPOINT);
+        } else if (endpointTypeKind == RegisteredServiceEndpoint.EndpointTypeOneOfType.GENERAL_SERVICE) {
             final var desc = endpoint.generalServiceOrThrow().description();
             if (desc != null && !desc.isEmpty()) {
                 final var raw = desc.getBytes(StandardCharsets.UTF_8);
@@ -319,6 +323,10 @@ public class AddressBookValidator {
         }
     }
 
+    /**
+     * Validates that the given domain is a valid DNS hostname. Accepts both fully qualified domain
+     * names (e.g. "node0.example.com") and simple, non-FQDN hostnames (e.g. "localhost").
+     */
     private boolean isValidAsciiFqdn(@Nullable final String domain, final int maxFqdnSize) {
         if (domain == null || domain.isEmpty()) {
             return false;

@@ -174,16 +174,18 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
     final Stream<DynamicTest> cancelNFTNotSingedByTheOwner() {
         var account = "account";
         var randomAccount = "randomAccount";
+        final var serial = nextNftSerial();
         return hapiTest(
                 // setup initial account
                 cryptoCreate(account),
                 tokenAssociate(account, NON_FUNGIBLE_TOKEN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 2L).between(OWNER, account)),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, account)),
                 cryptoCreate(randomAccount),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 2L).between(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial)
+                                .between(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                         .payingWith(account),
-                tokenCancelAirdrop(
-                                pendingNFTAirdrop(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 1L))
+                tokenCancelAirdrop(pendingNFTAirdrop(
+                                account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, serial))
                         .signedBy(randomAccount)
                         .hasPrecheck(INVALID_SIGNATURE));
     }
@@ -209,26 +211,27 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
     @DisplayName("cannot delete account when pending airdrop present with two airdrops")
     final Stream<DynamicTest> cannotDeleteAccountWhenPendingAirdropPresentTwoAirdrops() {
         final var account = "account";
+        final var serial = nextNftSerial();
         return hapiTest(
                 cryptoCreate(account),
                 tokenAssociate(account, FUNGIBLE_TOKEN),
                 tokenAssociate(account, NON_FUNGIBLE_TOKEN),
                 cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(OWNER, account)),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 12L).between(OWNER, account)),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, account)),
                 tokenAirdrop(
                                 moving(10, FUNGIBLE_TOKEN).between(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS),
-                                movingUnique(NON_FUNGIBLE_TOKEN, 12L)
+                                movingUnique(NON_FUNGIBLE_TOKEN, serial)
                                         .between(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
                         .payingWith(account),
                 cryptoDelete(account).hasKnownStatus(ACCOUNT_HAS_PENDING_AIRDROPS),
                 tokenCancelAirdrop(pendingAirdrop(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
                         .payingWith(account),
                 cryptoDelete(account).hasKnownStatus(ACCOUNT_HAS_PENDING_AIRDROPS),
-                tokenCancelAirdrop(
-                                pendingNFTAirdrop(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, 12L))
+                tokenCancelAirdrop(pendingNFTAirdrop(
+                                account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, NON_FUNGIBLE_TOKEN, serial))
                         .payingWith(account),
                 tokenReject(rejectingToken(FUNGIBLE_TOKEN)).payingWith(account).signedBy(account),
-                tokenReject(rejectingNFT(NON_FUNGIBLE_TOKEN, 12L))
+                tokenReject(rejectingNFT(NON_FUNGIBLE_TOKEN, serial))
                         .payingWith(account)
                         .signedBy(account),
                 cryptoDelete(account));
@@ -259,17 +262,18 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
     final Stream<DynamicTest> claimCanceledNFTAirdrop() {
         final var account = "account";
         final var receiver = "receiver";
+        final var serial = nextNftSerial();
         return hapiTest(
                 // setup initial accounts
                 cryptoCreate(account),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
                 tokenAssociate(account, NON_FUNGIBLE_TOKEN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 3L).between(OWNER, account)),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 3L).between(account, receiver))
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, account)),
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(account, receiver))
                         .payingWith(account),
-                tokenCancelAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 3L))
+                tokenCancelAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, serial))
                         .payingWith(account),
-                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 3L))
+                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, serial))
                         .payingWith(receiver)
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID));
     }
@@ -279,20 +283,22 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
     final Stream<DynamicTest> multipleNFTs() {
         final var account = "account";
         final var receiver = "receiver";
+        final var s1 = nextNftSerial();
+        final var s2 = nextNftSerial();
         return hapiTest(
                 // setup initial accounts
                 cryptoCreate(account),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
                 tokenAssociate(account, NON_FUNGIBLE_TOKEN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 4L).between(OWNER, account)),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 5L).between(OWNER, account)),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 4L).between(account, receiver))
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, s1).between(OWNER, account)),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, s2).between(OWNER, account)),
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, s1).between(account, receiver))
                         .payingWith(account),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 5L).between(account, receiver))
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, s2).between(account, receiver))
                         .payingWith(account),
                 tokenCancelAirdrop(
-                                pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 4L),
-                                pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 5L))
+                                pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, s1),
+                                pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, s2))
                         .payingWith(account));
     }
 
@@ -320,15 +326,16 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
     final Stream<DynamicTest> receiverWith0HBARsPaysNFT() {
         final var account = "account";
         final var receiver = "receiver";
+        final var serial = nextNftSerial();
         return hapiTest(
                 // setup initial accounts
                 cryptoCreate(account),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0).balance(0L),
                 tokenAssociate(account, NON_FUNGIBLE_TOKEN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 6L).between(OWNER, account)),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 6L).between(account, receiver))
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, account)),
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(account, receiver))
                         .payingWith(account),
-                tokenCancelAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 6L))
+                tokenCancelAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, serial))
                         .signedBy(account)
                         .payingWith(receiver)
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
@@ -357,15 +364,16 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
     final Stream<DynamicTest> receiverWithEnoughHBARsPaysNFT() {
         final var account = "account";
         final var receiver = "receiver";
+        final var serial = nextNftSerial();
         return hapiTest(
                 // setup initial accounts
                 cryptoCreate(account),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0).balance(FIVE_HBARS),
                 tokenAssociate(account, NON_FUNGIBLE_TOKEN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 7L).between(OWNER, account)),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 7L).between(account, receiver))
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, account)),
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(account, receiver))
                         .payingWith(account),
-                tokenCancelAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 7L))
+                tokenCancelAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, serial))
                         .signedBy(account)
                         .payingWith(receiver));
     }
@@ -400,25 +408,27 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
     final Stream<DynamicTest> multipleNFTsCancelOne() {
         final var account = "account";
         final var receiver = "receiver";
+        final var s1 = nextNftSerial();
+        final var s2 = nextNftSerial();
         return hapiTest(
                 // setup initial accounts
                 cryptoCreate(account),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
                 tokenAssociate(account, NON_FUNGIBLE_TOKEN),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 8L).between(OWNER, account)),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 9L).between(OWNER, account)),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 8L).between(account, receiver))
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, s1).between(OWNER, account)),
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, s2).between(OWNER, account)),
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, s1).between(account, receiver))
                         .payingWith(account),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 9L).between(account, receiver))
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, s2).between(account, receiver))
                         .payingWith(account),
-                tokenCancelAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 8L))
+                tokenCancelAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, s1))
                         .payingWith(account),
 
                 // When we cancel the first NFT we can't claim it. We can claim only the second one
-                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 8L))
+                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, s1))
                         .payingWith(receiver)
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
-                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 9L))
+                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, s2))
                         .payingWith(receiver));
     }
 
@@ -427,6 +437,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
     final Stream<DynamicTest> FTAndNFTToSameReceiver() {
         final var account = "account";
         final var receiver = "receiver";
+        final var serial = nextNftSerial();
         return hapiTest(
                 // setup initial accounts
                 cryptoCreate(account),
@@ -434,16 +445,16 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                 tokenAssociate(account, NON_FUNGIBLE_TOKEN),
                 tokenAssociate(account, FUNGIBLE_TOKEN),
                 cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(OWNER, account)),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 10L).between(OWNER, account)),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 10L).between(account, receiver))
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, account)),
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(account, receiver))
                         .payingWith(account),
                 tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(account, receiver))
                         .payingWith(account),
                 tokenCancelAirdrop(
-                                pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 10L),
+                                pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, serial),
                                 pendingAirdrop(account, receiver, FUNGIBLE_TOKEN))
                         .payingWith(account),
-                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 10L))
+                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, serial))
                         .payingWith(receiver)
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
                 tokenClaimAirdrop(pendingAirdrop(account, receiver, FUNGIBLE_TOKEN))
@@ -457,6 +468,7 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
         final var account = "account";
         final var receiver = "receiver";
         final var receiver2 = "receiver2";
+        final var serial = nextNftSerial();
         return hapiTest(
                 // setup initial accounts
                 cryptoCreate(account),
@@ -465,16 +477,16 @@ public class TokenCancelAirdropTest extends TokenAirdropBase {
                 tokenAssociate(account, NON_FUNGIBLE_TOKEN),
                 tokenAssociate(account, FUNGIBLE_TOKEN),
                 cryptoTransfer(moving(11, FUNGIBLE_TOKEN).between(OWNER, account)),
-                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, 11L).between(OWNER, account)),
-                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, 11L).between(account, receiver))
+                cryptoTransfer(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(OWNER, account)),
+                tokenAirdrop(movingUnique(NON_FUNGIBLE_TOKEN, serial).between(account, receiver))
                         .payingWith(account),
                 tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(account, receiver2))
                         .payingWith(account),
                 tokenCancelAirdrop(
-                                pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 11L),
+                                pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, serial),
                                 pendingAirdrop(account, receiver2, FUNGIBLE_TOKEN))
                         .payingWith(account),
-                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, 11L))
+                tokenClaimAirdrop(pendingNFTAirdrop(account, receiver, NON_FUNGIBLE_TOKEN, serial))
                         .payingWith(receiver)
                         .hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
                 tokenClaimAirdrop(pendingAirdrop(account, receiver2, FUNGIBLE_TOKEN))

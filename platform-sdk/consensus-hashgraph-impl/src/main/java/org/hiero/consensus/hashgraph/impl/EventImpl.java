@@ -11,6 +11,7 @@ import org.hiero.base.Clearable;
 import org.hiero.consensus.hashgraph.impl.consensus.CandidateWitness;
 import org.hiero.consensus.hashgraph.impl.consensus.DeGen;
 import org.hiero.consensus.hashgraph.impl.consensus.LocalConsensusGeneration;
+import org.hiero.consensus.hashgraph.impl.metrics.Sequencer;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.LinkedEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -76,6 +77,9 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
 
     /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
+
+    /** A unique sequence number determining the order in which this event was processed */
+    private long consensusSequence = Sequencer.NO_SEQUENCE;
 
     /**
      * Constructor
@@ -463,6 +467,14 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
+     * The sequence number of this event, order in which it was released from the orphan buffer
+     * @return the sequence number of this event.
+     */
+    public long getSequenceNumber() {
+        return getPlatformEvent().getSequenceNumber();
+    }
+
+    /**
      * Get the birth round of this event
      *
      * @return the birth round of this event
@@ -517,6 +529,24 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      */
     public void setDeGen(final int deGen) {
         this.deGen = deGen;
+    }
+
+    /**
+     * Get the consensus sequence number of this event, which indicates the order in which this event was processed in consensus.
+     *
+     * @return the sequence number of this event
+     */
+    public long getConsensusSequence() {
+        return consensusSequence;
+    }
+
+    /**
+     * Set the sequence number of this event, which indicates the order in which this event was processed by consensus.
+     *
+     * @param consensusSequence the sequence number to set
+     */
+    public void setConsensusSequence(final long consensusSequence) {
+        this.consensusSequence = consensusSequence;
     }
 
     //

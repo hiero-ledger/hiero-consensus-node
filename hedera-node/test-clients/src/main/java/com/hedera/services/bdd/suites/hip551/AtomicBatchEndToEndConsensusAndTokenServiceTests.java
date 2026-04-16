@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -1209,7 +1208,6 @@ class AtomicBatchEndToEndConsensusAndTokenServiceTests {
         @DisplayName(
                 "Update Topic Submit Key, Token Transfer and Submit Message to the Updated Topic with the Transfer Details"
                         + " Success in Atomic Batch")
-        @Tag(MATS)
         Stream<DynamicTest> updateTopicTokenTransferAndSubmitMessageToTopicSuccessInBatch() {
 
             // topic update inner transaction

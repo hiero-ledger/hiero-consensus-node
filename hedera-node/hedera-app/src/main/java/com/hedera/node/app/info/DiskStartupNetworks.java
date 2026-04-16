@@ -18,6 +18,7 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -47,6 +48,9 @@ public class DiskStartupNetworks implements StartupNetworks {
     private final ConfigProvider configProvider;
 
     private boolean isArchived = false;
+
+    @Nullable
+    private Long lastOverrideRoundNumber = null;
 
     /**
      * The types of network information that could be exported to disk.
@@ -96,6 +100,11 @@ public class DiskStartupNetworks implements StartupNetworks {
     }
 
     @Override
+    public Optional<Network> lastUsedOverrideNetwork(Configuration platformConfig) {
+        return Optional.ofNullable(lastOverrideRoundNumber).flatMap(n -> overrideNetworkFor(n, platformConfig));
+    }
+
+    @Override
     public void setOverrideRound(final long roundNumber) {
         final var config = configProvider.getConfiguration();
         final var path = networksPath(config, OVERRIDE_NETWORK_JSON);
@@ -110,6 +119,13 @@ public class DiskStartupNetworks implements StartupNetworks {
                 log.warn("Failed to move override network file", e);
             }
         }
+        // Even if above code didn't move a data/config/override-network.json to a
+        // data/config/<roundNumber>/override-network.json file, we still need to
+        // track the round number we are applying this override roster in; if not,
+        // when reconnecting from a <roundNumber> state after *already restarting*
+        // from that state we will fail to repeat the post-upgrade transplant
+        // dispatches and hit an ISS immediately after restart
+        lastOverrideRoundNumber = roundNumber;
     }
 
     @Override

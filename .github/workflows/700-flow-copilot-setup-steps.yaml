@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "700: [FLOW] Copilot Setup Steps"
+
+# Automatically run the setup steps when they are changed to allow for easy validation and
+# allow manual testing through the repository's "Actions" tab.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/700-flow-copilot-setup-steps.yaml
+  pull_request:
+    paths:
+      - .github/workflows/700-flow-copilot-setup-steps.yaml
+
+permissions:
+  contents: read
+
+jobs:
+  copilot-setup-steps:
+    runs-on: hl-cn-default-lin-md
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        with:
+          checkout: "true"
+          checkout-ref: "${{ github.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-java: "true"
+          java-version: "25"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "22"

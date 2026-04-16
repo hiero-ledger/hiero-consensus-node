@@ -13,6 +13,7 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 testModuleInfo {
     requires("com.swirlds.common")
     requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.base.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
@@ -21,11 +22,4 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
-}
-
-timingSensitiveModuleInfo {
-    requires("com.swirlds.common.test.fixtures")
-    requires("org.hiero.base.utility.test.fixtures")
-    requires("org.junit.jupiter.api")
-    requires("org.junit.jupiter.params")
 }

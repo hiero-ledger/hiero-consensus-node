@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -782,7 +781,6 @@ public class TokenInfoHTSSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> happyPathGetTokenCustomFees() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
@@ -1101,7 +1099,6 @@ public class TokenInfoHTSSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> happyPathUpdateFungibleTokenInfoAndGetLatestInfo() {
         final int decimals = 1;
         final AtomicReference<ByteString> targetLedgerId = new AtomicReference<>();
@@ -1336,7 +1333,6 @@ public class TokenInfoHTSSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> happyPathUpdateTokenKeysAndReadLatestInformation() {
         final String TOKEN_INFO_AS_KEY = "TOKEN_INFO_CONTRACT_KEY";
         return hapiTest(

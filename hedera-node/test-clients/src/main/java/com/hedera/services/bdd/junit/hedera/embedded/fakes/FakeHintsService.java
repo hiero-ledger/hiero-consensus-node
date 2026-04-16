@@ -12,6 +12,7 @@ import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -92,8 +93,8 @@ public class FakeHintsService implements HintsService {
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
             final boolean isActive,
-            @NonNull final TssConfig tssConfig) {
-        delegate.executeCrsWork(hintsStore, now, isActive, tssConfig);
+            @NonNull final NetworkInfo networkInfo) {
+        delegate.executeCrsWork(hintsStore, now, isActive, networkInfo);
     }
 
     @Override

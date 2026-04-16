@@ -30,7 +30,7 @@ message BlockFooter {
      * This value SHALL be empty for the genesis block, and SHALL NOT be empty
      * for any other block.<br/>
      * Client systems SHOULD optimistically reject any block with a
-     * `previous_block_proof_hash` that does not match the block hash of the
+     * `previous_block_root_hash` that does not match the block hash of the
      * previous block and MAY assume the block stream has encountered data
      * loss, data corruption, or unauthorized modification.<br>
      * For historical converted record stream blocks, this is the hash of the
@@ -41,7 +41,7 @@ message BlockFooter {
     bytes previous_block_root_hash = 1;
 
     /**
-     * The root hash of a merkle tree containg the root hashes of all block
+     * The root hash of a merkle tree containing the root hashes of all block
      * from block zero up to but not including this current block.
      */
     bytes root_hash_of_all_block_hashes_tree = 2;

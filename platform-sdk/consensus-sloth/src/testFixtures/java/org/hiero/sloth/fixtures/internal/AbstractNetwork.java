@@ -12,7 +12,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
-import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
@@ -28,6 +27,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -37,7 +37,6 @@ import org.hiero.sloth.fixtures.AsyncNetworkActions;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.TimeManager;
-import org.hiero.sloth.fixtures.TransactionGenerator;
 import org.hiero.sloth.fixtures.internal.network.ConnectionKey;
 import org.hiero.sloth.fixtures.internal.network.MeshTopologyImpl;
 import org.hiero.sloth.fixtures.internal.result.MultipleNodeLogResultsImpl;
@@ -116,14 +115,6 @@ public abstract class AbstractNetwork implements Network {
     protected abstract TimeManager timeManager();
 
     /**
-     * The {@link TransactionGenerator} for this network.
-     *
-     * @return the {@link TransactionGenerator} instance
-     */
-    @NonNull
-    protected abstract TransactionGenerator transactionGenerator();
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -179,7 +170,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            return CryptoStatic.generateKeysAndCerts(nodeIds).entrySet().stream()
+            return KeysAndCertsGenerator.generateKeysAndCerts(nodeIds).entrySet().stream()
                     .map(e -> doCreateNode(e.getKey(), e.getValue()))
                     .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
@@ -228,8 +219,6 @@ public abstract class AbstractNetwork implements Network {
             ((AbstractNode) node).roster(roster);
             node.start();
         }
-
-        transactionGenerator().start();
 
         log.debug("Waiting for nodes to become active...");
         timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout);
@@ -450,8 +439,6 @@ public abstract class AbstractNetwork implements Network {
         }
 
         lifecycle = Lifecycle.SHUTDOWN;
-
-        transactionGenerator().stop();
 
         log.info("Nodes have been killed.");
     }

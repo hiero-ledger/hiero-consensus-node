@@ -28,6 +28,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransferList;
 import java.util.ArrayList;
 import java.util.Objects;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -355,6 +356,114 @@ class NodeRewardAmountsTest {
         sortedList.sort((a, b) -> ACCOUNT_ID_COMPARATOR.compare(a.accountID(), b.accountID()));
 
         assertEquals(sortedList, list1, "AccountAmounts should be sorted by AccountID for determinism");
+    }
+
+    @Test
+    void allNodeRewardsIsEmptyWhenNoRewardsAdded() {
+        assertTrue(rewards.allNodeRewards().isEmpty());
+    }
+
+    @Test
+    void allNodeRewardsIncludesAllRewardTypes() {
+        rewards.addConsensusNodeReward(1L, NODE_1_ACCOUNT, 100L);
+        rewards.addBlockNodeReward(1L, NODE_1_ACCOUNT, 50L);
+        rewards.addInactiveConsensusNodeReward(2L, NODE_2_ACCOUNT, 10L);
+
+        final var all = rewards.allNodeRewards();
+
+        assertEquals(3, all.size());
+        assertTrue(all.stream()
+                .anyMatch(r -> r.nodeId() == 1L
+                        && r.type() == NodeRewardAmounts.RewardType.CONSENSUS_NODE
+                        && r.active()
+                        && r.amount() == 100L));
+        assertTrue(all.stream()
+                .anyMatch(r -> r.nodeId() == 1L
+                        && r.type() == NodeRewardAmounts.RewardType.BLOCK_NODE
+                        && r.active()
+                        && r.amount() == 50L));
+        assertTrue(all.stream()
+                .anyMatch(r -> r.nodeId() == 2L
+                        && r.type() == NodeRewardAmounts.RewardType.CONSENSUS_NODE
+                        && !r.active()
+                        && r.amount() == 10L));
+    }
+
+    @Test
+    void allNodeRewardsReturnedSortedByNodeId() {
+        // Add in reverse order to verify TreeMap sorting
+        rewards.addConsensusNodeReward(3L, NODE_3_ACCOUNT, 30L);
+        rewards.addConsensusNodeReward(1L, NODE_1_ACCOUNT, 10L);
+        rewards.addConsensusNodeReward(2L, NODE_2_ACCOUNT, 20L);
+
+        final var all = rewards.allNodeRewards();
+
+        assertEquals(3, all.size());
+        assertEquals(1L, all.get(0).nodeId());
+        assertEquals(2L, all.get(1).nodeId());
+        assertEquals(3L, all.get(2).nodeId());
+    }
+
+    @Test
+    void allNodeRewardsNodeWithMultipleTypesAppearsMultipleTimes() {
+        rewards.addConsensusNodeReward(1L, NODE_1_ACCOUNT, 100L);
+        rewards.addBlockNodeReward(1L, NODE_1_ACCOUNT, 50L);
+
+        final var all = rewards.allNodeRewards();
+
+        assertEquals(2, all.size());
+        assertTrue(all.stream().allMatch(r -> r.nodeId() == 1L));
+    }
+
+    @Test
+    void rewardsForNodesReturnsOnlyRequestedNodes() {
+        rewards.addConsensusNodeReward(1L, NODE_1_ACCOUNT, 100L);
+        rewards.addConsensusNodeReward(2L, NODE_2_ACCOUNT, 200L);
+        rewards.addConsensusNodeReward(3L, NODE_3_ACCOUNT, 300L);
+
+        final var filtered = rewards.rewardsForNodes(Set.of(1L, 3L));
+
+        assertEquals(2, filtered.size());
+        assertTrue(filtered.stream().allMatch(r -> r.nodeId() == 1L || r.nodeId() == 3L));
+        assertTrue(filtered.stream().noneMatch(r -> r.nodeId() == 2L));
+    }
+
+    @Test
+    void rewardsForNodesPreservesAscendingOrder() {
+        rewards.addConsensusNodeReward(3L, NODE_3_ACCOUNT, 300L);
+        rewards.addConsensusNodeReward(1L, NODE_1_ACCOUNT, 100L);
+        rewards.addConsensusNodeReward(2L, NODE_2_ACCOUNT, 200L);
+
+        // Request in non-ascending order
+        final var filtered = rewards.rewardsForNodes(Set.of(3L, 1L));
+
+        assertEquals(2, filtered.size());
+        assertEquals(1L, filtered.get(0).nodeId());
+        assertEquals(3L, filtered.get(1).nodeId());
+    }
+
+    @Test
+    void rewardsForNodesWithEmptySetReturnsEmpty() {
+        rewards.addConsensusNodeReward(1L, NODE_1_ACCOUNT, 100L);
+
+        assertTrue(rewards.rewardsForNodes(Set.of()).isEmpty());
+    }
+
+    @Test
+    void nodeIdsReturnsAllDistinctNodeIds() {
+        rewards.addConsensusNodeReward(1L, NODE_1_ACCOUNT, 100L);
+        rewards.addBlockNodeReward(1L, NODE_1_ACCOUNT, 50L);
+        rewards.addConsensusNodeReward(3L, NODE_3_ACCOUNT, 300L);
+        rewards.addInactiveConsensusNodeReward(2L, NODE_2_ACCOUNT, 10L);
+
+        final var ids = rewards.nodeIds();
+
+        assertEquals(Set.of(1L, 2L, 3L), ids);
+    }
+
+    @Test
+    void nodeIdsReturnsEmptySetWhenNoRewards() {
+        assertTrue(rewards.nodeIds().isEmpty());
     }
 
     private static long amountFor(final TransferList transferList, final AccountID account) {

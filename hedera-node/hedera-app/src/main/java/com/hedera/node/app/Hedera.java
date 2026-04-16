@@ -59,6 +59,8 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.HttpWrapsProvingKeyDownloader;
+import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
@@ -321,6 +323,12 @@ public final class Hedera
      */
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration =
             new WrappedRecordBlockHashMigration();
+
+    /**
+     * The WRAPS proving key verification instance. Verification and state persistence
+     * both happen during {@link #onStateInitialized}.
+     */
+    private final WrapsProvingKeyVerification wrapsProvingKeyVerification = new WrapsProvingKeyVerification();
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -760,6 +768,11 @@ public final class Hedera
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
 
+        // Verify the WRAPS proving key hash (if configured)
+        if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
+            ensureWrapsProvingKey();
+        }
+
         // Perform any service initialization that has to be postponed until Dagger is available
         // (simple boolean is usable since we're still single-threaded when `onStateInitialized` is called)
         if (!onceOnlyServiceInitializationPostDaggerHasHappened) {
@@ -787,6 +800,15 @@ public final class Hedera
         // It is possible a network interrupt could make a node reconnect in a window where
         // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
         HintsLibraryBridge.getInstance().resetCache();
+    }
+
+    /**
+     * Ensures the WRAPS proving key is set up — persists the hash to state,
+     * verifies the on-disk file, and downloads if needed.
+     */
+    private void ensureWrapsProvingKey() {
+        wrapsProvingKeyVerification.ensureProvingKey(
+                configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
     }
 
     /**

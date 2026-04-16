@@ -179,6 +179,27 @@ message QuiescenceRequest {
   QuiescenceCommand command = 1;
 }
 
+// Types of transactions that the execution layer can self-generate.
+enum TransactionType {
+  // Empty transactions used for warmup or background load.
+  EMPTY_TRANSACTION = 0;
+  // Benchmark transactions containing a submission timestamp for latency measurement.
+  BENCHMARK_TRANSACTION = 1;
+}
+
+// Request to start self-generating transactions within the execution layer.
+message StartTransactionGenerationRequest {
+  // The number of transactions to generate per second on this node (may be fractional).
+  double tps = 1;
+  // The type of transactions to generate.
+  TransactionType type = 2;
+}
+
+// Response from stopping transaction generation, including the number of transactions generated.
+message StopTransactionGenerationResponse {
+  // The total number of transactions successfully submitted to the pool since the last start.
+  uint64 generated_count = 1;
+}
 
 // Service definition for communicating with the consensus node.
 service NodeCommunicationService {
@@ -195,4 +216,10 @@ service NodeCommunicationService {
 
   // RPC to control quiescence of the node.
   rpc QuiescenceCommandUpdate(QuiescenceRequest) returns (google.protobuf.Empty);
+
+  // RPC to instruct the execution layer to start self-generating transactions at the given rate.
+  rpc StartTransactionGeneration(StartTransactionGenerationRequest) returns (google.protobuf.Empty);
+
+  // RPC to stop self-generation of transactions. Returns the number of transactions generated.
+  rpc StopTransactionGeneration(google.protobuf.Empty) returns (StopTransactionGenerationResponse);
 }

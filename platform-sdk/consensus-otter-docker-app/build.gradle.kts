@@ -14,6 +14,7 @@ testFixturesModuleInfo {
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.grpc.netty.shaded")
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
 }
 
 // This should probably not be necessary (Log4j issue?)
