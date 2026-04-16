@@ -301,6 +301,7 @@ public class NaturalDispatchOrderingTest {
     @DisplayName("irreversible preceding stream items are as expected")
     final Stream<DynamicTest> irreversiblePrecedingItemsAsExpected() {
         return hapiTest(
+                withOpContext((spec, opLog) -> triggerAndCloseAtLeastOneFile(spec)), // flush migration records first
                 recordStreamMustIncludeNoFailuresFrom(visibleNonSyntheticItems(
                         irreversiblePrecedingValidator(), "finalizationBySuccess", "finalizationByFailure")),
                 tokenCreate("unassociatedToken"),
