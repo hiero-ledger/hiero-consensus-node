@@ -123,12 +123,6 @@ public class TokenFeeScheduleUpdateSpecs {
 
     @LeakyHapiTest(overrides = {"tokens.maxCustomFeesAllowed"})
     final Stream<DynamicTest> onlyValidCustomFeeScheduleCanBeUpdated() {
-        // TEMPORARY: intentional failure to verify pattern A behavior in CI (PR #24888).
-        // Expect: hapiTestTokenSerial (2nd in chain) fails, but hapiTestTimeConsuming and
-        // hapiTestTimeConsumingSerial still run. Revert before merging.
-        if (System.currentTimeMillis() > 0) {
-            throw new AssertionError("TEMPORARY demo failure to verify pattern A — revert before merge");
-        }
         final var hbarAmount = 1_234L;
         final var htsAmount = 2_345L;
         final var numerator = 1;
