@@ -14,6 +14,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
@@ -64,8 +65,8 @@ public final class SignedStateFileWriter {
         final String platformInfo = getInfoString(state);
 
         logger.info(STATE_TO_DISK.getMarker(), """
-                        Information for state written to disk:
-                        {}""", platformInfo);
+                Information for state written to disk:
+                {}""", platformInfo);
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
 
@@ -97,7 +98,8 @@ public final class SignedStateFileWriter {
 
     /**
      * Write the signature set file.
-     * @param directory the directory to write to
+     *
+     * @param directory   the directory to write to
      * @param signedState the signature set file
      */
     public static void writeSignatureSetFile(final @NonNull Path directory, final @NonNull SignedState signedState)
@@ -112,9 +114,9 @@ public final class SignedStateFileWriter {
     /**
      * Write all files that belong in the signed state directory into a directory.
      *
-     * @param platformContext the platform context
-     * @param selfId          the id of the platform
-     * @param directory       the directory where all files should be placed
+     * @param platformContext       the platform context
+     * @param selfId                the id of the platform
+     * @param directory             the directory where all files should be placed
      * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateFilesToDirectory(
@@ -146,6 +148,7 @@ public final class SignedStateFileWriter {
         writeSignatureSetFile(directory, signedState);
         writeHashInfoFile(platformContext, directory, signedState.getState());
         writeMetadataFile(selfId, directory, signedState);
+        writeConsensusSnapshotFile(directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         writeRosterFile(directory, currentRoster);
         writeSettingsUsed(directory, platformContext.getConfiguration());
@@ -161,6 +164,36 @@ public final class SignedStateFileWriter {
                     directory,
                     ancientThresholdOf(signedState.getState()),
                     signedState.getRound());
+        }
+    }
+
+    /**
+     * Write the consensus snapshot file. This is a JSON file that contains a human-readable summary of the state of
+     * consensus at the time the signed state was created. It is useful for debugging and replaying PCES files on top of
+     * for debugging.
+     *
+     * @param directory   the directory to write to
+     * @param signedState the signed state being written
+     */
+    private static void writeConsensusSnapshotFile(
+            @NonNull final Path directory, @NonNull final SignedState signedState) {
+        final Path consensusSnapshotFile = directory.resolve(SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME);
+        final ConsensusSnapshot snapshot = PlatformStateUtils.consensusSnapshotOf(signedState.getState());
+        if (snapshot == null) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "No consensus snapshot found in state for round {}.",
+                    signedState.getRound());
+            return;
+        }
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(consensusSnapshotFile.toFile()))) {
+            writer.write(ConsensusSnapshot.JSON.toJSON(snapshot));
+        } catch (final IOException e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Failed to write consensus snapshot file to disk at {}",
+                    consensusSnapshotFile,
+                    e);
         }
     }
 
@@ -183,10 +216,10 @@ public final class SignedStateFileWriter {
      * Writes a SignedState to a file. Also writes auxiliary files such as "settingsUsed.txt". This is the top level
      * method called by the platform when it is ready to write a state.
      *
-     * @param platformContext     the platform context
-     * @param selfId              the id of the platform
-     * @param savedStateDirectory the directory where the state will be stored
-     * @param stateToDiskReason   the reason the state is being written to disk
+     * @param platformContext       the platform context
+     * @param selfId                the id of the platform
+     * @param savedStateDirectory   the directory where the state will be stored
+     * @param stateToDiskReason     the reason the state is being written to disk
      * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateToDisk(
