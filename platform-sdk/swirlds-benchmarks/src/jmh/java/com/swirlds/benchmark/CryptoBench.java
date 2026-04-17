@@ -2,6 +2,7 @@
 package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
+import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -25,6 +26,8 @@ import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @Fork(value = 1)
 @BenchmarkMode(Mode.AverageTime)
@@ -111,8 +114,6 @@ public class CryptoBench extends VirtualMapBench {
      */
     @Benchmark
     public void transferSerial() throws Exception {
-        beforeTest("transferSerial");
-
         logger.info(RUN_DELIMITER);
 
         if (getBenchmarkConfig().enableSnapshots()) {
@@ -184,20 +185,16 @@ public class CryptoBench extends VirtualMapBench {
         totalTPS(System.currentTimeMillis() - startTime);
 
         // Ensure the map is done with hashing/merging/flushing
-        final VirtualMap finalMap = flushMap(virtualMap);
+        final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     @Benchmark
     public void transferPrefetch() throws Exception {
-        beforeTest("transferPrefetch");
-
         logger.info(RUN_DELIMITER);
 
         if (getBenchmarkConfig().enableSnapshots()) {
@@ -303,14 +300,12 @@ public class CryptoBench extends VirtualMapBench {
         prefetchPool.close();
 
         // Ensure the map is done with hashing/merging/flushing
-        final VirtualMap finalMap = flushMap(virtualMap);
+        final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
     static class WarmupTask extends AbstractTask {
@@ -339,7 +334,7 @@ public class CryptoBench extends VirtualMapBench {
 
         @Override
         protected void onException(final Throwable t) {
-            t.printStackTrace();
+            logger.error("Error occurred while executing task", t);
         }
     }
 
@@ -379,7 +374,7 @@ public class CryptoBench extends VirtualMapBench {
 
         @Override
         protected void onException(final Throwable t) {
-            t.printStackTrace();
+            logger.error("Error occurred while executing task", t);
         }
 
         void send(TransferTask next) {
@@ -401,8 +396,6 @@ public class CryptoBench extends VirtualMapBench {
      */
     @Benchmark
     public void transferParallel() throws Exception {
-        beforeTest("transferParallel");
-
         logger.info(RUN_DELIMITER);
 
         if (getBenchmarkConfig().enableSnapshots()) {
@@ -462,24 +455,19 @@ public class CryptoBench extends VirtualMapBench {
         pool.close();
 
         // Ensure the map is done with hashing/merging/flushing
-        final VirtualMap finalMap = flushMap(virtualMap);
+        final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
 
         verifyMap(map, finalMap);
 
-        afterTest(() -> {
-            finalMap.release();
-            finalMap.getDataSource().close();
-        });
+        finalMap.release();
+        finalMap.getDataSource().close();
     }
 
-    public static void main(String[] args) throws Exception {
-        final CryptoBench bench = new CryptoBench();
-        bench.setup();
-        bench.createLocal();
-        bench.beforeTest();
-        bench.transferPrefetch();
-        bench.afterTest();
-        bench.destroyLocal();
-        bench.destroy();
+    static void main() throws Exception {
+        new Runner(new OptionsBuilder()
+                        .include(CryptoBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
+                .run();
     }
 }

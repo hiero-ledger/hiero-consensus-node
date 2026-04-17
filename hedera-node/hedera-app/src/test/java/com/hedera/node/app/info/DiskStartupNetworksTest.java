@@ -142,6 +142,13 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void hasNoLastUsedOverrideNetworkBeforeOverrideRoundIsSet() {
+        final var object = subject.lastUsedOverrideNetwork(DEFAULT_CONFIG);
+
+        assertThat(object).isEmpty();
+    }
+
+    @Test
     void archivesGenesisNetworks() throws IOException {
         givenConfig();
         putJsonAt(GENESIS_NETWORK_JSON);
@@ -215,6 +222,19 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void findsLastUsedOverrideNetworkAfterOverrideRoundIsSet() throws IOException {
+        givenConfig();
+        putJsonAt(OVERRIDE_NETWORK_JSON);
+
+        subject.setOverrideRound(ROUND_NO);
+
+        final var lastUsedOverrideNetwork = subject.lastUsedOverrideNetwork(DEFAULT_CONFIG);
+
+        assertThat(lastUsedOverrideNetwork).isPresent();
+        assertThat(lastUsedOverrideNetwork.orElseThrow()).isEqualTo(NETWORK);
+    }
+
+    @Test
     void writesExpectedStateInfo() throws IOException, ParseException {
         final var state = stateContainingInfoFrom(NETWORK);
         final var loc = tempDir.resolve("reproduced-network.json");
@@ -241,7 +261,7 @@ class DiskStartupNetworksTest {
         Set.of(
                         new PlatformStateService(),
                         new EntityIdServiceImpl(),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, () -> startupNetworks),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> startupNetworks),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();

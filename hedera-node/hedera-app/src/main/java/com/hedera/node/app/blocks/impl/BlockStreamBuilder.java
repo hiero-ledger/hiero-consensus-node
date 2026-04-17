@@ -82,6 +82,7 @@ import com.hedera.node.app.blocks.impl.contexts.SupplyChangeOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
+import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -163,6 +164,7 @@ public class BlockStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
+                RegisteredNodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder,
                 HookDispatchStreamBuilder {
@@ -217,6 +219,10 @@ public class BlockStreamBuilder
      * The id of a node created by the transaction.
      */
     private long nodeId;
+    /**
+     * The id of a registered node created by the transaction.
+     */
+    private long registeredNodeId;
     /**
      * The id of a file created by the transaction.
      */
@@ -297,6 +303,11 @@ public class BlockStreamBuilder
      * This is useful to set the first hookId on the account if the head is deleted
      */
     private Long nextHookId;
+    /**
+     * The block number of the transaction. This is used to include the block number in the
+     * transaction receipt.
+     */
+    private Long blockNumber;
 
     // --- Fields used to build the TransactionOutput(s) ---
     /**
@@ -471,9 +482,12 @@ public class BlockStreamBuilder
      * {@link BlockItemsTranslator} to use.
      * @param blockItems the list of block items
      * @param translationContext the translation context
+     * @param blockNumber the block number, if known
      */
     public record Output(
-            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+            @NonNull List<BlockItem> blockItems,
+            @NonNull TranslationContext translationContext,
+            @Nullable Long blockNumber) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -490,6 +504,7 @@ public class BlockStreamBuilder
 
         /**
          * Translates the block items into a transaction record.
+         *
          * @param translator the translator to use
          * @return the transaction record
          */
@@ -500,7 +515,9 @@ public class BlockStreamBuilder
 
         /**
          * Translates the block items into a transaction receipt.
+         *
          * @param translator the translator to use
+         * is not known at the time of translation
          * @return the transaction record
          */
         public RecordSource.IdentifiedReceipt toIdentifiedReceipt(@NonNull final BlockItemsTranslator translator) {
@@ -523,10 +540,11 @@ public class BlockStreamBuilder
          *     <li>Find the {@link TransactionOutput} items, if any.</li>
          *     <li>Translate these items into a view of the requested type.</li>
          * </ol>
+         *
+         * @param <T> the Java type of the view
          * @param translator the translator to use
          * @param view the type of view to translate to
          * @return the translated view
-         * @param <T> the Java type of the view
          */
         @SuppressWarnings("unchecked")
         private <T> T toView(@NonNull final BlockItemsTranslator translator, @NonNull final View view) {
@@ -563,8 +581,9 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result, outputs));
-                            case RECORD -> translator.translateRecord(translationContext, result, logs, outputs);
+                                        translator.translateReceipt(translationContext, result, blockNumber, outputs));
+                            case RECORD ->
+                                translator.translateRecord(translationContext, result, logs, blockNumber, outputs);
                         };
             } else {
                 return (T)
@@ -572,8 +591,8 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result));
-                            case RECORD -> translator.translateRecord(translationContext, result, null);
+                                        translator.translateReceipt(translationContext, result, blockNumber));
+                            case RECORD -> translator.translateRecord(translationContext, result, null, blockNumber);
                         };
             }
         }
@@ -771,7 +790,7 @@ public class BlockStreamBuilder
                             .build())
                     .build());
         }
-        return new Output(blockItems, translationContext);
+        return new Output(blockItems, translationContext, blockNumber);
     }
 
     @Override
@@ -1199,6 +1218,13 @@ public class BlockStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public BlockStreamBuilder blockNumber(final Long blockNumber) {
+        this.blockNumber = blockNumber;
+        return this;
+    }
+
     @Override
     @NonNull
     public BlockStreamBuilder topicID(@NonNull final TopicID topicID) {
@@ -1243,6 +1269,13 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder nodeID(final long nodeId) {
         this.nodeId = nodeId;
+        return this;
+    }
+
+    @Override
+    @NonNull
+    public BlockStreamBuilder registeredNodeID(final long registeredNodeID) {
+        this.registeredNodeId = registeredNodeID;
         return this;
     }
 
@@ -1420,6 +1453,7 @@ public class BlockStreamBuilder
         tokenId = null;
         topicId = null;
         nodeId = 0L;
+        registeredNodeId = 0L;
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
             scheduleId = null;
             scheduledTransactionId = null;
@@ -1580,6 +1614,15 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         nodeId,
+                        serializedSignedTx);
+            case REGISTERED_NODE_CREATE ->
+                new NodeOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        registeredNodeId,
                         serializedSignedTx);
             case SCHEDULE_DELETE ->
                 new ScheduleOpContext(

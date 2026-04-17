@@ -35,7 +35,7 @@ public class PartialRecordSource implements RecordSource {
 
     public PartialRecordSource(@NonNull final List<TransactionRecord> precomputedRecords) {
         requireNonNull(precomputedRecords);
-        this.precomputedRecords = requireNonNull(precomputedRecords);
+        this.precomputedRecords = new ArrayList<>(precomputedRecords);
         identifiedReceipts = new ArrayList<>();
         for (final var precomputed : precomputedRecords) {
             identifiedReceipts.add(
@@ -46,6 +46,8 @@ public class PartialRecordSource implements RecordSource {
     public void incorporate(@NonNull final TransactionRecord precomputedRecord) {
         requireNonNull(precomputedRecord);
         precomputedRecords.add(precomputedRecord);
+        identifiedReceipts.add(
+                new IdentifiedReceipt(precomputedRecord.transactionIDOrThrow(), precomputedRecord.receiptOrThrow()));
     }
 
     @Override

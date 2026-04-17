@@ -70,6 +70,12 @@ local.properties
 .loadpath
 .recommenders
 
+### Emacs
+TAGS
+#*
+.dir-locals.el
+
+
 # External tool builders
 .externalToolBuilders/
 
@@ -1087,3 +1093,7 @@ hedera-state-validator/state-analysis.log
 snyk-code.html
 snyk-code.json
 snyk/
+
+### AI Helpers Code
+.claude/
+**/ai.local

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
+import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.management.ManagementFactory;
@@ -19,6 +20,8 @@ import org.apache.logging.log4j.Logger;
 public final class Utils {
 
     private static final Logger logger = LogManager.getLogger(Utils.class);
+
+    public static final String RUN_DELIMITER = "--------------------------------";
 
     private Utils() {
         // do not instantiate
@@ -50,7 +53,7 @@ public final class Utils {
                 }
             });
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.error("Error while deleting files", ex);
         }
     }
 
@@ -74,7 +77,15 @@ public final class Utils {
             }
             logger.info(sb);
         } catch (Exception ex) {
-            ex.printStackTrace();
+            logger.error("Error occurred while printing class histogram", ex);
+        }
+    }
+
+    public static void printVirtualMap(final String label, final VirtualMap virtualMap) {
+        if (virtualMap == null) {
+            logger.info("{} is null", label);
+        } else {
+            logger.info("{}: {} metadata={}", label, virtualMap, virtualMap.getMetadata());
         }
     }
 

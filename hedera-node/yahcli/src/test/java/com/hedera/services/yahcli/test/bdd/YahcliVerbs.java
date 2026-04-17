@@ -25,6 +25,8 @@ public class YahcliVerbs {
     private static final Pattern TOKEN_TRANSFER_PATTERN =
             Pattern.compile("SUCCESS - sent (\\d+) (\\d+) to account \\d+\\.\\d+\\.(\\d+)");
     private static final Pattern NEW_NODE_PATTERN = Pattern.compile("SUCCESS - created node(\\d+)");
+    private static final Pattern NEW_REGISTERED_NODE_PATTERN =
+            Pattern.compile("SUCCESS - created registeredNode(\\d+)");
     private static final Pattern REWARD_RATE_PATTERN = Pattern.compile("Reward rate of\\s+(\\d+)");
     private static final Pattern PER_NODE_STAKE_PATTERN = Pattern.compile("staked to node\\d+ for\\s+(\\d+)");
     private static final Pattern BALANCE_PATTERN = Pattern.compile("balance credit of\\s+(\\d+)");
@@ -41,7 +43,8 @@ public class YahcliVerbs {
             Pattern.compile("freeze scheduled for (\\d{4}-\\d{2}-\\d{2}\\.\\d{2}:\\d{2}:\\d{2})");
     private static final Pattern ABORT_FREEZE_PATTERN =
             Pattern.compile("freeze aborted and/or staged upgrade discarded");
-    private static final Pattern SCHEDULE_ID_PATTERN = Pattern.compile(" with schedule ID (\\d+\\.\\d+\\.\\d+)");
+    private static final Pattern SCHEDULE_ID_PATTERN =
+            Pattern.compile(" (?:with|and) schedule ID (\\d+\\.\\d+\\.\\d+)");
 
     public static final AtomicReference<String> DEFAULT_CONFIG_LOC = new AtomicReference<>();
     public static final AtomicReference<String> DEFAULT_WORKING_DIR = new AtomicReference<>();
@@ -222,6 +225,26 @@ public class YahcliVerbs {
     public static YahcliCallOperation yahcliNodes(@NonNull final String... args) {
         requireNonNull(args);
         return new YahcliCallOperation(prepend(args, "nodes"));
+    }
+
+    /**
+     * Returns an operation that invokes a yahcli {@code registeredNodes} subcommand with the given args,
+     * taking the config location and working directory from defaults if not overridden.
+     * @return the operation
+     */
+    public static YahcliCallOperation yahcliRegisteredNodes(@NonNull final String... args) {
+        requireNonNull(args);
+        return new YahcliCallOperation(prepend(args, "registeredNodes"));
+    }
+
+    /**
+     * Returns a callback that will look for a line indicating the creation of a new registered node,
+     * and pass the new registered node ID to the given callback.
+     * @param cb the callback to capture the new registered node ID
+     * @return the output consumer
+     */
+    public static Consumer<String> newRegisteredNodeCapturer(@NonNull final LongConsumer cb) {
+        return output -> extractAndAcceptValue(output, NEW_REGISTERED_NODE_PATTERN, cb);
     }
 
     /**
@@ -452,7 +475,7 @@ public class YahcliVerbs {
             if (m.find()) {
                 cb.accept(m.group(1));
             } else {
-                Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_FREEZE_PATTERN.pattern() + "'");
+                Assertions.fail("Expected '" + output + "' to contain '" + SCHEDULE_ID_PATTERN.pattern() + "'");
             }
         };
     }

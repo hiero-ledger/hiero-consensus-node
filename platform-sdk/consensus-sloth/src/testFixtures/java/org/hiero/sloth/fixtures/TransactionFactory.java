@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.sloth.fixtures;
 
+import static com.swirlds.common.utility.InstantUtils.instantToMicros;
+
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
+import org.hiero.sloth.fixtures.network.transactions.BenchmarkTransaction;
 import org.hiero.sloth.fixtures.network.transactions.EmptyTransaction;
 import org.hiero.sloth.fixtures.network.transactions.SlothTransaction;
 
@@ -46,6 +50,23 @@ public class TransactionFactory {
         return SlothTransaction.newBuilder()
                 .setNonce(nonce)
                 .setEmptyTransaction(emptyTransaction)
+                .build();
+    }
+
+    /**
+     * Creates a new benchmark transaction with the specified submission timestamp.
+     *
+     * @param nonce the nonce for the benchmark transaction
+     * @param submissionTime the time at which this transaction is submitted
+     * @return a benchmark transaction
+     */
+    public static SlothTransaction createBenchmarkTransaction(final long nonce, @NonNull final Instant submissionTime) {
+        final BenchmarkTransaction benchmarkTransaction = BenchmarkTransaction.newBuilder()
+                .setSubmissionTimeMicros(instantToMicros(submissionTime))
+                .build();
+        return SlothTransaction.newBuilder()
+                .setNonce(nonce)
+                .setBenchmarkTransaction(benchmarkTransaction)
                 .build();
     }
 }

@@ -71,8 +71,6 @@ import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
-import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -84,7 +82,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
@@ -195,7 +192,7 @@ public final class StateUtils {
             // The mutable state is already available via the stateLifecycleManager after readState()
             final VirtualMapState state = stateLifecycleManager.getMutableState();
             states.put(key, state);
-            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> getState(key), () -> {
+            serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> {
                 throw new UnsupportedOperationException("No startup networks available");
             }));
             initServiceMigrator(state, platformContext, serviceRegistry);
@@ -207,11 +204,6 @@ public final class StateUtils {
 
     private static void registerConstructables() throws ConstructableRegistryException {
         ConstructableRegistration.registerAllConstructables();
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructable(
-                new ClassConstructorPair(PullVirtualTreeRequest.class, PullVirtualTreeRequest::new));
-        registry.registerConstructable(
-                new ClassConstructorPair(PullVirtualTreeResponse.class, PullVirtualTreeResponse::new));
     }
 
     /**
@@ -273,7 +265,7 @@ public final class StateUtils {
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
                                         .blockPeriod()),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getDefaultState, () -> {
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
                         new PlatformStateService())

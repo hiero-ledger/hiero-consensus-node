@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.traceability;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
@@ -167,7 +166,6 @@ public class TraceabilitySuite {
 
     @HapiTest
     @Order(1)
-    @Tag(MATS)
     final Stream<DynamicTest> traceabilityE2EScenario1() {
         return hapiTest(
                 uploadInitCode(TRACEABILITY),
@@ -4393,7 +4391,6 @@ public class TraceabilitySuite {
 
     @HapiTest
     @Order(22)
-    @Tag(MATS)
     final Stream<DynamicTest> vanillaBytecodeSidecar() {
         final var EMPTY_CONSTRUCTOR_CONTRACT = "EmptyConstructor";
         final var vanillaBytecodeSidecar = "vanillaBytecodeSidecar";
@@ -4635,7 +4632,6 @@ public class TraceabilitySuite {
 
     @Order(25)
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
-    @Tag(MATS)
     final Stream<DynamicTest> ethereumLazyCreateExportsExpectedSidecars() {
         final var RECIPIENT_KEY = "lazyAccountRecipient";
         final var RECIPIENT_KEY2 = "lazyAccountRecipient2";
@@ -4872,7 +4868,6 @@ public class TraceabilitySuite {
 
     @Order(Integer.MAX_VALUE)
     @HapiTest
-    @Tag(MATS)
     public final Stream<DynamicTest> assertSidecars() {
         return hapiTest(withOpContext(
                 (spec, opLog) -> requireNonNull(GLOBAL_WATCHER.get()).assertExpectations(spec)));

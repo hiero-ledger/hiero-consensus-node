@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.common.merkle.synchronization.task.ExpectedLesson;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.virtualmap.VirtualMap;
@@ -15,7 +14,6 @@ import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
@@ -23,12 +21,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
@@ -41,9 +39,28 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <p>This implementation is supposed to work with {@link TeacherPullVirtualTreeView} on the
  * teacher side.
  */
-public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implements LearnerTreeView {
+public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeView.class);
+
+    /**
+     * The root node that is involved in reconnect. This would be the saved state for the teacher, and
+     * the new root node into which things are being serialized for the learner.
+     */
+    private final VirtualMap map;
+
+    /**
+     * The state representing the original, unmodified tree on the learner. For simplicity, on the teacher,
+     * this is the same as {@link #reconnectState}. For the learner, it is the state of the detached, unmodified
+     * tree.
+     */
+    private final VirtualMapMetadata originalState;
+
+    /**
+     * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
+     * For the learner, this is the state of the tree being serialized into.
+     */
+    private final VirtualMapMetadata reconnectState;
 
     /**
      * Reconnect configuration.
@@ -94,6 +111,8 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
+     * @param reconnectConfig
+     *      the reconnect configuration
      * @param map
      * 		The map node of the <strong>reconnect</strong> tree. Cannot be null.
      * @param originalRecords
@@ -106,8 +125,12 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
      * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
      * 		Cannot be null.
+     * @param nodeRemover
+     *      handles removal of old nodes
+     * @param traversalOrder
+     *      the traversal order defining which paths to request
      * @param mapStats
-     *      A ReconnectMapStats object to collect reconnect metrics
+     *      a ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPullVirtualTreeView(
             @NonNull final ReconnectConfig reconnectConfig,
@@ -118,7 +141,9 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             @NonNull final ReconnectNodeRemover nodeRemover,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {
-        super(map, originalState, reconnectState);
+        this.map = Objects.requireNonNull(map);
+        this.originalState = Objects.requireNonNull(originalState);
+        this.reconnectState = Objects.requireNonNull(reconnectState);
         this.reconnectConfig = reconnectConfig;
         this.originalRecords = Objects.requireNonNull(originalRecords);
         this.nodeRemover = nodeRemover;
@@ -126,6 +151,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
         this.mapStats = mapStats;
     }
 
+    /** {@inheritDoc} */
     @Override
     public void startLearnerTasks(
             final StandardWorkGroup workGroup,
@@ -134,16 +160,17 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             final Runnable completeListener) {
         final AtomicLong expectedResponses = new AtomicLong(0);
         // FUTURE WORK: configurable number of tasks
-        for (int i = 0; i < 32; i++) {
+        for (int i = 0; i < 16; i++) {
             final LearnerPullVirtualTreeReceiveTask learnerReceiveTask = new LearnerPullVirtualTreeReceiveTask(
                     reconnectConfig, workGroup, in, this, expectedResponses, completeListener);
             learnerReceiveTask.exec();
         }
 
         final AtomicBoolean rootRequestSent = new AtomicBoolean(false);
-        final AtomicBoolean lastPathSent = new AtomicBoolean(false);
         // FUTURE WORK: configurable number of tasks
-        for (int i = 0; i < 4; i++) {
+        final int learnerSendTasks = 16;
+        final AtomicInteger tasksDone = new AtomicInteger(learnerSendTasks);
+        for (int i = 0; i < learnerSendTasks; i++) {
             final LearnerPullVirtualTreeSendTask learnerSendTask = new LearnerPullVirtualTreeSendTask(
                     reconnectConfig,
                     workGroup,
@@ -152,13 +179,14 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
                     rootResponseReceived,
                     expectedResponses,
                     rootRequestSent,
-                    lastPathSent);
+                    tasksDone);
             learnerSendTask.exec();
         }
     }
 
     /**
      * Determines if a given path refers to a leaf of the tree.
+     *
      * @param path a path
      * @return true if leaf, false if internal
      */
@@ -197,15 +225,16 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
 
     // This method is called concurrently from multiple threads
     void responseReceived(final PullVirtualTreeResponse response) {
-        final long responsePath = response.getPath();
+        final long responsePath = response.path();
         if (responsePath == 0) {
             logger.info(RECONNECT.getMarker(), "Root response received from the teacher");
-            final long firstLeafPath = response.getFirstLeafPath();
-            final long lastLeafPath = response.getLastLeafPath();
+            final long firstLeafPath = response.firstLeafPath();
+            final long lastLeafPath = response.lastLeafPath();
             assert firstNodeResponse.compareAndSet(true, false)
                     : "Root node must be the first node received from the teacher";
             reconnectState.setPaths(firstLeafPath, lastLeafPath);
-            traversalOrder.start(firstLeafPath, lastLeafPath);
+            traversalOrder.start(
+                    originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
             map.prepareReconnectHashing(firstLeafPath, lastLeafPath);
             rootResponseReceived.countDown();
             // setPathInformation() below may take a while
@@ -229,11 +258,20 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
                 anticipatedLeafPaths.remove();
             }
         }
+
+        if (responsePath != Path.ROOT_PATH) {
+            final boolean isLeaf = isLeaf(responsePath);
+            if (isLeaf) {
+                mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
+            } else {
+                mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
+            }
+        }
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
         assert !firstNodeResponse.get() : "Root node must be the first node received from the teacher";
-        final long path = response.getPath();
+        final long path = response.path();
         if (reconnectState.getLastLeafPath() <= 0) {
             return;
         }
@@ -244,7 +282,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
 
         if (isLeaf) {
             if (!isClean) {
-                final VirtualLeafBytes<?> leaf = response.getLeafData();
+                final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null;
                 assert path == leaf.path();
                 nodeRemover.newLeafNode(path, leaf.keyBytes());
@@ -258,7 +296,8 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
 
     /**
      * Returns the ReconnectMapStats object.
-     * @return the ReconnectMapStats object.
+     *
+     * @return the ReconnectMapStats object
      */
     @NonNull
     public ReconnectMapStats getMapStats() {
@@ -292,69 +331,8 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public void expectLessonFor(
-            final Long parentPath, final int childIndex, final Long originalPath, final boolean nodeAlreadyPresent) {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.expectLessonFor()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public ExpectedLesson getNextExpectedLesson() {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.getNextExpectedLesson()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean hasNextExpectedLesson() {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.hasNextExpectedLesson()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long deserializeLeaf(final SerializableDataInputStream in) throws IOException {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.deserializeLeaf()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long deserializeInternal(final SerializableDataInputStream in) throws IOException {
-        throw new UnsupportedOperationException("LearnerPullVirtualTreeView.deserializeInternal()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         nodeRemover.allNodesReceived();
         map.endLearnerReconnect();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setChild(final Long parent, final int childIndex, final Long child) {
-        // No-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void recordHashStats(
-            @NonNull final ReconnectMapStats mapStats,
-            @NonNull final Long parent,
-            final int childIndex,
-            final boolean nodeAlreadyPresent) {
-        throw new UnsupportedOperationException("The Reconnect Pull Model records the hash stats elsewhere");
     }
 }

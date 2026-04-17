@@ -144,7 +144,13 @@ class DataFileLowLevelTest {
         assertTrue(Files.exists(writer.getPath()), "expected file does not exist");
         assertEquals(
                 writer.getPath(),
-                createDataFilePath("test_" + testType.name(), tempFileDir, DATA_FILE_INDEX, TEST_START, FILE_EXTENSION),
+                createDataFilePath(
+                        "test_" + testType.name(),
+                        tempFileDir,
+                        DATA_FILE_INDEX,
+                        TEST_START,
+                        INITIAL_COMPACTION_LEVEL,
+                        FILE_EXTENSION),
                 "unexpected path for writer");
         // store for later tests
         dataFileMap.put(testType, writer.getPath());

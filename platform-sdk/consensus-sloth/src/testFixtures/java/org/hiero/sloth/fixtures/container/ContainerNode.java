@@ -45,6 +45,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.sloth.fixtures.Node;
 import org.hiero.sloth.fixtures.ProfilerEvent;
+import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.TimeManager;
 import org.hiero.sloth.fixtures.app.SlothApp;
 import org.hiero.sloth.fixtures.container.proto.ContainerControlServiceGrpc;
@@ -57,8 +58,11 @@ import org.hiero.sloth.fixtures.container.proto.PingResponse;
 import org.hiero.sloth.fixtures.container.proto.PlatformStatusChange;
 import org.hiero.sloth.fixtures.container.proto.QuiescenceRequest;
 import org.hiero.sloth.fixtures.container.proto.StartRequest;
+import org.hiero.sloth.fixtures.container.proto.StartTransactionGenerationRequest;
+import org.hiero.sloth.fixtures.container.proto.StopTransactionGenerationResponse;
 import org.hiero.sloth.fixtures.container.proto.TransactionRequest;
 import org.hiero.sloth.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.sloth.fixtures.container.proto.TransactionType;
 import org.hiero.sloth.fixtures.container.utils.ContainerUtils;
 import org.hiero.sloth.fixtures.internal.AbstractNode;
 import org.hiero.sloth.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -315,6 +319,26 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         } catch (final Exception e) {
             fail("Failed to submit transaction(s) to node %d".formatted(selfId.id()), e);
         }
+    }
+
+    @Override
+    public void startTransactionGeneration(final double tps, @NonNull final SlothTransactionType type) {
+        final TransactionType protoType = type == SlothTransactionType.BENCHMARK
+                ? TransactionType.BENCHMARK_TRANSACTION
+                : TransactionType.EMPTY_TRANSACTION;
+        final StartTransactionGenerationRequest request = StartTransactionGenerationRequest.newBuilder()
+                .setTps(tps)
+                .setType(protoType)
+                .build();
+        //noinspection ResultOfMethodCallIgnored
+        nodeCommBlockingStub.startTransactionGeneration(request);
+    }
+
+    @Override
+    public long stopTransactionGeneration() {
+        final StopTransactionGenerationResponse response = nodeCommBlockingStub.stopTransactionGeneration(
+                Empty.newBuilder().build());
+        return response.getGeneratedCount();
     }
 
     /**

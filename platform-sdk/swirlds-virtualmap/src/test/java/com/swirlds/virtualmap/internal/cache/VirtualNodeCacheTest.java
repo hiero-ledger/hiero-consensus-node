@@ -9,8 +9,10 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -40,6 +42,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,6 +53,7 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.exceptions.ReferenceCountException;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -2800,9 +2805,170 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 cache1.getEstimatedSize());
     }
 
+    /**
+     * This test creates a VirtualNodeCache WITHOUT the syncCleaningPool=true
+     * system property, so a real ThreadPoolExecutor is created. We verify
+     * that allowCoreThreadTimeOut is enabled on it.
+     */
+    @Test
+    @DisplayName("Primary constructor's thread pool has allowCoreThreadTimeOut enabled")
+    void primaryConstructorPoolAllowsCoreThreadTimeout() {
+        final String original = System.getProperty("syncCleaningPool");
+        try {
+            System.clearProperty("syncCleaningPool");
+
+            final VirtualMapConfig config = CONFIGURATION.getConfigData(VirtualMapConfig.class);
+            final VirtualNodeCache realPoolCache = new VirtualNodeCache(config, HASH_CHUNK_HEIGHT, chunkLoader);
+
+            try {
+                final Executor pool = realPoolCache.getCleaningPool();
+                assertInstanceOf(
+                        ThreadPoolExecutor.class,
+                        pool,
+                        "Without syncCleaningPool, a real ThreadPoolExecutor should be created");
+
+                final ThreadPoolExecutor threadPool = (ThreadPoolExecutor) pool;
+                assertTrue(
+                        threadPool.allowsCoreThreadTimeOut(),
+                        "Core thread timeout should be enabled so idle threads are reclaimed");
+            } finally {
+                realPoolCache.shutdown();
+            }
+        } finally {
+            if (original != null) {
+                System.setProperty("syncCleaningPool", original);
+            } else {
+                System.clearProperty("syncCleaningPool");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Chained snapshots all share the same cleaning pool")
+    void chainedSnapshotsSharePool() {
+        cache.putLeaf(appleLeaf(1));
+        cache.copy();
+
+        final VirtualNodeCache snapshot1 = cache.snapshot();
+        final VirtualNodeCache snapshot2 = snapshot1.snapshot();
+        final VirtualNodeCache snapshot3 = snapshot2.snapshot();
+
+        assertSame(cache.getCleaningPool(), snapshot1.getCleaningPool());
+        assertSame(cache.getCleaningPool(), snapshot2.getCleaningPool());
+        assertSame(cache.getCleaningPool(), snapshot3.getCleaningPool());
+    }
+
+    @Test
+    @DisplayName("copy() and snapshot() both share the same cleaning pool")
+    void copyAndSnapshotSharePool() {
+        cache.putLeaf(appleLeaf(1));
+
+        final VirtualNodeCache copy = cache.copy();
+        final VirtualNodeCache snapshot = cache.snapshot();
+
+        assertSame(cache.getCleaningPool(), copy.getCleaningPool(), "copy() should share the cleaning pool");
+        assertSame(cache.getCleaningPool(), snapshot.getCleaningPool(), "snapshot() should share the cleaning pool");
+    }
+
+    @Test
+    @DisplayName("Snapshots do not spawn additional cache-cleaner threads")
+    void snapshotsDoNotSpawnCleanerThreads() {
+        final String original = System.getProperty("syncCleaningPool");
+        try {
+            System.clearProperty("syncCleaningPool");
+
+            final VirtualMapConfig config = CONFIGURATION.getConfigData(VirtualMapConfig.class);
+            final VirtualNodeCache realPoolCache = new VirtualNodeCache(config, HASH_CHUNK_HEIGHT, chunkLoader);
+
+            try {
+                realPoolCache.putLeaf(appleLeaf(1));
+                realPoolCache.copy();
+
+                final long cleanerThreadsBefore = countCacheCleanerThreads();
+
+                for (int i = 0; i < 20; i++) {
+                    final VirtualNodeCache snapshot = realPoolCache.snapshot();
+                    assertSame(realPoolCache.getCleaningPool(), snapshot.getCleaningPool());
+                }
+
+                final long cleanerThreadsAfter = countCacheCleanerThreads();
+                assertEquals(
+                        cleanerThreadsBefore,
+                        cleanerThreadsAfter,
+                        "No additional cache-cleaner threads should be created by snapshots");
+            } finally {
+                realPoolCache.shutdown();
+            }
+        } finally {
+            if (original != null) {
+                System.setProperty("syncCleaningPool", original);
+            } else {
+                System.clearProperty("syncCleaningPool");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Snapshot's deletedLeaves works correctly with inherited pool")
+    void snapshotDeletedLeavesWorks() {
+        cache.putLeaf(appleLeaf(1));
+        cache.putLeaf(bananaLeaf(2));
+        cache.putLeaf(cherryLeaf(3));
+
+        final VirtualNodeCache cache1 = cache.copy();
+        cache1.deleteLeaf(appleLeaf(1));
+        cache1.copy();
+
+        cache.prepareForHashing();
+        cache.seal();
+        cache1.prepareForHashing();
+        cache1.seal();
+        cache.merge();
+
+        final VirtualNodeCache snapshot = cache1.snapshot();
+
+        final List<VirtualLeafBytes> deleted = snapshot.deletedLeaves().toList();
+        assertEquals(1, deleted.size(), "Snapshot should report exactly one deleted leaf");
+        assertEquals(A_KEY, deleted.get(0).keyBytes(), "The deleted leaf should be apple");
+    }
+
+    @Test
+    @DisplayName("Snapshot's dirtyLeavesForFlush works correctly with inherited pool")
+    void snapshotDirtyLeavesForFlushWorks() {
+        cache.putLeaf(appleLeaf(1));
+        cache.putLeaf(bananaLeaf(2));
+
+        final VirtualNodeCache cache1 = cache.copy();
+        cache1.putLeaf(cherryLeaf(3));
+
+        cache.prepareForHashing();
+        cache.seal();
+        cache1.prepareForHashing();
+        cache1.seal();
+        cache.merge();
+        cache1.copy();
+
+        final VirtualNodeCache snapshot = cache1.snapshot();
+
+        final List<VirtualLeafBytes> dirtyLeaves =
+                snapshot.dirtyLeavesForFlush(1, 3).toList();
+        assertFalse(dirtyLeaves.isEmpty(), "Snapshot should have dirty leaves for flush");
+    }
+
+    @AfterEach
+    void tearDown() {
+        cache.shutdown();
+    }
+
     // ----------------------------------------------------------------------
     // Test Utility methods
     // ----------------------------------------------------------------------
+
+    private long countCacheCleanerThreads() {
+        return Thread.getAllStackTraces().keySet().stream()
+                .filter(t -> t.getName().contains("cache-cleaner"))
+                .count();
+    }
 
     @SuppressWarnings("unchecked")
     private TestValue lookupValue(final VirtualNodeCache cache, final Bytes key) {
@@ -2835,10 +3001,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 expected.get(5), lookupValue(cache, F_KEY), "value that was looked up should match expected value");
         assertEquals(
                 expected.get(6), lookupValue(cache, G_KEY), "value that was looked up should match expected value");
-    }
-
-    private void assertNullHash(final Hash hash) {
-        assertTrue((hash == null) || hash.equals(NO_HASH));
     }
 
     private void validateLeaves(

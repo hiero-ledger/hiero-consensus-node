@@ -16,7 +16,7 @@ class DataFileReaderTest {
 
     private final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
-    private final DataFileMetadata dataFileMetadata = new DataFileMetadata(0, Instant.now(), 0);
+    private final DataFileMetadata dataFileMetadata = new DataFileMetadata(0, Instant.now(), 0, 0);
 
     private File file;
     private DataFileReader dataFileReader;

@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -107,38 +108,10 @@ public final class VirtualNodeCache implements FastCopyable {
      */
     public static final VirtualLeafBytes<?> DELETED_LEAF_RECORD = new VirtualLeafBytes<>(-1, Bytes.EMPTY, null, null);
 
-    private static Executor cleaningPool = null;
-
     /**
-     * This method is invoked from a non-static method and uses the provided configuration.
-     * Consequently, the cleaning pool will be initialized using the configuration provided
-     * by the first instance of VirtualNodeCache class that calls the relevant non-static methods.
-     * Subsequent calls will reuse the same pool, regardless of any new configurations provided.
+     * Thread pool used to asynchronously clean up the indexes on cache release.
      */
-    private static synchronized Executor getCleaningPool(@NonNull final VirtualMapConfig virtualMapConfig) {
-        requireNonNull(virtualMapConfig);
-
-        if (cleaningPool == null) {
-            cleaningPool = Boolean.getBoolean("syncCleaningPool")
-                    ? Runnable::run
-                    : new ThreadPoolExecutor(
-                            virtualMapConfig.getNumCleanerThreads(),
-                            virtualMapConfig.getNumCleanerThreads(),
-                            60L,
-                            TimeUnit.SECONDS,
-                            new LinkedBlockingQueue<>(),
-                            new ThreadConfiguration(getStaticThreadManager())
-                                    .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
-                                    .setComponent("virtual-map")
-                                    .setThreadName("cache-cleaner")
-                                    .setExceptionHandler((t, ex) -> logger.error(
-                                            EXCEPTION.getMarker(),
-                                            "Failed to purge unneeded key/mutationList pairs",
-                                            ex))
-                                    .buildFactory());
-        }
-        return cleaningPool;
-    }
+    private final Executor cleaningPool;
 
     /**
      * The fast-copyable version of the cache. This version number is auto-incrementing and set
@@ -321,7 +294,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * @param virtualMapConfig platform configuration for VirtualMap
      * @param hashChunkHeight virtual hash chunk height
      * @param hashChunkLoader virtual hash chunk loader, must not be null
-     * @param fastCopyVersion copy version
+     * @param fastCopyVersion  the version of this cache
      */
     public VirtualNodeCache(
             final @NonNull VirtualMapConfig virtualMapConfig,
@@ -337,6 +310,26 @@ public final class VirtualNodeCache implements FastCopyable {
         this.lastReleased = new AtomicLong(-1L);
         this.fastCopyVersion.set(fastCopyVersion);
         this.virtualMapConfig = requireNonNull(virtualMapConfig);
+
+        if (Boolean.getBoolean("syncCleaningPool")) {
+            cleaningPool = Runnable::run;
+        } else {
+            final ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                    virtualMapConfig.getNumCleanerThreads(),
+                    virtualMapConfig.getNumCleanerThreads(),
+                    60L,
+                    TimeUnit.SECONDS,
+                    new LinkedBlockingQueue<>(),
+                    new ThreadConfiguration(getStaticThreadManager())
+                            .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
+                            .setComponent("virtual-map")
+                            .setThreadName("cache-cleaner")
+                            .setExceptionHandler((t, ex) -> logger.error(
+                                    EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
+                            .buildFactory());
+            pool.allowCoreThreadTimeOut(true);
+            cleaningPool = pool;
+        }
     }
 
     /**
@@ -363,6 +356,7 @@ public final class VirtualNodeCache implements FastCopyable {
         this.releaseLock = source.releaseLock;
         this.lastReleased = source.lastReleased;
         this.virtualMapConfig = source.virtualMapConfig;
+        this.cleaningPool = source.cleaningPool;
 
         // The source now has immutable leaves and mutable internals
         source.prepareForHashing();
@@ -370,6 +364,29 @@ public final class VirtualNodeCache implements FastCopyable {
         // Wire up the next & prev references
         this.next.set(source);
         source.prev.set(this);
+    }
+
+    /**
+     * Create a new VirtualNodeCache with a provided cleaning pool.
+     * Used by {@link #snapshot()} to create snapshot caches that inherit
+     * the parent's pool instead of creating a new one.
+     */
+    private VirtualNodeCache(
+            final @NonNull VirtualMapConfig virtualMapConfig,
+            final int hashChunkHeight,
+            final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
+            final long fastCopyVersion,
+            final @NonNull Executor cleaningPool) {
+        this.hashChunkHeight = hashChunkHeight;
+        this.hashChunkLoader = requireNonNull(hashChunkLoader);
+        this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
+        this.pathToDirtyKeyIndex = new ConcurrentHashMap<>();
+        this.idToDirtyHashChunkIndex = new ConcurrentHashMap<>();
+        this.releaseLock = new ReentrantLock();
+        this.lastReleased = new AtomicLong(-1L);
+        this.fastCopyVersion.set(fastCopyVersion);
+        this.virtualMapConfig = requireNonNull(virtualMapConfig);
+        this.cleaningPool = requireNonNull(cleaningPool);
     }
 
     /**
@@ -449,9 +466,9 @@ public final class VirtualNodeCache implements FastCopyable {
 
         // Fire off the cleaning threads to go and clear out data in the indexes that doesn't need
         // to be there anymore.
-        purge(dirtyLeaves, keyToDirtyLeafIndex, virtualMapConfig);
-        purge(dirtyLeafPaths, pathToDirtyKeyIndex, virtualMapConfig);
-        purge(dirtyHashChunks, idToDirtyHashChunkIndex, virtualMapConfig);
+        purge(dirtyLeaves, keyToDirtyLeafIndex);
+        purge(dirtyLeafPaths, pathToDirtyKeyIndex);
+        purge(dirtyHashChunks, idToDirtyHashChunkIndex);
 
         estimatedLeavesSizeInBytes.set(0);
         estimatedHashesSizeInBytes.set(0);
@@ -470,6 +487,15 @@ public final class VirtualNodeCache implements FastCopyable {
     @Override
     public boolean isDestroyed() {
         return this.released.get();
+    }
+
+    /**
+     * Shutdown the cleaning pool.
+     */
+    public void shutdown() {
+        if (cleaningPool instanceof ExecutorService service) {
+            service.shutdown();
+        }
     }
 
     /**
@@ -793,7 +819,7 @@ public final class VirtualNodeCache implements FastCopyable {
         }
         if (dedupe) {
             // Mark obsolete mutations to filter later
-            filterMutations(dirtyLeaves, virtualMapConfig);
+            filterMutations(dirtyLeaves);
         }
         return dirtyLeaves.stream()
                 .filter(mutation -> {
@@ -823,16 +849,15 @@ public final class VirtualNodeCache implements FastCopyable {
         }
 
         final Map<Bytes, VirtualLeafBytes> leaves = new ConcurrentHashMap<>();
-        final StandardFuture<Void> result =
-                dirtyLeaves.parallelTraverse(getCleaningPool(virtualMapConfig), (i, element) -> {
-                    if (element.isDeleted()) {
-                        final Bytes key = element.key;
-                        final Mutation<Bytes, VirtualLeafBytes> mutation = lookup(keyToDirtyLeafIndex.get(key));
-                        if (mutation != null && mutation.isDeleted()) {
-                            leaves.putIfAbsent(key, element.value);
-                        }
-                    }
-                });
+        final StandardFuture<Void> result = dirtyLeaves.parallelTraverse(cleaningPool, (i, element) -> {
+            if (element.isDeleted()) {
+                final Bytes key = element.key;
+                final Mutation<Bytes, VirtualLeafBytes> mutation = lookup(keyToDirtyLeafIndex.get(key));
+                if (mutation != null && mutation.isDeleted()) {
+                    leaves.putIfAbsent(key, element.value);
+                }
+            }
+        });
         try {
             result.getAndRethrow();
         } catch (final InterruptedException ex) {
@@ -911,7 +936,7 @@ public final class VirtualNodeCache implements FastCopyable {
             throw new MutabilityException("Cannot get the dirty internal records for a non-sealed cache.");
         }
         // Mark obsolete mutations to filter later
-        filterMutations(dirtyHashChunks, virtualMapConfig);
+        filterMutations(dirtyHashChunks);
         return dirtyHashChunks.stream()
                 .filter(mutation -> {
                     final long hashChunkPath = mutation.value.path();
@@ -931,18 +956,14 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * Creates a new instance of a {@link VirtualNodeCache}
-     * with {@code pathToDirtyHashIndex}, {@code pathToDirtyLeafIndex}, and
-     * {@code keyToDirtyLeafIndex}, containing only elements not marked for deletion,
-     * and only the latest mutation with version less than or equal to the current
-     * version is added to the maps.
+     * Creates a new immutable snapshot of this cache.
      *
      * @return snapshot of the current {@link VirtualNodeCache}
      */
     public VirtualNodeCache snapshot() {
         synchronized (lastReleased) {
-            final VirtualNodeCache newSnapshot =
-                    new VirtualNodeCache(virtualMapConfig, hashChunkHeight, hashChunkLoader, fastCopyVersion.get());
+            final VirtualNodeCache newSnapshot = new VirtualNodeCache(
+                    virtualMapConfig, hashChunkHeight, hashChunkLoader, fastCopyVersion.get(), cleaningPool);
             setMapSnapshotAndArray(
                     this.idToDirtyHashChunkIndex, newSnapshot.idToDirtyHashChunkIndex, newSnapshot.dirtyHashChunks);
             setMapSnapshotAndArray(
@@ -1185,11 +1206,8 @@ public final class VirtualNodeCache implements FastCopyable {
      * @param <V>
      * 		The value type referenced by the mutation list
      */
-    private static <K, V> void purge(
-            final ConcurrentArray<Mutation<K, V>> array,
-            final Map<K, Mutation<K, V>> index,
-            @NonNull final VirtualMapConfig virtualMapConfig) {
-        array.parallelTraverse(getCleaningPool(virtualMapConfig), (i, element) -> {
+    private <K, V> void purge(final ConcurrentArray<Mutation<K, V>> array, final Map<K, Mutation<K, V>> index) {
+        array.parallelTraverse(cleaningPool, (i, element) -> {
             // If a cache copy is released after flush, some mutations may be already marked as
             // filtered in dirtyLeavesForFlush() and dirtyHashesForFlush(). When a mutation is
             // filtered, it means there is a newer mutation for the same key in the same cache
@@ -1231,8 +1249,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * @param <V>
      * 		The value type referenced by the mutation list
      */
-    private static <K, V> void filterMutations(
-            final ConcurrentArray<Mutation<K, V>> array, @NonNull final VirtualMapConfig virtualMapConfig) {
+    private <K, V> void filterMutations(final ConcurrentArray<Mutation<K, V>> array) {
         final BiConsumer<Integer, Mutation<K, V>> action = (i, mutation) -> {
             // local variable is required because mutation.next can be changed by another thread to null
             // see https://github.com/hashgraph/hedera-services/issues/7046 for the context
@@ -1242,7 +1259,7 @@ public final class VirtualNodeCache implements FastCopyable {
             }
         };
         try {
-            array.parallelTraverse(getCleaningPool(virtualMapConfig), action).getAndRethrow();
+            array.parallelTraverse(cleaningPool, action).getAndRethrow();
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
@@ -1470,5 +1487,14 @@ public final class VirtualNodeCache implements FastCopyable {
         }
 
         return builder.toString();
+    }
+
+    /**
+     * Returns the cleaning pool executor. Package-private, intended for testing only.
+     *
+     * @return the cleaning pool executor
+     */
+    Executor getCleaningPool() {
+        return cleaningPool;
     }
 }

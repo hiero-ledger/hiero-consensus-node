@@ -24,7 +24,7 @@ public final class LongGauge extends SettableMetric<LongSupplier, LongGauge.Meas
 
     /**
      * Create a metric key for a {@link LongGauge} with the given name. <br>
-     * Name must match {@value MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -47,7 +47,7 @@ public final class LongGauge extends SettableMetric<LongSupplier, LongGauge.Meas
 
     /**
      * Create a builder for a {@link LongGauge} with the given metric name. <br>
-     * Name must match {@value MetricUtils#METRIC_NAME_REGEX}.
+     * Name must match {@value MetricUtils#NAME_UNIT_LABEL_REGEX}.
      *
      * @param name the metric name
      * @return the builder
@@ -130,7 +130,10 @@ public final class LongGauge extends SettableMetric<LongSupplier, LongGauge.Meas
             container.set(value);
         }
 
-        long get() {
+        /**
+         * @return the latest set value
+         */
+        public long get() {
             return container.get();
         }
 

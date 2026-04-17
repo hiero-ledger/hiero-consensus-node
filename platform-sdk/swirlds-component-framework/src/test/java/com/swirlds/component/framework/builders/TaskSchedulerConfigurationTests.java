@@ -21,6 +21,7 @@ class TaskSchedulerConfigurationTests {
         assertNull(config.type());
         assertNull(config.unhandledTaskCapacity());
         assertNull(config.unhandledTaskMetricEnabled());
+        assertNull(config.inflightTaskMetricEnabled());
         assertNull(config.busyFractionMetricEnabled());
         assertNull(config.flushingEnabled());
         assertNull(config.squelchingEnabled());
@@ -62,6 +63,15 @@ class TaskSchedulerConfigurationTests {
                 expectedUnhandledTaskMetricEnabled = null;
             }
 
+            final Boolean expectedInflightTaskMetricEnabled;
+            if (random.nextBoolean()) {
+                expectedInflightTaskMetricEnabled = random.nextBoolean();
+                configStringBuilder.append(
+                        expectedInflightTaskMetricEnabled ? "INFLIGHT_TASK_METRIC " : "!INFLIGHT_TASK_METRIC ");
+            } else {
+                expectedInflightTaskMetricEnabled = null;
+            }
+
             final Boolean expectedBusyFractionMetricEnabled;
             if (random.nextBoolean()) {
                 expectedBusyFractionMetricEnabled = random.nextBoolean();
@@ -94,6 +104,7 @@ class TaskSchedulerConfigurationTests {
             assertEquals(expectedTaskSchedulerType, config.type());
             assertEquals(expectedUnhandledTaskCapacity, config.unhandledTaskCapacity());
             assertEquals(expectedUnhandledTaskMetricEnabled, config.unhandledTaskMetricEnabled());
+            assertEquals(expectedInflightTaskMetricEnabled, config.inflightTaskMetricEnabled());
             assertEquals(expectedBusyFractionMetricEnabled, config.busyFractionMetricEnabled());
             assertEquals(expectedFlushingEnabled, config.flushingEnabled());
             assertEquals(expectedSquelchingEnabled, config.squelchingEnabled());
@@ -119,6 +130,12 @@ class TaskSchedulerConfigurationTests {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> TaskSchedulerConfiguration.parse("UNHANDLED_TASK_METRIC !UNHANDLED_TASK_METRIC"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> TaskSchedulerConfiguration.parse("INFLIGHT_TASK_METRIC INFLIGHT_TASK_METRIC"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> TaskSchedulerConfiguration.parse("INFLIGHT_TASK_METRIC !INFLIGHT_TASK_METRIC"));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> TaskSchedulerConfiguration.parse("BUSY_FRACTION_METRIC BUSY_FRACTION_METRIC"));

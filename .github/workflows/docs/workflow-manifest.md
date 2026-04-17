@@ -22,9 +22,8 @@
 | zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |                  |                      |
 | zxc-mats-tests.yaml                                   | ZXC: Executable MATS Tests                                        |                  |                      |
 | zxc-create-github-release.yaml                        | ZXC: Create Github Release                                        |                  |                      |
-| zxc-compile-application-code.yaml                     | ZXC: Compile Application Code                                     |                  |                      |
+| zxc-compile-and-spotless-check.yaml                   | ZXC: Compile and Spotless Check                                   |                  |                      |
 | zxc-dependency-module-check.yaml                      | ZXC: Dependency Module Check                                      |                  |                      |
-| zxc-spotless-check.yaml                               | ZXC: Spotless Check                                               |                  |                      |
 | zxc-snyk-scan.yaml                                    | ZXC: Snyk Scan                                                    |                  |                      |
 | zxc-execute-unit-tests.yaml                           | ZXC: Execute Unit Tests                                           |                  |                      |
 | zxc-execute-integration-tests.yaml                    | ZXC: Execute Integration Tests                                    |                  |                      |
@@ -66,6 +65,7 @@
 | node-flow-pull-request-checks.yaml                    | Node: PR Checks                                                   |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # QOL                                                 |                                                                   |                  |                      |
+| 080-flow-auto-unapprove.yaml                          | 080: [FLOW] Auto Unapprove PR                                     |                  |                      |
 | 100-flow-update-solo-version-vars.yaml                | 100: [FLOW] Update Solo Version Variables                         |                  |                      |
 | zxf-update-gs-state-variable.yaml                     | ZXF: Update GS_STATE Variable                                     |                  |                      |
 | flow-pull-request-formatting.yaml                     | PR Formatting                                                     |                  |                      |

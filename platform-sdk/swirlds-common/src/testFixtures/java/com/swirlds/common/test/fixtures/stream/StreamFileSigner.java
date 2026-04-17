@@ -45,8 +45,8 @@ public class StreamFileSigner implements Signer {
             sigKeyPair = sigKeyGen.generateKeyPair();
         } catch (NoSuchAlgorithmException | NoSuchProviderException e) {
             logger.error(EXCEPTION.getMarker(), "Failed to generate KeyPair", e);
-            CommonUtils.tellUserConsolePopup(
-                    "ERROR", "ERROR: This Java installation does not have the needed cryptography providers installed");
+            CommonUtils.tellUserConsoleHighlighted(
+                    "ERROR: This Java installation does not have the needed cryptography providers installed");
         }
     }
 

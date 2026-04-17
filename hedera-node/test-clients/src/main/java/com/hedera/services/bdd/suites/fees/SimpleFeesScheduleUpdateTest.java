@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -20,9 +19,7 @@ import com.hedera.services.bdd.junit.ContextRequirement;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
-@Tag(MATS)
 public class SimpleFeesScheduleUpdateTest {
 
     private static final String SIMPLE_FEES_SNAPSHOT = "simpleFeesSnapshot";

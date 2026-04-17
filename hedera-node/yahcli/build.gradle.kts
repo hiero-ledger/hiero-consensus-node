@@ -51,7 +51,9 @@ tasks.register<Copy>("copyYahCli") {
 tasks.named("compileTestJava") { mustRunAfter(tasks.named("copyYahCli")) }
 
 tasks.test {
-    useJUnitPlatform {}
+    // Keep default `test` fast and deterministic; subprocess HAPI-style suites run under
+    // `testSubprocess`.
+    useJUnitPlatform { excludeTags("REGRESSION") }
 
     // Limit heap and number of processors
     maxHeapSize = "8g"

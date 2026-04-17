@@ -81,13 +81,17 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         for (final var update : updates) {
             if (update.hasStorageSlot()) {
                 final var slot = update.storageSlotOrThrow();
-                keys.add(slot.key());
+                // If coming from HookStore, could be empty bytes that need to swap canonicalize to 0x00
+                final var minimalKey = minimalKey(slot.key());
+                keys.add(minimalKey);
                 values.add(slot.value());
             } else {
                 final var entries = update.mappingEntriesOrThrow();
                 final var p = leftPad32(entries.mappingSlot());
                 for (final var entry : entries.entries()) {
-                    keys.add(slotKeyOfMappingEntry(p, entry));
+                    // The hash could have leading zeros
+                    final var minimalKey = minimalKey(slotKeyOfMappingEntry(p, entry));
+                    keys.add(minimalKey);
                     values.add(entry.value());
                 }
             }
@@ -259,7 +263,9 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         requireNonNull(firstKey);
         requireNonNull(hookId);
         requireNonNull(key);
-        final var slotKey = new EvmHookSlotKey(hookId, key);
+        // Super-cheap defense, in case this method is ever called from somewhere besides applyStorageMutations()
+        final var minimalKey = minimalKey(key);
+        final var slotKey = new EvmHookSlotKey(hookId, minimalKey);
         try {
             final var slotValue = slotValueFor(slotKey, "Missing key");
             final var nextKey = slotValue.nextKey();
@@ -270,12 +276,12 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             if (!Bytes.EMPTY.equals(prevKey)) {
                 updateNextFor(new EvmHookSlotKey(hookId, prevKey), nextKey);
             }
-            firstKey = key.equals(firstKey) ? nextKey : firstKey;
+            firstKey = minimalKey.equals(firstKey) ? nextKey : firstKey;
         } catch (Exception irreparable) {
             // Since maintaining linked lists is not mission-critical, just log the error and continue
-            log.error(
+            log.warn(
                     "Failed link management when removing {}; will be unable to expire all slots for hook {}",
-                    key,
+                    minimalKey,
                     hookId,
                     irreparable);
         }
@@ -308,6 +314,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             @NonNull final Bytes value) {
         requireNonNull(key);
         requireNonNull(value);
+        // Super-cheap defense, in case this method is ever called from somewhere besides applyStorageMutations()
         final var minimalKey = minimalKey(key);
         try {
             if (!Bytes.EMPTY.equals(firstKey)) {
@@ -315,7 +322,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             }
         } catch (Exception irreparable) {
             // Since maintaining linked lists is not mission-critical, just log the error and continue
-            log.error(
+            log.warn(
                     "Failed link management when inserting {}; will be unable to expire all slots for contract {}",
                     minimalKey,
                     hookId,
@@ -432,8 +439,11 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                     yield insertSlot(hookId, firstKey, update.key(), update.newValueOrThrow());
                 }
                 case UPDATE -> {
-                    final var slotValue =
-                            new SlotValue(update.newValueOrThrow(), slot.effectivePrevKey(), slot.effectiveNextKey());
+                    final var currentSlotValue = requireNonNull(
+                            storage.get(slot.key()),
+                            () -> "Missing current key " + slot.key().key());
+                    final var slotValue = new SlotValue(
+                            update.newValueOrThrow(), currentSlotValue.previousKey(), currentSlotValue.nextKey());
                     storage.put(slot.key(), slotValue);
                     yield firstKey;
                 }

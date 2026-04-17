@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.platform.state.SingletonType;
+import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.service.token.NodeRewardGroups;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.workflows.SystemContext;
@@ -43,13 +44,34 @@ public class V0610TokenSchema extends Schema<SemanticVersion> {
     }
 
     /**
+     * Dispatches synthetic node rewards using pre-calculated reward amounts.
+     *
+     * @param systemContext The system context.
+     * @param rewardAmounts The pre-calculated node reward amounts.
+     */
+    public static void dispatchSynthNodeRewards(
+            @NonNull final SystemContext systemContext, @NonNull final NodeRewardAmounts rewardAmounts) {
+        final var transferList = rewardAmounts.toTransferList();
+        if (transferList.accountAmounts().isEmpty()) {
+            return;
+        }
+        systemContext.dispatchAdmin(b -> b.memo("Synthetic node rewards")
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .transfers(transferList)
+                        .build())
+                .build());
+    }
+
+    /**
      * Dispatches a synthetic node reward crypto transfer for active nodes.
+     * @deprecated Use {@link #dispatchSynthNodeRewards(SystemContext, NodeRewardAmounts)} instead.
      *
      * @param systemContext        The system context.
      * @param nodeGroups           The node reward groups.
      * @param payerId              The payer account id.
      * @param activeNodeCredit     The credit per active node.
      */
+    @Deprecated(forRemoval = true)
     public static void dispatchSynthNodeRewards(
             @NonNull final SystemContext systemContext,
             @NonNull final NodeRewardGroups nodeGroups,
@@ -60,6 +82,7 @@ public class V0610TokenSchema extends Schema<SemanticVersion> {
 
     /**
      * Dispatches a synthetic node reward crypto transfer for active and inactive nodes.
+     * @deprecated Use {@link #dispatchSynthNodeRewards(SystemContext, NodeRewardAmounts)} instead.
      *
      * @param systemContext        The system context.
      * @param nodeGroups           The node reward groups.
@@ -67,6 +90,7 @@ public class V0610TokenSchema extends Schema<SemanticVersion> {
      * @param activeNodeCredit     The credit per active node.
      * @param inactiveNodeCredit   The credit for inactive nodes, which will be the minimum node reward.
      */
+    @Deprecated(forRemoval = true)
     public static void dispatchSynthNodeRewards(
             @NonNull final SystemContext systemContext,
             @NonNull final NodeRewardGroups nodeGroups,

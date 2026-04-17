@@ -45,6 +45,7 @@ import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.app.SlothApp;
 import org.hiero.sloth.fixtures.app.SlothExecutionLayer;
 import org.hiero.sloth.fixtures.container.docker.metrics.ToFilePrometheusExporter;
@@ -195,15 +196,6 @@ public class ConsensusNodeManager {
     }
 
     /**
-     * Registers a listener to receive notifications about new consensus rounds.
-     *
-     * @param listener the listener to register
-     */
-    public void registerConsensusRoundListener(@NonNull final ConsensusRoundListener listener) {
-        consensusRoundListeners.add(listener);
-    }
-
-    /**
      * Updates the synthetic bottleneck duration.
      *
      * @param millisToSleepPerRound the number of milliseconds to sleep per round
@@ -223,5 +215,24 @@ public class ConsensusNodeManager {
     public void sendQuiescenceCommand(@NonNull final QuiescenceCommand command) {
         this.quiescenceCommand = command;
         platform.quiescenceCommand(command);
+    }
+
+    /**
+     * Instructs the execution layer to start self-generating transactions.
+     *
+     * @param tps  the number of transactions to generate per second; may be fractional
+     * @param type the type of transaction to generate
+     */
+    public void startTransactionGeneration(final double tps, @NonNull final SlothTransactionType type) {
+        executionCallback.startGenerating(tps, type);
+    }
+
+    /**
+     * Instructs the execution layer to stop self-generating transactions.
+     *
+     * @return the number of transactions successfully submitted since the last start
+     */
+    public long stopTransactionGeneration() {
+        return executionCallback.stopGenerating();
     }
 }

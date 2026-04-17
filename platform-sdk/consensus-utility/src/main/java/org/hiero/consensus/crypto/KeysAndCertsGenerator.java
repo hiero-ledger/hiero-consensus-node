@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto;
 
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.crypto.KeyCertPurpose.AGREEMENT;
 import static org.hiero.consensus.crypto.KeyCertPurpose.SIGNING;
 
@@ -12,7 +13,16 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import org.hiero.base.concurrent.futures.FutureUtils;
 import org.hiero.base.crypto.DetRandomProvider;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -118,6 +128,35 @@ public class KeysAndCertsGenerator {
         final X509Certificate agrCert = CertificateUtils.generateCertificate(
                 dnA, agrKeyPair, dnS, sigKeyPair, agrDetRandom, schema.getSigningAlgorithm());
         return new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, agrCert);
+    }
+
+    /**
+     * Generates keys and certificates for all given node IDs in parallel using a cached thread pool. Each node's keys
+     * are generated based on its {@link NodeId}.
+     *
+     * @param nodeIds the node IDs to generate keys for
+     * @return a map of node IDs to their generated keys and certificates
+     * @throws ExecutionException if key generation throws an exception
+     * @throws InterruptedException if this thread is interrupted
+     * @throws KeyStoreException if there is no provider that supports the required keystore type
+     */
+    @NonNull
+    public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(@NonNull final Collection<NodeId> nodeIds)
+            throws ExecutionException, InterruptedException, KeyStoreException {
+        final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
+        try (final ExecutorService threadPool =
+                Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
+                        .setComponent("crypto")
+                        .setThreadName("crypto-generate")
+                        .setDaemon(false)
+                        .buildFactory())) {
+            for (final NodeId nodeId : nodeIds) {
+                futures.put(nodeId, threadPool.submit(() -> generate(nodeId)));
+            }
+            final Map<NodeId, KeysAndCerts> keysAndCerts = FutureUtils.awaitAll(futures);
+            threadPool.shutdown();
+            return keysAndCerts;
+        }
     }
 
     /**

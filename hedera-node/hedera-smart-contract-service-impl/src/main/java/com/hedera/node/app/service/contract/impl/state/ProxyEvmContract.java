@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.contract.impl.state;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.state.contract.Bytecode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
@@ -17,8 +19,7 @@ public class ProxyEvmContract extends AbstractProxyEvmAccount {
 
     private final CodeFactory codeFactory;
 
-    public ProxyEvmContract(
-            final AccountID accountID, @NonNull final EvmFrameState state, @NonNull final CodeFactory codeFactory) {
+    public ProxyEvmContract(AccountID accountID, DispatchingEvmFrameState state, CodeFactory codeFactory) {
         super(accountID, state);
         this.codeFactory = codeFactory;
     }
@@ -36,5 +37,14 @@ public class ProxyEvmContract extends AbstractProxyEvmAccount {
     @Override
     public @NonNull Hash getCodeHash() {
         return state.getCodeHash(hederaContractId(), codeFactory);
+    }
+
+    @Override
+    public int getCodeSize() {
+        ContractID cid = hederaContractId();
+        Bytecode code = state.contractStateStore.getBytecode(cid);
+        // While the length() call returns a long type, the underlying
+        // implementation (being a Java array and all) only returns an int.
+        return code == null ? 0 : (int) code.code().length();
     }
 }

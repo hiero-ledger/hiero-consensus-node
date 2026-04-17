@@ -21,17 +21,32 @@ import java.util.function.Function;
 import org.hiero.consensus.roster.ReadableRosterStore;
 
 /**
- * Contains the active rosters for the {@link RosterServiceImpl}'s current phase; and the <b>transition</b> from a
- * <b>source roster</b> to a <b>target roster</b>, if applicable.
+ * Contains the active rosters for the {@link RosterServiceImpl}'s current phase.
  * <p>
- * Recall the {@link RosterServiceImpl} has three phases, each of which involves either one or two active rosters; and
- * possibly implies a roster transition:
+ * Recall the {@link RosterServiceImpl} has three phases, each of which involves either one or two rosters; and
+ * <i>may</i> imply a roster transition that requires TSS work supporting the network's chain of trust.
  * <ol>
- *     <li>{@link Phase#BOOTSTRAP} - There is a single active roster, the <b>genesis roster</b>, with an implied
- *     special transition in which the genesis roster serves as both source and target.</li>
- *     <li>{@link Phase#TRANSITION} - There are two active rosters, the <b>current roster</b> and the
- *     <b>candidate roster</b>; and an explicit transition from the former to the latter.</li>
- *     <li>{@link Phase#HANDOFF} - There is only one active roster (the current roster), and there is no transition.</li>
+ *     <li>{@link Phase#BOOTSTRAP} - Uses a single roster, the <b>genesis roster</b>. For a network with TSS enabled
+ *     from genesis, this is the initial roster (i.e., the previous roster hash is {@code null}); for a network with
+ *     TSS enabled at an upgrade boundary, this is the active roster at the time of the upgrade (i.e., the previous
+ *     roster hash is non-{@code null}).
+ *     <p>This phase's TSS work is to <i>initialize</i> the network's chain of trust; the nodes in the genesis roster
+ *     build the genesis WRAPS proof which grounds the recursive proofs to be used by all future roster transitions.
+ *     <b>Important:</b>
+ *         <ul>
+ *             <li>This is the only case where the TSS work is using the {@code ACTIVE} construction instead of the
+ *             {@code NEXT} construction. (I.e., unless the implied phase is {@link Phase#BOOTSTRAP}, neither the
+ *             {@code activeHintsInProgress} nor {@code activeProofsInProgress} predicates in
+ *             {@link #from(ReadableRosterStore, boolean, BooleanSupplier, BooleanSupplier)} can ever return true.)</li>
+ *             <li>Because all further TSS work depends on finishing bootstrap work, even if the stake period changes
+ *             and upstream code sets a new candidate roster during this TSS initialization work, we must ignore that
+ *             candidate roster until finishing bootstrap work.</li>
+ *         </ul>
+ *     </li>
+ *     <li>{@link Phase#TRANSITION} - Uses two rosters, the <b>current roster</b> and the <b>candidate roster</b>; and
+ *     owns TSS work to extend the chain of trust from the former to the latter.</li>
+ *     <li>{@link Phase#HANDOFF} - There is only one roster involved, the current roster; and there is no transition
+ *     that requires TSS work at this time.</li>
  * </ol>
  */
 public class ActiveRosters {
@@ -64,12 +79,11 @@ public class ActiveRosters {
     }
 
     /**
-     * Returns the active rosters for a given {@link ReadableRosterStore}.
-     *
+     * Returns the active rosters, <i>scoped in the correct phase</i>, for a given context.
      * @param rosterStore the roster store
      * @param historyEnabled whether TSS history is enabled
-     * @param activeHintsInProgress a supplier that returns whether there are active TSS hints in progress
-     * @param activeProofInProgress if applicable, a supplier that returns whether there is an active TSS
+     * @param activeHintsInProgress whether an {@code ACTIVE} hinTS construction is in progress
+     * @param activeProofInProgress whether an {@code ACTIVE} history proof construction is in progress
      * @return the active rosters for the given roster store
      */
     public static ActiveRosters from(
@@ -79,8 +93,9 @@ public class ActiveRosters {
             @Nullable final BooleanSupplier activeProofInProgress) {
         requireNonNull(activeHintsInProgress);
         final var currentRosterHash = requireNonNull(rosterStore.getCurrentRosterHash());
+        // Set at either a stake period boundary with weight rotation; or on handling a PREPARE_UPGRADE
         var candidateRosterHash = rosterStore.getCandidateRosterHash();
-        // Ignore candidate roster hash if active TSS constructions are not ready to build on
+        // Ignore a candidate roster hash if the ACTIVE TSS constructions are still in progress
         if (candidateRosterHash != null) {
             if (activeHintsInProgress.getAsBoolean()
                     || (historyEnabled && requireNonNull(activeProofInProgress).getAsBoolean())) {
@@ -88,7 +103,8 @@ public class ActiveRosters {
             }
         }
         if (candidateRosterHash == null) {
-            if (rosterStore.getPreviousRosterHash() == null) {
+            if (rosterStore.getPreviousRosterHash() == null
+                    || (historyEnabled && requireNonNull(activeProofInProgress).getAsBoolean())) {
                 return new ActiveRosters(Phase.BOOTSTRAP, currentRosterHash, currentRosterHash, rosterStore::get);
             } else {
                 return new ActiveRosters(Phase.HANDOFF, null, currentRosterHash, rosterStore::get);

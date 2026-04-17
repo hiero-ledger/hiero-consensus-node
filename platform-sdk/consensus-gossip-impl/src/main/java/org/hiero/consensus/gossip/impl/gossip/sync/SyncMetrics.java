@@ -9,7 +9,6 @@ import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,17 +24,13 @@ import org.hiero.consensus.concurrent.framework.internal.MeasuredBlockingQueue.C
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowgraphSynchronizer;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncPhase;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncResult;
-import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTiming;
-import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.metrics.extensions.PhaseTimer;
 import org.hiero.consensus.metrics.extensions.PhaseTimerBuilder;
 import org.hiero.consensus.metrics.statistics.AverageAndMax;
-import org.hiero.consensus.metrics.statistics.AverageAndMaxTimeStat;
 import org.hiero.consensus.metrics.statistics.AverageStat;
-import org.hiero.consensus.metrics.statistics.AverageTimeStat;
 import org.hiero.consensus.metrics.statistics.MaxStat;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -44,11 +39,6 @@ import org.hiero.consensus.model.node.NodeId;
  * Interface to update relevant sync statistics
  */
 public class SyncMetrics {
-
-    private static final RunningAverageMetric.Config AVG_BYTES_PER_SEC_SYNC_CONFIG = new RunningAverageMetric.Config(
-                    PLATFORM_CATEGORY, "bytes_per_sec_sync")
-            .withDescription("average number of bytes per second transferred during a sync");
-    private final RunningAverageMetric avgBytesPerSecSync;
 
     private static final RunningAverageMetric.Config TIPS_PER_SYNC_CONFIG = new RunningAverageMetric.Config(
                     INTERNAL_CATEGORY, "tips_per_sync")
@@ -196,12 +186,6 @@ public class SyncMetrics {
 
     private final AverageStat syncIndicatorDiff;
     private final AverageStat eventRecRate;
-    private final AverageTimeStat avgSyncDuration1;
-    private final AverageTimeStat avgSyncDuration2;
-    private final AverageTimeStat avgSyncDuration3;
-    private final AverageTimeStat avgSyncDuration4;
-    private final AverageTimeStat avgSyncDuration5;
-    private final AverageAndMaxTimeStat avgSyncDuration;
     private final AverageStat knownSetSize;
     private final AverageAndMax avgEventsPerSyncSent;
     private final AverageAndMax avgEventsPerSyncRec;
@@ -227,7 +211,6 @@ public class SyncMetrics {
     public SyncMetrics(final Metrics metrics, final Time time, final List<PeerInfo> peers) {
         this.metrics = Objects.requireNonNull(metrics);
         this.time = Objects.requireNonNull(time);
-        avgBytesPerSecSync = metrics.getOrCreate(AVG_BYTES_PER_SEC_SYNC_CONFIG);
         callSyncsPerSecond = new CountPerSecond(metrics, CALL_SYNCS_PER_SECOND_CONFIG);
         recSyncsPerSecond = new CountPerSecond(metrics, REC_SYNCS_PER_SECOND_CONFIG);
         tipsPerSync = metrics.getOrCreate(TIPS_PER_SYNC_CONFIG);
@@ -258,13 +241,6 @@ public class SyncMetrics {
         broadcastDisabledDueToLag = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_LAG_CONFIG);
         broadcastDisabledDueToOverload = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG);
 
-        avgSyncDuration = new AverageAndMaxTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync",
-                "duration of average successful sync (in seconds)");
-
         avgEventsPerSyncSent = new AverageAndMax(
                 metrics, PLATFORM_CATEGORY, "ev_per_syncS", "number of events sent per successful sync", FORMAT_8_1);
         avgEventsPerSyncRec = new AverageAndMax(
@@ -288,37 +264,6 @@ public class SyncMetrics {
                 "the rate at which we receive and enqueue events in ev/sec",
                 FORMAT_8_1,
                 AverageStat.WEIGHT_VOLATILE);
-
-        avgSyncDuration1 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync1",
-                "duration of step 1 of average successful sync (in seconds)");
-        avgSyncDuration2 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync2",
-                "duration of step 2 of average successful sync (in seconds)");
-        avgSyncDuration3 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync3",
-                "duration of step 3 of average successful sync (in seconds)");
-        avgSyncDuration4 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync4",
-                "duration of step 4 of average successful sync (in seconds)");
-        avgSyncDuration5 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync5",
-                "duration of step 5 of average successful sync (in seconds)");
 
         knownSetSize = new AverageStat(
                 metrics,
@@ -380,30 +325,6 @@ public class SyncMetrics {
         final double nanos = ((double) System.nanoTime()) - nanosStart;
         final double seconds = nanos / ChronoUnit.SECONDS.getDuration().toNanos();
         eventRecRate.update(Math.round(numberReceived / seconds));
-    }
-
-    /**
-     * Record all stats related to sync timing
-     *
-     * @param timing object that holds the timing data
-     * @param conn   the sync connections
-     */
-    public void recordSyncTiming(final SyncTiming timing, final Connection conn) {
-        avgSyncDuration1.update(timing.getTimePoint(0), timing.getTimePoint(1));
-        avgSyncDuration2.update(timing.getTimePoint(1), timing.getTimePoint(2));
-        avgSyncDuration3.update(timing.getTimePoint(2), timing.getTimePoint(3));
-        avgSyncDuration4.update(timing.getTimePoint(3), timing.getTimePoint(4));
-        avgSyncDuration5.update(timing.getTimePoint(4), timing.getTimePoint(5));
-
-        avgSyncDuration.update(timing.getTimePoint(0), timing.getTimePoint(5));
-        final double syncDurationSec = timing.getPointDiff(5, 0) * UnitConstants.NANOSECONDS_TO_SECONDS;
-        final double speed = Math.max(
-                        conn.getDis().getSyncByteCounter().getCount(),
-                        conn.getDos().getSyncByteCounter().getCount())
-                / syncDurationSec;
-
-        // set the bytes/sec speed of the sync currently measured
-        avgBytesPerSecSync.update(speed);
     }
 
     /**

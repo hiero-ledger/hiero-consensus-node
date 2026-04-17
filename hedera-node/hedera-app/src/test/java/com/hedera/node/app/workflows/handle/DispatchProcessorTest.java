@@ -647,6 +647,7 @@ class DispatchProcessorTest {
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.handleContext()).willReturn(context);
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
         givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
 
         subject.processDispatch(dispatch);

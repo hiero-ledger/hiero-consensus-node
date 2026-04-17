@@ -158,7 +158,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @Tags({@Tag("VirtualMerkle"), @Tag("FastCopy")})
     @DisplayName("Original is not impacted by changes to modified copy")
-    void originalIsUnaffected() {
+    void originalIsUnaffectedWhenModifyingCopy() {
         final VirtualMap vm = createMap();
         vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         vm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
@@ -184,6 +184,63 @@ class VirtualMapTests extends VirtualTestBase {
         assertEquals(4, copy.size(), "Unexpected size");
         vm.release();
         copy.release();
+    }
+
+    @Test
+    @DisplayName("Cannot detach mutable copy")
+    void unableDetachFromMutableCopy() {
+        final VirtualMap vm = createMap();
+        vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+
+        try {
+            assertThrows(IllegalStateException.class, vm::detach, "Can't detach mutable copy");
+        } finally {
+            vm.release();
+        }
+    }
+
+    @Test
+    @Tags({@Tag("VirtualMerkle"), @Tag("FastCopy")})
+    @DisplayName("Detached is not impacted by changes to original map copy")
+    void detachedIsUnaffectedWhenModifyingCopy() throws IOException {
+        final VirtualMap vm = createMap();
+        vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        vm.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+        vm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
+
+        VirtualMap copy = vm.copy(); // make immutable and copy
+        vm.getHash();
+        final RecordAccessor detached = vm.detach();
+
+        try {
+            // Perform some combination of add, remove, replace and leaving alone
+            copy.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
+            copy.remove(C_KEY, TestValueCodec.INSTANCE);
+            copy.put(D_KEY, DOG, TestValueCodec.INSTANCE);
+            copy.put(E_KEY, EMU, TestValueCodec.INSTANCE);
+
+            // verify detached is not changed
+            VirtualLeafBytes<TestValue> leaf;
+
+            leaf = detached.findLeafRecord(A_KEY);
+            assertNotNull(leaf);
+            assertEquals(APPLE, leaf.value(TestValueCodec.INSTANCE));
+
+            leaf = detached.findLeafRecord(B_KEY);
+            assertNotNull(leaf);
+            assertEquals(BANANA, leaf.value(TestValueCodec.INSTANCE));
+
+            leaf = detached.findLeafRecord(C_KEY);
+            assertNotNull(leaf);
+            assertEquals(CHERRY, leaf.value(TestValueCodec.INSTANCE));
+
+            assertNull(detached.findLeafRecord(D_KEY));
+            assertNull(detached.findLeafRecord(E_KEY));
+        } finally {
+            vm.release();
+            copy.release();
+            detached.close();
+        }
     }
 
     /*
@@ -638,12 +695,12 @@ class VirtualMapTests extends VirtualTestBase {
      **/
 
     /**
-     * Bug #4233 was caused by an NPE when flushing a copy that had been detached for the
-     * sake of state saving. This happened because the detach for state saving does not
+     * Bug #4233 was caused by an NPE when flushing a copy that had been released.
+     * This happened because the detach for state saving does not
      * result in the detached state having a data source.
      */
     @Test
-    void canFlushDetachedStateForStateSaving() throws InterruptedException {
+    void canFlushCopy() throws InterruptedException {
         final VirtualMap map0 = createMap();
         map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         map0.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
@@ -659,9 +716,7 @@ class VirtualMapTests extends VirtualTestBase {
 
         assertNotNull(map1.getHash(), "Hash should have been produced for map1");
 
-        // Detach, and then make another copy which should cause it to flush.
         map1.enableFlush();
-        map1.detach();
         map0.release();
 
         map1.release();
@@ -1132,21 +1187,6 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("Snapshot Test")
-    void snapshotTest() {
-        final VirtualMap original = new VirtualMap(new InMemoryBuilder(), CONFIGURATION);
-        final VirtualMap copy = original.copy();
-
-        original.getHash(); // forces copy to become hashed
-        final RecordAccessor snapshot = original.getPipeline().pausePipelineAndRun("snapshot", () -> {
-            return original.detach();
-        });
-
-        original.release();
-        copy.release();
-    }
-
-    @Test
     @DisplayName("Snapshot and restore")
     void snapshotAndRestore() throws IOException {
         final VirtualDataSourceBuilder dsBuilder = new InMemoryBuilder();
@@ -1199,20 +1239,22 @@ class VirtualMapTests extends VirtualTestBase {
 
         original.getHash(); // forces copy to become hashed
 
-        final RecordAccessor detachedCopy = original.getPipeline().pausePipelineAndRun("copy", original::detach);
+        final RecordAccessor detachedCopy = original.detach();
         assertNotNull(detachedCopy);
 
-        VirtualMapMetadata originalMetadata = original.getMetadata();
-        // let's change the original state and make sure that the detached copy is not affected
-        originalMetadata.setFirstLeafPath(-1);
-        originalMetadata.setLastLeafPath(-1);
-        VirtualLeafBytes<?> leafRecord = detachedCopy.findLeafRecord(1L);
-        assertNotNull(leafRecord);
-        assertEquals(testKey, leafRecord.keyBytes(), "Path does not match");
-
-        original.release();
-        copy.release();
-        detachedCopy.close();
+        try {
+            VirtualMapMetadata originalMetadata = original.getMetadata();
+            // let's change the original state and make sure that the detached copy is not affected
+            originalMetadata.setFirstLeafPath(-1);
+            originalMetadata.setLastLeafPath(-1);
+            VirtualLeafBytes<?> leafRecord = detachedCopy.findLeafRecord(1L);
+            assertNotNull(leafRecord);
+            assertEquals(testKey, leafRecord.keyBytes(), "Path does not match");
+        } finally {
+            original.release();
+            copy.release();
+            detachedCopy.close();
+        }
     }
 
     @Test

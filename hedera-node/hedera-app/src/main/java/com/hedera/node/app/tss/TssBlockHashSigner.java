@@ -54,6 +54,8 @@ public class TssBlockHashSigner implements BlockHashSigner {
 
     public static final String SIGNER_READY_MSG = "TSS protocol ready to sign blocks";
 
+    private final ConfigProvider configProvider;
+
     @Nullable
     private final HintsService hintsService;
 
@@ -66,6 +68,7 @@ public class TssBlockHashSigner implements BlockHashSigner {
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService,
             @NonNull final ConfigProvider configProvider) {
+        this.configProvider = requireNonNull(configProvider);
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var streamMode = configProvider
                 .getConfiguration()
@@ -77,8 +80,10 @@ public class TssBlockHashSigner implements BlockHashSigner {
 
     @Override
     public boolean isReady() {
-        final boolean answer = (hintsService == null || hintsService.isReady())
-                && (historyService == null || historyService.isReady());
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        final boolean answer = tssConfig.forceMockSignatures()
+                || ((hintsService == null || hintsService.isReady())
+                        && (historyService == null || historyService.isReady()));
         if (answer && !loggedReady) {
             log.info(SIGNER_READY_MSG);
             loggedReady = true;
@@ -92,7 +97,8 @@ public class TssBlockHashSigner implements BlockHashSigner {
         if (!isReady()) {
             throw new IllegalStateException("TSS protocol not ready to sign block hash " + blockHash);
         }
-        if (hintsService == null) {
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        if (tssConfig.forceMockSignatures() || hintsService == null) {
             return new Attempt(null, null, CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash)));
         } else {
             final var signing = hintsService.sign(blockHash);

@@ -9,9 +9,12 @@ import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.WritableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.contract.ContractService;
@@ -61,6 +64,9 @@ public class WritableStoreFactory {
         final Map<Class<?>, StoreEntry> newMap = new HashMap<>();
         // AddressBookService
         newMap.put(WritableNodeStore.class, new StoreEntry(AddressBookService.NAME, WritableNodeStore::new));
+        newMap.put(
+                WritableRegisteredNodeStore.class,
+                new StoreEntry(AddressBookService.NAME, WritableRegisteredNodeStore::new));
         newMap.put(
                 WritableAccountNodeRelStore.class,
                 new StoreEntry(
@@ -113,6 +119,10 @@ public class WritableStoreFactory {
         newMap.put(
                 WritableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new WritableHistoryStoreImpl(states)));
+        newMap.put(
+                WritableBlockRecordStore.class,
+                new StoreEntry(
+                        BlockRecordService.NAME, (states, entityCounters) -> new WritableBlockRecordStore(states)));
         return Collections.unmodifiableMap(newMap);
     }
 

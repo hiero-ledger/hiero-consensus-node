@@ -1,0 +1,158 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "800: [CALL] Report Flaky Tests"
+on:
+  workflow_call:
+    inputs:
+      workflow-context:
+        description: "Context: pr-checks, dry-run, or main-scheduled"
+        type: string
+        required: true
+    secrets:
+      access-token:
+        required: true
+    outputs:
+      flaky-count:
+        description: "Number of flaky tests detected"
+        value: ${{ jobs.report.outputs.flaky-count }}
+      flaky-tests-json:
+        description: "JSON array of flaky tests with issue info"
+        value: ${{ jobs.report.outputs.flaky-tests-json }}
+      has-new-issues:
+        description: "Whether any new issues were created"
+        value: ${{ jobs.report.outputs.has-new-issues }}
+
+permissions:
+  issues: write
+  contents: read
+  pull-requests: write
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: report-flaky-tests
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: Report Flaky Tests
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      flaky-count: ${{ steps.set-outputs.outputs.flaky-count }}
+      flaky-tests-json: ${{ steps.set-outputs.outputs.flaky-tests-json }}
+      has-new-issues: ${{ steps.set-outputs.outputs.has-new-issues }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: "1"
+          ref: ${{ github.sha }}
+
+      - name: Download Test Report Artifacts
+        id: download-test-reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          pattern: "*Test*Report*"
+          path: test-reports/
+
+      - name: Install xmlstarlet
+        run: |
+          sudo apt-get update && sudo apt-get install -y xmlstarlet
+
+      - name: Collect Flaky Tests
+        id: collect-flaky-tests
+        if: ${{ steps.download-test-reports.outcome == 'success' }}
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/collect-flaky-tests.sh" \
+            "test-reports" \
+            "flaky-tests.json"
+          FLAKY_COUNT=$(jq 'length' flaky-tests.json)
+          echo "flaky-count=${FLAKY_COUNT}" >> "${GITHUB_OUTPUT}"
+
+      - name: Process Flaky Issues
+        id: process-flaky-issues
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 && inputs.workflow-context != 'dry-run' }}
+        env:
+          GH_TOKEN: ${{ secrets.access-token }}
+        run: |
+          # Determine PR number if available
+          PR_NUMBER=""
+          if [[ "${{ inputs.workflow-context }}" == "pr-checks" ]]; then
+            PR_NUMBER="${{ github.event.pull_request.number }}"
+          elif [[ "${{ inputs.workflow-context }}" == "dry-run" ]]; then
+            BRANCH="${{ github.head_ref || github.ref_name }}"
+            PR_NUMBER=$(gh pr list --head "${BRANCH}" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
+          fi
+
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/report-flaky-issues.sh" \
+            "flaky-tests.json" \
+            "${{ github.workspace }}/.github/flaky-test-managers.yml" \
+            "${{ github.workflow }}" \
+            "${{ github.run_number }}" \
+            "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            "${PR_NUMBER}"
+
+      - name: Post PR Comment
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 && inputs.workflow-context == 'pr-checks' }}
+        uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6.4.1
+        env:
+          WORKFLOW_CONTEXT: ${{ inputs.workflow-context }}
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        with:
+          github-token: ${{ secrets.access-token }}
+          script: |
+            const script = require('.github/workflows/support/scripts/post-flaky-pr-comment.js');
+            await script({ github, context, core });
+
+      - name: Write Step Summary
+        if: ${{ steps.collect-flaky-tests.outputs.flaky-count > 0 }}
+        run: |
+          {
+            echo "## Flaky Tests Detected"
+            echo ""
+            echo "The following tests were flaky in this CI run (failed initially but passed on retry):"
+            echo ""
+
+            if [[ -f "flaky-issues.json" ]]; then
+              echo "| Test | Ticket |"
+              echo "|------|--------|"
+              jq -r '.[] | "| `\(.class)#\(.method)` | #\(.issue_number) |"' flaky-issues.json
+            else
+              echo "| Test |"
+              echo "|------|"
+              jq -r '.[] | "| `\(.class)#\(.method)` |"' flaky-tests.json
+            fi
+            echo ""
+            echo "> **Note:** Flaky tests are informational only and did not fail the build."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Write No Flaky Tests Summary
+        if: ${{ steps.download-test-reports.outcome == 'success' && (steps.collect-flaky-tests.outputs.flaky-count == 0 || steps.collect-flaky-tests.outputs.flaky-count == '') }}
+        run: |
+          echo "## No Flaky Tests Detected" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Set Outputs
+        id: set-outputs
+        run: |
+          FLAKY_COUNT="${{ steps.collect-flaky-tests.outputs.flaky-count }}"
+          FLAKY_COUNT="${FLAKY_COUNT:-0}"
+          echo "flaky-count=${FLAKY_COUNT}" >> "${GITHUB_OUTPUT}"
+
+          if [[ -f "flaky-issues.json" ]]; then
+            # Use jq -c for compact JSON output suitable for workflow outputs
+            FLAKY_JSON=$(jq -c '.' flaky-issues.json)
+            echo "flaky-tests-json=${FLAKY_JSON}" >> "${GITHUB_OUTPUT}"
+
+            HAS_NEW=$(jq 'any(.is_new == true)' flaky-issues.json)
+            echo "has-new-issues=${HAS_NEW}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "flaky-tests-json=[]" >> "${GITHUB_OUTPUT}"
+            echo "has-new-issues=false" >> "${GITHUB_OUTPUT}"
+          fi

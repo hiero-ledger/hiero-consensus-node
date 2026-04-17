@@ -9,13 +9,6 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal;
 public record BranchedEventMetadata(Integer branchIndex, Long generation) {
 
     /**
-     * Get the index of the branch that the linked event is on.
-     */
-    public Integer getBranchIndex() {
-        return branchIndex;
-    }
-
-    /**
      * Get the generation of the event linked to this metadata.
      */
     public Long getGeneration() {

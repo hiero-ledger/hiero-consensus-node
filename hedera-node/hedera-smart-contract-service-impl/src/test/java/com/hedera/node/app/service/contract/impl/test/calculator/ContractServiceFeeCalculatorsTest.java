@@ -49,6 +49,7 @@ import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -334,7 +335,11 @@ public class ContractServiceFeeCalculatorsTest {
                                 makeExtraIncluded(Extra.KEYS, 0),
                                 makeExtraIncluded(Extra.STATE_BYTES, 1000),
                                 makeExtraIncluded(Extra.HOOK_UPDATES, 0)),
-                        makeServiceFee(CONTRACT_CALL, 0),
+                        ServiceFeeDefinition.newBuilder()
+                                .name(CONTRACT_CALL)
+                                .baseFee(0)
+                                .nodeNetworkFeeExempt(true)
+                                .build(),
                         makeServiceFee(
                                 CONTRACT_UPDATE,
                                 499000000,

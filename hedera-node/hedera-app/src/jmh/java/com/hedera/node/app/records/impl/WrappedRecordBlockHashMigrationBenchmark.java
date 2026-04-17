@@ -5,16 +5,16 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -32,24 +32,22 @@ import org.openjdk.jmh.annotations.Warmup;
 
 /**
  * Benchmarks {@link WrappedRecordBlockHashMigration#execute} end-to-end against a
- * pre-generated wrapped-record-hashes file and companion jumpstart file.
+ * pre-generated wrapped-record-hashes file and synthetic jumpstart config properties.
  *
- * <h2>Generating the input files</h2>
- * <p>Both generators are inner classes of this file and can be run directly
- * <ul>
- *   <li>{@link JumpstartGenerator} — produces a {@code jumpstart.bin} file</li>
- *   <li>{@link WrappedHashesGenerator} — produces a wrapped-record-hashes protobuf file</li>
- * </ul>
+ * <h2>Generating the wrapped-record-hashes file</h2>
+ * <p>The {@link WrappedHashesGenerator} inner class can be run directly to produce
+ * a wrapped-record-hashes protobuf file.
  *
  * <h2>Running the benchmark</h2>
  * <pre>
  *   ./gradlew :app:jmh -PjmhInclude="WrappedRecordBlockHashMigrationBenchmark" \
- *       -PjmhArgs="-jvmArgsAppend -Djmh.jumpstartFile=/path/to/jumpstart.bin \
- *                  -Djmh.wrappedHashesFile=/path/to/wrapped-record-hashes.pb"
+ *       -PjmhArgs="-jvmArgsAppend -Djmh.wrappedHashesFile=/path/to/wrapped-record-hashes.pb"
  * </pre>
  *
- * <p>The data files are large and thus intentionally not committed to the repository. Generate
- * them locally with the inner classes above before running.
+ * <p>The wrapped-record-hashes file is large and thus intentionally not committed to the
+ * repository. Generate it locally with the inner class above before running. Jumpstart data
+ * is constructed directly as config properties (matching the production path) and does not
+ * require an external file.
  */
 @Fork(value = 1)
 @Warmup(iterations = 1)
@@ -59,26 +57,25 @@ import org.openjdk.jmh.annotations.Warmup;
 @org.openjdk.jmh.annotations.State(Scope.Benchmark)
 public class WrappedRecordBlockHashMigrationBenchmark {
 
-    /** System property for the jumpstart binary file path. */
-    private static final String JUMPSTART_FILE_PROP = "jmh.jumpstartFile";
     /** System property for the wrapped-record-hashes protobuf file path. */
     private static final String WRAPPED_HASHES_FILE_PROP = "jmh.wrappedHashesFile";
 
-    /** Conventional default locations (relative to the working directory). */
-    private static final String DEFAULT_JUMPSTART_FILE = "jumpstart.bin";
-
+    /** Conventional default location (relative to the working directory). */
     private static final String DEFAULT_WRAPPED_HASHES_FILE = "wrapped-record-hashes.pb";
+
+    private static final int HASH_COUNT = 30;
+    private static final int HASH_SIZE = 48;
 
     // -------------------------------------------------------------------------
     // State set up once per trial
     // -------------------------------------------------------------------------
 
     private BlockRecordStreamConfig config;
+    private BlockStreamJumpstartConfig jumpstartConfig;
     private Path wrappedRecordHashesDir;
 
     @Setup(Level.Trial)
-    public void setup() throws IOException {
-        final String jumpstartFilePath = System.getProperty(JUMPSTART_FILE_PROP, DEFAULT_JUMPSTART_FILE);
+    public void setup() throws Exception {
         final String wrappedRecordHashesFilePath =
                 System.getProperty(WRAPPED_HASHES_FILE_PROP, DEFAULT_WRAPPED_HASHES_FILE);
 
@@ -89,6 +86,22 @@ public class WrappedRecordBlockHashMigrationBenchmark {
                 Path.of(wrappedRecordHashesFilePath),
                 wrappedRecordHashesDir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME),
                 StandardCopyOption.REPLACE_EXISTING);
+
+        // Construct jumpstart config directly (matching the production config-property path)
+        final var rng = new Random();
+        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0L);
+        var prevHash = new byte[HASH_SIZE];
+        for (int i = 0; i < HASH_COUNT; i++) {
+            final var randomHash = new byte[HASH_SIZE];
+            rng.nextBytes(randomHash);
+            hasher.addNodeByHash(randomHash);
+            if (i == HASH_COUNT - 1) {
+                prevHash = randomHash;
+            }
+        }
+        final var subtreeHashes = hasher.intermediateHashingState();
+        jumpstartConfig = new BlockStreamJumpstartConfig(
+                0L, Bytes.wrap(prevHash), hasher.leafCount(), subtreeHashes.size(), subtreeHashes);
 
         config = new BlockRecordStreamConfig(
                 "/tmp/logDir",
@@ -103,7 +116,6 @@ public class WrappedRecordBlockHashMigrationBenchmark {
                 false,
                 wrappedRecordHashesDir.toString(),
                 true,
-                jumpstartFilePath,
                 false);
     }
 
@@ -119,7 +131,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
 
     @Benchmark
     public void execute() {
-        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config);
+        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config, jumpstartConfig, false);
     }
 
     public static void main(String... args) throws Exception {
@@ -128,62 +140,8 @@ public class WrappedRecordBlockHashMigrationBenchmark {
     }
 
     // =========================================================================
-    // Input file generators
+    // Input file generator
     // =========================================================================
-
-    /**
-     * Generates a {@code jumpstart.bin} file suitable for use with this benchmark.
-     *
-     * <p>Replicates the logic of {@code BuildUpgradeZipOp.main2()}: seeds an
-     * {@link IncrementalStreamingHasher} with 30 random 48-byte hashes, then writes
-     * the binary jumpstart format:
-     * <pre>
-     *   8 bytes  — block number (long, always 0)
-     *   48 bytes — previous block root hash (SHA-384)
-     *   8 bytes  — streaming hasher leaf count (long)
-     *   4 bytes  — streaming hasher hash count (int)
-     *   48 bytes × hash count — pending subtree hashes
-     * </pre>
-     *
-     * <p>Usage: {@code java JumpstartGenerator [output-path]}
-     * Default output: {@value #DEFAULT_OUT}
-     */
-    public static final class JumpstartGenerator {
-
-        private static final String DEFAULT_OUT = "jumpstart.bin";
-        private static final int HASH_COUNT = 30;
-        private static final int HASH_SIZE = 48;
-
-        public static void main(String[] args) throws Exception {
-            final Path out = Path.of(args.length > 0 ? args[0] : DEFAULT_OUT);
-
-            final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0L);
-            final var rng = new Random();
-            byte[] prevHash = new byte[HASH_SIZE];
-            for (int i = 0; i < HASH_COUNT; i++) {
-                final var randomHash = new byte[HASH_SIZE];
-                rng.nextBytes(randomHash);
-                hasher.addNodeByHash(randomHash);
-                if (i == HASH_COUNT - 1) {
-                    prevHash = randomHash;
-                }
-            }
-
-            final var baos = new ByteArrayOutputStream();
-            try (final var dout = new DataOutputStream(baos)) {
-                dout.writeLong(0L); // block number
-                dout.write(prevHash);
-                dout.writeLong(hasher.leafCount());
-                final var intermediateHashes = hasher.intermediateHashingState();
-                dout.writeInt(intermediateHashes.size());
-                for (final var hash : intermediateHashes) {
-                    dout.write(hash.toByteArray());
-                }
-            }
-            Files.write(out, baos.toByteArray(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-            System.out.printf("Wrote jumpstart file: %s (%d bytes)%n", out.toAbsolutePath(), baos.size());
-        }
-    }
 
     /**
      * Generates a wrapped-record-hashes protobuf file with a configurable number of entries.
@@ -199,7 +157,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
         private static final String DEFAULT_OUT = "wrapped-record-hashes.pb";
         private static final int DEFAULT_COUNT = 500_000;
 
-        public static void main(String[] args) throws IOException {
+        static void main(String[] args) throws IOException {
             final Path out = Path.of(args.length > 0 ? args[0] : DEFAULT_OUT);
             final int count = args.length > 1 ? Integer.parseInt(args[1]) : DEFAULT_COUNT;
 
