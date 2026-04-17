@@ -849,8 +849,21 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (!leafPathRange.withinRange(path)) {
             return null;
         }
+        int cacheIndex = -1;
+        if (leafRecordCache != null) {
+            cacheIndex = Math.abs((int) path % leafRecordCacheSize);
+            VirtualLeafBytes<?> cached = leafRecordCache[cacheIndex];
+            if (cached != null && cached.path() == path) {
+                return cached;
+            }
+        }
+
         statisticsUpdater.countLeafReads();
-        return VirtualLeafBytes.parseFrom(keyValueStore.get(path));
+        VirtualLeafBytes result = VirtualLeafBytes.parseFrom(keyValueStore.get(path));
+        if (leafRecordCache != null && result != null) {
+            leafRecordCache[cacheIndex] = result;
+        }
+        return result;
     }
 
     /**

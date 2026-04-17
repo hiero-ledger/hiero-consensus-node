@@ -336,6 +336,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     private final AtomicReference<Thread> currentModifyingThreadRef = new AtomicReference<>(null);
 
+    private static final AtomicLong warmPath = new AtomicLong(0);
+
     /**
      * Required by the {@link RuntimeConstructable} contract.
      * This can <strong>only</strong> be called as part of serialization and reconnect, not for normal use.
@@ -1470,7 +1472,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *  @param key The key of the leaf to warm, must not be null
      */
     public void warm(@NonNull final Bytes key) {
-        records.findLeafRecord(key);
+        if (records.findLeafRecord(key) == null) {
+            records.findLeafRecord(warmPath.getAndIncrement());
+        }
     }
 
     // ----------------------
@@ -1566,6 +1570,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // at this point in time.
             cache.seal();
         }
+
+        warmPath.set(metadata.getFirstLeafPath());
 
         return copy;
     }
