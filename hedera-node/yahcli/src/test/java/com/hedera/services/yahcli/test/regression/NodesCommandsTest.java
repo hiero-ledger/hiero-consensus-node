@@ -43,6 +43,7 @@ public class NodesCommandsTest {
                 cryptoCreate("basicNodeAccount")
                         .balance(100_000_000L)
                         .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("basicNodeAccount"),
                 newKeyNamed(adminKey)
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
@@ -117,6 +118,7 @@ public class NodesCommandsTest {
                 cryptoCreate("nodeCreateAccount")
                         .balance(100_000_000L)
                         .exposingCreatedIdTo(id -> nodeCreateAccNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("nodeCreateAccount"),
 
                 // Create new node
                 doingContextual(spec -> allRunFor(
@@ -190,6 +192,7 @@ public class NodesCommandsTest {
                 cryptoCreate("createAssocNodeAccount")
                         .balance(100_000_000L)
                         .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("createAssocNodeAccount"),
                 newKeyNamed("create_areg_dab_key")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
@@ -246,6 +249,7 @@ public class NodesCommandsTest {
                 cryptoCreate("updateAssocNodeAccount")
                         .balance(100_000_000L)
                         .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("updateAssocNodeAccount"),
                 newKeyNamed("update_areg_dab_key")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
@@ -307,6 +311,7 @@ public class NodesCommandsTest {
                 cryptoCreate("createBogusAssocNodeAccount")
                         .balance(100_000_000L)
                         .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("createBogusAssocNodeAccount"),
                 newKeyNamed("create_bogus_areg_dab_key")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
@@ -344,6 +349,7 @@ public class NodesCommandsTest {
                 cryptoCreate("updateBogusAssocNodeAccount")
                         .balance(100_000_000L)
                         .exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
+                saveAccountKeyToFile("updateBogusAssocNodeAccount"),
                 newKeyNamed("update_bogus_areg_dab_key")
                         .shape(SigControl.ED25519_ON)
                         .exportingTo(() -> asYcDefaultNetworkKey(adminKeyFileName), "keypass"),
