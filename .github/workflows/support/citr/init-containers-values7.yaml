@@ -14,10 +14,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node2
       nodeId: 1
@@ -25,10 +25,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node3
       nodeId: 2
@@ -36,10 +36,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node4
       nodeId: 3
@@ -47,10 +47,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node5
       nodeId: 4
@@ -58,10 +58,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node6
       nodeId: 5
@@ -69,10 +69,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
     - name: node7
       nodeId: 6
@@ -80,10 +80,10 @@ hedera:
       root:
         resources:
           requests:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
           limits:
-            cpu: 22
+            cpu: 39
             memory: 256Gi
 defaults:
   sidecars:
@@ -122,10 +122,10 @@ defaults:
   root:
     resources:
       requests:
-        cpu: 22
+        cpu: 39
         memory: 256Gi
       limits:
-        cpu: 22
+        cpu: 39
         memory: 256Gi
     extraEnv:
       - name: JAVA_OPTS
