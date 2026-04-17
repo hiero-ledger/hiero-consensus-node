@@ -17,9 +17,9 @@ on:
         description: "Consensus-node release tag used for the initial network deployment."
         required: false
         type: string
-        default: "v0.73.0-rc.1"
+        default: "v0.73.0"
       upgrade-tag:
-        description: "Optional solo upgrade-version override. Leave blank to use the local build with placeholder tag v0.73.0-rc.5."
+        description: "Optional solo upgrade-version override. Leave blank to use the local build with placeholder tag."
         required: false
         type: string
         default: ""

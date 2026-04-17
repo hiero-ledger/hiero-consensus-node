@@ -17,7 +17,7 @@ usage() {
 Usage: solo-wrb-jumpstart.sh [--nodes 3|4]
 
 Environment:
-  INITIAL_RELEASE_TAG           Deploy release tag (default: v0.73.0-rc.1)
+  INITIAL_RELEASE_TAG           Deploy release tag (default: v0.73.0)
   UPGRADE_VERSION               Solo upgrade-version for network upgrade
                                 (explicit value uses tag-based upgrade)
   LOCAL_BUILD_UPGRADE_TAG       Optional placeholder tag passed to Solo for local-build upgrades
