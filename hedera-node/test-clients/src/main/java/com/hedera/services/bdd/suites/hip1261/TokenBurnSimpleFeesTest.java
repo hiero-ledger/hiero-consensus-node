@@ -58,6 +58,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.hiero.hapi.support.fees.Extra;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -274,7 +275,7 @@ public class TokenBurnSimpleFeesTest {
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
                             txnSize -> expectedTokenBurnFullFeeUsd(
-                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize, Extra.NFT_SERIALS, 3L)),
                             0.1),
                     validateChargedAccount(tokenBurnTxn, PAYER));
         }
@@ -309,7 +310,7 @@ public class TokenBurnSimpleFeesTest {
                     validateChargedUsdWithinWithTxnSize(
                             tokenBurnTxn,
                             txnSize -> expectedTokenBurnFullFeeUsd(
-                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
+                                    Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize, Extra.NFT_SERIALS, 2L)),
                             0.1),
                     validateChargedAccount(tokenBurnTxn, PAYER));
         }

@@ -73,6 +73,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.hapi.support.fees.Extra;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -185,8 +186,8 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                                         RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH)))),
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenClaimAirdropTxn",
-                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
-                                        Map.of(SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(Map.of(
+                                        SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize, Extra.TOKEN_TYPES, 4L)),
                                 0.1)));
             }
 
@@ -278,8 +279,8 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                                 .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH)))),
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenClaimAirdropTxn",
-                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
-                                        Map.of(SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(Map.of(
+                                        SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize, Extra.TOKEN_TYPES, 4L)),
                                 0.1)));
             }
 
@@ -365,8 +366,8 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                                 .between(OWNER, RECEIVER_WITHOUT_FREE_AUTO_ASSOCIATIONS_FOURTH)))),
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenClaimAirdropTxn",
-                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(
-                                        Map.of(SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedTokenClaimAirdropFullFeeUsd(Map.of(
+                                        SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize, Extra.TOKEN_TYPES, 8L)),
                                 0.1)));
             }
 
@@ -456,8 +457,8 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                 .via("tokenCancelAirdropTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenCancelAirdropTxn",
-                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
-                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize, Extra.TOKEN_TYPES, 4L)),
                                 0.1)));
             }
 
@@ -530,8 +531,8 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                 .via("tokenCancelAirdropTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenCancelAirdropTxn",
-                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
-                                        Map.of(SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(Map.of(
+                                        SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize, Extra.TOKEN_TYPES, 4L)),
                                 0.1)));
             }
 
@@ -596,8 +597,8 @@ public class TokenClaimAndCancelAirdropSimpleFeesTest {
                                 .via("tokenCancelAirdropTxn"),
                         validateChargedUsdWithinWithTxnSize(
                                 "tokenCancelAirdropTxn",
-                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(
-                                        Map.of(SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize)),
+                                txnSize -> expectedTokenCancelAirdropFullFeeUsd(Map.of(
+                                        SIGNATURES, 5L, PROCESSING_BYTES, (long) txnSize, Extra.TOKEN_TYPES, 8L)),
                                 0.1)));
             }
 

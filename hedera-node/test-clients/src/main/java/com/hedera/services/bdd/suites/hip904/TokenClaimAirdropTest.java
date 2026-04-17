@@ -60,7 +60,9 @@ import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZ
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CLAIM_AIRDROP_INCLUDED_COUNT;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CLAIM_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TYPES_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST;
@@ -171,7 +173,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                                         moving(10, FUNGIBLE_TOKEN).between(OWNER, RECEIVER)))
                                 .tokenTransfers(includingNonfungibleMovement(
                                         movingUnique(NON_FUNGIBLE_TOKEN, 1).between(OWNER, RECEIVER)))),
-                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                validateFees("claimTxn", 0.001, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER + TOKEN_TYPES_FEE),
 
                 // assert balances
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 10),
@@ -354,9 +356,15 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         token -> moving(1, token).between(DEFAULT_PAYER, recipient), TokenMovement.class, "ft", 1, 5)),
                 tokenAirdrop(mapNTokens(
                         token -> moving(1, token).between(DEFAULT_PAYER, recipient), TokenMovement.class, "ft", 6, 10)),
-                claimAndFailToReclaim(() -> tokenClaimAirdrop(mapNTokens(
-                                token -> pendingAirdrop(DEFAULT_PAYER, recipient, token), Function.class, "ft", 1, 10))
-                        .payingWith(recipient)),
+                claimAndFailToReclaim(
+                        () -> tokenClaimAirdrop(mapNTokens(
+                                        token -> pendingAirdrop(DEFAULT_PAYER, recipient, token),
+                                        Function.class,
+                                        "ft",
+                                        1,
+                                        10))
+                                .payingWith(recipient),
+                        10),
                 inParallel(mapNTokens(
                         token -> getAccountBalance(recipient).hasTokenBalance(token, 1),
                         SpecOperation.class,
@@ -393,20 +401,24 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         moving(1, FUNGIBLE_TOKEN_8).between(DEFAULT_PAYER, CAROL),
                         moving(1, FUNGIBLE_TOKEN_9).between(DEFAULT_PAYER, CAROL),
                         movingUnique(NON_FUNGIBLE_TOKEN, 2).between(DEFAULT_PAYER, CAROL)),
-                claimAndFailToReclaim(() -> tokenClaimAirdrop(
-                                pendingAirdrop(DEFAULT_PAYER, BOB, FUNGIBLE_TOKEN_1),
-                                pendingAirdrop(DEFAULT_PAYER, BOB, FUNGIBLE_TOKEN_2),
-                                pendingAirdrop(DEFAULT_PAYER, BOB, FUNGIBLE_TOKEN_3),
-                                pendingAirdrop(DEFAULT_PAYER, BOB, FUNGIBLE_TOKEN_4),
-                                pendingNFTAirdrop(DEFAULT_PAYER, BOB, NON_FUNGIBLE_TOKEN, 1))
-                        .payingWith(BOB)),
-                claimAndFailToReclaim(() -> tokenClaimAirdrop(
-                                pendingAirdrop(DEFAULT_PAYER, CAROL, FUNGIBLE_TOKEN_6),
-                                pendingAirdrop(DEFAULT_PAYER, CAROL, FUNGIBLE_TOKEN_7),
-                                pendingAirdrop(DEFAULT_PAYER, CAROL, FUNGIBLE_TOKEN_8),
-                                pendingAirdrop(DEFAULT_PAYER, CAROL, FUNGIBLE_TOKEN_9),
-                                pendingNFTAirdrop(DEFAULT_PAYER, CAROL, NON_FUNGIBLE_TOKEN, 2))
-                        .payingWith(CAROL)),
+                claimAndFailToReclaim(
+                        () -> tokenClaimAirdrop(
+                                        pendingAirdrop(DEFAULT_PAYER, BOB, FUNGIBLE_TOKEN_1),
+                                        pendingAirdrop(DEFAULT_PAYER, BOB, FUNGIBLE_TOKEN_2),
+                                        pendingAirdrop(DEFAULT_PAYER, BOB, FUNGIBLE_TOKEN_3),
+                                        pendingAirdrop(DEFAULT_PAYER, BOB, FUNGIBLE_TOKEN_4),
+                                        pendingNFTAirdrop(DEFAULT_PAYER, BOB, NON_FUNGIBLE_TOKEN, 1))
+                                .payingWith(BOB),
+                        5),
+                claimAndFailToReclaim(
+                        () -> tokenClaimAirdrop(
+                                        pendingAirdrop(DEFAULT_PAYER, CAROL, FUNGIBLE_TOKEN_6),
+                                        pendingAirdrop(DEFAULT_PAYER, CAROL, FUNGIBLE_TOKEN_7),
+                                        pendingAirdrop(DEFAULT_PAYER, CAROL, FUNGIBLE_TOKEN_8),
+                                        pendingAirdrop(DEFAULT_PAYER, CAROL, FUNGIBLE_TOKEN_9),
+                                        pendingNFTAirdrop(DEFAULT_PAYER, CAROL, NON_FUNGIBLE_TOKEN, 2))
+                                .payingWith(CAROL),
+                        5),
                 inParallel(mapNTokens(
                         token -> getAccountBalance(BOB).hasTokenBalance(token, 1),
                         HapiGetAccountBalance.class,
@@ -425,12 +437,17 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
 
     private static final AtomicInteger NUM_CLAIMS = new AtomicInteger(0);
 
-    private SpecOperation claimAndFailToReclaim(@NonNull final Supplier<HapiTokenClaimAirdrop> claimFn) {
+    private SpecOperation claimAndFailToReclaim(
+            @NonNull final Supplier<HapiTokenClaimAirdrop> claimFn, long pendingAirdropCount) {
         final var claimNum = NUM_CLAIMS.incrementAndGet();
+        final long extraTypes = Math.max(0L, pendingAirdropCount - TOKEN_CLAIM_AIRDROP_INCLUDED_COUNT);
         return blockingOrder(
                 claimFn.get().via("claimTxn" + claimNum),
                 claimFn.get().hasKnownStatus(INVALID_PENDING_AIRDROP_ID),
-                validateFees("claimTxn" + claimNum, 0.0010031904, TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER));
+                validateFees(
+                        "claimTxn" + claimNum,
+                        0.0010031904,
+                        TOKEN_CLAIM_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER + extraTypes * TOKEN_TYPES_FEE));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -479,7 +496,10 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                         .payingWith(BOB)
                         .signedBy(BOB, CAROL, YULIA, TOM, STEVE)
                         .via("claimTxn"),
-                validateFees("claimTxn", 0.0010127628, TOKEN_CLAIM_FEE + 4 * SIGNATURE_FEE_AFTER_MULTIPLIER),
+                validateFees(
+                        "claimTxn",
+                        0.0010127628,
+                        TOKEN_CLAIM_FEE + 4 * SIGNATURE_FEE_AFTER_MULTIPLIER + 9 * TOKEN_TYPES_FEE),
                 tokenClaimAirdrop(
                                 pendingAirdrop(ALICE, BOB, FUNGIBLE_TOKEN_1),
                                 pendingAirdrop(ALICE, CAROL, FUNGIBLE_TOKEN_2),

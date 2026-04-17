@@ -76,6 +76,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CLAIM_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TYPES_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip904.TokenAirdropBase.setUpTokensAndAllReceivers;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
@@ -288,7 +289,8 @@ class AtomicTokenServiceFeesSuite {
                         .payingWith(BATCH_OPERATOR),
                 doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
                     if ("true".equals(flag)) {
-                        return validateInnerTxnChargedUsd("claimTxn", ATOMIC_BATCH, TOKEN_CLAIM_FEE, 0.1);
+                        return validateInnerTxnChargedUsd(
+                                "claimTxn", ATOMIC_BATCH, TOKEN_CLAIM_FEE + TOKEN_TYPES_FEE, 0.1);
                     } else {
                         return validateInnerTxnChargedUsd("claimTxn", ATOMIC_BATCH, 0.001, 1);
                     }

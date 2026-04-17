@@ -74,6 +74,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.INCLUDED_TOKEN_TYPES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.KEYS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NFT_SERIALS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_SIGNATURES;
@@ -93,6 +94,9 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_INCLUDED_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_BURN_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_BURN_INCLUDED_NFT_SERIALS;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CANCEL_AIRDROP_INCLUDED_COUNT;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CLAIM_AIRDROP_INCLUDED_COUNT;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
@@ -107,6 +111,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_MINT_NFT_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_PAUSE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_REJECT_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_REJECT_INCLUDED_ITEMS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_REVOKE_KYC_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_CUSTOM_FEES_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_TRANSFER_BASE_FEE_USD;
@@ -118,6 +123,7 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_INCLUDED_NFT_COUNT;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_UPDATE_NFT_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_WIPE_INCLUDED_NFT_SERIALS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.UTIL_PRNG_BASE_FEE_USD;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
@@ -1326,12 +1332,14 @@ public class FeesChargingUtils {
      * service = TOKEN_BURN_BASE
      * total   = node + network + service
      */
-    private static double expectedTokenBurnFullFeeUsd(long sigs, int txnSize) {
-        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_BURN_BASE_FEE_USD;
+    private static double expectedTokenBurnFullFeeUsd(long sigs, int txnSize, long nftSerials) {
+        final long extraSerials = Math.max(0L, nftSerials - TOKEN_BURN_INCLUDED_NFT_SERIALS);
+        final double serviceFee = TOKEN_BURN_BASE_FEE_USD + extraSerials * NFT_SERIALS_FEE_USD;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     public static double expectedTokenBurnFullFeeUsd(long sigs) {
-        return expectedTokenBurnFullFeeUsd(sigs, 0);
+        return expectedTokenBurnFullFeeUsd(sigs, 0, 0);
     }
 
     /**
@@ -1340,7 +1348,8 @@ public class FeesChargingUtils {
     public static double expectedTokenBurnFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenBurnFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)),
+                extras.getOrDefault(Extra.NFT_SERIALS, 0L));
     }
 
     // -------- TokenAssociate simple fees utils ---------//
@@ -1595,8 +1604,14 @@ public class FeesChargingUtils {
      * service = TOKEN_WIPE_BASE
      * total   = node + network + service
      */
+    public static double expectedTokenWipeFullFeeUsd(long sigs, int txnSize, long nftSerials) {
+        final long extraSerials = Math.max(0L, nftSerials - TOKEN_WIPE_INCLUDED_NFT_SERIALS);
+        final double serviceFee = TOKEN_WIPE_BASE_FEE_USD + extraSerials * NFT_SERIALS_FEE_USD;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
+    }
+
     public static double expectedTokenWipeFullFeeUsd(long sigs, int txnSize) {
-        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_WIPE_BASE_FEE_USD;
+        return expectedTokenWipeFullFeeUsd(sigs, txnSize, 0);
     }
 
     /**
@@ -1605,7 +1620,8 @@ public class FeesChargingUtils {
     public static double expectedTokenWipeFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenWipeFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)),
+                extras.getOrDefault(Extra.NFT_SERIALS, 0L));
     }
 
     // -------- AtomicBatch simple fees utils ---------//
@@ -1847,8 +1863,10 @@ public class FeesChargingUtils {
      * service = AIRDROP_CLAIM_FEE
      * total   = node + network + service
      */
-    private static double expectedTokenClaimAirdropFullFeeUsd(long sigs, int txnSize) {
-        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + AIRDROP_CLAIM_FEE_USD;
+    private static double expectedTokenClaimAirdropFullFeeUsd(long sigs, int txnSize, long tokenTypes) {
+        final long extraTypes = Math.max(0L, tokenTypes - TOKEN_CLAIM_AIRDROP_INCLUDED_COUNT);
+        final double serviceFee = AIRDROP_CLAIM_FEE_USD + extraTypes * TOKEN_TYPES_FEE;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1857,7 +1875,8 @@ public class FeesChargingUtils {
     public static double expectedTokenClaimAirdropFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenClaimAirdropFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)),
+                extras.getOrDefault(Extra.TOKEN_TYPES, 0L));
     }
 
     // -------- TokenCancelAirdrop simple fees utils ---------//
@@ -1868,8 +1887,10 @@ public class FeesChargingUtils {
      * service = AIRDROP_CANCEL_FEE
      * total   = node + network + service
      */
-    private static double expectedTokenCancelAirdropFullFeeUsd(long sigs, int txnSize) {
-        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + AIRDROP_CANCEL_FEE_USD;
+    private static double expectedTokenCancelAirdropFullFeeUsd(long sigs, int txnSize, long tokenTypes) {
+        final long extraTypes = Math.max(0L, tokenTypes - TOKEN_CANCEL_AIRDROP_INCLUDED_COUNT);
+        final double serviceFee = AIRDROP_CANCEL_FEE_USD + extraTypes * TOKEN_TYPES_FEE;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1878,7 +1899,8 @@ public class FeesChargingUtils {
     public static double expectedTokenCancelAirdropFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenCancelAirdropFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)),
+                extras.getOrDefault(Extra.TOKEN_TYPES, 0L));
     }
 
     // -------- TokenReject simple fees utils ---------//
@@ -1889,8 +1911,10 @@ public class FeesChargingUtils {
      * service = TOKEN_REJECT_BASE
      * total   = node + network + service
      */
-    private static double expectedTokenRejectFullFeeUsd(long sigs, int txnSize) {
-        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_REJECT_FEE_USD;
+    private static double expectedTokenRejectFullFeeUsd(long sigs, int txnSize, long tokenTypes) {
+        final long extraTypes = Math.max(0L, tokenTypes - TOKEN_REJECT_INCLUDED_ITEMS);
+        final double serviceFee = TOKEN_REJECT_FEE_USD + extraTypes * TOKEN_TYPES_FEE;
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
 
     /**
@@ -1899,7 +1923,8 @@ public class FeesChargingUtils {
     public static double expectedTokenRejectFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenRejectFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
-                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
+                Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)),
+                extras.getOrDefault(Extra.TOKEN_TYPES, 0L));
     }
 
     // -------- TokenFeeScheduleUpdate simple fees utils ---------//

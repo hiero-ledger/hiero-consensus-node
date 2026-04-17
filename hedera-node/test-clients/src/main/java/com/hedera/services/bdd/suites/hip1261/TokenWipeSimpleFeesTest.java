@@ -62,6 +62,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.hiero.hapi.support.fees.Extra;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -363,7 +364,7 @@ public class TokenWipeSimpleFeesTest {
                     validateChargedUsdWithinWithTxnSize(
                             wipeTxn,
                             txnSize -> expectedTokenWipeFullFeeUsd(
-                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
+                                    Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize, Extra.NFT_SERIALS, 3L)),
                             0.1),
                     validateChargedAccount(wipeTxn, PAYER));
         }
