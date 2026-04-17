@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.calculator;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.hapi.fees.FeeScheduleUtils.*;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -24,7 +25,6 @@ import com.hedera.node.app.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
 import java.util.Set;
@@ -208,8 +208,8 @@ class CryptoTransferFeeCalculatorTest {
         }
 
         @Test
-        @DisplayName("Token transfers when simpleFeeContext.feeContext() is null charges TOKEN_TYPES extra")
-        void tokenTransferWhenFeeContextIsNull() {
+        @DisplayName("Token transfers require a non-null feeContext")
+        void tokenTransferRequiresFeeContext() {
             final var cryptoTransferFeeCalculator = new CryptoTransferFeeCalculator();
             final var txnBody = TransactionBody.newBuilder()
                     .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
@@ -219,15 +219,15 @@ class CryptoTransferFeeCalculatorTest {
                             .build())
                     .build();
 
-            final var mockSimpleFeeContext = org.mockito.Mockito.mock(SimpleFeeContext.class);
-            when(mockSimpleFeeContext.feeContext()).thenReturn(null);
+            final var mockSimpleFeeContext = new SimpleFeeContextImpl(null, null);
 
             final var feeResult = new FeeResult();
             final var feeSchedule = createTestFeeSchedule();
 
-            cryptoTransferFeeCalculator.accumulateServiceFee(txnBody, mockSimpleFeeContext, feeResult, feeSchedule);
-
-            assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(TOKEN_TYPES_EXTRA_FEE);
+            assertThatThrownBy(() -> cryptoTransferFeeCalculator.accumulateServiceFee(
+                            txnBody, mockSimpleFeeContext, feeResult, feeSchedule))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("requires a non-null feeContext");
         }
     }
 
@@ -340,12 +340,12 @@ class CryptoTransferFeeCalculatorTest {
 
     private void setupMocks() {
         lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+        lenient().when(feeContext.configuration()).thenReturn(HederaTestConfigBuilder.createConfig());
     }
 
     private void setupMocksWithTokenStore() {
         setupMocks();
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-        lenient().when(feeContext.configuration()).thenReturn(HederaTestConfigBuilder.createConfig());
     }
 
     private void mockFungibleToken(long tokenNum, boolean hasCustomFees) {

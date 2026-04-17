@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.calculator;
 
 import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.getHookInfo;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
 import static org.hiero.hapi.support.fees.Extra.GAS;
@@ -66,7 +67,9 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
         addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
-        final var config = simpleFeeContext.feeContext().configuration();
+        final var feeContext = requireNonNull(
+                simpleFeeContext.feeContext(), "Transaction fee calculation requires a non-null feeContext");
+        final var config = feeContext.configuration();
         final var hookInfo =
                 getHookInfo(op, config.getConfigData(ContractsConfig.class).maxGasPerTransaction());
         if (hookInfo.numHookInvocations() > 0) {
@@ -74,26 +77,17 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             // We clamp each gas limit summed by the hook info in the [0, maxTxGasLimit] range already
             addExtraFee(feeResult, serviceDef, GAS, feeSchedule, hookInfo.totalGasLimitOfHooks());
         }
+        final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
+        final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
 
-        if (simpleFeeContext.feeContext() != null) {
-            final ReadableTokenStore tokenStore = simpleFeeContext.feeContext().readableStore(ReadableTokenStore.class);
-            final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
-
-            final Extra transferType = determineTransferType(tokenCounts);
-            if (transferType != null) {
-                addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
-            }
-
-            final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
-            final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
-            addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, totalFungible + totalNft);
-        } else {
-            for (final var ttl : op.tokenTransfers()) {
-                var regular_count = ttl.transfers().size();
-                var nft_count = ttl.nftTransfers().size();
-                addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, regular_count + nft_count);
-            }
+        final Extra transferType = determineTransferType(tokenCounts);
+        if (transferType != null) {
+            addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
         }
+
+        final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
+        final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
+        addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, totalFungible + totalNft);
     }
 
     /**
