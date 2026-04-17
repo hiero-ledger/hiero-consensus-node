@@ -230,6 +230,7 @@ public final class VirtualMapLearner {
 
         reconnectState.setPaths(firstLeafPath, lastLeafPath);
         reconnectFlusher.init(firstLeafPath, lastLeafPath);
+        updateStage(Stage.INITIALIZING, Stage.INITIALIZED);
 
         startReconnectHashingThread(firstLeafPath, lastLeafPath);
 
@@ -241,7 +242,6 @@ public final class VirtualMapLearner {
         }
 
         deleteOldLeavesBeforeNewFirstLeafPath();
-        updateStage(Stage.INITIALIZING, Stage.INITIALIZED);
     }
 
     /**
