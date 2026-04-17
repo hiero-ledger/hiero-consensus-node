@@ -22,9 +22,8 @@
 | zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |                  |                      |
 | zxc-mats-tests.yaml                                   | ZXC: Executable MATS Tests                                        |                  |                      |
 | zxc-create-github-release.yaml                        | ZXC: Create Github Release                                        |                  |                      |
-| zxc-compile-application-code.yaml                     | ZXC: Compile Application Code                                     |                  |                      |
+| zxc-compile-and-spotless-check.yaml                   | ZXC: Compile and Spotless Check                                   |                  |                      |
 | zxc-dependency-module-check.yaml                      | ZXC: Dependency Module Check                                      |                  |                      |
-| zxc-spotless-check.yaml                               | ZXC: Spotless Check                                               |                  |                      |
 | zxc-snyk-scan.yaml                                    | ZXC: Snyk Scan                                                    |                  |                      |
 | zxc-execute-unit-tests.yaml                           | ZXC: Execute Unit Tests                                           |                  |                      |
 | zxc-execute-integration-tests.yaml                    | ZXC: Execute Integration Tests                                    |                  |                      |

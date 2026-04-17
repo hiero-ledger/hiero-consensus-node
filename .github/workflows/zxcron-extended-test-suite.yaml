@@ -467,7 +467,7 @@ jobs:
           elif [[ "${{ needs.fetch-xts-candidate.result }}" =~ ^(skipped|failure)$ ]] \
             || [[ "${{ needs.tag-for-promotion.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.xts-execution.outputs.failure-mode }}" == "workflow" ]]; then
-            echo "category=infrastructure" >> "${GITHUB_OUTPUT}"
+            echo "category=environment" >> "${GITHUB_OUTPUT}"
           else
             echo "category=test" >> "${GITHUB_OUTPUT}"
           fi
@@ -521,17 +521,17 @@ jobs:
 
       - name: Set Rootly Service Name
         id: set-rootly-service
-        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'environment' }}
         run: |
           ROOTLY_SERVICE_NAME="CITR General"
-          if [[ "${{ steps.report-category.outputs.category }}" == "infrastructure" ]]; then
+          if [[ "${{ steps.report-category.outputs.category }}" == "environment" ]]; then
             ROOTLY_SERVICE_NAME="CI/CD Workflows"
           fi
           echo "service=${ROOTLY_SERVICE_NAME}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
-        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'environment' }}
         env:
           PRINT_FAILED_TESTS_SCRIPT: ".github/workflows/support/scripts/print-failed-tests.sh"
           FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
@@ -549,8 +549,8 @@ jobs:
             echo "------------------------------------"
             if [[ "${{ needs.xts-execution.result }}" != "success" ]]; then
               FAILURE_MODE="${{ needs.xts-execution.outputs.failure-mode }}"
-              if [[ "${FAILURE_MODE}" == "infrastructure" ]]; then
-                FAILURE_MODE="infrastructure"
+              if [[ "${FAILURE_MODE}" == "environment" ]]; then
+                FAILURE_MODE="environment"
               fi
               echo "XTS failure - ${FAILURE_MODE} error."
               echo "Failing Test(s):"
@@ -573,7 +573,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Log Rootly Summary
-        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'environment' }}
         run: |
           echo "## Rootly Summary:"
           echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
@@ -583,7 +583,7 @@ jobs:
 
       - name: Create Rootly Alert
         id: create-rootly-alert
-        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'infrastructure' }}
+        if: ${{ steps.report-category.outputs.category == 'test' || steps.report-category.outputs.category == 'environment' }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
@@ -600,7 +600,7 @@ jobs:
 
       - name: Install gomplate
         if: ${{ steps.report-category.outputs.category == 'test' ||
-          steps.report-category.outputs.category == 'infrastructure' ||
+          steps.report-category.outputs.category == 'environment' ||
           steps.report-category.outputs.category == 'cancelled' }}
         run: |
           curl -sSfL "https://github.com/hairyhenderson/gomplate/releases/download/v5.0.0/gomplate_linux-amd64" \
@@ -627,8 +627,8 @@ jobs:
           COMMIT_LIST: ${{ needs.fetch-xts-candidate.outputs.commit-list }}
         run: gomplate -f .github/workflows/templates/slack-xts-test-failure-detailed.json.tpl -o slack_payload.json
 
-      - name: Build Infrastructure Failure Slack Payload
-        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+      - name: Build Environment Failure Slack Payload
+        if: ${{ steps.report-category.outputs.category == 'environment' }}
         env:
           XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
@@ -636,13 +636,13 @@ jobs:
           TAG_FOR_PROMOTION_RESULT: ${{ needs.tag-for-promotion.result }}
           FLAKY_TESTS_JSON: ${{ needs.report-flaky-tests.outputs.flaky-tests-json }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: gomplate -f .github/workflows/templates/slack-xts-infra-failure-detailed.json.tpl -o slack_payload.json
+        run: gomplate -f .github/workflows/templates/slack-xts-env-failure-detailed.json.tpl -o slack_payload.json
 
-      - name: Build Infrastructure Failure Summary Payload
-        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+      - name: Build Environment Failure Summary Payload
+        if: ${{ steps.report-category.outputs.category == 'environment' }}
         env:
-          SLACK_SUMMARY_TEXT: ":warning: XTS infrastructure failure (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
-        run: gomplate -f .github/workflows/templates/slack-infra-failure-summary.json.tpl -o slack_payload_summary.json
+          SLACK_SUMMARY_TEXT: ":warning: XTS environment failure (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+        run: gomplate -f .github/workflows/templates/slack-env-failure-summary.json.tpl -o slack_payload_summary.json
 
       - name: Build Cancelled Summary Payload
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
@@ -652,7 +652,7 @@ jobs:
 
       # Notification routing:
       #   test failures       -> citr-operations (detailed)
-      #   infrastructure      -> citr-operations (summary) + citr-failures (detailed)
+      #   environment         -> citr-operations (summary) + citr-failures (detailed)
       #   canceled            -> citr-operations (summary) + citr-failures (summary)
       - name: Notify test failure detailed (citr-operations)
         if: ${{ steps.report-category.outputs.category == 'test' }}
@@ -663,8 +663,8 @@ jobs:
           payload-templated: true
           payload-file-path: slack_payload.json
 
-      - name: Notify infrastructure failure summary (citr-operations)
-        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+      - name: Notify environment failure summary (citr-operations)
+        if: ${{ steps.report-category.outputs.category == 'environment' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
@@ -672,8 +672,8 @@ jobs:
           payload-templated: true
           payload-file-path: slack_payload_summary.json
 
-      - name: Notify infrastructure failure detailed (citr-failures)
-        if: ${{ steps.report-category.outputs.category == 'infrastructure' }}
+      - name: Notify environment failure detailed (citr-failures)
+        if: ${{ steps.report-category.outputs.category == 'environment' }}
         uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
