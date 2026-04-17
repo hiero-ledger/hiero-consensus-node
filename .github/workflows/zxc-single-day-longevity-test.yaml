@@ -557,7 +557,7 @@ jobs:
           
            bnindex=$(expr ${i} % 3)
            bnindex=$(expr $bnindex + 1)
-           BNNODE=$(grep "$bnindex}:" top3nodes.txt | awk -F : '{print $2}')
+           BNNODE=$(grep "${bnindex}:" top3nodes.txt | awk -F : '{print $2}')
            sed -e "s@%NODE_ID%@${i}@g" -e "s@%BNNODE%@${BNNODE}@g" block-node-values.yaml.orig > block-node-values.yaml
            echo "DEBUG yaml:"
            cat block-node-values.yaml
