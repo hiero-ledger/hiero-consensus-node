@@ -8,6 +8,7 @@ import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
+import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.model.node.NodeId;
@@ -191,7 +192,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
         teacherMapCopy = null;
         teacherData = null;
 
-        await().until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
+        await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
 
         super.onTrialTearDown();
     }

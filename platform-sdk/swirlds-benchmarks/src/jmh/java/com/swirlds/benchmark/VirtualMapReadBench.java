@@ -8,6 +8,7 @@ import static org.awaitility.Awaitility.await;
 import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
@@ -71,7 +72,7 @@ public class VirtualMapReadBench extends VirtualMapBaseBench {
         virtualMap.release();
         virtualMap = null;
 
-        await().until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
+        await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
 
         super.onTrialTearDown();
     }

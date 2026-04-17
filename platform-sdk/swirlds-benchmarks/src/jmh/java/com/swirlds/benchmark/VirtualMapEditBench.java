@@ -8,6 +8,7 @@ import static org.awaitility.Awaitility.await;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -66,7 +67,7 @@ public class VirtualMapEditBench extends VirtualMapBaseBench {
         }
         verificationMap = null;
 
-        await().until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
+        await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
 
         super.onInvocationTearDown();
     }
