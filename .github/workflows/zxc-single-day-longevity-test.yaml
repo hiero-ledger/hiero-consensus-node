@@ -540,7 +540,7 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 3  | grep -n -E '^' > top3nodes.txt
           NODE1=$(grep '1:' top3nodes.txt | awk -F : '{print $2}')
           NODE2=$(grep '2:' top3nodes.txt | awk -F : '{print $2}')
-          NODE2=$(grep '3:' top3nodes.txt | awk -F : '{print $2}')
+          NODE3=$(grep '3:' top3nodes.txt | awk -F : '{print $2}')
 
           #create local-path-storage
           #sed -i -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
