@@ -17,6 +17,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
@@ -46,6 +48,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_MINT_NFT;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -226,6 +229,42 @@ public class TokenMintSimpleFeesTest {
                             txnSize -> expectedTokenMintFungibleFullFeeUsd(
                                     Map.of(SIGNATURES, 42L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
+        }
+
+        @HapiTest
+        @DisplayName("TokenMint fungible with zero tokens should not charge NFT price")
+        final Stream<DynamicTest> fungibleMintZeroAmountChargesNftFee() {
+            return hapiTest(
+                    newKeyNamed("supplyKey"),
+                    cryptoCreate("payer").balance(ONE_HUNDRED_HBARS).key("supplyKey"),
+                    tokenCreate("fungibleToken")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(1000L)
+                            .supplyKey("supplyKey")
+                            .treasury("payer")
+                            .payingWith("payer"),
+                    mintToken("fungibleToken", 0L)
+                            .payingWith("payer")
+                            .signedBy("payer")
+                            .via("zeroAmountFtMint"),
+                    mintToken("fungibleToken", 1L)
+                            .payingWith("payer")
+                            .signedBy("payer")
+                            .via("oneAmountFtMint"),
+                    assertionsHold((spec, log) -> {
+                        final var zMint = getTxnRecord("zeroAmountFtMint");
+                        final var oMint = getTxnRecord("oneAmountFtMint");
+                        allRunFor(spec, zMint, oMint);
+
+                        final long zMintFee = zMint.getResponseRecord().getTransactionFee();
+                        final long oMintFee = oMint.getResponseRecord().getTransactionFee();
+                        log.info("MINT: zeroMintFee(0 mint)={}, oneMintFee(1 mint)={}", zMintFee, oMintFee);
+
+                        assertEquals(
+                                oMintFee,
+                                zMintFee,
+                                "Expected oneMint (" + oMintFee + ") == zeroMint (" + zMintFee + ")");
+                    }));
         }
     }
 
