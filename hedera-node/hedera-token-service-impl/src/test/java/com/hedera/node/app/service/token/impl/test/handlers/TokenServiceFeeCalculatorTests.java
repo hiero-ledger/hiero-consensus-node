@@ -452,16 +452,19 @@ public class TokenServiceFeeCalculatorTests {
                         makeExtraDef(Extra.NFT_UPDATE, 4),
                         makeExtraDef(Extra.TOKEN_ASSOCIATE, 4),
                         makeExtraDef(Extra.TOKEN_MINT_NFT_BASE, 5),
-                        makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE))
+                        makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE),
+                        makeExtraDef(Extra.NFT_SERIALS, 5),
+                        makeExtraDef(Extra.TOKEN_TYPES, 5))
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                 .services(makeService(
                         "Token",
-                        makeServiceFee(TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE),
+                        makeServiceFee(
+                                TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE, makeExtraIncluded(Extra.NFT_SERIALS, 1)),
                         makeServiceFee(
                                 TOKEN_ASSOCIATE_TO_ACCOUNT,
                                 TOKEN_ASSOCIATE_BASE_FEE,
                                 makeExtraIncluded(Extra.TOKEN_ASSOCIATE, 1)),
-                        makeServiceFee(TOKEN_BURN, TOKEN_BURN_BASE_FEE),
+                        makeServiceFee(TOKEN_BURN, TOKEN_BURN_BASE_FEE, makeExtraIncluded(Extra.NFT_SERIALS, 1)),
                         makeServiceFee(TOKEN_CREATE, TOKEN_CREATE_BASE_FEE, makeExtraIncluded(Extra.KEYS, 1)),
                         makeServiceFee(TOKEN_DELETE, TOKEN_DELETE_BASE_FEE),
                         makeServiceFee(TOKEN_DISSOCIATE_FROM_ACCOUNT, TOKEN_DISSOCIATE_BASE_FEE),
@@ -477,7 +480,7 @@ public class TokenServiceFeeCalculatorTests {
                                 makeExtraIncluded(Extra.TOKEN_MINT_NFT_BASE, 0),
                                 makeExtraIncluded(Extra.TOKEN_MINT_NFT, 0)),
                         makeServiceFee(TOKEN_PAUSE, TOKEN_PAUSE_BASE_FEE),
-                        makeServiceFee(TOKEN_REJECT, TOKEN_REJECT_BASE_FEE),
+                        makeServiceFee(TOKEN_REJECT, TOKEN_REJECT_BASE_FEE, makeExtraIncluded(Extra.TOKEN_TYPES, 1)),
                         makeServiceFee(TOKEN_REVOKE_KYC_FROM_ACCOUNT, TOKEN_REVOKE_KYC_BASE_FEE),
                         makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE),
                         makeServiceFee(TOKEN_UNPAUSE, TOKEN_UNPAUSE_BASE_FEE),

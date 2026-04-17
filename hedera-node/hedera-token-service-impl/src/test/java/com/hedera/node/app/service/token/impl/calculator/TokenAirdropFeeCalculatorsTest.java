@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
@@ -151,6 +152,63 @@ class TokenAirdropFeeCalculatorsTest {
         assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
     }
 
+    @Test
+    @DisplayName("TokenClaimAirdropFeeCalculator scales with number of airdrops")
+    void tokenClaimAirdropThreeAirdropsScales() {
+        final var configMock = mock(Configuration.class);
+        final var tokenConfigMock = mock(TokensConfig.class);
+        when(tokenConfigMock.airdropsClaimEnabled()).thenReturn(true);
+        when(configMock.getConfigData(TokensConfig.class)).thenReturn(tokenConfigMock);
+        when(feeContext.configuration()).thenReturn(configMock);
+        lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+
+        final var airdropId = PendingAirdropId.newBuilder()
+                .senderId(AccountID.newBuilder().accountNum(1001L).build())
+                .receiverId(AccountID.newBuilder().accountNum(1002L).build())
+                .fungibleTokenType(TOKEN_ID)
+                .build();
+
+        var body = TransactionBody.newBuilder()
+                .tokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder()
+                        .pendingAirdrops(airdropId, airdropId, airdropId)
+                        .build())
+                .build();
+
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+        assertThat(result).isNotNull();
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(301_000_000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
+    }
+
+    @Test
+    @DisplayName("TokenCancelAirdropFeeCalculator scales with number of airdrops")
+    void tokenCancelAirdropThreeAirdropsScales() {
+        lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+
+        final var airdropId = PendingAirdropId.newBuilder()
+                .senderId(AccountID.newBuilder().accountNum(1001L).build())
+                .receiverId(AccountID.newBuilder().accountNum(1002L).build())
+                .fungibleTokenType(TOKEN_ID)
+                .build();
+
+        var body = TransactionBody.newBuilder()
+                .tokenCancelAirdrop(TokenCancelAirdropTransactionBody.newBuilder()
+                        .pendingAirdrops(airdropId, airdropId, airdropId)
+                        .build())
+                .build();
+
+        final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+        assertThat(result).isNotNull();
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(201_000_000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
+    }
+
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -165,8 +223,14 @@ class TokenAirdropFeeCalculatorsTest {
                         makeExtraDef(Extra.ACCOUNTS, 1000000))
                 .services(makeService(
                         "Token",
-                        makeServiceFee(HederaFunctionality.TOKEN_CLAIM_AIRDROP, 299000000),
-                        makeServiceFee(HederaFunctionality.TOKEN_CANCEL_AIRDROP, 199000000),
+                        makeServiceFee(
+                                HederaFunctionality.TOKEN_CLAIM_AIRDROP,
+                                299000000L,
+                                makeExtraIncluded(Extra.TOKEN_TYPES, 1)),
+                        makeServiceFee(
+                                HederaFunctionality.TOKEN_CANCEL_AIRDROP,
+                                199000000L,
+                                makeExtraIncluded(Extra.TOKEN_TYPES, 1)),
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_TRANSFER,
                                 100L,

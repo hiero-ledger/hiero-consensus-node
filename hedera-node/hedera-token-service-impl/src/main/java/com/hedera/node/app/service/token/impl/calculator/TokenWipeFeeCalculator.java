@@ -9,6 +9,7 @@ import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
@@ -22,10 +23,17 @@ public class TokenWipeFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeSchedule feeSchedule) {
         final var op = txnBody.tokenWipeOrThrow();
 
-        // get the type of the token
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_ACCOUNT_WIPE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
+        if (!op.serialNumbers().isEmpty()) {
+            addExtraFee(
+                    feeResult,
+                    serviceDef,
+                    Extra.NFT_SERIALS,
+                    feeSchedule,
+                    op.serialNumbers().size());
+        }
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

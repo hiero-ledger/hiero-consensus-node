@@ -9,6 +9,7 @@ import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
@@ -25,6 +26,14 @@ public class TokenBurnFeeCalculator implements ServiceFeeCalculator {
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_BURN);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
+        if (!op.serialNumbers().isEmpty()) {
+            addExtraFee(
+                    feeResult,
+                    serviceDef,
+                    Extra.NFT_SERIALS,
+                    feeSchedule,
+                    op.serialNumbers().size());
+        }
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

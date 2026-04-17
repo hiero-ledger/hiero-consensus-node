@@ -37,7 +37,9 @@ public class SimpleFeesScheduleConstantsInUsd {
 
     public static final double AIRDROPS_FEE_USD = 0.05;
     public static final double AIRDROP_CLAIM_FEE_USD = 0.0009;
+    public static final long TOKEN_CLAIM_AIRDROP_INCLUDED_COUNT = 1L;
     public static final double AIRDROP_CANCEL_FEE_USD = 0.0009;
+    public static final long TOKEN_CANCEL_AIRDROP_INCLUDED_COUNT = 1L;
 
     public static final double TOKEN_CLAIM_FEE = 0.001;
     public static final double HOOK_UPDATES_FEE_USD = 1.0;
@@ -144,6 +146,7 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final long TOKEN_MINT_INCLUDED_NFT = 1L;
 
     public static final double TOKEN_BURN_BASE_FEE_USD = 0.0009;
+    public static final long TOKEN_BURN_INCLUDED_NFT_SERIALS = 1L;
 
     public static final double TOKEN_ASSOCIATE_BASE_FEE_USD = 0.0499;
     public static final long TOKEN_ASSOCIATE_INCLUDED_TOKENS = 1L;
@@ -166,9 +169,11 @@ public class SimpleFeesScheduleConstantsInUsd {
     public static final double TOKEN_UNPAUSE_BASE_FEE_USD = 0.0009;
 
     public static final double TOKEN_WIPE_BASE_FEE_USD = 0.0009;
+    public static final long TOKEN_WIPE_INCLUDED_NFT_SERIALS = 1L;
     public static final double TOKEN_WIPE_FEE = 0.001;
 
     public static final double TOKEN_REJECT_FEE_USD = 0.0009;
+    public static final long TOKEN_REJECT_INCLUDED_ITEMS = 1L;
     public static final double TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD = 0.0009;
 
     public static final double TOKEN_AIRDROP_BASE_FEE_USD = 0;
