@@ -28,7 +28,12 @@ tolerations:
     operator: "Equal"
     value: "%NETWORK_ID%"
     effect: "NoSchedule"
-
+  - key: "kubernetes.io/hostname"
+    operator: "In"
+    values:
+        - "%NODE1%"
+        - "%NODE2%"
+        - "%NODE3%"
 image:
   repository: ghcr.io/hiero-ledger/hiero-block-node-solo-dev
 
