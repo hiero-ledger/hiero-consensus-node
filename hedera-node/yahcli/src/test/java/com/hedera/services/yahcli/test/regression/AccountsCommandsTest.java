@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.yahcli.test.profile.Civilian;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,7 +57,7 @@ public class AccountsCommandsTest {
                         .has(accountWith().balance(ONE_HBAR).memo("Who danced between"))));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"hedera.transaction.maxMemoUtf8Bytes"})
     final Stream<DynamicTest> governanceTransactionWithLargerTxnSize() {
         final var newAccountNum = new AtomicLong();
         return hapiTest(

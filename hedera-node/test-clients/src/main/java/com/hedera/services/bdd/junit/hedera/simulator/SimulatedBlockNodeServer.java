@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -97,6 +98,9 @@ public class SimulatedBlockNodeServer {
     // Store block items per block number for later retrieval (e.g., by StreamValidationOp)
     private static final int MAX_STORED_BLOCKS = 10_000;
     private final Map<Long, List<BlockItem>> storedBlockItems = new ConcurrentHashMap<>();
+
+    // Store RecordFileItems per block number, populated as they arrive (before block is closed)
+    private final Map<Long, RecordFileItem> storedRecordFileItems = new ConcurrentHashMap<>();
 
     // Track all block numbers for which we have received headers but not yet end of block
     private final Set<Long> blocksWithHeadersOnly = ConcurrentHashMap.newKeySet();
@@ -298,6 +302,55 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Gets the RecordFileItem received for the specified block number, if any.
+     * This returns the item as soon as it arrives, even before the block is closed.
+     *
+     * @param blockNumber the block number to query
+     * @return an Optional containing the RecordFileItem, or empty if none received for that block
+     */
+    @NonNull
+    public Optional<RecordFileItem> getRecordFileItem(final long blockNumber) {
+        blockTrackingLock.readLock().lock();
+        try {
+            return Optional.ofNullable(storedRecordFileItems.get(blockNumber));
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Checks if a RecordFileItem has been received for the specified block number.
+     * Returns true as soon as the item arrives, even before the block is closed.
+     *
+     * @param blockNumber the block number to check
+     * @return true if a RecordFileItem has been received for this block
+     */
+    public boolean hasReceivedRecordFileItem(final long blockNumber) {
+        blockTrackingLock.readLock().lock();
+        try {
+            return storedRecordFileItems.containsKey(blockNumber);
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Gets all RecordFileItems received so far, keyed by block number.
+     * Includes items from blocks that have not yet been closed.
+     *
+     * @return an unmodifiable copy of the map from block number to RecordFileItem
+     */
+    @NonNull
+    public Map<Long, RecordFileItem> getAllRecordFileItems() {
+        blockTrackingLock.readLock().lock();
+        try {
+            return Map.copyOf(storedRecordFileItems);
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
      * @return whether this server has ever been shutdown.
      */
     public boolean hasEverBeenShutdown() {
@@ -485,8 +538,10 @@ public class SimulatedBlockNodeServer {
                                 } else if (item.hasBlockProof()) {
                                     final var proof = item.blockProof();
                                     final long blockNumber = proof.block();
+                                    final var proofType = proof.proof().kind();
                                     log.info(
-                                            "Received BlockProof for block {} on port {} from stream {}",
+                                            "Received BlockProof ({}) for block {} on port {} from stream {}",
+                                            proofType,
                                             blockNumber,
                                             port,
                                             replies.hashCode());
@@ -497,7 +552,8 @@ public class SimulatedBlockNodeServer {
                                             || !streamingBlocks.containsKey(blockNumber)
                                             || streamingBlocks.get(blockNumber) != replies) {
                                         log.error(
-                                                "Received BlockProof for block {} from stream {} on port {}, but stream state is inconsistent (currentBlockNumber={}, expectedStream={}). Ignoring proof.",
+                                                "Received BlockProof ({}) for block {} from stream {} on port {}, but stream state is inconsistent (currentBlockNumber={}, expectedStream={}). Ignoring proof.",
+                                                proofType,
                                                 blockNumber,
                                                 replies.hashCode(),
                                                 port,
@@ -1007,11 +1063,18 @@ public class SimulatedBlockNodeServer {
             while (storedBlockItems.size() > MAX_STORED_BLOCKS) {
                 storedBlockItems.keySet().stream().min(Long::compareTo).ifPresent(storedBlockItems::remove);
             }
+            while (storedRecordFileItems.size() > MAX_STORED_BLOCKS) {
+                storedRecordFileItems.keySet().stream().min(Long::compareTo).ifPresent(storedRecordFileItems::remove);
+            }
         } else if (currentBlockNumber != null) {
             final var items = storedBlockItems.get(currentBlockNumber);
             if (items != null) {
                 items.add(item);
             }
+        }
+        // Track RecordFileItems separately for WRB comparison in tests
+        if (item.hasRecordFile() && currentBlockNumber != null) {
+            storedRecordFileItems.put(currentBlockNumber, item.recordFile());
         }
     }
 
