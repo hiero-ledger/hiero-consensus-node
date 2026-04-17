@@ -43,6 +43,19 @@ public record StorageAccess(
     }
 
     /**
+     * Returns the written value as a {@link Bytes} object, trimmed of leading zeros,
+     * or null if this access was just a read.
+     *
+     * @return the trimmed written value bytes, or null if read-only
+     */
+    @Nullable
+    public Bytes trimmedWrittenValueBytes() {
+        return writtenValue == null
+                ? null
+                : tuweniToPbjBytes(writtenValue.toBytes().trimLeadingZeros());
+    }
+
+    /**
      * Creates a new read access.
      *
      * @param key the key being read

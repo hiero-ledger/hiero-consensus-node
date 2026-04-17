@@ -95,7 +95,8 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
             return nativeOperations()
                     .getSchedule(nativeOperations()
                             .entityIdFactory()
-                            .newScheduleId(numberOfLongZero(scheduleAddress.toArray())));
+                            .newScheduleId(
+                                    numberOfLongZero(scheduleAddress.getBytes().toArray())));
         }
         return null;
     }

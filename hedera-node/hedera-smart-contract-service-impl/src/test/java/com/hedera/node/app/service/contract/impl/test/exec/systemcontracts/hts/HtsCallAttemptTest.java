@@ -426,7 +426,9 @@ class HtsCallAttemptTest extends CallAttemptTestBase {
             return useExplicitCall
                     ? Bytes.wrap(HtsCallAttempt.LEGACY_REDIRECT_FOR_TOKEN
                             .encodeCallWithArgs(
-                                    asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS.toArrayUnsafe()),
+                                    asHeadlongAddress(NON_SYSTEM_LONG_ZERO_ADDRESS
+                                            .getBytes()
+                                            .toArrayUnsafe()),
                                     Bytes.wrap(selector).toArrayUnsafe())
                             .array())
                     : bytesForRedirect(selector);

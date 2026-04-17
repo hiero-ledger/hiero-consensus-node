@@ -39,7 +39,6 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
@@ -55,7 +54,6 @@ public class TransactionProcessor {
     private final CustomMessageCallProcessor messageCall;
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
-    private final CodeFactory codeFactory;
     private final GasCalculator gasCalculator;
     private final HEVM hevm;
 
@@ -66,7 +64,6 @@ public class TransactionProcessor {
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
             @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory,
             @NonNull final GasCalculator gasCalculator,
             @NonNull HEVM hevm) {
         this.frameBuilder = requireNonNull(frameBuilder);
@@ -75,7 +72,6 @@ public class TransactionProcessor {
         this.messageCall = requireNonNull(messageCall);
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
-        this.codeFactory = requireNonNull(codeFactory);
         this.gasCalculator = requireNonNull(gasCalculator);
         this.hevm = hevm;
     }
@@ -159,7 +155,7 @@ public class TransactionProcessor {
             codeDelegationResult = new CodeDelegationProcessor(contractsConfig.chainId())
                     .process(updater, lazyCreationGasAvailable, transaction.codeDelegations());
         } else {
-            codeDelegationResult = CodeDelegationResult.empty();
+            codeDelegationResult = CodeDelegationResult.EMPTY;
         }
 
         // The initial gas available for code execution is the gas limit
@@ -179,7 +175,6 @@ public class TransactionProcessor {
                 parties.sender().getAddress(),
                 parties.receiverAddress(),
                 rootFrameInitialGas,
-                codeFactory,
                 gasCalculator,
                 codeDelegationResult.accessedAddresses());
 

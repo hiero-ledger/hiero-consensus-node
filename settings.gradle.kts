@@ -15,6 +15,14 @@ plugins {
 // Retries only in CI (when the CI env var is set).
 // Flaky tests (passed after retry) do not fail the build.
 gradle.allprojects {
+    configurations.all {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("io.tmio:tuweni-bytes"))
+                .using(module("io.consensys.tuweni:tuweni-bytes:2.7.2"))
+            substitute(module("io.tmio:tuweni-units"))
+                .using(module("io.consensys.tuweni:tuweni-units:2.7.2"))
+        }
+    }
     pluginManager.withPlugin("java") {
         tasks.withType(Test::class.java).configureEach {
             develocity.testRetry {
@@ -83,13 +91,30 @@ javaModules {
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }
 
-gradle.allprojects {
-    configurations.all {
-        resolutionStrategy.dependencySubstitution {
-            substitute(module("io.tmio:tuweni-bytes"))
-                .using(module("io.consensys.tuweni:tuweni-bytes:2.7.2"))
-            substitute(module("io.tmio:tuweni-units"))
-                .using(module("io.consensys.tuweni:tuweni-units:2.7.2"))
+gradle.lifecycle.beforeProject {
+    plugins.withId("org.hiero.gradle.base.jpms-modules") {
+        configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
+            module("org.hyperledger.besu:besu-evm", "org.hyperledger.besu.evm") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
+            module("org.hyperledger.besu:besu-datatypes", "org.hyperledger.besu.datatypes") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
+            module(
+                "org.hyperledger.besu.internal:besu-crypto-algorithms",
+                "org.hyperledger.besu.internal.crypto",
+            )
+            module(
+                "org.hyperledger.besu.internal:besu-ethereum-rlp",
+                "org.hyperledger.besu.internal.rlp",
+            )
+            module("org.hyperledger.besu.internal:besu-util", "org.hyperledger.besu.internal.util")
+            module("org.hyperledger.besu:boringssl", "org.hyperledger.besu.nativelib.boringssl")
+            module("io.vertx:vertx-core", "io.vertx.core")
         }
     }
 }

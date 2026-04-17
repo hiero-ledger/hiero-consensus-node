@@ -147,7 +147,7 @@ public interface ContractServiceModule {
     @Provides
     @Singleton
     static EvmConfiguration provideEvmConfiguration() {
-        return new EvmConfiguration(EvmConfiguration.DEFAULT.jumpDestCacheWeightKB(), JOURNALED);
+        return new EvmConfiguration(EvmConfiguration.DEFAULT.jumpDestCacheWeightKB(), JOURNALED, true);
     }
 
     /**

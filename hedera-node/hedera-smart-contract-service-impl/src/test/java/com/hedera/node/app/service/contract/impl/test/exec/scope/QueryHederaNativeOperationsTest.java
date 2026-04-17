@@ -107,12 +107,12 @@ class QueryHederaNativeOperationsTest {
     @Test
     void resolveAliasReturnsMissingNumIfNotPresent() {
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
-        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS)));
+        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())));
     }
 
     @Test
     void resolveAliasReturnsNumIfPresent() {
-        final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS);
+        final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes());
         given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountIDByAlias(0, 0, alias)).willReturn(NON_SYSTEM_ACCOUNT_ID);
         assertEquals(NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow(), subject.resolveAlias(0, 0, alias));

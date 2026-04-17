@@ -75,7 +75,7 @@ class CodeDelegationProcessorTest {
     private static Optional<EthTxSigs> mockAuthorityWithAddress(final Address addr) {
         return Optional.of(mock(EthTxSigs.class, invocation -> {
             if ("address".equals(invocation.getMethod().getName())) {
-                return addr.toArrayUnsafe();
+                return addr.getBytes().toArrayUnsafe();
             } else if ("publicKey".equals(invocation.getMethod().getName())) {
                 return new byte[32];
             }
@@ -227,7 +227,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null, acct);
@@ -265,7 +265,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
         when(proxyWorldUpdater.enhancement()).thenReturn(enhancement);
         when(enhancement.nativeOperations()).thenReturn(hederaNativeOperations);
@@ -303,7 +303,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(7L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null);
@@ -334,7 +334,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(5L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
@@ -371,7 +371,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(1L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
@@ -404,7 +404,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(9L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
 
         when(world.updater()).thenReturn(proxyWorldUpdater);
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
@@ -439,7 +439,7 @@ class CodeDelegationProcessorTest {
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
-        when(del.address()).thenReturn(contractAddr.toArray());
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(zeroAddr)).thenReturn(acct);

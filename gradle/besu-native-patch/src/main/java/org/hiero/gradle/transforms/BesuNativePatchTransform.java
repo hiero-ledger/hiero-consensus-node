@@ -28,6 +28,11 @@ public abstract class BesuNativePatchTransform implements TransformAction<Transf
     public static final String BESU_NATIVE_LIBRARY_LOADER_CLASS =
             "org/hyperledger/besu/nativelib/common/BesuNativeLibraryLoader.class";
 
+    // Log4j2 plugin cache file - should be excluded from besu-util to avoid duplicates
+    // with log4j-core when creating shadow JARs
+    public static final String LOG4J_PLUGINS_DAT =
+            "META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat";
+
     // See modules in: https://github.com/hyperledger/besu-native
     public static final List<String> BESU_NATIVE_JARS = Arrays.asList(
             "besu-native-common",
@@ -40,6 +45,9 @@ public abstract class BesuNativePatchTransform implements TransformAction<Transf
             "secp256k1",
             "secp256r1");
 
+    // JARs that need Log4j2Plugins.dat filtered out to avoid shadow JAR conflicts
+    public static final List<String> BESU_JARS_WITH_LOG4J_FILTER = List.of("besu-util");
+
     @InputArtifact
     @Classpath
     public abstract Provider<FileSystemLocation> getInputArtifact();
@@ -49,16 +57,22 @@ public abstract class BesuNativePatchTransform implements TransformAction<Transf
         File originalJar = getInputArtifact().get().getAsFile();
         boolean isBesuNativeJar = BESU_NATIVE_JARS.stream()
                 .anyMatch(name -> originalJar.getName().startsWith(name + "-"));
+        boolean isBesuJarWithLogFilter =  BESU_JARS_WITH_LOG4J_FILTER.stream()
+                .anyMatch(name -> originalJar.getName().startsWith(name + "-"));
         if (isBesuNativeJar) {
             String baseName = originalJar.getName().replaceFirst("[.][^.]+$", "");
             File patchedJar = outputs.file(baseName + "-besu.jar");
-            patch(originalJar, patchedJar);
+            patch(originalJar, patchedJar, false);
+        } else if(isBesuJarWithLogFilter) {
+            String baseName = originalJar.getName().replaceFirst("[.][^.]+$", "");
+            File patchedJar = outputs.file(baseName + "-filtered.jar");
+            patch(originalJar, patchedJar, true);
         } else {
             outputs.file(originalJar);
         }
     }
 
-    public void patch(File besuJar, File patchedJar) {
+    public void patch(File besuJar, File patchedJar, boolean filterLog4jPlugins) {
         try {
             patchedJar.createNewFile();
             try (JarOutputStream outJar = new JarOutputStream(java.nio.file.Files.newOutputStream(patchedJar.toPath()));
@@ -77,6 +91,11 @@ public abstract class BesuNativePatchTransform implements TransformAction<Transf
                     String name = jarEntry.getName();
                     byte[] content = inJar.readAllBytes();
 
+                    // Skip Log4j2Plugins.dat if filtering is enabled
+                    if (filterLog4jPlugins && name.equals(LOG4J_PLUGINS_DAT)) {
+                        jarEntry = inJar.getNextJarEntry();
+                        continue;
+                    }
                     if (name.startsWith("lib/")) {
                         jarEntry = newReproducibleEntry(name.replaceFirst("lib/", "lib-native/"));
                     }

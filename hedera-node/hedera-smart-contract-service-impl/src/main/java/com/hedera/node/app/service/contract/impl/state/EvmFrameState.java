@@ -13,7 +13,6 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -200,7 +199,7 @@ public interface EvmFrameState {
      * @return the code hash of the contract
      */
     @NonNull
-    Hash getCodeHash(ContractID contractID, @NonNull final CodeFactory codeFactory);
+    Hash getCodeHash(ContractID contractID);
 
     /**
      * Returns the native account with the given account id.

@@ -49,8 +49,6 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.account.Account;
-import org.hyperledger.besu.evm.code.CodeFactory;
-import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
@@ -87,7 +85,6 @@ public class FrameBuilder {
      * @param from                            the sender of the transaction
      * @param to                              the recipient of the transaction
      * @param initialGas                      the initial gas amount available for execution
-     * @param codeFactory                     the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code} from raw bytecode.
      * @param gasCalculator                   the gas calculator
      * @param codeDelegationAccessedAddresses the authorities of the processed code delegations
      * @return the initial frame
@@ -103,7 +100,6 @@ public class FrameBuilder {
             @NonNull final Address from,
             @NonNull final Address to,
             final long initialGas,
-            @NonNull final CodeFactory codeFactory,
             @NonNull final GasCalculator gasCalculator,
             @NonNull final List<Address> codeDelegationAccessedAddresses) {
         final var value = transaction.weiValue();
@@ -140,12 +136,12 @@ public class FrameBuilder {
                     accessListWarmStorage.putAll(address, accessList.storageKeys());
                 }
             }
-            builder.accessListWarmAddresses(accessListWarmAddresses);
-            builder.accessListWarmStorage(accessListWarmStorage);
+            builder.eip2930AccessListWarmAddresses(accessListWarmAddresses);
+            builder.eip2930AccessListWarmStorage(accessListWarmStorage);
         }
         // finish initial frame
         if (transaction.isCreate()) {
-            return finishedAsCreate(to, builder, transaction, codeFactory);
+            return finishedAsCreate(to, builder, transaction);
         } else {
             return finishedAsCall(
                     to,
@@ -154,7 +150,6 @@ public class FrameBuilder {
                     transaction,
                     featureFlags,
                     config.getConfigData(ContractsConfig.class),
-                    codeFactory,
                     gasCalculator);
         }
     }
@@ -199,13 +194,12 @@ public class FrameBuilder {
     private MessageFrame finishedAsCreate(
             @NonNull final Address to,
             @NonNull final MessageFrame.Builder builder,
-            @NonNull final HederaEvmTransaction transaction,
-            final CodeFactory codeFactory) {
+            @NonNull final HederaEvmTransaction transaction) {
         return builder.type(MessageFrame.Type.CONTRACT_CREATION)
                 .address(to)
                 .contract(to)
                 .inputData(Bytes.EMPTY)
-                .code(codeFactory.createCode(transaction.evmPayload(), false))
+                .code(new Code(transaction.evmPayload()))
                 .build();
     }
 
@@ -216,7 +210,6 @@ public class FrameBuilder {
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final FeatureFlags featureFlags,
             @NonNull final ContractsConfig config,
-            @NonNull final CodeFactory codeFactory,
             @NonNull final GasCalculator gasCalculator) {
         final var contractId = transaction.contractIdOrThrow();
         final var contractMustBePresent = contractMustBePresent(config, featureFlags, contractId);
@@ -230,7 +223,7 @@ public class FrameBuilder {
                     .address(to)
                     .contract(to)
                     .inputData(transaction.evmPayload())
-                    .code(CodeV0.EMPTY_CODE)
+                    .code(Code.EMPTY_CODE)
                     .build();
         }
 
@@ -249,20 +242,20 @@ public class FrameBuilder {
 
                 final Account targetAccount = worldUpdater.getHederaAccount(targetAddress);
                 if (targetAccount == null || gasCalculator.isPrecompile(targetAddress)) {
-                    code = CodeV0.EMPTY_CODE;
+                    code = Code.EMPTY_CODE;
                 } else {
-                    code = codeFactory.createCode(targetAccount.getCode());
+                    code = new Code(targetAccount.getCode());
                 }
             } else {
                 // No delegation, so try to resolve the code of the smart contract.
                 if (!accountCode.isEmpty()) {
                     // A non-delegation code is there (it must be a regular smart contract), so just use it.
-                    code = codeFactory.createCode(accountCode);
+                    code = new Code(accountCode);
                 } else {
                     // The code is empty.
                     // First validate if this is allowed, and if so, proceed.
                     validateTrue(emptyCodePossiblyAllowed(contractMustBePresent, transaction), INVALID_CONTRACT_ID);
-                    code = CodeV0.EMPTY_CODE;
+                    code = Code.EMPTY_CODE;
                 }
             }
         } else {
@@ -272,7 +265,7 @@ public class FrameBuilder {
             if (contractMustBePresent) {
                 validateTrue(transaction.permitsMissingContract(), INVALID_ETHEREUM_TRANSACTION);
             }
-            code = CodeV0.EMPTY_CODE;
+            code = Code.EMPTY_CODE;
         }
         return builder.type(MessageFrame.Type.MESSAGE_CALL)
                 .address(to)

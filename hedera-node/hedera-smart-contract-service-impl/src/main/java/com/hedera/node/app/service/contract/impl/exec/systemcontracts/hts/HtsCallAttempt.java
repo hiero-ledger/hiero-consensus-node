@@ -106,7 +106,7 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
      */
     public @Nullable Token linkedToken(@NonNull final Address tokenAddress) {
         requireNonNull(tokenAddress);
-        return linkedToken(tokenAddress.toArray());
+        return linkedToken(tokenAddress.getBytes().toArray());
     }
 
     /**

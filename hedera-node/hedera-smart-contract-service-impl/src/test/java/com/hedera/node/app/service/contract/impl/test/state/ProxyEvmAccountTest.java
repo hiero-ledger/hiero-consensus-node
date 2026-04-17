@@ -13,7 +13,8 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmAccount;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.hyperledger.besu.evm.code.CodeV0;
+import org.hyperledger.besu.datatypes.Hash;
+import org.hyperledger.besu.evm.Code;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -67,13 +68,13 @@ class ProxyEvmAccountTest {
         final var delegationAddress = Bytes.fromHex("0000000000000000000000000000000000000001");
         when(ACCOUNT.delegationAddress()).thenReturn(delegationAddress);
         assertEquals(
-                keccak256(pbjToTuweniBytes(Bytes.fromHex("ef01000000000000000000000000000000000000000001"))),
+                Hash.wrap(keccak256(pbjToTuweniBytes(Bytes.fromHex("ef01000000000000000000000000000000000000000001")))),
                 subject.getCodeHash());
     }
 
     @Test
     void getCodeHashShouldReturnCorrectHashWhenNoDelegation() {
         when(ACCOUNT.delegationAddress()).thenReturn(Bytes.EMPTY);
-        assertEquals(CodeV0.EMPTY_CODE.getCodeHash(), subject.getCodeHash());
+        assertEquals(Code.EMPTY_CODE.getCodeHash(), subject.getCodeHash());
     }
 }

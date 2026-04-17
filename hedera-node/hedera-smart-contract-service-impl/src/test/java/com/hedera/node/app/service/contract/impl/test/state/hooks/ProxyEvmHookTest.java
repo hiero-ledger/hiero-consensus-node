@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.test.state.hooks;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -48,11 +47,11 @@ class ProxyEvmHookTest {
                 .hookContractId(hookContractId)
                 .build();
         final Bytes hookContractCode = Bytes.fromHexString("0x6001600055");
-        final Code expectedCode = CODE_FACTORY.createCode(hookContractCode, false);
+        final Code expectedCode = new Code(hookContractCode);
         final Hash expectedHash = expectedCode.getCodeHash();
 
         given(state.getCode(hookContractId)).willReturn(hookContractCode);
-        given(state.getCodeHash(hookContractId, CODE_FACTORY)).willReturn(expectedHash);
+        given(state.getCodeHash(hookContractId)).willReturn(expectedHash);
 
         // Storage expectations
         final var key = UInt256.valueOf(42);
@@ -64,7 +63,7 @@ class ProxyEvmHookTest {
                         key))
                 .willReturn(expectedStorageValue);
 
-        final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY, entityIdFactory);
+        final var subject = new ProxyEvmHook(state, hookState, entityIdFactory);
 
         assertEquals(expectedCode.getBytes(), subject.getCode());
         assertEquals(hookContractCode, subject.getCode());
@@ -74,7 +73,7 @@ class ProxyEvmHookTest {
         assertEquals(expectedStorageValue, subject.getStorageValue(key));
 
         verify(state, times(2)).getCode(hookContractId);
-        verify(state).getCodeHash(hookContractId, CODE_FACTORY);
+        verify(state).getCodeHash(hookContractId);
         verify(state)
                 .getStorageValue(
                         ContractID.newBuilder()
@@ -85,6 +84,6 @@ class ProxyEvmHookTest {
 
     @Test
     void constructorRejectsNullHookState() {
-        assertThrows(NullPointerException.class, () -> new ProxyEvmHook(state, null, CODE_FACTORY, entityIdFactory));
+        assertThrows(NullPointerException.class, () -> new ProxyEvmHook(state, null, entityIdFactory));
     }
 }

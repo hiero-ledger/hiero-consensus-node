@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuHash;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,7 +45,7 @@ class ProxyEvmContractTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ProxyEvmContract(ACCOUNT_ID, hederaState, CODE_FACTORY);
+        subject = new ProxyEvmContract(ACCOUNT_ID, hederaState);
     }
 
     @Test
@@ -108,7 +107,7 @@ class ProxyEvmContractTest {
     @Test
     void returnsCodeHash() {
         final var hash = pbjToBesuHash(SOME_PRETEND_CODE_HASH);
-        given(hederaState.getCodeHash(CONTRACT_ID, CODE_FACTORY)).willReturn(hash);
+        given(hederaState.getCodeHash(CONTRACT_ID)).willReturn(hash);
         assertEquals(hash, subject.getCodeHash());
     }
 
