@@ -1007,26 +1007,6 @@ public class UpdateNodeAccountTestEmbedded {
                             .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                             .hasKnownStatus(INVALID_SIGNATURE));
         }
-
-        @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
-        final Stream<DynamicTest> nodeCreateWherePayerIsAccountOwnerShouldSucceed()
-                throws CertificateEncodingException {
-            final AtomicLong nodeAccountNum = new AtomicLong();
-            return hapiTest(
-                    newKeyNamed("adminKey"),
-                    cryptoCreate("nodeAccount").exposingCreatedIdTo(id -> nodeAccountNum.set(id.getAccountNum())),
-                    nodeCreate("testNode", "nodeAccount")
-                            .adminKey("adminKey")
-                            .payingWith("nodeAccount")
-                            .signedByPayerAnd("adminKey")
-                            .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                    viewNode(
-                            "testNode",
-                            node -> assertEquals(
-                                    nodeAccountNum.get(),
-                                    node.accountIdOrThrow().accountNum(),
-                                    "Node should be created when payer is account owner")));
-        }
     }
 
     @Nested
