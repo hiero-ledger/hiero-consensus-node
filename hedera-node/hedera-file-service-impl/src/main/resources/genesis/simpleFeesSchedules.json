@@ -499,7 +499,6 @@
           "name": "TokenFeeScheduleUpdate",
           "baseFee": 9000000,
           "extras": [
-            {"name": "TOKEN_CREATE_WITH_CUSTOM_FEE", "includedCount": 0 }
           ]
         },
         {

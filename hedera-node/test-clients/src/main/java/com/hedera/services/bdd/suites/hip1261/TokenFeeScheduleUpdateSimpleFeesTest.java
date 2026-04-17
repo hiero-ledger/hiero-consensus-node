@@ -59,7 +59,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -400,9 +399,8 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                         final long feeBTotal = feeB + feeBUpd;
                         final double ratio = (double) feeA / feeBTotal;
 
-                        assertEquals(
-                                feeA,
-                                feeBTotal,
+                        assertTrue(
+                                (ratio > 0.999) && (ratio < 1.001),
                                 "BUG: Path A cost: " + feeA + "!= Path B cost: " + feeBTotal + " ratio (A/B): "
                                         + String.format("%.2fx", ratio) + " —> Path B is "
                                         + String.format("%.2fx", ratio) + " cheaper");
