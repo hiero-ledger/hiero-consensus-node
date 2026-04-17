@@ -155,8 +155,8 @@ jobs:
           echo "sha=${COMMIT_SHA}" | tee "${GITHUB_OUTPUT}"
 
   build:
-    name: Compile Code
-    uses: ./.github/workflows/zxc-compile-application-code.yaml
+    name: Compile and Spotless Check
+    uses: ./.github/workflows/zxc-compile-and-spotless-check.yaml
     needs:
       - commit-info
     with:

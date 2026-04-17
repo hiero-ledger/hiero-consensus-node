@@ -5,12 +5,14 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBo
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.NODE_ADMIN_KEYS_JSON;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.doIfNotInterrupted;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.support.validators.HgcaaLogValidator;
+import com.hedera.services.bdd.junit.support.validators.SwirldsLogValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -46,6 +48,16 @@ public class LogValidationOp extends UtilOp {
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         doIfNotInterrupted(() -> MILLISECONDS.sleep(delay.toMillis()));
         nodesToValidate(spec).forEach(node -> {
+            // Validate swirlds.log for all nodes
+            final var swirldsLogPath =
+                    node.getExternalPath(SWIRLDS_LOG).toAbsolutePath().normalize();
+            if (Files.exists(swirldsLogPath)) {
+                try {
+                    new SwirldsLogValidator(swirldsLogPath.toString()).validate();
+                } catch (IOException e) {
+                    Assertions.fail("Could not read swirlds.log for node '" + node.getName() + "' " + e);
+                }
+            }
             // A node added after genesis initialization will not have admin key override logs
             if (node.getNodeId() >= CLASSIC_HAPI_TEST_NETWORK_SIZE) {
                 return;
