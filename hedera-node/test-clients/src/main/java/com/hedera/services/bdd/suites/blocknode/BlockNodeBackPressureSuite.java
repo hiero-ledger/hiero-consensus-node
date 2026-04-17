@@ -171,18 +171,21 @@ public class BlockNodeBackPressureSuite {
     final Stream<DynamicTest> backPressureAllNodesCheckingScenario() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
+                // Let the 4-node network stabilize before shutting down the block node
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
                 blockNode(0).shutDownImmediately(),
                 doingContextual(spec -> time.set(Instant.now())),
+                // With REAL block nodes (Docker containers), shutdown takes ~15s before the
+                // connection drops, then the buffer needs ~10s more to fill. Use 2min timeout.
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
-                        Duration.ofSeconds(30),
-                        Duration.ofSeconds(30),
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2),
                         "Block buffer is saturated; backpressure is being enabled",
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING),
+                waitForAny(byNodeId(0), Duration.ofSeconds(60), PlatformStatus.CHECKING),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofMinutes(1).toNanos())),
                 blockNode(0).startImmediately(),
@@ -191,10 +194,10 @@ public class BlockNodeBackPressureSuite {
                         spec -> assertBlockNodeCommsLogContainsTimeframe(
                                 byNodeId(0),
                                 time::get,
-                                Duration.ofMinutes(1),
-                                Duration.ofMinutes(1),
+                                Duration.ofMinutes(2),
+                                Duration.ofMinutes(2),
                                 "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled.")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.ACTIVE),
+                waitForAny(byNodeId(0), Duration.ofSeconds(60), PlatformStatus.ACTIVE),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
                 blockNode(0).shutDownImmediately(),

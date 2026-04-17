@@ -111,6 +111,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
+     * @param reconnectConfig
+     *      the reconnect configuration
      * @param map
      * 		The map node of the <strong>reconnect</strong> tree. Cannot be null.
      * @param originalRecords
@@ -123,8 +125,12 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
      * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
      * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
      * 		Cannot be null.
+     * @param nodeRemover
+     *      handles removal of old nodes
+     * @param traversalOrder
+     *      the traversal order defining which paths to request
      * @param mapStats
-     *      A ReconnectMapStats object to collect reconnect metrics
+     *      a ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPullVirtualTreeView(
             @NonNull final ReconnectConfig reconnectConfig,
@@ -145,6 +151,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         this.mapStats = mapStats;
     }
 
+    /** {@inheritDoc} */
     @Override
     public void startLearnerTasks(
             final StandardWorkGroup workGroup,
@@ -179,6 +186,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     /**
      * Determines if a given path refers to a leaf of the tree.
+     *
      * @param path a path
      * @return true if leaf, false if internal
      */
@@ -217,11 +225,11 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     // This method is called concurrently from multiple threads
     void responseReceived(final PullVirtualTreeResponse response) {
-        final long responsePath = response.getPath();
+        final long responsePath = response.path();
         if (responsePath == 0) {
             logger.info(RECONNECT.getMarker(), "Root response received from the teacher");
-            final long firstLeafPath = response.getFirstLeafPath();
-            final long lastLeafPath = response.getLastLeafPath();
+            final long firstLeafPath = response.firstLeafPath();
+            final long lastLeafPath = response.lastLeafPath();
             assert firstNodeResponse.compareAndSet(true, false)
                     : "Root node must be the first node received from the teacher";
             reconnectState.setPaths(firstLeafPath, lastLeafPath);
@@ -250,11 +258,20 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                 anticipatedLeafPaths.remove();
             }
         }
+
+        if (responsePath != Path.ROOT_PATH) {
+            final boolean isLeaf = isLeaf(responsePath);
+            if (isLeaf) {
+                mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
+            } else {
+                mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
+            }
+        }
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
         assert !firstNodeResponse.get() : "Root node must be the first node received from the teacher";
-        final long path = response.getPath();
+        final long path = response.path();
         if (reconnectState.getLastLeafPath() <= 0) {
             return;
         }
@@ -265,7 +282,7 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
         if (isLeaf) {
             if (!isClean) {
-                final VirtualLeafBytes<?> leaf = response.getLeafData();
+                final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null;
                 assert path == leaf.path();
                 nodeRemover.newLeafNode(path, leaf.keyBytes());
@@ -279,7 +296,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     /**
      * Returns the ReconnectMapStats object.
-     * @return the ReconnectMapStats object.
+     *
+     * @return the ReconnectMapStats object
      */
     @NonNull
     public ReconnectMapStats getMapStats() {

@@ -104,6 +104,7 @@ public class GuiEventStorage {
             return;
         }
         eventImpl.getBaseEvent().setNGen(event.getNGen());
+        eventImpl.getBaseEvent().setSequenceNumber(event.getSequenceNumber());
 
         final List<ConsensusRound> rounds = consensus.addEvent(eventImpl);
 

@@ -10,7 +10,6 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 /**
  * A "view" into a merkle tree (or subtree) used to perform a reconnect operation. This view is used to access
  * the tree by the learner.
- *
  */
 public interface LearnerTreeView extends AutoCloseable {
 
@@ -23,6 +22,7 @@ public interface LearnerTreeView extends AutoCloseable {
      * @param workGroup the work group to run teaching task(s) in
      * @param in the input stream to read data from teacher
      * @param out the output stream to write data to teacher
+     * @param completeListener callback invoked when all responses have been processed
      */
     void startLearnerTasks(
             final StandardWorkGroup workGroup,
@@ -34,8 +34,7 @@ public interface LearnerTreeView extends AutoCloseable {
      * Get the hash of a node. If this view represents a tree that has null nodes within it, those nodes should cause
      * this method to return a {@link Cryptography#NULL_HASH null hash}.
      *
-     * @param path
-     * 		the node path
+     * @param path the node path
      * @return the hash of the node
      */
     Hash getNodeHash(Long path);
