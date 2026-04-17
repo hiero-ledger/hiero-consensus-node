@@ -4,6 +4,7 @@ package com.hedera.services.yahcli.commands.ivy.suites;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.yahcli.commands.ivy.scenarios.ScenariosConfig.SCENARIO_PAYER_NAME;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -48,6 +49,7 @@ public class IvyXfersScenarioSuite extends AbstractIvySuite {
                 .then(IntStream.range(0, networkSize)
                         .mapToObj(i -> cryptoTransfer(tinyBarsFromTo(SCENARIO_PAYER_NAME, FUNDING, 1L))
                                 .hasAnyStatusAtAll()
+                                .hasRetryPrecheckFrom(BUSY)
                                 .payingWith(SCENARIO_PAYER_NAME)
                                 .setNodeFrom(nodeAccounts.get())
                                 .logged())
