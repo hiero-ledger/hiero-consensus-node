@@ -85,7 +85,10 @@ public class NodeCreateHandler implements TransactionHandler {
         final var op = txn.nodeCreateOrThrow();
 
         context.requireKeyOrThrow(op.adminKeyOrThrow(), INVALID_ADMIN_KEY);
-        context.requireKeyOrThrow(op.accountIdOrThrow(), INVALID_SIGNATURE);
+        final var accountStore = context.createStore(ReadableAccountStore.class);
+        if (accountStore.getAccountById(op.accountIdOrThrow()) != null) {
+            context.requireKeyOrThrow(op.accountIdOrThrow(), INVALID_SIGNATURE);
+        }
     }
 
     @Override

@@ -760,6 +760,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         mockAccountLookup(aPrimitiveKey, accountId, accountStore);
         txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
         subject.preHandle(context);
         assertThat(txn).isEqualTo(context.body());
         assertThat(context.payerKey()).isEqualTo(anotherKey);
@@ -775,6 +776,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .withAdminKey(invalidKey)
                 .build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
         assertThat(context.payerKey()).isEqualTo(anotherKey);
         assertThat(context.requiredNonPayerKeys()).isEmpty();
@@ -786,16 +788,20 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
         mockAccountLookup(aPrimitiveKey, accountId, accountStore);
         txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
         subject.preHandle(context);
         assertThat(context.requiredNonPayerKeys()).contains(aPrimitiveKey);
     }
 
     @Test
-    void preHandleFailsWhenAccountNotFound() throws PreCheckException {
+    void preHandleSkipsAccountKeyWhenAccountNotFound() throws PreCheckException {
         mockAccountLookup(anotherKey, payerId, accountStore);
         txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
-        assertThrowsPreCheck(() -> subject.preHandle(context), ResponseCodeEnum.INVALID_SIGNATURE);
+        context.registerStore(ReadableAccountStore.class, accountStore);
+        subject.preHandle(context);
+        assertThat(context.requiredNonPayerKeys()).contains(key);
+        assertThat(context.requiredNonPayerKeys()).doesNotContain(aPrimitiveKey);
     }
 
     @Test
