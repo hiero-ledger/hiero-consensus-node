@@ -99,7 +99,7 @@ class DataFileCompactorSingleLevelTest {
         @Override
         List<Path> compactFiles(
                 final CASableLongIndex index,
-                @NonNull final List<? extends DataFileReader> filesToCompact,
+                @NonNull final List<DataFileReader> filesToCompact,
                 final int targetCompactionLevel) {
             capturedFiles = new ArrayList<>(filesToCompact);
             capturedTargetLevel = targetCompactionLevel;

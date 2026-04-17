@@ -31,10 +31,10 @@ public class MerkleDbMetricsRegistrationProvider implements MetricsRegistrationP
     public static final String LABEL_STORE_NAME = "store_name";
     public static final String LABEL_COMPACTION_LEVEL = "compaction_level";
 
-    public static final MetricKey<LongGauge> METRIC_KEY_FILES_CNT =
-            LongGauge.key("count").addCategory(FILES_CATEGORY).addCategory(MAIN_CATEGORY);
-    public static final MetricKey<LongGauge> METRIC_KEY_FILES_SIZE =
-            LongGauge.key("size").addCategory(FILES_CATEGORY).addCategory(MAIN_CATEGORY);
+    public static final MetricKey<LongAccumulatorGauge> METRIC_KEY_FILES_CNT =
+            LongAccumulatorGauge.key("count").addCategory(FILES_CATEGORY).addCategory(MAIN_CATEGORY);
+    public static final MetricKey<LongAccumulatorGauge> METRIC_KEY_FILES_SIZE =
+            LongAccumulatorGauge.key("size").addCategory(FILES_CATEGORY).addCategory(MAIN_CATEGORY);
     public static final MetricKey<DoubleAccumulatorGauge> METRIC_KEY_FILES_GARBAGE_RATIO = DoubleAccumulatorGauge.key(
                     "garbage_ratio")
             .addCategory(FILES_CATEGORY)
@@ -146,10 +146,10 @@ public class MerkleDbMetricsRegistrationProvider implements MetricsRegistrationP
     public Collection<Metric.Builder<?, ?>> getMetricsToRegister() {
         ArrayList<Metric.Builder<?, ?>> builders = new ArrayList<>();
 
-        builders.add(LongGauge.builder(METRIC_KEY_FILES_CNT)
+        builders.add(LongAccumulatorGauge.builder(METRIC_KEY_FILES_CNT, Long::sum)
                 .addDynamicLabelNames(LABEL_STORE_NAME, LABEL_COMPACTION_LEVEL)
                 .setDescription("Number of files per store and compaction level"));
-        builders.add(LongGauge.builder(METRIC_KEY_FILES_SIZE)
+        builders.add(LongAccumulatorGauge.builder(METRIC_KEY_FILES_SIZE, Long::sum)
                 .setUnit(Unit.BYTE_UNIT)
                 .addDynamicLabelNames(LABEL_STORE_NAME, LABEL_COMPACTION_LEVEL)
                 .setDescription("Total size of files per store and compaction level, in bytes"));

@@ -6,22 +6,19 @@ import static com.swirlds.merkledb.MerkleDbMetricsRegistrationProvider.LABEL_STO
 import static com.swirlds.merkledb.MerkleDbMetricsRegistrationProvider.METRIC_KEY_FILES_CNT;
 import static com.swirlds.merkledb.MerkleDbMetricsRegistrationProvider.METRIC_KEY_FILES_GARBAGE_RATIO;
 import static com.swirlds.merkledb.MerkleDbMetricsRegistrationProvider.METRIC_KEY_FILES_SIZE;
-import static java.util.stream.Collectors.groupingBy;
-import static java.util.stream.Collectors.mapping;
-import static java.util.stream.Collectors.summarizingLong;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.LongSummaryStatistics;
-import java.util.Map;
 import org.hiero.metrics.DoubleAccumulatorGauge;
-import org.hiero.metrics.LongGauge;
+import org.hiero.metrics.LongAccumulatorGauge;
 import org.hiero.metrics.core.MetricRegistry;
 
 public final class FileCollectionMetrics {
 
     private final DataFileCollection dataFileCollection;
-    private final LongGauge filesCount;
-    private final LongGauge filesSize;
+    private final LongAccumulatorGauge filesCount;
+    private final LongAccumulatorGauge filesSize;
     private final DoubleAccumulatorGauge garbageRatio;
 
     public FileCollectionMetrics(@NonNull DataFileCollection dataFileCollection, @NonNull MetricRegistry registry) {
@@ -31,23 +28,37 @@ public final class FileCollectionMetrics {
         garbageRatio = registry.getMetric(METRIC_KEY_FILES_GARBAGE_RATIO);
     }
 
-    public void updateFileMetrics() {
-        final Map<Integer, LongSummaryStatistics> statsByLevel = dataFileCollection
-                .streamAllCompletedFiles()
-                .collect(groupingBy(
-                        fileReader -> fileReader.getMetadata().getCompactionLevel(),
-                        mapping(DataFileReader::getSize, summarizingLong(Long::longValue))));
-
-        final String storeName = dataFileCollection.getStoreName();
-        statsByLevel.forEach((level, levelStats) -> {
-            final String levelString = String.valueOf(level);
+    public void updateFileMetricsOnNewFile(DataFileReader reader) {
+        if (reader.isFileCompleted()) {
+            final String storeName = dataFileCollection.getStoreName();
+            final String level = String.valueOf(reader.getMetadata().getCompactionLevel());
             filesCount
-                    .getOrCreateLabeled(LABEL_STORE_NAME, storeName, LABEL_COMPACTION_LEVEL, levelString)
-                    .set(levelStats.getCount());
+                    .getOrCreateLabeled(LABEL_STORE_NAME, storeName, LABEL_COMPACTION_LEVEL, level)
+                    .accumulate(1L);
             filesSize
-                    .getOrCreateLabeled(LABEL_STORE_NAME, storeName, LABEL_COMPACTION_LEVEL, levelString)
-                    .set(levelStats.getSum());
-        });
+                    .getOrCreateLabeled(LABEL_STORE_NAME, storeName, LABEL_COMPACTION_LEVEL, level)
+                    .accumulate(reader.getSize());
+        }
+    }
+
+    public void updateFileMetricsOnDeletedFiles(List<DataFileReader> deletedFiles) {
+        LongSummaryStatistics stats = deletedFiles.stream()
+                .filter(DataFileReader::isFileCompleted)
+                .mapToLong(DataFileReader::getSize)
+                .summaryStatistics();
+
+        if (stats.getCount() > 0) {
+            final String storeName = dataFileCollection.getStoreName();
+            final String level =
+                    String.valueOf(deletedFiles.getFirst().getMetadata().getCompactionLevel());
+
+            filesCount
+                    .getOrCreateLabeled(LABEL_STORE_NAME, storeName, LABEL_COMPACTION_LEVEL, level)
+                    .accumulate(-stats.getCount());
+            filesSize
+                    .getOrCreateLabeled(LABEL_STORE_NAME, storeName, LABEL_COMPACTION_LEVEL, level)
+                    .accumulate(-stats.getSum());
+        }
     }
 
     public void updateScanMetrics(double levelGarbageRatio, int level) {

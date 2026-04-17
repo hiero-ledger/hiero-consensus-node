@@ -266,7 +266,7 @@ public class DataFileCompactor {
      */
     List<Path> compactFiles(
             @NonNull final CASableLongIndex index,
-            @NonNull final List<? extends DataFileReader> filesToCompact,
+            @NonNull final List<DataFileReader> filesToCompact,
             final int targetCompactionLevel)
             throws IOException, InterruptedException {
         if (interruptFlag) {
@@ -375,7 +375,6 @@ public class DataFileCompactor {
                 }
             } finally {
                 snapshotCompactionLock.unlock();
-                dataFileCollection.updateFileMetrics();
             }
         }
 
@@ -432,6 +431,7 @@ public class DataFileCompactor {
         } else {
             reader.updateMetadata(writer.getMetadata());
             reader.setFileCompleted();
+            dataFileCollection.updateFileMetricsOnNewFile(reader);
             logger.info(
                     MERKLE_DB.getMarker(),
                     "Finished writing new compaction file. store={}, items={}, size={}, compaction_level={}, path={}",
@@ -470,7 +470,6 @@ public class DataFileCompactor {
             compactionWasInProgress = true;
             compactionLevelInProgress = compactionWriter.getMetadata().getCompactionLevel();
             finishCurrentCompactionFile();
-            dataFileCollection.updateFileMetrics();
             // Don't start a new compaction file here, as it would be included to snapshots, but
             // it shouldn't, as it isn't fully written yet. Instead, a new file will be started
             // right after snapshot is taken, in resumeCompaction()

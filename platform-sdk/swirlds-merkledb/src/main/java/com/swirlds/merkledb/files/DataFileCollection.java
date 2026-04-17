@@ -422,7 +422,7 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable, Met
         dataReader.updateMetadata(dataWriter.getMetadata()); // propagate final itemsCount
         dataReader.setFileCompleted();
 
-        updateFileMetrics();
+        updateFileMetricsOnNewFile(dataReader);
         // TODO change to DEBUG?
         logger.info(
                 MERKLE_DB.getMarker(),
@@ -674,12 +674,17 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable, Met
      * @param filesToDelete the list of files to delete
      * @throws IOException If there was a problem deleting the files
      */
-    void deleteFiles(@NonNull final Collection<?> filesToDelete) throws IOException {
+    void deleteFiles(@NonNull final List<DataFileReader> filesToDelete) throws IOException {
         // necessary workaround to remove compiler requirement for certain generic type which not required for deletion
-        Collection<DataFileReader> files = (Collection<DataFileReader>) new HashSet<>(filesToDelete);
+        Collection<DataFileReader> files = new HashSet<>(filesToDelete);
         // remove files from index
         dataFiles.getAndUpdate(
                 currentFileList -> (currentFileList == null) ? null : currentFileList.withDeletedObjects(files));
+
+        if (metrics != null) {
+            metrics.updateFileMetricsOnDeletedFiles(filesToDelete);
+        }
+
         // now close and delete all the files
         for (final DataFileReader fileReader : files) {
             fileReader.close();
@@ -687,9 +692,9 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable, Met
         }
     }
 
-    void updateFileMetrics() {
+    void updateFileMetricsOnNewFile(DataFileReader reader) {
         if (metrics != null) {
-            metrics.updateFileMetrics();
+            metrics.updateFileMetricsOnNewFile(reader);
         }
     }
 

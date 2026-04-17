@@ -18,7 +18,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 5,
   "links": [],
   "panels": [
     {
@@ -55,6 +54,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -69,7 +69,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -81,8 +82,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 13,
-        "w": 24,
+        "h": 12,
+        "w": 12,
         "x": 0,
         "y": 0
       },
@@ -100,7 +101,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.2",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -155,6 +156,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -169,7 +171,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -182,10 +185,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 13,
-        "w": 24,
-        "x": 0,
-        "y": 13
+        "h": 12,
+        "w": 12,
+        "x": 12,
+        "y": 0
       },
       "id": 2,
       "options": {
@@ -201,7 +204,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.2",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -220,6 +223,213 @@
         }
       ],
       "title": "Files Size",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 5,
+      "interval": "3s",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum by (compaction_level) (\n  count_over_time(\n    {service_name=\"benchmark-logs\"}\n    |= `MERKLE_DB`\n    |~ `Finished writing (file|new compaction file)`\n    | pattern \"<_>store=<store>, items=<_>, size=<_>, compaction_level=<compaction_level>,\"\n    | store = `$Store`\n    | keep compaction_level\n    [$__range]\n  )\n)\n-\nsum by (compaction_level) (\n  sum_over_time(\n    {service_name=\"benchmark-logs\"}\n    |= `MERKLE_DB`\n    |~ `Deleted compacted files`\n    | pattern \"<_>store=<store>, compaction_level=<compaction_level>, count=<files_count>,\"\n    | store = `$Store`\n    | keep files_count, compaction_level\n    | unwrap files_count\n    [$__range]\n  )\n)",
+          "legendFormat": "level_{{compaction_level}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Files Count Logs",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineStyle": {
+              "fill": "solid"
+            },
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "decbytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 4,
+      "interval": "3s",
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "direction": "backward",
+          "editorMode": "code",
+          "expr": "sum by (compaction_level) (\n  sum_over_time(\n    {service_name=\"benchmark-logs\"}\n    |= `MERKLE_DB`\n    |~ `Finished writing (file|new compaction file)`\n    | pattern \"<_>store=<store>, items=<_>, size=<files_size>, compaction_level=<compaction_level>,\"\n    | store = `$Store`\n    | keep files_size, compaction_level\n    | unwrap files_size\n    [$__range]\n  )\n)\n-\nsum by (compaction_level) (\n  sum_over_time(\n    {service_name=\"benchmark-logs\"}\n    |= `MERKLE_DB`\n    |~ `Deleted compacted files`\n    | pattern \"<_>store=<store>, compaction_level=<compaction_level>, count=<_>, saved=<files_size>\"\n    | store = `$Store`\n    | keep files_size, compaction_level\n    | unwrap files_size\n    [$__range]\n  )\n)",
+          "legendFormat": "level_{{compaction_level}}",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Files Size Logs",
       "type": "timeseries"
     },
     {
@@ -256,6 +466,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": true,
             "stacking": {
               "group": "A",
@@ -270,7 +481,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": 0
               },
               {
                 "color": "red",
@@ -286,7 +498,7 @@
         "h": 13,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 23
       },
       "id": 3,
       "options": {
@@ -302,7 +514,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.0.2",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "datasource": {
@@ -325,7 +537,7 @@
     }
   ],
   "preload": false,
-  "schemaVersion": 41,
+  "schemaVersion": 42,
   "tags": [],
   "templating": {
     "list": [
@@ -345,6 +557,7 @@
         },
         "refresh": 1,
         "regex": "",
+        "regexApplyTo": "value",
         "type": "query"
       }
     ]
@@ -357,5 +570,6 @@
   "timezone": "browser",
   "title": "Store Files Stats",
   "uid": "c59526e9-9533-49aa-a932-c2f6ff064356",
-  "version": 1
+  "version": 1,
+  "weekStart": ""
 }
