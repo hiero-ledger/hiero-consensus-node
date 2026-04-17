@@ -4,6 +4,7 @@ package com.swirlds.benchmark.config;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import org.jspecify.annotations.NonNull;
 
 /**
  * Settings for the benchmarks
@@ -32,6 +33,7 @@ import com.swirlds.config.api.ConfigProperty;
  * @param csvAppend
  * 		Indicates whether statistics should be appended to the CSV file.
  */
+// spotless:off
 @ConfigData("benchmark")
 public record BenchmarkConfig(
         @ConfigProperty(defaultValue = "data") String benchmarkData,
@@ -45,6 +47,8 @@ public record BenchmarkConfig(
         @ConfigProperty(defaultValue = "3") int csvWriteFrequency,
         @ConfigProperty(defaultValue = "false") boolean csvAppend,
         @ConfigProperty(defaultValue = "sda") String deviceName) {
+
+    @NonNull
     public String toString() {
         return new ToStringBuilder(this)
                 .append("benchmarkData", benchmarkData)
@@ -61,3 +65,4 @@ public record BenchmarkConfig(
                 .toString();
     }
 }
+// spotless:on

@@ -358,7 +358,7 @@ public class DataFileCompactor {
                 if (allDataItemsProcessed) {
                     logger.info(
                             MERKLE_DB.getMarker(),
-                            "Deleted compacted files, store={}, compaction_level={}, count={}, saved={}",
+                            "Deleted compacted files. store={}, compaction_level={}, count={}, saved={}",
                             storeName,
                             filesToCompact.getFirst().getMetadata().getCompactionLevel(),
                             filesToCompact.size(),
@@ -373,9 +373,9 @@ public class DataFileCompactor {
                             MERKLE_DB.getMarker(),
                             "Some files to compact haven't been processed, they will be compacted later");
                 }
-                dataFileCollection.updateFileMetrics();
             } finally {
                 snapshotCompactionLock.unlock();
+                dataFileCollection.updateFileMetrics();
             }
         }
 
@@ -470,6 +470,7 @@ public class DataFileCompactor {
             compactionWasInProgress = true;
             compactionLevelInProgress = compactionWriter.getMetadata().getCompactionLevel();
             finishCurrentCompactionFile();
+            dataFileCollection.updateFileMetrics();
             // Don't start a new compaction file here, as it would be included to snapshots, but
             // it shouldn't, as it isn't fully written yet. Instead, a new file will be started
             // right after snapshot is taken, in resumeCompaction()

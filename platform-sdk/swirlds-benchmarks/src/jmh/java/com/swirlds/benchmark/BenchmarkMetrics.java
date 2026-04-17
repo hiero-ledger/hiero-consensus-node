@@ -9,7 +9,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
@@ -35,11 +34,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.metrics.FunctionGauge;
-import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
-import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
-import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
-import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.metrics.core.MetricRegistry;
 import org.hiero.metrics.core.MetricsBinder;
