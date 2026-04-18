@@ -12,6 +12,7 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.UnrecoverableKeyException;
@@ -20,6 +21,7 @@ import java.util.Collection;
 import java.util.List;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
@@ -52,6 +54,7 @@ public class TlsFactory implements SocketFactory {
     /**
      * Construct this object to create and receive TLS connections.
      * @param agrCert the TLS certificate to use
+     * @param sigCert the CA certificate that signed agrCert (for chain validation)
      * @param agrKey the private key corresponding to the public key in the certificate
      * @param peers the list of peers to allow connections with
      * @param selfId the id of this node
@@ -59,6 +62,7 @@ public class TlsFactory implements SocketFactory {
      */
     public TlsFactory(
             @NonNull final Certificate agrCert,
+            @NonNull final Certificate sigCert,
             @NonNull final PrivateKey agrKey,
             @NonNull final List<PeerInfo> peers,
             @NonNull final NodeId selfId,
@@ -66,9 +70,15 @@ public class TlsFactory implements SocketFactory {
             throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException {
         this.selfId = requireNonNull(selfId);
         this.configuration = requireNonNull(configuration);
-        this.keyManagerFactory = ConsensusCryptoUtils.createKeyManagerFactory(agrCert, agrKey, configuration);
-        this.trustManagerFactory = TrustManagerFactory.getInstance(CryptoConstants.TRUST_MANAGER_FACTORY_TYPE);
-        this.sslContext = SSLContext.getInstance(CryptoConstants.SSL_VERSION);
+        try {
+            this.keyManagerFactory =
+                    ConsensusCryptoUtils.createKeyManagerFactory(agrCert, sigCert, agrKey, configuration);
+            this.trustManagerFactory = TrustManagerFactory.getInstance(
+                    CryptoConstants.TRUST_MANAGER_FACTORY_TYPE, CryptoConstants.TRUST_MANAGER_FACTORY_PROVIDER);
+            this.sslContext = SSLContext.getInstance(CryptoConstants.SSL_VERSION, CryptoConstants.SSL_PROVIDER);
+        } catch (NoSuchProviderException e) {
+            throw new PlatformConstructionException("BCJSSE provider not available", e);
+        }
         this.nonDetRandom = ConsensusCryptoUtils.getNonDetRandom();
 
         reload(peers);
@@ -83,6 +93,10 @@ public class TlsFactory implements SocketFactory {
         serverSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
         serverSocket.setWantClientAuth(true);
         serverSocket.setNeedClientAuth(true);
+        final SSLParameters params = serverSocket.getSSLParameters();
+        params.setNamedGroups(CryptoConstants.TLS_NAMED_GROUPS);
+        params.setSignatureSchemes(CryptoConstants.TLS_SIGNATURE_SCHEMES);
+        serverSocket.setSSLParameters(params);
         final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
         final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
         SocketFactory.configureAndBind(selfId, serverSocket, socketConfig, gossipConfig, port);
@@ -101,6 +115,10 @@ public class TlsFactory implements SocketFactory {
             clientSocket.setEnabledCipherSuites(new String[] {CryptoConstants.TLS_SUITE});
             clientSocket.setWantClientAuth(true);
             clientSocket.setNeedClientAuth(true);
+            final SSLParameters params = clientSocket.getSSLParameters();
+            params.setNamedGroups(CryptoConstants.TLS_NAMED_GROUPS);
+            params.setSignatureSchemes(CryptoConstants.TLS_SIGNATURE_SCHEMES);
+            clientSocket.setSSLParameters(params);
             final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
             SocketFactory.configureAndConnect(clientSocket, socketConfig, hostname, port);
             clientSocket.startHandshake();

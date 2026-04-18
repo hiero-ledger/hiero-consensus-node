@@ -159,7 +159,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
         final IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
                 () -> new TlsFactory(
-                        mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
+                        mock(Certificate.class), mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
 
         final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
         final String assertionMessage =
@@ -176,7 +176,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
         final IllegalStateException exception = assertThrows(
                 IllegalStateException.class,
                 () -> new TlsFactory(
-                        mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
+                        mock(Certificate.class), mock(Certificate.class), mock(PrivateKey.class), List.of(), NodeId.of(0), configuration));
 
         final String expectedMessage = CryptoConfig_.KEYSTORE_PASSWORD + " must not be null or blank";
         final String assertionMessage =
