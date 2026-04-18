@@ -2,6 +2,7 @@
 package org.hiero.consensus.crypto.internal;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -45,6 +46,7 @@ public class JcaVerifier implements BytesSignatureVerifier {
         final String key = algorithm + '|' + provider + '|' + actual.getName();
         if (loggedCombos.add(key)) {
             logger.info(
+                    LogMarker.STARTUP.getMarker(),
                     "JcaVerifier: algorithm={} requestedProvider={} resolvedProvider={} version={} class={}",
                     algorithm,
                     provider,

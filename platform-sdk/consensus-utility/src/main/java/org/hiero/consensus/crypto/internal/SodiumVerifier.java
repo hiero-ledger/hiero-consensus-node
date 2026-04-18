@@ -2,6 +2,7 @@
 package org.hiero.consensus.crypto.internal;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,7 +27,9 @@ public class SodiumVerifier implements BytesSignatureVerifier {
      */
     public SodiumVerifier(@NonNull final PublicKey publicKey) {
         if (logged.compareAndSet(false, true)) {
-            logger.info("SodiumVerifier: algorithm=Ed25519 provider=native libsodium (non-JCA)");
+            logger.info(
+                    LogMarker.STARTUP.getMarker(),
+                    "SodiumVerifier: algorithm=Ed25519 provider=native libsodium (non-JCA)");
         }
         final byte[] encoded = publicKey.getEncoded();
         this.publicKey = new byte[32];

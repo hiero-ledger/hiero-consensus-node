@@ -4,6 +4,7 @@ package org.hiero.consensus.gossip.impl.network.connectivity;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -91,8 +92,8 @@ public class TlsFactory implements SocketFactory {
         }
         this.nonDetRandom = ConsensusCryptoUtils.getNonDetRandom();
 
-        logProviderDiagnostics();
         reload(peers);
+        logProviderDiagnostics();
     }
 
     private void logProviderDiagnostics() {
@@ -107,6 +108,7 @@ public class TlsFactory implements SocketFactory {
         final boolean protocolOk = expectedProtocol.equals(actualProtocol);
 
         logger.info(
+                LogMarker.STARTUP.getMarker(),
                 "TLS setup: SSLContext provider={} (expected={}), protocol={} (expected={}), KMF provider={}, TMF provider={}, supportedProtocols={}, cipher={}, namedGroups={}, signatureSchemes={}",
                 actualProvider,
                 expectedProvider,
@@ -121,6 +123,7 @@ public class TlsFactory implements SocketFactory {
 
         if (!providerOk || !protocolOk) {
             logger.error(
+                    LogMarker.ERROR.getMarker(),
                     "TLS setup mismatch: provider {} vs expected {}, protocol {} vs expected {}",
                     actualProvider,
                     expectedProvider,
@@ -135,7 +138,7 @@ public class TlsFactory implements SocketFactory {
             }
             providers.append(p.getName()).append(' ').append(p.getVersionStr());
         }
-        logger.info("Registered JCA providers (in order): {}", providers);
+        logger.info(LogMarker.STARTUP.getMarker(), "Registered JCA providers (in order): {}", providers);
     }
 
     /**
@@ -191,11 +194,20 @@ public class TlsFactory implements SocketFactory {
         final boolean tls13 = CryptoConstants.SSL_VERSION.equals(protocol);
         final boolean expectedCipher = CryptoConstants.TLS_SUITE.equals(cipher);
         if (tls13 && expectedCipher) {
-            logger.info("TLS handshake OK: negotiated protocol={}, cipher={}, peer={}",
-                    protocol, cipher, socket.getInetAddress());
+            logger.info(
+                    LogMarker.STARTUP.getMarker(),
+                    "TLS handshake OK: negotiated protocol={}, cipher={}, peer={}",
+                    protocol,
+                    cipher,
+                    socket.getInetAddress());
         } else {
-            logger.error("TLS handshake mismatch: negotiated protocol={} (expected {}), cipher={} (expected {})",
-                    protocol, CryptoConstants.SSL_VERSION, cipher, CryptoConstants.TLS_SUITE);
+            logger.error(
+                    LogMarker.ERROR.getMarker(),
+                    "TLS handshake mismatch: negotiated protocol={} (expected {}), cipher={} (expected {})",
+                    protocol,
+                    CryptoConstants.SSL_VERSION,
+                    cipher,
+                    CryptoConstants.TLS_SUITE);
         }
     }
 
