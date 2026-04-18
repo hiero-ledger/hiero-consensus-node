@@ -22,7 +22,17 @@ import org.hiero.sloth.fixtures.specs.SlothSpecs;
  */
 @SuppressWarnings("NewClassNamingConvention")
 @SlothSpecs(randomNodeIds = false)
-@ContainerSpecs(proxyEnabled = false)
+@ContainerSpecs(
+        proxyEnabled = false,
+        gcLogging = true,
+        jvmArgs = {
+                "-XX:+UseZGC",
+                "-XX:+ZGenerational",
+                "-XX:+AlwaysPreTouch",
+                "-XX:ConcGCThreads=4",
+                "-Xms4g",
+                "-Xmx4g"
+        })
 public class SignatureSchemeExperiment {
 
     private static final Logger log = LogManager.getLogger(SignatureSchemeExperiment.class);
