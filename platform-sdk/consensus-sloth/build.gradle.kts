@@ -21,6 +21,15 @@ testFixturesModuleInfo {
     runtimeOnly("io.grpc.netty.shaded")
 }
 
+// ACCP for performance experiments — loaded via reflection at runtime.
+// All platform classifiers so experiments work in Docker (Linux) and locally (macOS).
+dependencies {
+    testFixturesRuntimeOnly("software.amazon.cryptools:AmazonCorrettoCryptoProvider:2.5.0:linux-x86_64")
+    testFixturesRuntimeOnly("software.amazon.cryptools:AmazonCorrettoCryptoProvider:2.5.0:linux-aarch_64")
+    testFixturesRuntimeOnly("software.amazon.cryptools:AmazonCorrettoCryptoProvider:2.5.0:osx-aarch_64")
+    testFixturesRuntimeOnly("software.amazon.cryptools:AmazonCorrettoCryptoProvider:2.5.0:osx-x86_64")
+}
+
 tasks.testFixturesJar {
     inputs.files(configurations.testFixturesRuntimeClasspath)
     manifest { attributes("Main-Class" to "org.hiero.sloth.fixtures.container.docker.DockerMain") }

@@ -32,6 +32,18 @@ public final class SigningFactory {
             Map.of(SigningSchema.RSA, SigningImplementation.RSA_BC, SigningSchema.ED25519, ED25519_SODIUM));
 
     /**
+     * Override the default implementation for a signing schema. Useful for performance experiments
+     * where a different provider (e.g., ACCP) should be used for signing/verification.
+     *
+     * @param schema         the signing schema to override
+     * @param implementation the new implementation to use
+     */
+    public static void setDefaultImplementation(
+            @NonNull final SigningSchema schema, @NonNull final SigningImplementation implementation) {
+        defaultImplementations.put(schema, implementation);
+    }
+
+    /**
      * Generates a new key pair for the specified signing schema.
      *
      * @param signingSchema the signing schema

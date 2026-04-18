@@ -38,8 +38,36 @@ public final class DockerMain {
      * @throws InterruptedException if the server is interrupted while waiting for termination
      */
     public static void main(final String[] args) throws IOException, InterruptedException {
+        registerAccpIfAvailable();
         ControlProcessLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR));
         new DockerMain().startGrpcServer();
+    }
+
+    /**
+     * Registers the Amazon Corretto Crypto Provider (ACCP) at position 1 in the JCA provider chain,
+     * if available on the classpath. ACCP accelerates classical crypto operations (RSA, ECDH, AES-GCM)
+     * by delegating to AWS-LC native implementations. If ACCP is not on the classpath, this is a no-op.
+     */
+    private static void registerAccpIfAvailable() {
+        try {
+            final Class<?> accpClass =
+                    Class.forName("com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider");
+            final java.security.Provider accp =
+                    (java.security.Provider) accpClass.getField("INSTANCE").get(null);
+            java.security.Security.insertProviderAt(accp, 1);
+            System.out.println("ACCP registered: " + accp.getName() + " " + accp.getVersionStr());
+
+            // Override default signing implementations to use ACCP instead of BC/SunEC/Sodium
+            org.hiero.consensus.crypto.SigningFactory.setDefaultImplementation(
+                    org.hiero.consensus.crypto.SigningSchema.RSA,
+                    org.hiero.consensus.crypto.SigningImplementation.RSA_ACCP);
+            org.hiero.consensus.crypto.SigningFactory.setDefaultImplementation(
+                    org.hiero.consensus.crypto.SigningSchema.ED25519,
+                    org.hiero.consensus.crypto.SigningImplementation.ED25519_ACCP);
+            System.out.println("Signing implementations overridden to ACCP");
+        } catch (final Throwable t) {
+            // ACCP not on classpath — skip
+        }
     }
 
     /**

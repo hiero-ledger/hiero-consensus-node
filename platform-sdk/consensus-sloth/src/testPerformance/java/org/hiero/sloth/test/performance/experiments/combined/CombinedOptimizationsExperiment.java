@@ -6,7 +6,9 @@ import static org.hiero.sloth.test.performance.benchmark.ConsensusLayerBenchmark
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.Provider;
 import java.security.SecureRandom;
+import java.security.Security;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.crypto.KeyGeneratingException;
@@ -51,7 +53,7 @@ public class CombinedOptimizationsExperiment {
                     .withConfigValue("event.creation.period", "400us")
                     .withConfigValue("broadcast.enableBroadcast", true)
                     .withConfigValue("sync.pingPeriod", "100ms")
-                    .withConfigValue("modules.eventIntake", "org.hiero.consensus.event.intake.concurrent")
+                    //.withConfigValue("modules.eventIntake", "org.hiero.consensus.event.intake.concurrent")
                     .withConfigValue("sync.pingPeriod", "100ms");
 
             // Use ED25519 for faster signing
