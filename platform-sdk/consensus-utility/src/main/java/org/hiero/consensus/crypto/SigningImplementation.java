@@ -24,7 +24,15 @@ public enum SigningImplementation {
     /**
      * ED25519 implementation using the default JDK security provider.
      */
-    ED25519_SUN(SigningSchema.ED25519, "SunEC");
+    ED25519_SUN(SigningSchema.ED25519, "SunEC"),
+    /**
+     * RSA implementation using ACCP (Amazon Corretto Crypto Provider) backed by AWS-LC.
+     */
+    RSA_ACCP(RSA, "AmazonCorrettoCryptoProvider"),
+    /**
+     * ED25519 implementation using ACCP (Amazon Corretto Crypto Provider) backed by AWS-LC.
+     */
+    ED25519_ACCP(SigningSchema.ED25519, "AmazonCorrettoCryptoProvider");
 
     private final SigningSchema signingSchema;
     private final String provider;

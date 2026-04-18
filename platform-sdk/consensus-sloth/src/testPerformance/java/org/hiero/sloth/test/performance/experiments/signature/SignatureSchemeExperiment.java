@@ -27,13 +27,38 @@ public class SignatureSchemeExperiment {
 
     private static final Logger log = LogManager.getLogger(SignatureSchemeExperiment.class);
 
+    @Benchmark
+    void signatureSchemeRSA(@NonNull final TestEnvironment env) {
+        log.info("=== SignatureScheme Experiment: RSA ===");
+        runBenchmark(env, "signatureSchemeRSA", (network, params) -> {
+            network.withConfigValue("event.creation.maxOtherParents", params.numberOfNodes())
+                    .withConfigValue("event.creation.antiSelfishnessFactor", 8)
+                    .withConfigValue("event.creation.maxCreationRate", 0)
+                    .withConfigValue("event.creation.period", "400us")
+                    .withConfigValue("broadcast.enableBroadcast", true)
+                    //.withConfigValue("modules.eventIntake", "org.hiero.consensus.event.intake.concurrent")
+                    .withConfigValue("sync.pingPeriod", "100ms");
+
+        });
+    }
+
     /**
      * Test ED25519 signature scheme.
      */
     @Benchmark
     void signatureSchemeED25519(@NonNull final TestEnvironment env) {
         log.info("=== SignatureScheme Experiment: ED25519 ===");
-        runBenchmark(env, "signatureSchemeED25519", (network, _) -> {
+        runBenchmark(env, "signatureSchemeED25519", (network, params) -> {
+            network.withConfigValue("event.creation.maxOtherParents", params.numberOfNodes())
+                    .withConfigValue("event.creation.antiSelfishnessFactor", 8)
+                    .withConfigValue("event.creation.maxCreationRate", 0)
+                    .withConfigValue("event.creation.period", "400us")
+                    .withConfigValue("broadcast.enableBroadcast", true)
+                    .withConfigValue("sync.pingPeriod", "100ms")
+                    //.withConfigValue("modules.eventIntake", "org.hiero.consensus.event.intake.concurrent")
+                    .withConfigValue("sync.pingPeriod", "100ms");
+
+            // Use ED25519 for faster signing
             final SecureRandom secureRandom;
             try {
                 secureRandom = SecureRandom.getInstanceStrong();

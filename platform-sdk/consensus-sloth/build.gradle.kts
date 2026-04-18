@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.gradle.internal.os.OperatingSystem
 import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
 import org.gradlex.javamodule.dependencies.dsl.GradleOnlyDirectives
 
@@ -19,6 +20,48 @@ testFixturesModuleInfo {
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.grpc.netty.shaded")
+}
+
+// ACCP classifier jars are self-contained JPMS modules that all declare the same module
+// name (com.amazon.corretto.crypto.provider), so only ONE classifier can be on any given
+// module path. We have two targets:
+//   - test-worker JVM: host-matching classifier (selected at configure time)
+//   - Docker child JVM: always Linux, shipped into build/data/lib/ via copyDockerizedApp
+val hostAccpClassifier = run {
+    val os = OperatingSystem.current()
+    val arch = System.getProperty("os.arch").lowercase()
+    val isArm = arch == "aarch64" || arch == "arm64"
+    when {
+        os.isMacOsX && isArm -> "osx-aarch_64"
+        os.isMacOsX -> "osx-x86_64"
+        os.isLinux && isArm -> "linux-aarch_64"
+        os.isLinux -> "linux-x86_64"
+        else -> error("Unsupported host OS for ACCP: ${os.name} $arch")
+    }
+}
+
+// Docker classifier must match the container's CPU arch. Docker Desktop runs containers
+// in the host's native arch by default (arm64 on Apple Silicon, x86_64 elsewhere). Override
+// with -PaccpDockerClassifier=linux-x86_64 if you force qemu-emulated x86 on Apple Silicon.
+val dockerAccpClassifier: String = providers.gradleProperty("accpDockerClassifier").orNull
+    ?: when (System.getProperty("os.arch").lowercase()) {
+        "aarch64", "arm64" -> "linux-aarch_64"
+        else -> "linux-x86_64"
+    }
+
+// Separate resolvable configuration for the Docker bundle — decoupled from
+// testFixturesRuntimeClasspath so it can carry a different classifier.
+val accpDockerBundle by configurations.creating {
+    isCanBeResolved = true
+    isCanBeConsumed = false
+}
+
+dependencies {
+    // Test-worker JVM: host-matching classifier so ACCP's Loader finds the right native lib.
+    testFixturesRuntimeOnly("software.amazon.cryptools:AmazonCorrettoCryptoProvider:2.5.0:$hostAccpClassifier")
+
+    // Docker child JVM: matches the container's arch (auto-detected from host arch).
+    accpDockerBundle("software.amazon.cryptools:AmazonCorrettoCryptoProvider:2.5.0:$dockerAccpClassifier")
 }
 
 tasks.testFixturesJar {
@@ -43,7 +86,15 @@ tasks.register<Sync>("copyDockerizedApp") {
         from(tasks.testFixturesJar)
         rename { "DockerApp.jar" }
     }
-    into("lib") { from(configurations.testFixturesRuntimeClasspath) }
+    into("lib") {
+        // Everything from the runtime classpath EXCEPT the host-classifier ACCP jar —
+        // a macOS .dylib would not load inside the Linux container.
+        from(configurations.testFixturesRuntimeClasspath) {
+            exclude("AmazonCorrettoCryptoProvider-*.jar")
+        }
+        // Substitute in the Linux classifier for the container.
+        from(accpDockerBundle)
+    }
 }
 
 tasks.assemble { dependsOn("copyDockerizedApp") }

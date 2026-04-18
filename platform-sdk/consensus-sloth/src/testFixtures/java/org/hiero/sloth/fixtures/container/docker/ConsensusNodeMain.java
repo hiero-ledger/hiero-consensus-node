@@ -53,6 +53,7 @@ public class ConsensusNodeMain {
         final NodeId selfId = NodeId.of(id);
 
         DockerLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR), selfId);
+        registerAccpIfAvailable();
 
         final NodeCommunicationService nodeCommunicationService = new NodeCommunicationService(selfId);
 
@@ -73,6 +74,70 @@ public class ConsensusNodeMain {
             log.warn(STARTUP.getMarker(), "Interrupted while running the consensus node manager gRPC server", e);
             Thread.currentThread().interrupt();
             System.exit(-1);
+        }
+    }
+
+    /**
+     * Registers the Amazon Corretto Crypto Provider (ACCP) at position 1 in the JCA provider chain,
+     * if available on the classpath. ACCP accelerates classical crypto operations (RSA, ECDH, AES-GCM,
+     * HMAC, SHA) by delegating to AWS-LC native implementations. At position 1, SunJSSE picks up ACCP
+     * for the symmetric crypto inside TLS automatically. Signing defaults are also overridden so event
+     * signatures route through ACCP. No-op if ACCP is not on the classpath.
+     */
+    private static void registerAccpIfAvailable() {
+        try {
+            final Class<?> accpClass =
+                    Class.forName("com.amazon.corretto.crypto.provider.AmazonCorrettoCryptoProvider");
+            final java.security.Provider accp =
+                    (java.security.Provider) accpClass.getField("INSTANCE").get(null);
+            java.security.Security.insertProviderAt(accp, 1);
+            log.info(STARTUP.getMarker(), "ACCP registered: {} {}", accp.getName(), accp.getVersionStr());
+
+            // Diagnostic: print JVM version, total service count, all Signature services
+            // (unfiltered), and probe Ed25519 / EdDSA directly. ACCP gates Ed25519 on
+            // Utils.getJavaVersion() >= 15, but the registration may also be conditioned on
+            // self-test results or AWS-LC native capabilities.
+            log.info(
+                    STARTUP.getMarker(),
+                    "JVM java.specification.version='{}' java.version='{}'",
+                    System.getProperty("java.specification.version"),
+                    System.getProperty("java.version"));
+            final java.util.Set<java.security.Provider.Service> services = accp.getServices();
+            log.info(STARTUP.getMarker(), "ACCP getServices().size() = {}", services.size());
+            services.stream()
+                    .sorted(java.util.Comparator.comparing(
+                            (java.security.Provider.Service s) -> s.getType() + "." + s.getAlgorithm()))
+                    .forEach(s -> log.info(
+                            STARTUP.getMarker(), "ACCP service: {}.{}", s.getType(), s.getAlgorithm()));
+            for (final String[] probe : new String[][] {
+                    {"Signature", "Ed25519"},
+                    {"Signature", "EdDSA"},
+                    {"Signature", "Ed25519ph"},
+                    {"Signature", "RSASSA-PSS"},
+                    {"KeyFactory", "Ed25519"},
+                    {"KeyFactory", "EdDSA"},
+                    {"KeyPairGenerator", "Ed25519"},
+                    {"KeyPairGenerator", "EdDSA"}
+            }) {
+                final java.security.Provider.Service svc = accp.getService(probe[0], probe[1]);
+                log.info(STARTUP.getMarker(), "ACCP probe {}.{} -> {}", probe[0], probe[1], svc);
+            }
+
+            org.hiero.consensus.crypto.SigningFactory.setDefaultImplementation(
+                    org.hiero.consensus.crypto.SigningSchema.RSA,
+                    org.hiero.consensus.crypto.SigningImplementation.RSA_ACCP);
+            org.hiero.consensus.crypto.SigningFactory.setDefaultImplementation(
+                    org.hiero.consensus.crypto.SigningSchema.ED25519,
+                    org.hiero.consensus.crypto.SigningImplementation.ED25519_ACCP);
+            log.info(
+                    STARTUP.getMarker(),
+                    "Signing override applied: RSA -> RSA_ACCP, ED25519 -> ED25519_ACCP");
+        } catch (final Throwable t) {
+            log.warn(
+                    STARTUP.getMarker(),
+                    "ACCP registration skipped: {}: {}",
+                    t.getClass().getName(),
+                    t.getMessage());
         }
     }
 

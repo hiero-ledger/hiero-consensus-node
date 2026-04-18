@@ -32,6 +32,33 @@ public final class SigningFactory {
             Map.of(SigningSchema.RSA, SigningImplementation.RSA_BC, SigningSchema.ED25519, ED25519_SODIUM));
 
     /**
+     * Tracks whether a default-reading signer/verifier has been created. Once true, reconfiguration
+     * of the defaults via {@link #setDefaultImplementation} is rejected — the concern being that a
+     * stale default was already observed by some caller, which would silently bypass the new default.
+     */
+    private static volatile boolean used = false;
+
+    /**
+     * Override the default implementation for a signing schema. Useful for performance experiments
+     * where a different provider (e.g., ACCP) should be used for signing/verification.
+     * <p>
+     * Must be called before any default-reading signer or verifier is created; otherwise throws.
+     *
+     * @param schema         the signing schema to override
+     * @param implementation the new implementation to use
+     * @throws IllegalStateException if a default-reading signer/verifier was already created
+     */
+    public static void setDefaultImplementation(
+            @NonNull final SigningSchema schema, @NonNull final SigningImplementation implementation) {
+        if (used) {
+            throw new IllegalStateException(
+                    "setDefaultImplementation called after a default-reading signer or verifier was already created"
+                            + " — registration must happen earlier in JVM startup");
+        }
+        defaultImplementations.put(schema, implementation);
+    }
+
+    /**
      * Generates a new key pair for the specified signing schema.
      *
      * @param signingSchema the signing schema
@@ -57,6 +84,7 @@ public final class SigningFactory {
      * @return the signer
      */
     public static @NonNull BytesSigner createSigner(@NonNull final KeyPair keyPair) {
+        used = true;
         final SigningImplementation implementation =
                 defaultImplementations.get(SigningSchema.fromKeyType(keyPair.getPrivate()));
         if (implementation == null) {
@@ -89,6 +117,7 @@ public final class SigningFactory {
      * @return the verifier
      */
     public static @NonNull BytesSignatureVerifier createVerifier(@NonNull final PublicKey publicKey) {
+        used = true;
         final SigningImplementation implementation = defaultImplementations.get(SigningSchema.fromKeyType(publicKey));
         if (implementation == null) {
             throw new IllegalArgumentException("No implementation for key type: " + publicKey.getAlgorithm());
