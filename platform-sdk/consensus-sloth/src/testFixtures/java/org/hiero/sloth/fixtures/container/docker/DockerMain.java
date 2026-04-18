@@ -8,6 +8,8 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.sloth.fixtures.container.docker.logging.ControlProcessLogConfigBuilder;
 
 /**
@@ -17,6 +19,8 @@ import org.hiero.sloth.fixtures.container.docker.logging.ControlProcessLogConfig
  * </p>
  */
 public final class DockerMain {
+
+    private static final Logger logger = LogManager.getLogger(DockerMain.class);
 
     /** The underlying gRPC server instance. */
     private final Server grpcServer;
@@ -38,8 +42,8 @@ public final class DockerMain {
      * @throws InterruptedException if the server is interrupted while waiting for termination
      */
     public static void main(final String[] args) throws IOException, InterruptedException {
-        registerAccpIfAvailable();
         ControlProcessLogConfigBuilder.configure(Path.of(CONTAINER_APP_WORKING_DIR));
+        registerAccpIfAvailable();
         new DockerMain().startGrpcServer();
     }
 
@@ -55,18 +59,17 @@ public final class DockerMain {
             final java.security.Provider accp =
                     (java.security.Provider) accpClass.getField("INSTANCE").get(null);
             java.security.Security.insertProviderAt(accp, 1);
-            System.out.println("ACCP registered: " + accp.getName() + " " + accp.getVersionStr());
+            logger.info("ACCP registered: {} {}", accp.getName(), accp.getVersionStr());
 
-            // Override default signing implementations to use ACCP instead of BC/SunEC/Sodium
+            // Override RSA to ACCP. Ed25519 intentionally left on the JDK default while we
+            // isolate whether ACCP's Ed25519 path is the source of the regression observed
+            // in the combinedAllOptimizations benchmark.
             org.hiero.consensus.crypto.SigningFactory.setDefaultImplementation(
                     org.hiero.consensus.crypto.SigningSchema.RSA,
                     org.hiero.consensus.crypto.SigningImplementation.RSA_ACCP);
-            org.hiero.consensus.crypto.SigningFactory.setDefaultImplementation(
-                    org.hiero.consensus.crypto.SigningSchema.ED25519,
-                    org.hiero.consensus.crypto.SigningImplementation.ED25519_ACCP);
-            System.out.println("Signing implementations overridden to ACCP");
+            logger.info("Signing override applied: RSA -> RSA_ACCP; ED25519 left on JDK default");
         } catch (final Throwable t) {
-            // ACCP not on classpath — skip
+            logger.warn("ACCP registration skipped: {}: {}", t.getClass().getName(), t.getMessage());
         }
     }
 
