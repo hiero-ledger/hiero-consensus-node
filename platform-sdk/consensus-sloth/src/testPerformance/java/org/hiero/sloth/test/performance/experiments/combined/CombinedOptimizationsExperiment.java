@@ -30,8 +30,8 @@ import org.hiero.sloth.fixtures.specs.SlothSpecs;
             "-XX:+ZGenerational",
             "-XX:+AlwaysPreTouch",
             "-XX:ConcGCThreads=4",
-            "-Xms16g",
-            "-Xmx16g"
+            "-Xms4g",
+            "-Xmx4g"
         })
 public class CombinedOptimizationsExperiment {
 
@@ -43,7 +43,7 @@ public class CombinedOptimizationsExperiment {
     @Benchmark
     void combinedAllOptimizations(@NonNull final TestEnvironment env) {
         log.info("=== Combined Experiment: All Optimizations ===");
-        runBenchmark(env, "combinedAllOptimizations", true, (network, params) -> {
+        runBenchmark(env, "combinedAllOptimizations", false, (network, params) -> {
             // Apply all config optimizations
             network.withConfigValue("event.creation.maxOtherParents", params.numberOfNodes())
                     .withConfigValue("event.creation.antiSelfishnessFactor", 8)
@@ -51,7 +51,7 @@ public class CombinedOptimizationsExperiment {
                     .withConfigValue("event.creation.period", "400us")
                     .withConfigValue("broadcast.enableBroadcast", true)
                     .withConfigValue("sync.pingPeriod", "100ms")
-                    .withConfigValue("modules.eventIntake", "org.hiero.consensus.event.intake.concurrent")
+                    //.withConfigValue("modules.eventIntake", "org.hiero.consensus.event.intake.concurrent")
                     .withConfigValue("sync.pingPeriod", "100ms");
 
             // Use ED25519 for faster signing
