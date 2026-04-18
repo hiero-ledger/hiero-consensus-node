@@ -6,9 +6,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.SignatureException;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.base.crypto.CryptographyException;
 
@@ -16,6 +21,9 @@ import org.hiero.base.crypto.CryptographyException;
  * JCA-based implementation of {@link BytesSignatureVerifier}.
  */
 public class JcaVerifier implements BytesSignatureVerifier {
+    private static final Logger logger = LogManager.getLogger(JcaVerifier.class);
+    private static final Set<String> loggedCombos = ConcurrentHashMap.newKeySet();
+
     private final Signature verifier;
 
     /**
@@ -32,6 +40,17 @@ public class JcaVerifier implements BytesSignatureVerifier {
             verifier.initVerify(publicKey);
         } catch (final NoSuchAlgorithmException | NoSuchProviderException | InvalidKeyException e) {
             throw new CryptographyException(e);
+        }
+        final Provider actual = verifier.getProvider();
+        final String key = algorithm + '|' + provider + '|' + actual.getName();
+        if (loggedCombos.add(key)) {
+            logger.info(
+                    "JcaVerifier: algorithm={} requestedProvider={} resolvedProvider={} version={} class={}",
+                    algorithm,
+                    provider,
+                    actual.getName(),
+                    actual.getVersionStr(),
+                    actual.getClass().getName());
         }
     }
 

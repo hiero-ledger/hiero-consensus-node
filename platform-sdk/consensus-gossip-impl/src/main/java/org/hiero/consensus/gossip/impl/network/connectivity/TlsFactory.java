@@ -14,19 +14,26 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.SecureRandom;
+import java.security.Security;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.exceptions.PlatformConstructionException;
@@ -40,6 +47,9 @@ import org.hiero.consensus.model.node.NodeId;
  * used to create and receive TLS connections, based on the given trustStore
  */
 public class TlsFactory implements SocketFactory {
+
+    private static final Logger logger = LogManager.getLogger(TlsFactory.class);
+    private static final AtomicBoolean handshakeDiagLogged = new AtomicBoolean(false);
 
     private SSLServerSocketFactory sslServerSocketFactory;
     private SSLSocketFactory sslSocketFactory;
@@ -81,7 +91,51 @@ public class TlsFactory implements SocketFactory {
         }
         this.nonDetRandom = ConsensusCryptoUtils.getNonDetRandom();
 
+        logProviderDiagnostics();
         reload(peers);
+    }
+
+    private void logProviderDiagnostics() {
+        final String expectedProvider = CryptoConstants.SSL_PROVIDER;
+        final String expectedProtocol = CryptoConstants.SSL_VERSION;
+        final String actualProvider = sslContext.getProvider().getName();
+        final String actualProtocol = sslContext.getProtocol();
+        final String kmfProvider = keyManagerFactory.getProvider().getName();
+        final String tmfProvider = trustManagerFactory.getProvider().getName();
+        final String[] supportedProtocols = sslContext.getSupportedSSLParameters().getProtocols();
+        final boolean providerOk = expectedProvider.equals(actualProvider);
+        final boolean protocolOk = expectedProtocol.equals(actualProtocol);
+
+        logger.info(
+                "TLS setup: SSLContext provider={} (expected={}), protocol={} (expected={}), KMF provider={}, TMF provider={}, supportedProtocols={}, cipher={}, namedGroups={}, signatureSchemes={}",
+                actualProvider,
+                expectedProvider,
+                actualProtocol,
+                expectedProtocol,
+                kmfProvider,
+                tmfProvider,
+                Arrays.toString(supportedProtocols),
+                CryptoConstants.TLS_SUITE,
+                Arrays.toString(CryptoConstants.TLS_NAMED_GROUPS),
+                Arrays.toString(CryptoConstants.TLS_SIGNATURE_SCHEMES));
+
+        if (!providerOk || !protocolOk) {
+            logger.error(
+                    "TLS setup mismatch: provider {} vs expected {}, protocol {} vs expected {}",
+                    actualProvider,
+                    expectedProvider,
+                    actualProtocol,
+                    expectedProtocol);
+        }
+
+        final StringBuilder providers = new StringBuilder();
+        for (final Provider p : Security.getProviders()) {
+            if (providers.length() > 0) {
+                providers.append(", ");
+            }
+            providers.append(p.getName()).append(' ').append(p.getVersionStr());
+        }
+        logger.info("Registered JCA providers (in order): {}", providers);
     }
 
     /**
@@ -122,7 +176,26 @@ public class TlsFactory implements SocketFactory {
             final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
             SocketFactory.configureAndConnect(clientSocket, socketConfig, hostname, port);
             clientSocket.startHandshake();
+            logHandshakeOnce(clientSocket);
             return clientSocket;
+        }
+    }
+
+    private static void logHandshakeOnce(@NonNull final SSLSocket socket) {
+        if (!handshakeDiagLogged.compareAndSet(false, true)) {
+            return;
+        }
+        final SSLSession session = socket.getSession();
+        final String protocol = session.getProtocol();
+        final String cipher = session.getCipherSuite();
+        final boolean tls13 = CryptoConstants.SSL_VERSION.equals(protocol);
+        final boolean expectedCipher = CryptoConstants.TLS_SUITE.equals(cipher);
+        if (tls13 && expectedCipher) {
+            logger.info("TLS handshake OK: negotiated protocol={}, cipher={}, peer={}",
+                    protocol, cipher, socket.getInetAddress());
+        } else {
+            logger.error("TLS handshake mismatch: negotiated protocol={} (expected {}), cipher={} (expected {})",
+                    protocol, CryptoConstants.SSL_VERSION, cipher, CryptoConstants.TLS_SUITE);
         }
     }
 

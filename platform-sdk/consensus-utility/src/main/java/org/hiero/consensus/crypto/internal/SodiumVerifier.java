@@ -4,6 +4,9 @@ package org.hiero.consensus.crypto.internal;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.BytesSignatureVerifier;
 
 /**
@@ -11,6 +14,9 @@ import org.hiero.base.crypto.BytesSignatureVerifier;
  * algorithm.
  */
 public class SodiumVerifier implements BytesSignatureVerifier {
+    private static final Logger logger = LogManager.getLogger(SodiumVerifier.class);
+    private static final AtomicBoolean logged = new AtomicBoolean(false);
+
     private final byte[] publicKey;
 
     /**
@@ -19,6 +25,9 @@ public class SodiumVerifier implements BytesSignatureVerifier {
      * @param publicKey the Ed25519 PublicKey to use for signature verification
      */
     public SodiumVerifier(@NonNull final PublicKey publicKey) {
+        if (logged.compareAndSet(false, true)) {
+            logger.info("SodiumVerifier: algorithm=Ed25519 provider=native libsodium (non-JCA)");
+        }
         final byte[] encoded = publicKey.getEncoded();
         this.publicKey = new byte[32];
         // Extract 32-byte raw public key from X.509 encoded public key
