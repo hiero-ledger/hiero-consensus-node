@@ -130,7 +130,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
 
                             final var newlyLoggedGaps = index.addAndGetNewGaps(entry.blockNumber());
                             for (final var gap : newlyLoggedGaps) {
-                                logger.warn(
+                                logger.info(
                                         "Wrapped record hashes file has a gap: missing record blocks {}..{} (observed range {}..{})",
                                         gap.startInclusive(),
                                         gap.endInclusive(),
@@ -212,7 +212,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
         if (index.highestBlock() >= 0) {
             final var initGaps = index.addAndGetNewGaps(index.highestBlock());
             for (final var gap : initGaps) {
-                logger.warn(
+                logger.info(
                         "Wrapped record hashes file has a gap: missing record blocks {}..{} (observed range {}..{})",
                         gap.startInclusive(),
                         gap.endInclusive(),

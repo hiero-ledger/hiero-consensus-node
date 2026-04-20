@@ -80,13 +80,13 @@ env:
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract
-  #        20467  20832         12407          7817
+  #        25776  30484         14618           8839
   #-15%
-  #        17397   1707         10545          6644
-  MinNFTscore: 10545
-  MinHCSLoadTest: 1707
-  MinCryptoTransferLoadTest: 17397
-  MinSmartContractLoadTest: 6644
+  #        21909  25911         12425           7513
+  MinNFTscore: 12425
+  MinHCSLoadTest: 25911
+  MinCryptoTransferLoadTest: 21909
+  MinSmartContractLoadTest: 7513
   ReconnectExitCode: 0
   ValidatorExitCode: 0
 

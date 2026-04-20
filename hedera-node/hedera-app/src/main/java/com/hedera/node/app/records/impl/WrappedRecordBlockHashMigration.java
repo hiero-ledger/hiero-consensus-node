@@ -102,7 +102,7 @@ public class WrappedRecordBlockHashMigration {
             throws Exception {
         // Check if jumpstart config is populated (blockNum defaults to -1 when unconfigured)
         if (jumpstartConfig.blockNum() < 0) {
-            log.warn("No jumpstart config populated (blockNum={}). {}", jumpstartConfig.blockNum(), RESUME_MESSAGE);
+            log.info("No jumpstart config populated (blockNum={}). {}", jumpstartConfig.blockNum(), RESUME_MESSAGE);
             return;
         }
 

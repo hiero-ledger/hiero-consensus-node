@@ -468,12 +468,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             enableBackgroundCompaction();
         }
 
-        chunkStoreScanner =
-                new GarbageScanner(idToDiskLocationHashChunks, hashChunkStore.getFileCollection(), ID_TO_HASH_CHUNK);
-        pathToKeyValueStoreScanner =
-                new GarbageScanner(pathToDiskLocationLeafNodes, keyValueStore.getFileCollection(), PATH_TO_KEY_VALUE);
-        objectKeyToPathScanner = new GarbageScanner(
-                keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), OBJECT_KEY_TO_PATH, true);
+        chunkStoreScanner = new GarbageScanner(idToDiskLocationHashChunks, hashChunkStore.getFileCollection());
+        pathToKeyValueStoreScanner = new GarbageScanner(pathToDiskLocationLeafNodes, keyValueStore.getFileCollection());
+        objectKeyToPathScanner =
+                new GarbageScanner(keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), true);
         COUNT_OF_OPEN_DATABASES.increment();
         logger.info(
                 MERKLE_DB.getMarker(),
@@ -1256,7 +1254,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     DataFileCompactor newHashChunkStoreCompactor() {
         return new DataFileCompactor(
-                tableName + "_" + ID_TO_HASH_CHUNK,
                 hashChunkStore.getFileCollection(),
                 idToDiskLocationHashChunks,
                 statisticsUpdater::setHashesStoreCompactionTimeMs,
@@ -1273,7 +1270,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     DataFileCompactor newKeyValueStoreCompactor() {
         return new DataFileCompactor(
-                tableName + "_" + PATH_TO_KEY_VALUE,
                 keyValueStore.getFileCollection(),
                 pathToDiskLocationLeafNodes,
                 statisticsUpdater::setLeavesStoreCompactionTimeMs,
@@ -1290,7 +1286,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     DataFileCompactor newKeyToPathCompactor() {
         return new DataFileCompactor(
-                tableName + "_" + OBJECT_KEY_TO_PATH,
                 keyToPath.getFileCollection(),
                 keyToPath.getBucketIndexToBucketLocation(),
                 statisticsUpdater::setLeafKeysStoreCompactionTimeMs,
