@@ -278,6 +278,13 @@ tasks.register<Test>("testSubprocess") {
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { prCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
+
     val ciTagExpression =
         gradle.startParameter.taskNames
             .stream()
@@ -410,6 +417,13 @@ tasks.register<Test>("testSubprocessConcurrent") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { prCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
 
     val ciTagExpression =
         gradle.startParameter.taskNames
@@ -550,6 +564,13 @@ tasks.register<Test>("testRemote") {
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { remoteCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
+
     systemProperty("hapi.spec.remote", "true")
     // Support overriding a single remote target network for all executing specs
     System.getenv("REMOTE_TARGET")?.let { systemProperty("hapi.spec.nodes.remoteYml", it) }
@@ -646,6 +667,13 @@ tasks.register<Test>("testEmbedded") {
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
 
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { prEmbeddedCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
+
     val ciTagExpression =
         gradle.startParameter.taskNames
             .stream()
@@ -706,6 +734,13 @@ tasks.register<Test>("testRepeatable") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
     outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+
+    // Isolate each subtask's working directory so logs are not overwritten
+    val subtaskName =
+        gradle.startParameter.taskNames.firstOrNull { prRepeatableCheckTags.containsKey(it) } ?: ""
+    if (subtaskName.isNotBlank()) {
+        systemProperty("hapi.spec.subtask.name", subtaskName)
+    }
 
     val ciTagExpression =
         gradle.startParameter.taskNames
