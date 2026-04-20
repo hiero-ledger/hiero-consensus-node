@@ -57,7 +57,7 @@ LANG=C.utf8
 APP_HOME=/opt/hgcapp/services-hedera/HapiApp2.0
 JAVA_CLASS_PATH=data/lib/*:data/apps/*
 JAVA_OPTS="-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=14 -XX:ZMarkStackSpaceLimit=16g \
--XX:MaxDirectMemorySize=64g \
+-XX:MaxDirectMemorySize=1g \
 -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log \
 --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
 JAVA_HOME=/usr/local/java
