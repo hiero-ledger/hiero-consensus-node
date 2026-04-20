@@ -937,7 +937,7 @@ jobs:
   hapi-tests-atomic-batch:
     name: "HAPI Tests (Atomic Batch)"
     if: ${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}
-    runs-on: hl-cn-hapi-lin-lg
+    runs-on: hl-cn-hapi-lin-xl
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
