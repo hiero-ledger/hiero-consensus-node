@@ -181,10 +181,6 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     }
 
     protected void verifyMap(long[] map, VirtualMap virtualMap) {
-        if (!verify) {
-            return;
-        }
-
         long start = System.currentTimeMillis();
         final AtomicInteger index = new AtomicInteger(0);
         final AtomicInteger countGood = new AtomicInteger(0);

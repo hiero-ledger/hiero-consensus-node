@@ -61,7 +61,9 @@ public class VirtualMapEditBench extends VirtualMapBaseBench {
     protected void onInvocationTearDown() throws Exception {
         if (virtualMap != null) {
             final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
-            verifyMap(verificationMap, finalMap);
+            if (verify) {
+                verifyMap(verificationMap, finalMap);
+            }
             finalMap.release();
             virtualMap = null;
         }

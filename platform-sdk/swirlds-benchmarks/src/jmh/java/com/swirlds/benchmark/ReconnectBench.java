@@ -171,7 +171,9 @@ public class ReconnectBench extends VirtualMapBaseBench {
      */
     @Override
     protected void onInvocationTearDown() throws Exception {
-        verifyMap(teacherData, reconnectedMap);
+        if (verify) {
+            verifyMap(teacherData, reconnectedMap);
+        }
 
         reconnectedMap.release();
 
