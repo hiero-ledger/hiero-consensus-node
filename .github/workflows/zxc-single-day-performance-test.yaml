@@ -84,15 +84,15 @@ env:
   #Thresholds for performance
   #benchmarks
   #CryptoTransfer   HCS   NftTransfer SmartContract HeliSwap CryptoBenchMerkleDb
-  #         20398 23374         12078          7000     1187               44564
+  #         21981 28855         13249          7192     1337               73905
   #-15%
-  #         17338 19867         10266          5950     1008               42336
-  MinNFTscore: 10266
-  MinMerkleDBscore: 51147
-  MinHCSLoadTest: 19867
-  MinCryptoTransferLoadTest: 17338
-  MinHeliSwapLoadTest: 1008
-  MinSmartContractLoadTest: 5474
+  #         18683 24526         11261          6113     1136               62819
+  MinNFTscore: 11261
+  MinMerkleDBscore: 62819
+  MinHCSLoadTest: 24526
+  MinCryptoTransferLoadTest: 18683
+  MinHeliSwapLoadTest: 1136
+  MinSmartContractLoadTest: 6113
   ValidatorExitCode: 0
 
 jobs:
@@ -287,7 +287,7 @@ jobs:
 
       - name: Install Solo
         run: |
-          npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
+          npm install -g "@hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}"
 
           # verify the installation
           solo --version
@@ -478,8 +478,6 @@ jobs:
           benchmark.csvWriteFrequency,          10000
           benchmark.csvAppend,              true
           benchmark.deviceName,             md0
-          merkleDb.hashesRamToDiskThreshold,       134217728
-          merkleDb.compactionThreads,          1
           EOPROPF
 
           tar cvfz /tmp/SwirldsMerkleDB.tgz build/libs/swirlds-benchmarks-*-jmh.jar settings.txt
@@ -677,8 +675,8 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
 
-          echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
+          #echo "Truncating logs for next test..."
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
 
       - name: Start test
         run: |
@@ -1094,8 +1092,8 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
 
-          echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
+          #echo "Truncating logs for next test..."
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
 
       - name: Records logs of CryptoBenchMerkleDb
         run: |
@@ -1146,8 +1144,8 @@ jobs:
           gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
 
-          echo "Truncating logs for next test..."
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
+          #echo "Truncating logs for next test..."
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
 
   performance-HCSLoadTest:
     needs:
@@ -1177,23 +1175,9 @@ jobs:
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
-  performance-HeliSwapLoadTest:
-    needs:
-      - performance-CryptoTransferLoadTest
-    uses: ./.github/workflows/zxc-execute-performance-test.yaml
-    with:
-      test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ inputs.ref }}"
-      nlg-accounts: "${{ inputs.nlg-accounts }}"
-      nlg-test: "HeliSwapLoadTest"
-      nlg-time: "${{ inputs.nlg-time }}"
-      workspace: "${{ github.workspace }}"
-      gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
-      gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
-
   performance-SmartContractLoadTest:
     needs:
-      - performance-HeliSwapLoadTest
+      - performance-CryptoTransferLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
       test-asset: "${{ inputs.test-asset }}"
@@ -1205,12 +1189,26 @@ jobs:
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
 
+  performance-HeliSwapLoadTest:
+    needs:
+      - performance-SmartContractLoadTest
+    uses: ./.github/workflows/zxc-execute-performance-test.yaml
+    with:
+      test-asset: "${{ inputs.test-asset }}"
+      ref: "${{ inputs.ref }}"
+      nlg-accounts: "${{ inputs.nlg-accounts }}"
+      nlg-test: "HeliSwapLoadTest"
+      nlg-time: "${{ inputs.nlg-time }}"
+      workspace: "${{ github.workspace }}"
+      gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
+      gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+
   performance-post-test-validation:
     name: Consensus Node State Validator
     runs-on: hl-cn-sdpt-lin-lg
     needs:
       - performance-tests-start
-      - performance-SmartContractLoadTest
+      - performance-HeliSwapLoadTest
     outputs:
       ValidatorStatus: ${{ steps.validator-status.outputs.value }}
 

@@ -17,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.sloth.fixtures.Benchmark;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.Node;
+import org.hiero.sloth.fixtures.ProfilerEvent;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.TestEnvironment;
 import org.hiero.sloth.fixtures.TimeManager;
@@ -85,6 +86,26 @@ public class ConsensusLayerBenchmark {
             @NonNull final TestEnvironment env,
             @NonNull final String configName,
             @NonNull final NetworkConfigurator networkConfigurator) {
+        runBenchmark(env, configName, false, networkConfigurator);
+    }
+
+    /**
+     * Common benchmark execution logic with optional JFR profiling.
+     *
+     * <p>When {@code profilingEnabled} is {@code true}, JFR profiling is started on all nodes
+     * before the benchmark phase and stopped after it. The resulting {@code .jfr} files are saved
+     * to each node's output directory.
+     *
+     * @param env the test environment
+     * @param configName name of the configuration being tested
+     * @param profilingEnabled whether to enable JFR profiling during the benchmark phase
+     * @param networkConfigurator function to configure the network before adding nodes
+     */
+    public static void runBenchmark(
+            @NonNull final TestEnvironment env,
+            @NonNull final String configName,
+            final boolean profilingEnabled,
+            @NonNull final NetworkConfigurator networkConfigurator) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -125,6 +146,16 @@ public class ConsensusLayerBenchmark {
         nodes.parallelStream().forEach(Node::stopTransactionGeneration);
         log.info("[{}] Warm-up phase complete", configName);
 
+        // Start profiling on all nodes before the benchmark phase
+        if (profilingEnabled) {
+            log.info("[{}] Starting JFR profiling on all nodes...", configName);
+            nodes.parallelStream()
+                    .forEach(node -> node.startProfiling(
+                            configName + "-node-" + node.selfId().id() + ".jfr",
+                            ProfilerEvent.CPU,
+                            ProfilerEvent.ALLOCATION));
+        }
+
         // Benchmark phase: generate benchmark transactions on each node.
         log.info(
                 "[{}] Starting benchmark: generating BENCHMARK transactions at {} TPS per node for {}s...",
@@ -138,6 +169,13 @@ public class ConsensusLayerBenchmark {
                 .mapToLong(Node::stopTransactionGeneration)
                 .sum();
         log.info("[{}] Generated {} benchmark transactions in total", configName, totalGenerated);
+
+        // Stop profiling after the benchmark phase
+        if (profilingEnabled) {
+            log.info("[{}] Stopping JFR profiling on all nodes...", configName);
+            nodes.parallelStream().forEach(Node::stopProfiling);
+            log.info("[{}] JFR profiling stopped. Results saved to node output directories.", configName);
+        }
 
         // Wait for all transactions to reach consensus and be logged.
         timeManager.waitFor(params.collectionTime());

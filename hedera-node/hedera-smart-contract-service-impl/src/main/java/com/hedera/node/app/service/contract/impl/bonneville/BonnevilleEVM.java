@@ -6,6 +6,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.processors.*;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import java.math.BigInteger;
 import java.util.*;
@@ -199,6 +200,9 @@ public class BonnevilleEVM extends HEVM {
             throw new TODO("Failed validation");
         if(!(tracer instanceof ActionSidecarContentTracer scTracer) )
             throw new TODO("Only for ASCTracer");
+        if( !(frame.getWorldUpdater() instanceof ProxyWorldUpdater) )
+            throw new TODO("Only for ProxyWorldUpdater");
+
         // Top-level run-to-halt
         runToHalt(null, code, frame, scTracer);
     }

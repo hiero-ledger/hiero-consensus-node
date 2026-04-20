@@ -959,15 +959,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 leafCount);
     }
 
-    @Override
-    public void syncVotingMetadata(final boolean votingComplete, final long votingCompletionDeadlineBlockNumber) {
-        this.lastBlockInfo = this.lastBlockInfo
-                .copyBuilder()
-                .votingComplete(votingComplete)
-                .votingCompletionDeadlineBlockNumber(votingCompletionDeadlineBlockNumber)
-                .build();
-    }
-
     private boolean writeWrappedRecordFileBlockHashesToDisk() {
         return configProvider
                 .getConfiguration()

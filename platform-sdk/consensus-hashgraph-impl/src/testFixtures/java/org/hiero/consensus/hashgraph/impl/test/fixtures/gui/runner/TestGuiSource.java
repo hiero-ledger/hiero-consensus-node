@@ -2,18 +2,12 @@
 package org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -21,15 +15,12 @@ import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.BranchingEventSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.BranchedEventMetadata;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.GuiEventStorage;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.internal.hashgraph.util.StandardGuiSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 
@@ -38,7 +29,6 @@ public class TestGuiSource {
     private final HashgraphGuiSource guiSource;
     private ConsensusSnapshot savedSnapshot;
     private final GuiEventStorage eventStorage;
-    private final Map<GossipEvent, BranchedEventMetadata> eventsToBranchMetadata = new HashMap<>();
     private final OrphanBuffer orphanBuffer;
 
     /**
@@ -97,18 +87,9 @@ public class TestGuiSource {
                 .map(orphanBuffer::handleEvent)
                 .flatMap(Collection::stream)
                 .toList();
-        final Map<PlatformEvent, Integer> eventToBranchIndex = getEventToBranchIndex();
         for (final PlatformEvent event : events) {
-            if (!eventToBranchIndex.isEmpty() && eventToBranchIndex.containsKey(event)) {
-                final BranchedEventMetadata branchedEventMetadata =
-                        new BranchedEventMetadata(eventToBranchIndex.get(event), event.getNGen());
-                eventsToBranchMetadata.put(event.getGossipEvent(), branchedEventMetadata);
-            }
-
             eventStorage.handlePreconsensusEvent(event);
         }
-
-        eventStorage.setBranchedEventsMetadata(eventsToBranchMetadata);
     }
 
     private @NonNull JPanel controls() {
@@ -136,18 +117,9 @@ public class TestGuiSource {
                     .flatMap(Collection::stream)
                     .toList();
 
-            final Map<PlatformEvent, Integer> eventToBranchIndex = getEventToBranchIndex();
             for (final PlatformEvent event : events) {
-                if (!eventToBranchIndex.isEmpty() && eventToBranchIndex.containsKey(event)) {
-                    final BranchedEventMetadata branchedEventMetadata =
-                            new BranchedEventMetadata(eventToBranchIndex.get(event), event.getNGen());
-                    eventsToBranchMetadata.put(event.getGossipEvent(), branchedEventMetadata);
-                }
-
                 eventStorage.handlePreconsensusEvent(event);
             }
-            eventStorage.setBranchedEventsMetadata(eventsToBranchMetadata);
-
             updateFameDecidedBelow.run();
         });
         // Reset
@@ -216,39 +188,5 @@ public class TestGuiSource {
     @SuppressWarnings("unused") // useful for debugging
     GuiEventStorage getEventStorage() {
         return eventStorage;
-    }
-
-    /**
-     * Get a map between events and their branch index in case there are {@link BranchingEventSource instances}
-     * that produce branched events.
-     *
-     * @return the constructed map
-     */
-    private Map<PlatformEvent, Integer> getEventToBranchIndex() {
-        final Map<PlatformEvent, Integer> eventToBranchIndex = new HashMap<>();
-
-        if (eventProvider instanceof GeneratorEventProvider) {
-            final List<BranchingEventSource> branchingEventSources = new ArrayList<>();
-            for (final NodeId nodeId : guiSource.getRoster().rosterEntries().stream()
-                    .map(RosterEntry::nodeId)
-                    .map(NodeId::of)
-                    .toList()) {
-                if (((GeneratorEventProvider) eventProvider).getNodeSource(nodeId)
-                        instanceof BranchingEventSource branchingEventSource) {
-                    branchingEventSources.add(branchingEventSource);
-
-                    final List<LinkedList<PlatformEvent>> branches = branchingEventSource.getBranches();
-
-                    for (int i = 0; i < branches.size(); i++) {
-                        final List<PlatformEvent> branch = branches.get(i);
-                        for (final PlatformEvent event : branch) {
-                            eventToBranchIndex.put(event, i);
-                        }
-                    }
-                }
-            }
-        }
-
-        return eventToBranchIndex;
     }
 }

@@ -206,6 +206,12 @@ public class RecordsSuite {
                 uploadInitCode(contract),
                 contractCreate(contract),
                 waitUntilNextBlock().withBackgroundTraffic(true),
+                // Do NOT defer status resolution on the first call: if we do, the
+                // submission op returns before the tx has reached consensus, which
+                // means the subsequent waitUntilNextBlock() can observe the next
+                // block's marker file while this tx is still pending - so the tx
+                // can end up in the SAME block as the second call below, making
+                // the assertNotEquals on block.timestamp below flake
                 ethereumCall(contract, LOG_NOW)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -214,7 +220,6 @@ public class RecordsSuite {
                         .maxFeePerGas(50L)
                         .gasLimit(1_000_000L)
                         .via(firstBlock)
-                        .deferStatusResolution()
                         .hasKnownStatus(ResponseCodeEnum.SUCCESS),
                 // Make sure we submit the next transaction in the next block
                 waitUntilNextBlock().withBackgroundTraffic(true),

@@ -344,9 +344,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (writer == null) {
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
-            lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
             final var blockStreamInfo = blockStreamInfoFrom(state, HASH_OF_ZERO.equals(lastBlockHash));
+            lastUsedTime = blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
@@ -695,7 +695,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             eventIndex = 0;
         }
         if (fatalShutdownFuture != null) {
-            pendingBlocks.forEach(block -> log.fatal("Skipping incomplete block proof for block {}", block.number()));
+            // Flush all pending blocks to local disk for triage (e.g. ISS diagnosis)
+            // before abandoning their incomplete proofs
+            pendingBlocks.forEach(block -> {
+                log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
+                try {
+                    block.writer().flushPendingBlock(block.asPendingProof());
+                } catch (final Exception e) {
+                    log.fatal("Failed to flush pending block #{}", block.number(), e);
+                }
+            });
             if (writer != null) {
                 log.fatal("Prematurely closing block {}", blockNumber);
                 writer.closeCompleteBlock();

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams.assertions;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.timestampToInstant;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.BaseIdScreenedAssertion.baseFieldsMatch;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems.newVisibleItems;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.NodeStakeUpdate;
@@ -11,6 +12,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +91,14 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     @Nullable
     private AssertionError lastValidationError = null;
 
+    /**
+     * Consensus timestamps of items already processed, used to prevent
+     * duplicate delivery (e.g. when {@code retryExposingVia} in
+     * {@link com.hedera.services.bdd.junit.support.StreamFileAlterationListener}
+     * re-reads a record stream file after a listener exception).
+     */
+    private final Set<Instant> seenConsensusTimestamps = ConcurrentHashMap.newKeySet();
+
     private final SkipSynthItems skipSynthItems;
 
     public enum SkipSynthItems {
@@ -125,6 +135,10 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
     @Override
     public synchronized boolean isApplicableTo(@NonNull final RecordStreamItem item) {
         if (viewAll) {
+            final var consensusTime = timestampToInstant(item.getRecord().getConsensusTimestamp());
+            if (!seenConsensusTimestamps.add(consensusTime)) {
+                return true; // duplicate delivery, skip
+            }
             final var entry = RecordStreamEntry.from(item);
             final var isSynthItem = isSynthItem(entry);
             if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {
@@ -190,9 +204,10 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
                 validator.assertValid(spec, items);
                 lastValidationError = null;
                 return true;
-            } catch (final AssertionError e) {
+            } catch (final AssertionError | RuntimeException e) {
+                final var error = (e instanceof AssertionError ae) ? ae : new AssertionError(e.getMessage(), e);
                 stateSnapshotAtLastValidation = currentSnapshot;
-                lastValidationError = e;
+                lastValidationError = error;
                 if (withLogging) {
                     log.info("Validation not yet passing (items may still be arriving): {}", e.getMessage());
                 }
@@ -218,6 +233,12 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
                 continue;
             }
             if (baseFieldsMatch(maybeTxnId.get(), observedId)) {
+                // Guard against duplicate delivery (e.g. from retry in StreamFileAlterationListener)
+                // using the raw protobuf timestamp to avoid the cost of RecordStreamEntry.from()
+                final var consensusTime = timestampToInstant(item.getRecord().getConsensusTimestamp());
+                if (!seenConsensusTimestamps.add(consensusTime)) {
+                    return true; // already processed this item
+                }
                 final var entry = RecordStreamEntry.from(item);
                 final var isSynthItem = isSynthItem(entry);
                 if (skipSynthItems == SkipSynthItems.NO || !isSynthItem) {

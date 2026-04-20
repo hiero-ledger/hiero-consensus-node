@@ -16,8 +16,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAcco
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
@@ -83,7 +85,8 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
                             .logged(),
                     validateChargedUsdFromRecordWithTxnSize(
                             CRYPTO_CREATE_TXN_INNER_ID,
-                            txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(1L, txnSize),
+                            txnSize ->
+                                    expectedNetworkOnlyFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(CRYPTO_CREATE_TXN_INNER_ID, "0.0.4"));
         }
@@ -112,7 +115,8 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
                             .logged(),
                     validateChargedUsdFromRecordWithTxnSize(
                             CRYPTO_CREATE_TXN_INNER_ID,
-                            txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
+                            txnSize ->
+                                    expectedNetworkOnlyFeeUsd(Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(CRYPTO_CREATE_TXN_INNER_ID, "0.0.4"));
         }
@@ -140,7 +144,8 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
                             .logged(),
                     validateChargedUsdFromRecordWithTxnSize(
                             CRYPTO_CREATE_TXN_INNER_ID,
-                            txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
+                            txnSize ->
+                                    expectedNetworkOnlyFeeUsd(Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(CRYPTO_CREATE_TXN_INNER_ID, "0.0.4"));
         }
@@ -171,7 +176,8 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
                             .logged(),
                     validateChargedUsdFromRecordWithTxnSize(
                             CRYPTO_CREATE_TXN_INNER_ID,
-                            txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(1L, txnSize),
+                            txnSize ->
+                                    expectedNetworkOnlyFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(CRYPTO_CREATE_TXN_INNER_ID, "0.0.4"));
         }
@@ -204,7 +210,8 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
                             .logged(),
                     validateChargedUsdFromRecordWithTxnSize(
                             CRYPTO_CREATE_TXN_INNER_ID,
-                            txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
+                            txnSize ->
+                                    expectedNetworkOnlyFeeUsd(Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(CRYPTO_CREATE_TXN_INNER_ID, "0.0.4"));
         }
@@ -237,7 +244,8 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
                             .logged(),
                     validateChargedUsdFromRecordWithTxnSize(
                             CRYPTO_CREATE_TXN_INNER_ID,
-                            txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
+                            txnSize ->
+                                    expectedNetworkOnlyFeeUsd(Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(CRYPTO_CREATE_TXN_INNER_ID, "0.0.4"));
         }
@@ -268,7 +276,8 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
                             .logged(),
                     validateChargedUsdFromRecordWithTxnSize(
                             CRYPTO_CREATE_TXN_INNER_ID,
-                            txnSize -> expectedCryptoCreateNetworkFeeOnlyUsd(2L, txnSize),
+                            txnSize ->
+                                    expectedNetworkOnlyFeeUsd(Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(CRYPTO_CREATE_TXN_INNER_ID, "0.0.4"));
         }

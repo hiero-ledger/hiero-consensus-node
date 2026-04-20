@@ -26,11 +26,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoDeleteAllowanceFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -57,6 +60,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
+import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -249,12 +253,9 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
         @HapiTest
         @DisplayName("CryptoDeleteAllowance - txn above NODE_INCLUDED_BYTES - extra PROCESSING_BYTES fees charged")
         final Stream<DynamicTest> cryptoDeleteAllowanceAboveProcessingBytesThresholdExtrasCharged() {
-            final KeyShape largeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     newKeyNamed(SUPPLY_KEY),
-                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
@@ -271,6 +272,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                             .signedBy(PAYER, OWNER),
                     cryptoDeleteAllowance()
                             .addNftDeleteAllowance(OWNER, NFT_TOKEN, List.of(1L))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .payingWith(PAYER)
                             .signedBy(PAYER, OWNER)
                             .via(deleteAllowanceTxn),
@@ -296,15 +298,9 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
         @DisplayName(
                 "CryptoDeleteAllowance - very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
         final Stream<DynamicTest> cryptoDeleteAllowanceVeryLargeTxnJustBelow6KBExtraCharged() {
-            final KeyShape veryLargeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     newKeyNamed(SUPPLY_KEY),
-                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(55)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
@@ -321,6 +317,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                             .signedBy(PAYER, OWNER),
                     cryptoDeleteAllowance()
                             .addNftDeleteAllowance(OWNER, NFT_TOKEN, List.of(1L))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(55)))
                             .payingWith(PAYER)
                             .signedBy(PAYER, OWNER)
                             .via(deleteAllowanceTxn),
@@ -631,16 +628,9 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
             @HapiTest
             @DisplayName("CryptoDeleteAllowance - very large txn (above 6KB) - fails on ingest")
             final Stream<DynamicTest> cryptoDeleteAllowanceVeryLargeTxnAboveSixKBFailsOnIngest() {
-                final KeyShape veryLargeKeyShape = threshOf(
-                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
                 return hapiTest(
                         newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(71)),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
@@ -657,6 +647,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                                 .signedBy(OWNER),
                         cryptoDeleteAllowance()
                                 .addNftDeleteAllowance(OWNER, NFT_TOKEN, List.of(1L))
+                                .sigControl(forKey(PAYER_KEY, allOnSigControl(71)))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, OWNER)
                                 .via(deleteAllowanceTxn)
@@ -762,6 +753,43 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                                 deleteAllowanceTxn,
                                 txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                         SIGNATURES, 2L,
+                                        ALLOWANCES, 1L,
+                                        PROCESSING_BYTES, (long) txnSize)),
+                                0.1),
+                        validateChargedAccount(deleteAllowanceTxn, PAYER));
+            }
+
+            @HapiTest
+            @DisplayName("CryptoDeleteAllowance - non-existent owner fails on handle - full fees charged")
+            final Stream<DynamicTest> cryptoDeleteAllowanceNonExistentOwnerFailsOnHandle() {
+                return hapiTest(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(OWNER),
+                        // register a non-existent account ID in the registry
+                        withOpContext((spec, log) -> spec.registry()
+                                .saveAccountId(
+                                        "nonExistentOwner",
+                                        AccountID.newBuilder()
+                                                .setShardNum(0)
+                                                .setRealmNum(0)
+                                                .setAccountNum(9_999_999L)
+                                                .build())),
+                        cryptoDeleteAllowance()
+                                .addNftDeleteAllowance("nonExistentOwner", NFT_TOKEN, List.of(1L))
+                                .payingWith(PAYER)
+                                .signedBy(PAYER)
+                                .via(deleteAllowanceTxn)
+                                .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID),
+                        validateChargedUsdWithinWithTxnSize(
+                                deleteAllowanceTxn,
+                                txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
+                                        SIGNATURES, 1L,
                                         ALLOWANCES, 1L,
                                         PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
