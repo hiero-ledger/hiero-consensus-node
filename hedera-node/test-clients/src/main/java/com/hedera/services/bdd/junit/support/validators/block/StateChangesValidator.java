@@ -115,7 +115,7 @@ public class StateChangesValidator implements BlockStreamValidator {
      * The probability that the validator will verify an intermediate block proof; we always verify the first and
      * the last one that has an available block proof. (The blocks immediately preceding a freeze will not have proofs.)
      */
-    private static final double PROOF_VERIFICATION_PROB = 0.05;
+    private static final double PROOF_VERIFICATION_PROB = 0.50;
     /**
      * Must match the private constant in {@code com.hedera.cryptography.tss.TSS}.
      */
@@ -774,33 +774,81 @@ public class StateChangesValidator implements BlockStreamValidator {
                 return;
             }
             // TSS.verifyTSS() assumes target address book hash is always ledger id
-            if (historyLibrary == null || (!wrapsEnabled && proof.block() > 0)) {
-                // C.f. cases in BlockStreamManagerImpl.finishProofWithSignature(); cannot use the
-                // convenience API directly here since we don't have a chain-of-trust proof
+            final boolean useDirectHintsVerify = historyLibrary == null || (!wrapsEnabled && proof.block() > 0);
+            logger.info(
+                    "Block #{} sig verify: path={}, sigLen={}, vkLen={}, hintsSigLen={}, wrapsProofLen={}, "
+                            + "historyEnabled={}, wrapsEnabled={}",
+                    blockNumber,
+                    useDirectHintsVerify ? "HINTS_AGGREGATE" : "TSS",
+                    signature.length(),
+                    HintsLibraryImpl.VK_LENGTH,
+                    HINTS_SIGNATURE_LENGTH,
+                    COMPRESSED_WRAPS_PROOF_LENGTH,
+                    historyLibrary != null,
+                    wrapsEnabled);
+            if (useDirectHintsVerify) {
+                // Producer layouts that reach this branch (see BlockStreamManagerImpl.finishProofWithSignature):
+                //   - history disabled:                  vk || hintsSig
+                //   - history enabled, wraps disabled:   vk || hintsSig || aggregatedNodeSignatures
+                // In both cases the hintsSig is exactly HINTS_SIGNATURE_LENGTH bytes immediately after the vk.
+                if (signature.length() < HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH) {
+                    logger.error(
+                            "Block #{} sig too short for vk+hintsSig layout: sigLen={}, required>={}",
+                            blockNumber,
+                            signature.length(),
+                            HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH);
+                    Assertions.fail(() -> "Signature too short for vk+hintsSig layout (len=" + signature.length()
+                            + ") in proof (start round #" + firstRound + ") - " + proof);
+                }
+                final long trailerLen = signature.length() - HintsLibraryImpl.VK_LENGTH - HINTS_SIGNATURE_LENGTH;
+                final String layout = (trailerLen == 0)
+                        ? "vk+hintsSig"
+                        : ("vk+hintsSig+trailer(" + trailerLen + "B)");
+                logger.info(
+                        "Block #{} HINTS_AGGREGATE layout={} (trailerLen={})", blockNumber, layout, trailerLen);
                 final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
-                final var sig =
-                        signature.slice(HintsLibraryImpl.VK_LENGTH, signature.length() - HintsLibraryImpl.VK_LENGTH);
+                final var hintsSig = signature.slice(HintsLibraryImpl.VK_LENGTH, HINTS_SIGNATURE_LENGTH);
                 final boolean valid =
-                        hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
+                        hintsLibrary.verifyAggregate(hintsSig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
                 if (!valid) {
+                    logger.error(
+                            "Block #{} HINTS_AGGREGATE verify FAILED: layout={}, sigLen={}, firstRound={}",
+                            blockNumber,
+                            layout,
+                            signature.length(),
+                            firstRound);
                     Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
                 } else {
-                    logger.info("Verified signature on #{}", proof.block());
+                    logger.info("Verified signature on #{} via HINTS_AGGREGATE ({})", proof.block(), layout);
                 }
             } else {
                 requireNonNull(ledgerIdFromState);
                 final var usedCompressedWrapsProof = hasCompressedWrapsProof(signature);
+                logger.info(
+                        "Block #{} TSS verify: usedCompressedWrapsProof={}, ledgerIdLen={}",
+                        blockNumber,
+                        usedCompressedWrapsProof,
+                        ledgerIdFromState.length());
                 // Use convenience API to verify signature
                 final var valid = TSS.verifyTSS(
                         ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
                 if (!valid) {
                     final var details = invalidSigDetails(
                             ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
+                    logger.error(
+                            "Block #{} TSS verify FAILED: sigLen={}, firstRound={}, details={}",
+                            blockNumber,
+                            signature.length(),
+                            firstRound,
+                            details);
                     Assertions.fail(() -> "Invalid TSS signature in proof (start round #" + firstRound + " @ "
                             + asInstant(blockTimestamp) + "; best-guess---" + details + ") - " + proof);
                 }
                 observedCompressedWrapsProof |= usedCompressedWrapsProof;
-                logger.info("Verified signature on #{} via TSS", blockNumber);
+                logger.info(
+                        "Verified signature on #{} via TSS (compressedWraps={})",
+                        blockNumber,
+                        usedCompressedWrapsProof);
             }
             if (indirectProofsNeedVerification()) {
                 logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
