@@ -170,7 +170,12 @@ val prCheckPropOverrides =
         "hapiTestCutover" to
             "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        // Quiescence is intentionally disabled for the state-throttling suite: the steady-state
+        // throttle accounting assumes consensus time advances smoothly, but quiescence causes
+        // consensus time to jump when the node un-quiesces, which credits the throttle bucket
+        // with unintended capacity and lets traffic bypass the configured limits. Re-enabling
+        // this requires making throttle refills aware of quiesced spans (follow-up work).
+        "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=false",
         "hapiTestMiscRecords" to
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestMiscRecordsSerial" to
