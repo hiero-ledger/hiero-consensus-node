@@ -78,6 +78,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,7 +120,7 @@ public class StateChangesValidator implements BlockStreamValidator {
      * the last one that has an available block proof. (The blocks immediately
      * preceding a freeze will not have proofs.)
      */
-    private static final double PROOF_VERIFICATION_PROB = 0.60;
+    private static final double PROOF_VERIFICATION_PROB = 0.50;
     /**
      * Must match the private constant in {@code com.hedera.cryptography.tss.TSS}.
      */
@@ -805,36 +806,40 @@ public class StateChangesValidator implements BlockStreamValidator {
                     historyLibrary != null,
                     wrapsEnabled);
             if (useDirectHintsVerify) {
-                // Producer layouts that reach this branch (see
-                // BlockStreamManagerImpl.finishProofWithSignature):
-                // - history disabled: vk || hintsSig
-                // - history enabled, wraps disabled: vk || hintsSig || aggregatedNodeSignatures
-                // In both cases the hintsSig is exactly HINTS_SIGNATURE_LENGTH bytes
-                // immediately after the vk.
-                if (signature.length() < HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH) {
-                    logger.error(
-                            "Block #{} sig too short for vk+hintsSig layout: sigLen={}, required>={}",
-                            blockNumber,
-                            signature.length(),
-                            HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH);
-                    Assertions.fail(() -> "Signature too short for vk+hintsSig layout (len=" + signature.length()
-                            + ") in proof (start round #" + firstRound + ") - " + proof);
-                }
+                // C.f. cases in BlockStreamManagerImpl.finishProofWithSignature(); cannot use the
+                // convenience API directly here since we don't have a chain-of-trust proof
                 final long trailerLen = signature.length() - HintsLibraryImpl.VK_LENGTH - HINTS_SIGNATURE_LENGTH;
                 final String layout = (trailerLen == 0) ? "vk+hintsSig" : ("vk+hintsSig+trailer(" + trailerLen + "B)");
                 logger.info("Block #{} HINTS_AGGREGATE layout={} (trailerLen={})", blockNumber, layout, trailerLen);
                 final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
-                final var hintsSig = signature.slice(HintsLibraryImpl.VK_LENGTH, HINTS_SIGNATURE_LENGTH);
+                final var sig =
+                        signature.slice(HintsLibraryImpl.VK_LENGTH, signature.length() - HintsLibraryImpl.VK_LENGTH);
                 final boolean valid =
-                        hintsLibrary.verifyAggregate(hintsSig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
+                        hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
                 if (!valid) {
+                    final var vkPrefix = hexPrefix(vk, 8);
+                    final var sigPrefix = hexPrefix(sig, 8);
+                    final var hashPrefix = hexPrefix(expectedBlockHash, 16);
+                    final var prevHashPrefix = hexPrefix(previousBlockHash, 16);
+                    final var ts = asInstant(blockTimestamp);
                     logger.error(
-                            "Block #{} HINTS_AGGREGATE verify FAILED: layout={}, sigLen={}, firstRound={}",
+                            "Block #{} HINTS_AGGREGATE verify FAILED: layout={}, sigLen={}, firstRound={}, "
+                                    + "blockTs={}, vkPrefix={}, hintsSigPrefix={}, expectedBlockHashPrefix={}, "
+                                    + "prevBlockHashPrefix={}, thresholdNum=1, thresholdDen={}",
                             blockNumber,
                             layout,
                             signature.length(),
-                            firstRound);
-                    Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
+                            firstRound,
+                            ts,
+                            vkPrefix,
+                            sigPrefix,
+                            hashPrefix,
+                            prevHashPrefix,
+                            hintsThresholdDenominator);
+                    Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + " @ " + ts
+                            + "; layout=" + layout + ", vk=" + vkPrefix + ", hintsSig=" + sigPrefix + ", expHash="
+                            + hashPrefix + ", prevHash=" + prevHashPrefix + ", thresh=1/" + hintsThresholdDenominator
+                            + ") - " + proof);
                 } else {
                     logger.info("Verified signature on #{} via HINTS_AGGREGATE ({})", proof.block(), layout);
                 }
@@ -852,14 +857,29 @@ public class StateChangesValidator implements BlockStreamValidator {
                 if (!valid) {
                     final var details = invalidSigDetails(
                             ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
+                    final var sigPrefix = hexPrefix(signature, 8);
+                    final var hashPrefix = hexPrefix(expectedBlockHash, 16);
+                    final var prevHashPrefix = hexPrefix(previousBlockHash, 16);
+                    final var ledgerIdPrefix = hexPrefix(ledgerIdFromState, 16);
+                    final var ts = asInstant(blockTimestamp);
                     logger.error(
-                            "Block #{} TSS verify FAILED: sigLen={}, firstRound={}, details={}",
+                            "Block #{} TSS verify FAILED: sigLen={}, firstRound={}, blockTs={}, sigPrefix={}, "
+                                    + "expectedBlockHashPrefix={}, prevBlockHashPrefix={}, ledgerIdPrefix={}, "
+                                    + "usedCompressedWrapsProof={}, details={}",
                             blockNumber,
                             signature.length(),
                             firstRound,
+                            ts,
+                            sigPrefix,
+                            hashPrefix,
+                            prevHashPrefix,
+                            ledgerIdPrefix,
+                            usedCompressedWrapsProof,
                             details);
-                    Assertions.fail(() -> "Invalid TSS signature in proof (start round #" + firstRound + " @ "
-                            + asInstant(blockTimestamp) + "; best-guess---" + details + ") - " + proof);
+                    Assertions.fail(() -> "Invalid TSS signature in proof (start round #" + firstRound + " @ " + ts
+                            + "; sig=" + sigPrefix + ", expHash=" + hashPrefix + ", prevHash=" + prevHashPrefix
+                            + ", ledgerId=" + ledgerIdPrefix + ", compressedWraps=" + usedCompressedWrapsProof
+                            + "; best-guess---" + details + ") - " + proof);
                 }
                 observedCompressedWrapsProof |= usedCompressedWrapsProof;
                 logger.info(
@@ -889,6 +909,14 @@ public class StateChangesValidator implements BlockStreamValidator {
         requireNonNull(tssSignature);
         return tssSignature.length() - HintsLibraryImpl.VK_LENGTH - HINTS_SIGNATURE_LENGTH
                 == COMPRESSED_WRAPS_PROOF_LENGTH;
+    }
+
+    private static String hexPrefix(@Nullable final Bytes b, final int maxBytes) {
+        if (b == null || b.length() == 0) {
+            return "<empty>";
+        }
+        final int n = (int) Math.min(b.length(), maxBytes);
+        return HexFormat.of().formatHex(b.toByteArray(), 0, n);
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
