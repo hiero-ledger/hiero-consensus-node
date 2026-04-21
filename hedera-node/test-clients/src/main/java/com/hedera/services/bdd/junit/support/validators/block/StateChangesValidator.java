@@ -330,8 +330,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         this.hintsLibrary = (hintsEnabled == HintsEnabled.YES) ? new HintsLibraryImpl() : null;
         this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
         this.wrapsEnabled = wrapsEnabled;
-        this.proofSeqFactory = (stateProofsEnabled == StateProofsEnabled.YES) ? IndirectProofSequenceValidator::new
-                : () -> null;
+        this.proofSeqFactory =
+                (stateProofsEnabled == StateProofsEnabled.YES) ? IndirectProofSequenceValidator::new : () -> null;
 
         logger.info("Registered all Service and migrated state definitions to version {}", servicesVersion);
     }
@@ -343,13 +343,14 @@ public class StateChangesValidator implements BlockStreamValidator {
         var startOfStateHash = requireNonNull(initializedGenesisStateHash).getBytes();
 
         final int n = blocks.size();
-        final int lastVerifiableIndex = blocks.reversed().stream().filter(b -> b.items().getLast().hasBlockProof())
-                .findFirst().stream()
-                .mapToInt(b -> (int) b.items().getFirst().blockHeaderOrThrow().number())
-                .findFirst()
-                .orElseThrow();
-        final IncrementalStreamingHasher incrementalBlockHashes = new IncrementalStreamingHasher(
-                CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+        final int lastVerifiableIndex =
+                blocks.reversed().stream().filter(b -> b.items().getLast().hasBlockProof()).findFirst().stream()
+                        .mapToInt(b ->
+                                (int) b.items().getFirst().blockHeaderOrThrow().number())
+                        .findFirst()
+                        .orElseThrow();
+        final IncrementalStreamingHasher incrementalBlockHashes =
+                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
         boolean hashChainBroken = false;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
@@ -360,18 +361,19 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateLifecycleManager.copyMutableState();
-                startOfStateHash = requireNonNull(stateToBeCopied.getRoot().getHash()).getBytes();
+                startOfStateHash =
+                        requireNonNull(stateToBeCopied.getRoot().getHash()).getBytes();
             }
-            final IncrementalStreamingHasher inputTreeHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(),
-                    List.of(), 0);
-            final IncrementalStreamingHasher outputTreeHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(),
-                    List.of(), 0);
-            final IncrementalStreamingHasher consensusHeaderHasher = new IncrementalStreamingHasher(
-                    sha384DigestOrThrow(), List.of(), 0);
-            final IncrementalStreamingHasher stateChangesHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(),
-                    List.of(), 0);
-            final IncrementalStreamingHasher traceDataHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(),
-                    List.of(), 0);
+            final IncrementalStreamingHasher inputTreeHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            final IncrementalStreamingHasher outputTreeHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            final IncrementalStreamingHasher consensusHeaderHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            final IncrementalStreamingHasher stateChangesHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            final IncrementalStreamingHasher traceDataHasher =
+                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
 
             long firstBlockRound = -1;
             long eventNodeId = -1;
@@ -430,7 +432,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                         final long[] weights = new long[k];
                         final byte[][] publicKeys = new byte[k][];
                         for (int j = 0; j < k; j++) {
-                            final var contribution = ledgerIdPublication.nodeContributions().get(j);
+                            final var contribution =
+                                    ledgerIdPublication.nodeContributions().get(j);
                             nodeIds[j] = contribution.nodeId();
                             weights[j] = contribution.weight();
                             publicKeys[j] = contribution.historyProofKey().toByteArray();
@@ -446,7 +449,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             // list
             // when nodes are restarted and all nodes wrote the block before the async proof
             // arrived
-            final long blockNumber = block.items().getFirst().blockHeaderOrThrow().number();
+            final long blockNumber =
+                    block.items().getFirst().blockHeaderOrThrow().number();
             final boolean blockHasProof = block.items().getLast().hasBlockProof();
             if (i <= lastVerifiableIndex && blockHasProof) {
                 final var footer = block.items().get(block.items().size() - 2);
@@ -535,8 +539,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
         logger.info("Summary of changes by service:\n{}", stateChangesSummary);
 
-        final var entityCounts = state.getWritableStates(EntityIdService.NAME)
-                .<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID);
+        final var entityCounts =
+                state.getWritableStates(EntityIdService.NAME).<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID);
         assertEntityCountsMatch(entityCounts);
 
         // To make sure that VirtualMapMetadata is persisted after all changes from the
@@ -550,7 +554,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (expectedRootMnemonic == null) {
                 throw new AssertionError("No expected root mnemonic found in " + pathToNode0SwirldsLog);
             }
-            final var actualRootMnemonic = Mnemonics.generateMnemonic(state.getRoot().getHash());
+            final var actualRootMnemonic =
+                    Mnemonics.generateMnemonic(state.getRoot().getHash());
             final var errorMsg = new StringBuilder("Hashes did not match for the following states,");
 
             if (!expectedRootMnemonic.equals(actualRootMnemonic)) {
@@ -583,27 +588,27 @@ public class StateChangesValidator implements BlockStreamValidator {
                 stateNameOf(StateIdentifier.STATE_ID_PENDING_AIRDROPS.protoOrdinal()), Set.of());
         final var expectedNumStakingInfos = entityChanges.getOrDefault(
                 stateNameOf(StateIdentifier.STATE_ID_STAKING_INFOS.protoOrdinal()), Set.of());
-        final var expectedNumContractStorageSlots = entityChanges
-                .getOrDefault(stateNameOf(StateIdentifier.STATE_ID_STORAGE.protoOrdinal()), Set.of());
-        final var expectedNumTokenRelations = entityChanges
-                .getOrDefault(stateNameOf(StateIdentifier.STATE_ID_TOKEN_RELS.protoOrdinal()), Set.of());
-        final var expectedNumAccounts = entityChanges
-                .getOrDefault(stateNameOf(StateIdentifier.STATE_ID_ACCOUNTS.protoOrdinal()), Set.of());
-        final var expectedNumAliases = entityChanges
-                .getOrDefault(stateNameOf(StateIdentifier.STATE_ID_ALIASES.protoOrdinal()), Set.of());
-        final var expectedNumContractBytecodes = entityChanges
-                .getOrDefault(stateNameOf(StateIdentifier.STATE_ID_BYTECODE.protoOrdinal()), Set.of());
+        final var expectedNumContractStorageSlots =
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_STORAGE.protoOrdinal()), Set.of());
+        final var expectedNumTokenRelations =
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_TOKEN_RELS.protoOrdinal()), Set.of());
+        final var expectedNumAccounts =
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_ACCOUNTS.protoOrdinal()), Set.of());
+        final var expectedNumAliases =
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_ALIASES.protoOrdinal()), Set.of());
+        final var expectedNumContractBytecodes =
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_BYTECODE.protoOrdinal()), Set.of());
         final var expectedNumFiles = entityChanges.getOrDefault(stateNameOf(STATE_ID_FILES.protoOrdinal()), Set.of());
-        final var expectedNumNfts = entityChanges
-                .getOrDefault(stateNameOf(StateIdentifier.STATE_ID_NFTS.protoOrdinal()), Set.of());
-        final var expectedNumNodes = entityChanges
-                .getOrDefault(stateNameOf(StateIdentifier.STATE_ID_NODES.protoOrdinal()), Set.of());
+        final var expectedNumNfts =
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_NFTS.protoOrdinal()), Set.of());
+        final var expectedNumNodes =
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_NODES.protoOrdinal()), Set.of());
         final var expectedNumSchedules = entityChanges.getOrDefault(
                 stateNameOf(StateIdentifier.STATE_ID_SCHEDULES_BY_ID.protoOrdinal()), Set.of());
-        final var expectedNumTokens = entityChanges
-                .getOrDefault(stateNameOf(StateIdentifier.STATE_ID_TOKENS.protoOrdinal()), Set.of());
-        final var expectedNumTopics = entityChanges
-                .getOrDefault(stateNameOf(StateIdentifier.STATE_ID_TOPICS.protoOrdinal()), Set.of());
+        final var expectedNumTokens =
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_TOKENS.protoOrdinal()), Set.of());
+        final var expectedNumTopics =
+                entityChanges.getOrDefault(stateNameOf(StateIdentifier.STATE_ID_TOPICS.protoOrdinal()), Set.of());
 
         assertEquals(expectedNumAirdrops.size(), actualCounts.numAirdrops(), "Airdrop counts mismatch");
         assertEquals(expectedNumTokens.size(), actualCounts.numTokens(), "Token counts mismatch");
@@ -672,8 +677,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         return Bytes.wrap(digest.digest());
     }
 
-    private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {
-    }
+    private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
     private RootAndSiblingHashes computeBlockHash(
             final Timestamp blockTimestamp,
@@ -714,9 +718,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var root = hashInternalNode(depth2Node1, depth2Node2);
 
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
-                new MerkleSiblingHash(false, prevBlocksRootHash),
-                new MerkleSiblingHash(false, depth5Node2),
-                new MerkleSiblingHash(false, depth4Node2),
+            new MerkleSiblingHash(false, prevBlocksRootHash),
+            new MerkleSiblingHash(false, depth5Node2),
+            new MerkleSiblingHash(false, depth4Node2),
         });
     }
 
@@ -821,8 +825,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                 logger.info("Block #{} HINTS_AGGREGATE layout={} (trailerLen={})", blockNumber, layout, trailerLen);
                 final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
                 final var hintsSig = signature.slice(HintsLibraryImpl.VK_LENGTH, HINTS_SIGNATURE_LENGTH);
-                final boolean valid = hintsLibrary.verifyAggregate(hintsSig, expectedBlockHash, vk, 1,
-                        hintsThresholdDenominator);
+                final boolean valid =
+                        hintsLibrary.verifyAggregate(hintsSig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
                 if (!valid) {
                     logger.error(
                             "Block #{} HINTS_AGGREGATE verify FAILED: layout={}, sigLen={}, firstRound={}",
@@ -883,8 +887,8 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     static boolean hasCompressedWrapsProof(@NonNull final Bytes tssSignature) {
         requireNonNull(tssSignature);
-        return tssSignature.length() - HintsLibraryImpl.VK_LENGTH
-                - HINTS_SIGNATURE_LENGTH == COMPRESSED_WRAPS_PROOF_LENGTH;
+        return tssSignature.length() - HintsLibraryImpl.VK_LENGTH - HINTS_SIGNATURE_LENGTH
+                == COMPRESSED_WRAPS_PROOF_LENGTH;
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
@@ -975,8 +979,8 @@ public class StateChangesValidator implements BlockStreamValidator {
     private void unarchiveGenesisNetworkJson(@NonNull final Path path) {
         final var desiredPath = path.resolve(DiskStartupNetworks.GENESIS_NETWORK_JSON);
         if (!desiredPath.toFile().exists()) {
-            final var archivedPath = path.resolve(DiskStartupNetworks.ARCHIVE)
-                    .resolve(DiskStartupNetworks.GENESIS_NETWORK_JSON);
+            final var archivedPath =
+                    path.resolve(DiskStartupNetworks.ARCHIVE).resolve(DiskStartupNetworks.GENESIS_NETWORK_JSON);
             if (!archivedPath.toFile().exists()) {
                 throw new IllegalStateException("No archived genesis network JSON found at " + archivedPath);
             }
@@ -1160,8 +1164,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     tssSignature,
                     HINTS_VERIFICATION_KEY_LENGTH,
                     HINTS_VERIFICATION_KEY_LENGTH + HINTS_SIGNATURE_LENGTH);
-            final var hintsValid = HintsLibraryBridge.getInstance().verifyAggregate(hintsSignature, message,
-                    hintsVerificationKey);
+            final var hintsValid =
+                    HintsLibraryBridge.getInstance().verifyAggregate(hintsSignature, message, hintsVerificationKey);
             if (!hintsValid) {
                 return "invalid hinTS signature";
             }
