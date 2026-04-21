@@ -801,11 +801,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                             + ") in proof (start round #" + firstRound + ") - " + proof);
                 }
                 final long trailerLen = signature.length() - HintsLibraryImpl.VK_LENGTH - HINTS_SIGNATURE_LENGTH;
-                final String layout = (trailerLen == 0)
-                        ? "vk+hintsSig"
-                        : ("vk+hintsSig+trailer(" + trailerLen + "B)");
-                logger.info(
-                        "Block #{} HINTS_AGGREGATE layout={} (trailerLen={})", blockNumber, layout, trailerLen);
+                final String layout = (trailerLen == 0) ? "vk+hintsSig" : ("vk+hintsSig+trailer(" + trailerLen + "B)");
+                logger.info("Block #{} HINTS_AGGREGATE layout={} (trailerLen={})", blockNumber, layout, trailerLen);
                 final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
                 final var hintsSig = signature.slice(HintsLibraryImpl.VK_LENGTH, HINTS_SIGNATURE_LENGTH);
                 final boolean valid =
