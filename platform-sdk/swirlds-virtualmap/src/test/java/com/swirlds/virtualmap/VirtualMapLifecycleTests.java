@@ -31,7 +31,7 @@ class VirtualMapLifecycleTests {
 
     private static final Random RANDOM = new SecureRandom();
 
-    private static final VirtualMap TERMINATE_QUERY = new VirtualMap(VirtualMapTestUtils.CONFIGURATION);
+    private static final VirtualMap TERMINATE_QUERY = VirtualMapTestUtils.createMap();
 
     /**
      * This hammer test will have one thread querying maps while another thread is modifying

@@ -10,29 +10,26 @@ import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
- * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.
- *
- * <p>This learner tree view creates two tasks running in the provided work group. One task
- * is responsible for sending requests to the teacher, the other one receives responses. Once
- * both tasks are completed, the corresponding virtual map is fully synchronized with the
- * teacher.
- *
- * <p>This implementation is supposed to work with {@link LearnerPullVirtualTreeView} on the
- * learner side.
+ * A teacher tree view for virtual map reconnect.
  */
-public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implements TeacherTreeView {
+public final class TeacherPullVirtualTreeView implements TeacherTreeView {
 
     private static final Logger logger = LogManager.getLogger(TeacherPullVirtualTreeView.class);
+    /**
+     * The state representing the tree being reconnected. For the teacher, this corresponds to the saved state.
+     * For the learner, this is the state of the tree being serialized into.
+     */
+    private final VirtualMapMetadata reconnectState;
 
     private final ReconnectConfig reconnectConfig;
 
@@ -48,12 +45,12 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      * 		The map node on the teacher side of the saved state that we are going to reconnect.
      */
     public TeacherPullVirtualTreeView(final ReconnectConfig reconnectConfig, final VirtualMap map) {
-        // There is no distinction between originalState and reconnectState in this implementation
-        super(map, map.getMetadata(), map.getMetadata());
         this.reconnectConfig = reconnectConfig;
         this.records = map.detach();
+        this.reconnectState = map.getMetadata();
     }
 
+    /** {@inheritDoc} */
     @Override
     public void startTeacherTasks(
             final Time time,
@@ -70,6 +67,12 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
         }
     }
 
+    /**
+     * Determines if a given path refers to a leaf of the teacher's tree.
+     *
+     * @param path the virtual path
+     * @return {@code true} if the path is within the leaf range
+     */
     public boolean isLeaf(final long path) {
         return (path >= reconnectState.getFirstLeafPath())
                 && (path <= reconnectState.getLastLeafPath())
@@ -100,96 +103,20 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public void addToHandleQueue(final Long node) {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.addToHandleQueue()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getNextNodeToHandle() {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.getNextNodeToHandle()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean areThereNodesToHandle() {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.areThereNodesToHandle()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getChildAndPrepareForQueryResponse(final Long parent, final int childIndex) {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.getChildAndPrepareForQueryResponse()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getNodeForNextResponse() {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.getNodeForNextResponse()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isResponseExpected() {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.isResponseExpected()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void registerResponseForNode(final Long node, final boolean learnerHasNode) {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.registerResponseForNode()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean hasLearnerConfirmedFor(final Long node) {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.hasLearnerConfirmedFor()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serializeLeaf(final SerializableDataOutputStream out, final Long leaf) throws IOException {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.serializeLeaf()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serializeInternal(final SerializableDataOutputStream out, final Long internal) throws IOException {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.serializeInternal()");
-    }
-
-    @Override
-    public void writeChildHashes(final Long parent, final SerializableDataOutputStream out) throws IOException {
-        throw new UnsupportedOperationException("TeacherPullVirtualTreeView.writeChildHashes()");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         try {
             records.close();
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "Interrupted while attempting to close data source");
         }
+    }
+
+    /**
+     * Returns the metadata for the tree being reconnected on the teacher side.
+     *
+     * @return the reconnect state metadata
+     */
+    public VirtualMapMetadata getReconnectState() {
+        return reconnectState;
     }
 }

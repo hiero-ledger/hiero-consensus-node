@@ -59,6 +59,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SplittableRandom;
@@ -71,6 +72,8 @@ import java.util.function.UnaryOperator;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A network of Hedera nodes started in subprocesses and accessed via gRPC. Unlike
@@ -107,6 +110,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     private long maxNodeId;
     private Network network;
+    private Map<NodeId, KeysAndCerts> nodeKeys;
     private final long shard;
     private final long realm;
 
@@ -181,7 +185,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
-        this.network = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        final var networkWithKeys = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        this.network = networkWithKeys.network();
+        this.nodeKeys = networkWithKeys.keysAndCerts();
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
         this.postInitWorkingDirActions.add(SubProcessNetwork::configurePlatformSettings);
     }
@@ -220,6 +226,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void start() {
         nodes.forEach(node -> {
             node.initWorkingDir(network);
+            writeNodeSigningKey(node);
             executePostInitWorkingDirActions(node);
             node.start();
         });
@@ -370,7 +377,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             nextPrometheusPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
-        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        final var nwk =
+                NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        network = nwk.network();
+        nodeKeys = nwk.keysAndCerts();
         refreshOverrideNetworks(ReassignPorts.YES);
     }
 
@@ -393,8 +403,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var node = getRequiredNode(selector);
         node.stopFuture();
         nodes.remove(node);
-        network = NetworkUtils.generateNetworkConfig(
+        final var nwk = NetworkUtils.generateNetworkConfig(
                 nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = nwk.network();
+        nodeKeys = nwk.keysAndCerts();
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -432,9 +444,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             node.reassignNodeAccountIdFrom(accountId);
         }
         nodes.add(insertionPoint, node);
-        network = NetworkUtils.generateNetworkConfig(
+        final var nwk = NetworkUtils.generateNetworkConfig(
                 nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = nwk.network();
+        nodeKeys = nwk.keysAndCerts();
         nodes.get(insertionPoint).initWorkingDir(network);
+        writeNodeSigningKey(nodes.get(insertionPoint));
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);
         }
@@ -666,6 +681,14 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         throw new RuntimeException("Could not find available port after 100 attempts");
     }
 
+    private void writeNodeSigningKey(@NonNull final HederaNode node) {
+        final var nodeId = NodeId.of(node.getNodeId());
+        final var kac = nodeKeys.get(nodeId);
+        if (kac != null) {
+            WorkingDirUtils.writeSigningKey(node.metadata().workingDirOrThrow(), node.getNodeId(), kac);
+        }
+    }
+
     public void configureApplicationProperties(HederaNode node) {
         // Update bootstrap properties for the node from bootstrapPropertyOverrides if there are any
         final var nodeId = node.getNodeId();
@@ -721,18 +744,38 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
     }
 
+    private static final String PLATFORM_OVERRIDES_PROPERTY = "hapi.spec.platform.overrides";
+
     /**
      * Appends platform settings overrides to the {@code settings.txt} in the node's working directory.
      * These overrides only affect HAPI test subprocess nodes, not the shared dev configuration.
+     * <p>
+     * Defaults can be overridden per Gradle task via the {@code hapi.spec.platform.overrides} system
+     * property, which accepts comma-separated {@code key=value} pairs.
      */
     private static void configurePlatformSettings(@NonNull final HederaNode node) {
         final var settingsPath = node.getExternalPath(WORKING_DIR).resolve("settings.txt");
+        final var platformSettings = new LinkedHashMap<String, String>();
+        platformSettings.put("platformStatus.observingStatusDelay", "0s");
+        final var overrides = System.getProperty(PLATFORM_OVERRIDES_PROPERTY, "");
+        if (!overrides.isBlank()) {
+            for (final var override : overrides.split(",")) {
+                final var parts = override.split("=", 2);
+                if (parts.length == 2) {
+                    platformSettings.put(parts[0].trim(), parts[1].trim());
+                }
+            }
+        }
         try {
-            Files.writeString(
-                    settingsPath,
-                    System.lineSeparator() + "platformStatus.observingStatusDelay,             0s"
-                            + System.lineSeparator(),
-                    StandardOpenOption.APPEND);
+            final var sb = new StringBuilder();
+            for (final var entry : platformSettings.entrySet()) {
+                sb.append(System.lineSeparator())
+                        .append(entry.getKey())
+                        .append(",             ")
+                        .append(entry.getValue());
+            }
+            sb.append(System.lineSeparator());
+            Files.writeString(settingsPath, sb.toString(), StandardOpenOption.APPEND);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

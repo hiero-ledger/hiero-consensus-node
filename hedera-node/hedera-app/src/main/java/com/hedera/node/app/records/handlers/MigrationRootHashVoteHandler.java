@@ -134,7 +134,6 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
                         .map(Bytes::toByteArray)
                         .toList(),
                 op.wrappedIntermediateBlockRootsLeafCount());
-        log.info("store wrapped hashes: {}", store.wrappedHashesInOrder());
         for (final var queuedHashes : store.wrappedHashesInOrder()) {
             final var allPrevBlocksRootHash = Bytes.wrap(hasher.computeRootHash());
             final var blockRootHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
@@ -165,8 +164,9 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         }
         log.info("Migration root hash voting finalized after node{} vote, >1/3 threshold reached", nodeId);
         log.info(
-                "Finalized migration root hash vote values: previousWrappedRecordBlockRootHash={},"
+                "Finalized migration root hash vote values: Block {} previousWrappedRecordBlockRootHash={},"
                         + " wrappedIntermediatePreviousBlockRootHashes=[{}], wrappedIntermediateBlockRootsLeafCount={}",
+                blockRecordManager != null ? blockRecordManager.blockNo() - 1 : "Unknown",
                 previousWrappedRecordBlockRootHash.toHex(),
                 finalizedIntermediateState.stream().map(Bytes::toHex).collect(Collectors.joining(", ")),
                 finalizedLeafCount);

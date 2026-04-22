@@ -100,7 +100,7 @@ jobs:
       # Install solo and configure to use the artifacts from
       # the hiero-consensus-node build
       - name: Install Solo
-        run: npm install -g @hashgraph/solo@${{ inputs.solo-version || 'latest' }}
+        run: npm install -g @hiero-ledger/solo@${{ inputs.solo-version || 'latest' }}
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -202,7 +202,8 @@ jobs:
   report-json-rpc-relay-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-rpc-relay-lin-sm
-    needs: json-rpc-relay-regression
+    needs:
+      - json-rpc-relay-regression
     if: ${{ always() }}
     steps:
       - name: Harden Runner

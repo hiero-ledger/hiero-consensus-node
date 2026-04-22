@@ -29,6 +29,10 @@ on:
       gradle-cache-password:
         description: "The password used to authenticate with the Gradle Build Cache Node."
         required: true
+    outputs:
+      failure-mode:
+        description: "Failure Mode"
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
 
 defaults:
   run:
@@ -59,6 +63,7 @@ jobs:
       path: ${{ steps.baseline.outputs.path }}
       file: ${{ steps.baseline.outputs.file }}
       name: ${{ steps.baseline.outputs.name }}
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
 
     steps:
       - name: Prepare Job
@@ -196,6 +201,16 @@ jobs:
         if: ${{ steps.baseline.outputs.exists == 'false' && !failure() && !cancelled() }}
         run: gsutil cp "${{ steps.manifest.outputs.file }}" "${{ steps.baseline.outputs.file }}"
 
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
   verify-artifacts:
     name: "Docker: Verify Artifacts (${{ join(matrix.os, ', ') }})"
     runs-on: ${{ matrix.os }}
@@ -216,6 +231,8 @@ jobs:
           - hl-cn-docker-determinism-lin-lg
           - hl-cn-docker-determinism-lin-u24-lg
           - hl-cn-docker-determinism-lin-d12-lg
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
       - name: Standardize Git Line Endings
         run: |
@@ -353,6 +370,7 @@ jobs:
         run: GITHUB_SHA="${{ needs.generate-baseline.outputs.sha-abbrev }}" ${{ env.DOCKER_MANIFEST_GENERATOR }}
 
       - name: Validate Layers (linux/amd64)
+        id: validate-layers-amd64
         run: |
           if ! diff -u "${DOCKER_MANIFEST_PATH}/linux-amd64.layers.json" "${{ steps.regen-manifest.outputs.path }}/linux-amd64.layers.json" >/dev/null 2>&1; then
            echo "::group::Layer Differences"
@@ -362,6 +380,7 @@ jobs:
           fi
 
       - name: Validate Layers (linux/arm64)
+        id: validate-layers-arm64
         run: |
           if ! diff -u "${DOCKER_MANIFEST_PATH}/linux-arm64.layers.json" "${{ steps.regen-manifest.outputs.path }}/linux-arm64.layers.json" >/dev/null 2>&1; then
            echo "::group::Layer Differences"
@@ -371,6 +390,7 @@ jobs:
           fi
 
       - name: Validate Full Manifest (linux/amd64)
+        id: validate-full-manifest-amd64
         run: |
           if ! diff -u "${DOCKER_MANIFEST_PATH}/linux-amd64.comparable.json" "${{ steps.regen-manifest.outputs.path }}/linux-amd64.comparable.json" >/dev/null 2>&1; then
            echo "::group::Layer Differences"
@@ -380,6 +400,7 @@ jobs:
           fi
 
       - name: Validate Full Manifest (linux/arm64)
+        id: validate-full-manifest-arm64
         run: |
           if ! diff -u "${DOCKER_MANIFEST_PATH}/linux-arm64.comparable.json" "${{ steps.regen-manifest.outputs.path }}/linux-arm64.comparable.json" >/dev/null 2>&1; then
            echo "::group::Layer Differences"
@@ -394,3 +415,58 @@ jobs:
         with:
           name: Docker Manifests [${{ join(matrix.os, ', ') }}]
           path: ${{ env.DOCKER_MANIFEST_PATH }}/**
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        run: |
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.validate-layers-amd64.outcome || 'skipped' }}" == "failure" || "${{ steps.validate-layers-arm64.outcome || 'skipped' }}" == "failure" || "${{ steps.validate-full-manifest-amd64.outcome || 'skipped' }}" == "failure" || "${{ steps.validate-full-manifest-arm64.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          fi
+
+  set-failure-mode:
+    name: "Set Failure Mode"
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - generate-baseline
+      - verify-artifacts
+    if: ${{ !cancelled() && always() }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        run: |
+          job_statuses=(
+            "${{ needs.generate-baseline.result || 'skipped' }}"
+            "${{ needs.verify-artifacts.result || 'skipped' }}"
+          )
+
+          job_failure_modes=(
+            "${{ needs.generate-baseline.outputs.failure-mode || 'none' }}"
+            "${{ needs.verify-artifacts.outputs.failure-mode || 'none' }}"
+          )
+
+          failure_mode="none"
+
+          for i in "${!job_statuses[@]}"; do
+            if [[ "${job_statuses[$i]}" == "failure" ]]; then
+              mode="${job_failure_modes[$i]}"
+              if [[ "${failure_mode}" == "none" ]]; then
+                failure_mode="${mode}"
+              elif [[ "${mode}" == "workflow" ]]; then
+                failure_mode="workflow"
+              fi
+            fi
+          done
+
+          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"

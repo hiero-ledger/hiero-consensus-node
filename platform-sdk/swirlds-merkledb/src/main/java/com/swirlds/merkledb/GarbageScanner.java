@@ -56,13 +56,9 @@ public class GarbageScanner {
      *
      * @param index              the in-memory index to traverse
      * @param dataFileCollection the file collection whose files are scanned
-     * @param storeName          store name used for logging
      */
-    public GarbageScanner(
-            @NonNull final LongList index,
-            @NonNull final DataFileCollection dataFileCollection,
-            @NonNull final String storeName) {
-        this(index, dataFileCollection, storeName, false);
+    public GarbageScanner(@NonNull final LongList index, @NonNull final DataFileCollection dataFileCollection) {
+        this(index, dataFileCollection, false);
     }
 
     /**
@@ -70,7 +66,6 @@ public class GarbageScanner {
      *
      * @param index                      the in-memory index to traverse
      * @param dataFileCollection         the file collection whose files are scanned
-     * @param storeName                  store name used for logging
      * @param deduplicateMirroredEntries if {@code true}, enables HDHM bucket deduplication mode.
      *                                   After a {@link HalfDiskHashMap} doubles its bucket count,
      *                                   entries at index {@code x} and {@code x + N/2} may point
@@ -81,15 +76,13 @@ public class GarbageScanner {
     public GarbageScanner(
             @NonNull final LongList index,
             @NonNull final DataFileCollection dataFileCollection,
-            @NonNull final String storeName,
             final boolean deduplicateMirroredEntries) {
         requireNonNull(index);
         requireNonNull(dataFileCollection);
-        requireNonNull(storeName);
 
         this.index = index;
         this.dataFileCollection = dataFileCollection;
-        this.storeName = storeName;
+        this.storeName = dataFileCollection.getStoreName();
         this.deduplicateMirroredEntries = deduplicateMirroredEntries;
     }
 
@@ -132,7 +125,7 @@ public class GarbageScanner {
         logLevelStats(statsByFileIndex);
 
         final long tookMillis = System.currentTimeMillis() - start;
-        logger.info(MERKLE_DB.getMarker(), "[{}] Garbage scan finished in {} ms", storeName, tookMillis);
+        logger.debug(MERKLE_DB.getMarker(), "[{}] Garbage scan finished in {} ms", storeName, tookMillis);
 
         return statsByFileIndex;
     }
@@ -172,7 +165,7 @@ public class GarbageScanner {
                     ? "n/a"
                     : String.valueOf(Math.round((double) levelDeadItems / levelAliveItems * 100) / 100.0);
 
-            logger.info(
+            logger.debug(
                     MERKLE_DB.getMarker(),
                     "[%s] Garbage scan level %d: files=%d, totalItems=%d, aliveItems=%d, garbageRatio=%1.2f, dead/alive=%s"
                             .formatted(

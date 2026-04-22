@@ -26,6 +26,7 @@ import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
+import com.hedera.node.app.hints.schemas.V073HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -384,10 +385,11 @@ class HintsServiceImplTest {
         subject.registerSchemas(schemaRegistry);
 
         final var captor = ArgumentCaptor.forClass(Schema.class);
-        verify(schemaRegistry, times(2)).register(captor.capture());
+        verify(schemaRegistry, times(3)).register(captor.capture());
         final var schemas = captor.getAllValues();
         assertThat(schemas.getFirst()).isInstanceOf(V059HintsSchema.class);
-        assertThat(schemas.getLast()).isInstanceOf(V060HintsSchema.class);
+        assertThat(schemas.get(1)).isInstanceOf(V060HintsSchema.class);
+        assertThat(schemas.getLast()).isInstanceOf(V073HintsSchema.class);
     }
 
     @Test
