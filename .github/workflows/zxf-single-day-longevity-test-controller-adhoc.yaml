@@ -16,6 +16,7 @@ on:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHoc13
           - AdHoc14
           - AdHocSD8
           - AdHocSD9
@@ -134,7 +135,7 @@ jobs:
     uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
-      test-asset: "${{ inputs.test-asset }}"
+      test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ inputs.ref || github.ref }}"
       solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
@@ -145,6 +146,7 @@ jobs:
       delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result

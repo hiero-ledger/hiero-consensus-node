@@ -72,8 +72,6 @@ permissions:
   actions: write
 
 env:
-  DEFAULT_NAMESPACE: AdHocSD8
-  DEFAULT_HCN_VERSION: main
   TIMEOUT_6H_LIMIT: 340
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
@@ -99,74 +97,31 @@ env:
 
 jobs:
   acquire-kubernetes-resources:
-    name: Get Kubernetes Resources
-    runs-on: hl-cn-sdpt-lin-sm
-    outputs:
-      namespace: ${{ steps.read-chewie-response.outputs.namespace }}
-      fqdn: ${{ steps.read-chewie-response.outputs.kubernetes-fqdn }}
-      cn-quantity: ${{ steps.read-chewie-response.outputs.cn-quantity }}
-      aux-quantity: ${{ steps.read-chewie-response.outputs.aux-quantity }}
-      cn-tolerations: ${{ steps.read-chewie-response.outputs.cn-tolerations }}
-      aux-tolerations: ${{ steps.read-chewie-response.outputs.aux-tolerations }}
-      cn-labels: ${{ steps.read-chewie-response.outputs.cn-labels }}
-      aux-labels: ${{ steps.read-chewie-response.outputs.aux-labels }}
+    # TODO: This will use the chewie-action as chewie develops.
+    name: Acquire Kubernetes Resources
+    uses: ./.github/workflows/801-read-chewie-response.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      test-asset: ${{ inputs.test-asset }}
+      test-type: "sdpt"
+    secrets:
+      github-token: ${{ secrets.github-token }}
+
+  print-kubernetes-resources:
+    name: Print Kubernetes Resources
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - acquire-kubernetes-resources
     steps:
-      - name: Initialize Job
-        uses: PandasWhoCode/initialize-github-job@47186ab8b59085a7406a53c0b7a98031bcf4c4cc # v1.0.7
-        with:
-          checkout: true
-          checkout-token: ${{ secrets.github-token }}
-          checkout-ref: ${{ inputs.ref }}
-
-      - name: Set up JQ
+      - name: Print Kubernetes Resources
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
-      # Once chewie is ready and installed on the network this job will
-      # be responsible for making the api calls to chewie with requested
-      # resources so that chewie can find a suitable cluster and namespace
-      # for the test.
-      #
-      # The response from chewie will be a json object that we can parse.
-      - name: Read Chewie Response
-        id: read-chewie-response
-        run: |
-          JSON_RESPONSE_FILE="${{ github.workspace }}/.github/workflows/support/chewie/${{ inputs.test-asset }}-sdpt.json"
-          if [[ ! -f "${JSON_RESPONSE_FILE}" ]]; then
-              echo "::error file ${JSON_RESPONSE_FILE} does not exist."
-              exit 1
-          fi
-
-          # Now that we have the response "from chewie" we can parse out the necessary information
-          # to set up the init-containers-values files for solo.
-          NAMESPACE=$(jq -r '.namespace' "${JSON_RESPONSE_FILE}")
-          CLUSTER_FQDN=$(jq -r '.cluster_fqdn' "${JSON_RESPONSE_FILE}")
-
-          # CN Data
-          CN_QTY=$(jq -r '.instances[] | select(.group=="cn-nodes") | .spec.quantity' "${JSON_RESPONSE_FILE}")
-          CN_TOLERATIONS=$(jq -c '.instances[] | select(.group=="cn-nodes") | .tolerations' "${JSON_RESPONSE_FILE}")
-          CN_LABELS=$(jq -c '.instances[] | select(.group=="cn-nodes") | .labels' "${JSON_RESPONSE_FILE}")
-
-          # AUX Data
-          AUX_QTY=$(jq -r '.instances[] | select(.group=="aux-nodes") | .spec.quantity' "${JSON_RESPONSE_FILE}")
-          AUX_TOLERATIONS=$(jq -c '.instances[] | select(.group=="aux-nodes") | .tolerations' "${JSON_RESPONSE_FILE}")
-          AUX_LABELS=$(jq -c '.instances[] | select(.group=="aux-nodes") | .labels' "${JSON_RESPONSE_FILE}")
-
-          # Set outputs
-          echo "namespace=${NAMESPACE}" >> "${GITHUB_OUTPUT}"
-          echo "kubernetes-fqdn=${CLUSTER_FQDN}" >> "${GITHUB_OUTPUT}"
-          echo "cn-quantity=${CN_QTY}" >> "${GITHUB_OUTPUT}"
-          echo "cn-tolerations=${CN_TOLERATIONS}" >> "${GITHUB_OUTPUT}"
-          echo "cn-labels=${CN_LABELS}" >> "${GITHUB_OUTPUT}"
-          echo "aux-quantity=${AUX_QTY}" >> "${GITHUB_OUTPUT}"
-          echo "aux-tolerations=${AUX_TOLERATIONS}" >> "${GITHUB_OUTPUT}"
-          echo "aux-labels=${AUX_LABELS}" >> "${GITHUB_OUTPUT}"
-
-          # Write step summary
-          echo "## Chewie Response Read" >> "${GITHUB_STEP_SUMMARY}"
-          echo "namespace=${NAMESPACE}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "test asset=${{ inputs.test-asset }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Namespace: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+          echo "FQDN: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
+          echo "CN Quantity: ${{ needs.acquire-kubernetes-resources.outputs.cn-quantity }}"
+          echo "Aux Quantity: ${{ needs.acquire-kubernetes-resources.outputs.aux-quantity }}"
+          echo "Aux Role: ${{ needs.acquire-kubernetes-resources.outputs.aux-role }}"
+          echo "Network ID: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
+          echo "Owner: ${{ needs.acquire-kubernetes-resources.outputs.owner }}"
 
   performance-tests-start:
     name: Start
@@ -195,7 +150,7 @@ jobs:
         run: |
           K8S_CLUSTER="${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
           grafana_url="${{ env.GRAFANA_SYSADM_DAL }}"
-          if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
+          if [[ "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}" =~ [.]chi[.] ]]; then
             grafana_url="${{ env.GRAFANA_SYSADM_CHI }}"
           fi
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
@@ -291,7 +246,7 @@ jobs:
         run: |
           set +e
           set +x
-          NETWORK_ID="$(echo "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "chewie-solo-.*t-n${NETWORK_ID}[ \t]"
           if [[ ${?} -eq 0 ]]
@@ -362,7 +317,6 @@ jobs:
 
       - name: Deploy with Solo
         env:
-          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
           CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
         run: |
           set +x
@@ -392,10 +346,10 @@ jobs:
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
 
           # Update Init Containers values
-          NETWORK_ID="$( jq -r '.[] | select(.key=="solo.hashgraph.io/network-id") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
+          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
 
-          NETWORK_OWNER="$( jq -r '.[] | select(.key=="solo.hashgraph.io/owner") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
+          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
 
           # Generate the application.properties file inline
@@ -448,8 +402,6 @@ jobs:
         run: cd "${{ github.workspace }}"
 
       - name: Prepare NLG parameters
-        env:
-          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
         run: |
           set +x
           set +e
@@ -473,16 +425,16 @@ jobs:
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
           mv new.yml nlg-values.yaml
 
-          NETWORK_ID="$( jq -r '.[] | select(.key=="solo.hashgraph.io/network-id") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
+          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
 
-          NETWORK_OWNER="$( jq -r '.[] | select(.key=="solo.hashgraph.io/owner") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
+          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
 
-          NETWORK_ID="$( jq -r '.[] | select(.key=="solo.hashgraph.io/network-id") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
+          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" merkledb-values.yaml
 
-          NETWORK_OWNER="$( jq -r '.[] | select(.key=="solo.hashgraph.io/owner") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
+          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" merkledb-values.yaml
 
       - name: Deploy NLG test
