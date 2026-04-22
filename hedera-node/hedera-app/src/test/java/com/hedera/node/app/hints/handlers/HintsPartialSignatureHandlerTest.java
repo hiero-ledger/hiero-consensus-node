@@ -163,7 +163,7 @@ class HintsPartialSignatureHandlerTest {
 
         verify(hintsContext).validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class));
         verify(hintsContext).newSigning(eq(MESSAGE), any(Runnable.class));
-        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE);
+        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE, CONSTRUCTION_ID);
         assertSame(signing, signings.get(MESSAGE));
     }
 
@@ -177,7 +177,7 @@ class HintsPartialSignatureHandlerTest {
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
 
         verify(hintsContext, never()).newSigning(any(), any());
-        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE);
+        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE, CONSTRUCTION_ID);
     }
 
     @Test
@@ -205,7 +205,7 @@ class HintsPartialSignatureHandlerTest {
 
         verify(hintsContext, times(1)).validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class));
         verify(hintsContext).newSigning(eq(MESSAGE), any(Runnable.class));
-        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE);
+        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE, CONSTRUCTION_ID);
     }
 
     @Test
@@ -256,7 +256,7 @@ class HintsPartialSignatureHandlerTest {
 
         verify(hintsContext).validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class));
         verify(hintsContext).newSigning(eq(MESSAGE), any(Runnable.class));
-        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE);
+        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE, CONSTRUCTION_ID);
     }
 
     @Test
@@ -269,7 +269,7 @@ class HintsPartialSignatureHandlerTest {
         subject.handle(handleContext);
 
         verify(hintsContext, never()).newSigning(any(), any());
-        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE);
+        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE, CONSTRUCTION_ID);
     }
 
     @Test

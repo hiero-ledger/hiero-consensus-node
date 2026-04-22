@@ -94,7 +94,7 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
                 if (isValid) {
                     signings.computeIfAbsent(
                                     op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
-                            .incorporateValid(crs, creatorId, op.partialSignature());
+                            .incorporateValid(crs, creatorId, op.partialSignature(), op.constructionId());
                 }
             }
         } catch (Exception e) {
@@ -120,7 +120,7 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
             if (isValid) {
                 signings.computeIfAbsent(
                                 op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
-                        .incorporateValid(crs, creatorId, op.partialSignature());
+                        .incorporateValid(crs, creatorId, op.partialSignature(), op.constructionId());
             }
         }
     }

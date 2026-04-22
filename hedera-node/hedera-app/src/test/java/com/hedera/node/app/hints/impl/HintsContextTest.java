@@ -135,25 +135,29 @@ class HintsContextTest {
         final var aggregateSignature = Bytes.wrap("AS");
         given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
                 .willReturn(aggregateSignature);
+        // Self-verify is now unconditional at the producing site
+        given(library.verifyAggregate(aggregateSignature, BLOCK_HASH, VERIFICATION_KEY, 1L, 2L))
+                .willReturn(true);
 
         subject.setConstruction(CONSTRUCTION);
 
         final var signing = subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
+        final long cid = CONSTRUCTION.constructionId();
 
-        signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature, cid);
         assertFalse(future.isDone());
         // Duplicates don't accumulate weight
         for (int i = 0; i < 10; i++) {
-            signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
+            signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature, cid);
             assertFalse(future.isDone());
         }
         assertFalse(future.isDone());
-        signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature, cid);
         assertFalse(future.isDone());
-        signing.incorporateValid(CRS, C_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, C_NODE_PARTY_ID.nodeId(), signature, cid);
         assertFalse(future.isDone());
-        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature, cid);
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
         verify(signingMetrics).recordSignatureProduced(longThat(ms -> ms >= 0));
@@ -172,21 +176,36 @@ class HintsContextTest {
         final var aggregateSignature = Bytes.wrap("AS3");
         given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
                 .willReturn(aggregateSignature);
+        given(library.verifyAggregate(aggregateSignature, BLOCK_HASH, VERIFICATION_KEY, 1L, 2L))
+                .willReturn(true);
 
         subject.setConstruction(construction);
 
         final var signing = subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
+        final long cid = construction.constructionId();
 
         // Exactly half (5 out of 10 total weight): should NOT complete, need strictly > 1/2
-        signing.incorporateValid(CRS, a.nodeId(), signature);
+        signing.incorporateValid(CRS, a.nodeId(), signature, cid);
         assertFalse(future.isDone());
 
         // One more signature gives us 10 out of 10: now it should complete
-        signing.incorporateValid(CRS, b.nodeId(), signature);
+        signing.incorporateValid(CRS, b.nodeId(), signature, cid);
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
         verify(signingMetrics).recordSignatureProduced(longThat(ms -> ms >= 0));
+    }
+
+    @Test
+    void rejectsPartialsFromDifferentConstruction() {
+        subject.setConstruction(CONSTRUCTION);
+
+        final var signing = subject.newSigning(BLOCK_HASH, () -> {});
+        final var future = signing.future();
+        // A partial labeled with a stale/other construction id must be ignored
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature, CONSTRUCTION.constructionId() + 42);
+        assertFalse(future.isDone());
+        verifyNoInteractions(library);
     }
 
     @Test
@@ -255,7 +274,7 @@ class HintsContextTest {
 
         final var signing = subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
-        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature, CONSTRUCTION.constructionId());
 
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
@@ -277,7 +296,7 @@ class HintsContextTest {
 
         final var signing = subject.newSigning(BLOCK_HASH, () -> {});
         final var future = signing.future();
-        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature, CONSTRUCTION.constructionId());
 
         assertTrue(future.isCompletedExceptionally());
         final var completion = assertThrows(CompletionException.class, future::join);

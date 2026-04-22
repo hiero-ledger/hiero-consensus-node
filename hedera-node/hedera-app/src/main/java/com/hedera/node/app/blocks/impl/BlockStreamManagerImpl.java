@@ -787,6 +787,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return;
         }
         final long blockNumber = signedBlock.number();
+        // Diagnostics: log at the producing site so we can correlate with downstream
+        // block-stream validator verification. Signature/VK prefixes and a hash of the VK
+        // let us see if the VK shifts mid-test or if the aggregate bytes are what validator receives.
+        log.info(
+                "Emitting block proof #{} blockHash={} sigLen={} sigPrefix={} vkLen={} vkHash={} hasWraps={} chainOfTrust={}",
+                blockNumber,
+                bytesPrefix(blockHash),
+                blockSignature.length(),
+                bytesPrefix(blockSignature),
+                verificationKey == null ? 0 : verificationKey.length(),
+                verificationKey == null ? "n/a" : bytesHashPrefix(verificationKey),
+                chainOfTrustProof != null && chainOfTrustProof.hasWrapsProof(),
+                chainOfTrustProof != null);
 
         final Bytes effectiveSignature;
         if (verificationKey != null && chainOfTrustProof != null) {
@@ -1208,6 +1221,26 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         stateChangesHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
         // Branch 8
         traceDataHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+    }
+
+    private static String bytesPrefix(@NonNull final Bytes bytes) {
+        final int n = Math.min(8, (int) bytes.length());
+        final var sb = new StringBuilder(n * 2);
+        for (int i = 0; i < n; i++) {
+            sb.append(String.format("%02x", bytes.getByte(i) & 0xff));
+        }
+        return sb.toString();
+    }
+
+    private static String bytesHashPrefix(@NonNull final Bytes bytes) {
+        final MessageDigest md = sha384DigestOrThrow();
+        final byte[] digest = md.digest(bytes.toByteArray());
+        final int n = Math.min(8, digest.length);
+        final var sb = new StringBuilder(n * 2);
+        for (int i = 0; i < n; i++) {
+            sb.append(String.format("%02x", digest[i] & 0xff));
+        }
+        return sb.toString();
     }
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}

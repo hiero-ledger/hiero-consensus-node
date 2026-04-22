@@ -174,6 +174,7 @@ public class HintsContext {
         final int divisor = Math.max(1, tssConfig.signingThresholdDivisor());
         final long threshold = totalWeight / divisor;
         return new Signing(
+                construction.constructionId(),
                 blockHash,
                 threshold,
                 divisor,
@@ -207,21 +208,27 @@ public class HintsContext {
      * A signing process spawned from this context.
      */
     public class Signing {
+        private final long constructionId;
         private final long startNanos;
         private final long thresholdWeight;
         private final long thresholdDenominator;
         private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
+
+        @SuppressWarnings("unused")
         private final boolean validateSignature;
+
         private final Map<Long, Long> nodeWeights;
         private final Map<Long, Integer> partyIds;
         private final CompletableFuture<Bytes> future = new CompletableFuture<>();
         private final ConcurrentMap<Integer, Bytes> signatures = new ConcurrentHashMap<>();
+        private final ConcurrentMap<Integer, Long> incorporatedNodeIds = new ConcurrentHashMap<>();
         private final AtomicLong weightOfSignatures = new AtomicLong();
         private final AtomicBoolean completed = new AtomicBoolean();
 
         public Signing(
+                final long constructionId,
                 @NonNull final Bytes blockHash,
                 final long thresholdWeight,
                 final long thresholdDenominator,
@@ -231,6 +238,7 @@ public class HintsContext {
                 @NonNull final Bytes verificationKey,
                 @NonNull final Runnable onCompletion,
                 final boolean validateSignature) {
+            this.constructionId = constructionId;
             this.startNanos = System.nanoTime();
             this.thresholdWeight = thresholdWeight;
             this.validateSignature = validateSignature;
@@ -282,36 +290,133 @@ public class HintsContext {
          * @param crs the final CRS used by the network
          * @param nodeId the node ID
          * @param signature the pre-validated partial signature
+         * @param bodyConstructionId the construction id the partial signature was produced against
          */
-        public void incorporateValid(@NonNull final Bytes crs, final long nodeId, @NonNull final Bytes signature) {
+        public void incorporateValid(
+                @NonNull final Bytes crs,
+                final long nodeId,
+                @NonNull final Bytes signature,
+                final long bodyConstructionId) {
             requireNonNull(crs);
             requireNonNull(signature);
             if (completed.get()) {
                 return;
             }
+            // Pin signing context: reject partials that were produced against a different construction
+            // than the one this Signing was created under. This prevents a race where the HintsContext
+            // current construction swaps mid-aggregation and cross-construction partials get mixed into
+            // an aggregate signed under the stale aggregation/verification key.
+            if (bodyConstructionId != constructionId) {
+                log.warn(
+                        "Rejecting stale partial signature for block '{}' from node {} (partial's constructionId={}, signing pinned to constructionId={})",
+                        blockHashPrefix(),
+                        nodeId,
+                        bodyConstructionId,
+                        constructionId);
+                return;
+            }
             final var partyId = partyIds.get(nodeId);
+            if (partyId == null) {
+                log.warn(
+                        "Rejecting partial signature for block '{}' from node {} not in pinned construction #{} party map",
+                        blockHashPrefix(),
+                        nodeId,
+                        constructionId);
+                return;
+            }
             if (signatures.put(partyId, signature) != null) {
                 // Each valid signature should only accumulate weight once, so abort on duplicates
                 return;
             }
+            incorporatedNodeIds.put(partyId, nodeId);
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
+            log.debug(
+                    "Incorporated partial sig for block '{}' from node {} (partyId={}, construction=#{}, weight={}, total={}/{} req, parties={})",
+                    blockHashPrefix(),
+                    nodeId,
+                    partyId,
+                    constructionId,
+                    weight,
+                    totalWeight,
+                    thresholdWeight,
+                    signatures.size());
             // For block hash signing, always require strictly greater than threshold
             final boolean reachedThreshold = totalWeight > thresholdWeight;
             if (reachedThreshold && completed.compareAndSet(false, true)) {
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
-                final boolean valid = !validateSignature
-                        || library.verifyAggregate(
-                                aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator);
+                // Always self-verify the aggregate at the producing site (belt-and-suspenders). Previously this
+                // was gated behind tssConfig.validateBlockSignatures() which defaults to false, allowing bad
+                // aggregates to silently escape to the block stream where the validator would catch them ~15s
+                // later. Fail loudly here instead.
+                final boolean valid = library.verifyAggregate(
+                        aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator);
                 if (valid) {
+                    log.info(
+                            "Aggregated block signature for '{}' (construction=#{}, vkHash={}, sigPrefix={}, nodeIds={}, weight={}/{})",
+                            blockHashPrefix(),
+                            constructionId,
+                            bytesHashPrefix(verificationKey),
+                            bytesPrefix(aggregatedSignature),
+                            incorporatedNodeIds.values(),
+                            totalWeight,
+                            thresholdWeight);
                     future.complete(aggregatedSignature);
                     final long elapsedNanos = System.nanoTime() - startNanos;
                     signingMetrics.recordSignatureProduced(elapsedNanos / 1_000_000L);
                 } else {
+                    log.error(
+                            "Self-verify FAILED for block '{}' before emit (construction=#{}, vkHash={}, sigPrefix={}, aggSigLen={}, nodeIds={}, parties={}, weight={}/{} thresh=1/{})",
+                            blockHashPrefix(),
+                            constructionId,
+                            bytesHashPrefix(verificationKey),
+                            bytesPrefix(aggregatedSignature),
+                            aggregatedSignature.length(),
+                            incorporatedNodeIds.values(),
+                            signatures.keySet(),
+                            totalWeight,
+                            thresholdWeight,
+                            thresholdDenominator);
                     future.completeExceptionally(new IllegalStateException(INVALID_AGGREGATE_SIGNATURE_MESSAGE));
                 }
             }
+        }
+
+        /**
+         * @return the construction id this signing attempt is pinned to
+         */
+        public long constructionId() {
+            return constructionId;
+        }
+
+        private String blockHashPrefix() {
+            return bytesPrefix(blockHash);
+        }
+    }
+
+    private static String bytesPrefix(@NonNull final Bytes bytes) {
+        final int n = Math.min(8, (int) bytes.length());
+        final var sb = new StringBuilder(n * 2);
+        for (int i = 0; i < n; i++) {
+            sb.append(String.format("%02x", bytes.getByte(i) & 0xff));
+        }
+        return sb.toString();
+    }
+
+    private static String bytesHashPrefix(@NonNull final Bytes bytes) {
+        try {
+            final var md = java.security.MessageDigest.getInstance("SHA-384");
+            final byte[] arr = bytes.toByteArray();
+            final byte[] digest = md.digest(arr);
+            final int n = Math.min(8, digest.length);
+            final var sb = new StringBuilder(n * 2);
+            for (int i = 0; i < n; i++) {
+                sb.append(String.format("%02x", digest[i] & 0xff));
+            }
+            return sb.toString();
+        } catch (final java.security.NoSuchAlgorithmException e) {
+            return "n/a";
         }
     }
 }
