@@ -286,7 +286,8 @@ jobs:
 
   report-failures:
     name: Report Failures to Rootly
-    needs: canonical-test
+    needs:
+      - canonical-test
     if: ${{ needs.canonical-test.result != 'success' }}
     runs-on: hl-cn-sdct-lin-sm
     steps:
