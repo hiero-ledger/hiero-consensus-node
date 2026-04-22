@@ -145,6 +145,11 @@ public class StateChangesValidator implements BlockStreamValidator {
     private StateChanges lastStateChanges;
     private VirtualMapState state;
 
+    // Running total of individual state-change entries applied via applyStateChanges.
+    // Used in hash-divergence diagnostics so we can see how many changes have been
+    // folded into the validator's mutable state at the point startOfStateHash is captured.
+    private long totalStateChangeItemsApplied = 0;
+
     @Nullable
     private Bytes ledgerIdFromState;
 
@@ -364,7 +369,13 @@ public class StateChangesValidator implements BlockStreamValidator {
                 this.state = stateLifecycleManager.copyMutableState();
                 startOfStateHash =
                         requireNonNull(stateToBeCopied.getRoot().getHash()).getBytes();
+                logger.info(
+                        "Block idx #{} startOfStateHash captured: hashPrefix={} (totalStateChangeItemsApplied={})",
+                        i,
+                        hexPrefix(Bytes.wrap(startOfStateHash), 16),
+                        totalStateChangeItemsApplied);
             }
+            final long blockStateChangeItemsAtStart = totalStateChangeItemsApplied;
             final IncrementalStreamingHasher inputTreeHasher =
                     new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
             final IncrementalStreamingHasher outputTreeHasher =
@@ -495,6 +506,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
                     final var expectedRootAndSiblings = computeBlockHash(
+                            blockNumber,
                             firstConsensusTimestamp,
                             previousBlockHash,
                             incrementalBlockHashes,
@@ -505,6 +517,17 @@ public class StateChangesValidator implements BlockStreamValidator {
                             finalStateChangesHash,
                             traceDataHasher);
                     final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
+                    logger.info(
+                            "Block #{} derivation summary: expectedBlockHash={} prevBlockHash={} "
+                                    + "startOfStateHash={} finalStateChangesHash={} "
+                                    + "stateChangeItemsInThisBlock={} totalStateChangeItemsApplied={}",
+                            blockNumber,
+                            hexPrefix(expectedBlockHash, 16),
+                            hexPrefix(previousBlockHash, 16),
+                            hexPrefix(Bytes.wrap(startOfStateHash), 16),
+                            hexPrefix(finalStateChangesHash, 16),
+                            totalStateChangeItemsApplied - blockStateChangeItemsAtStart,
+                            totalStateChangeItemsApplied);
                     blockNumbers.put(
                             expectedBlockHash,
                             block.items().getFirst().blockHeaderOrThrow().number());
@@ -681,6 +704,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
     private RootAndSiblingHashes computeBlockHash(
+            final long blockNumber,
             final Timestamp blockTimestamp,
             final Bytes previousBlockHash,
             final IncrementalStreamingHasher prevBlockRootsHasher,
@@ -717,6 +741,25 @@ public class StateChangesValidator implements BlockStreamValidator {
 
         // Compute the block's root hash (depth 1)
         final var root = hashInternalNode(depth2Node1, depth2Node2);
+
+        // Diagnostics: dump every intermediate hash used to build the block root so
+        // when verifyAggregate later rejects the signature we can pinpoint which
+        // sub-tree diverges from the nodes' view of the same block.
+        logger.info(
+                "Block #{} computeBlockHash components: prevBlockHash={} prevBlocksRootHash={} "
+                        + "startOfBlockStateHash={} consensusHeaderHash={} inputTreeHash={} outputTreeHash={} "
+                        + "finalStateChangesHash={} traceDataHash={} ts={} root={}",
+                blockNumber,
+                hexPrefix(previousBlockHash, 16),
+                hexPrefix(prevBlocksRootHash, 16),
+                hexPrefix(startOfBlockStateHash, 16),
+                hexPrefix(consensusHeaderHash, 16),
+                hexPrefix(inputTreeHash, 16),
+                hexPrefix(outputTreeHash, 16),
+                hexPrefix(finalStateChangesHash, 16),
+                hexPrefix(traceDataHash, 16),
+                asInstant(blockTimestamp),
+                hexPrefix(root, 16));
 
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
             new MerkleSiblingHash(false, prevBlocksRootHash),
@@ -994,6 +1037,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             lastService = serviceName;
             lastWritableStates = (CommittableWritableStates) writableStates;
         }
+        totalStateChangeItemsApplied += n;
     }
 
     /**
