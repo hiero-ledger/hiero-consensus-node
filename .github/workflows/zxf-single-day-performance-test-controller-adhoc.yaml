@@ -9,13 +9,15 @@ on:
         default: ""
       test-asset:
         required: true
-        default: "AdHocSD8"
+        default: "AdHocSD9"
         description: "Performance test on machine: AdHoc5, 6, 7, AdHocSD8, 9"
         type: choice
         options:
           - AdHoc5
           - AdHoc6
           - AdHoc7
+          - AdHoc13
+          - AdHoc14
           - AdHocSD9
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
@@ -130,7 +132,7 @@ jobs:
     uses: ./.github/workflows/zxc-single-day-performance-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
-      test-asset: "${{ inputs.test-asset }}"
+      test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ inputs.ref || github.ref }}"
       solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
@@ -142,6 +144,7 @@ jobs:
       delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   tag-sdpt-result:
     name: Tag SDPT Result

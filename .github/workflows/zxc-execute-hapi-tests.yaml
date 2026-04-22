@@ -207,8 +207,8 @@ jobs:
         with:
           name: HAPI Test (Misc) Network Logs
           path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
             hedera-node/yahcli/build/hapi-test/**/output/**
             hedera-node/yahcli/build/hapi-test/**/*.log
@@ -224,8 +224,8 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
             hedera-node/yahcli/build/reports/tests/testSubprocess/**
             hedera-node/yahcli/build/hapi-test/**/output/**
@@ -335,8 +335,8 @@ jobs:
         with:
           name: HAPI Test (Misc Records, Crypto & Misc Serial) Network Logs
           path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -350,8 +350,8 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -456,8 +456,8 @@ jobs:
         with:
           name: HAPI Test (Token & Time Consuming) Network Logs
           path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -471,8 +471,8 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -577,8 +577,8 @@ jobs:
         with:
           name: HAPI Test (Simple Fees & ND Reconnect) Network Logs
           path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -592,8 +592,8 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -697,8 +697,8 @@ jobs:
         with:
           name: HAPI Test (Smart Contracts & ISS) Network Logs
           path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -712,8 +712,8 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -800,8 +800,8 @@ jobs:
         with:
           name: HAPI Test (Restart) Network Logs
           path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -815,8 +815,8 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -1021,8 +1021,8 @@ jobs:
         with:
           name: HAPI Test (Atomic Batch) Network Logs
           path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -1036,8 +1036,8 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -1124,8 +1124,8 @@ jobs:
         with:
           name: HAPI Test (State Throttling) Network Logs
           path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
@@ -1139,8 +1139,8 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/**/*.log
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 

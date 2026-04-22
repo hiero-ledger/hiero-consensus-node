@@ -7,7 +7,7 @@ on:
       test-asset:
         required: true
         default: "AdHoc5"
-        description: "Performance test on machine: AdHoc5, 6, 7, AdHocSD8, 9 or SDPT1"
+        description: "Performance test on machine: AdHoc5,6,7,13,14, AdHocSD9, or SDPT1"
         type: string
       ref:
         required: true
@@ -58,6 +58,9 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDPT outputs notifications"
+      github-token:
+        required: true
+        description: "GitHub Authorization Token for the workflow"
     outputs:
       result:
         description: "Result of the SDPT Run"
@@ -69,7 +72,6 @@ permissions:
   actions: write
 
 env:
-  NAMESPACE_PREFIX: solo-sdpt-n
   DEFAULT_NAMESPACE: AdHocSD8
   DEFAULT_HCN_VERSION: main
   TIMEOUT_6H_LIMIT: 340
@@ -96,16 +98,86 @@ env:
   ValidatorExitCode: 0
 
 jobs:
+  acquire-kubernetes-resources:
+    name: Get Kubernetes Resources
+    runs-on: hl-cn-sdpt-lin-sm
+    outputs:
+      namespace: ${{ steps.read-chewie-response.outputs.namespace }}
+      fqdn: ${{ steps.read-chewie-response.outputs.kubernetes-fqdn }}
+      cn-quantity: ${{ steps.read-chewie-response.outputs.cn-quantity }}
+      aux-quantity: ${{ steps.read-chewie-response.outputs.aux-quantity }}
+      cn-tolerations: ${{ steps.read-chewie-response.outputs.cn-tolerations }}
+      aux-tolerations: ${{ steps.read-chewie-response.outputs.aux-tolerations }}
+      cn-labels: ${{ steps.read-chewie-response.outputs.cn-labels }}
+      aux-labels: ${{ steps.read-chewie-response.outputs.aux-labels }}
+    steps:
+      - name: Initialize Job
+        uses: PandasWhoCode/initialize-github-job@47186ab8b59085a7406a53c0b7a98031bcf4c4cc # v1.0.7
+        with:
+          checkout: true
+          checkout-token: ${{ secrets.github-token }}
+          checkout-ref: ${{ inputs.ref }}
+
+      - name: Set up JQ
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # Once chewie is ready and installed on the network this job will
+      # be responsible for making the api calls to chewie with requested
+      # resources so that chewie can find a suitable cluster and namespace
+      # for the test.
+      #
+      # The response from chewie will be a json object that we can parse.
+      - name: Read Chewie Response
+        id: read-chewie-response
+        run: |
+          JSON_RESPONSE_FILE="${{ github.workspace }}/.github/workflows/support/chewie/${{ inputs.test-asset }}-sdpt.json"
+          if [[ ! -f "${JSON_RESPONSE_FILE}" ]]; then
+              echo "::error file ${JSON_RESPONSE_FILE} does not exist."
+              exit 1
+          fi
+
+          # Now that we have the response "from chewie" we can parse out the necessary information
+          # to set up the init-containers-values files for solo.
+          NAMESPACE=$(jq -r '.namespace' "${JSON_RESPONSE_FILE}")
+          CLUSTER_FQDN=$(jq -r '.cluster_fqdn' "${JSON_RESPONSE_FILE}")
+
+          # CN Data
+          CN_QTY=$(jq -r '.instances[] | select(.group=="cn-nodes") | .spec.quantity' "${JSON_RESPONSE_FILE}")
+          CN_TOLERATIONS=$(jq -c '.instances[] | select(.group=="cn-nodes") | .tolerations' "${JSON_RESPONSE_FILE}")
+          CN_LABELS=$(jq -c '.instances[] | select(.group=="cn-nodes") | .labels' "${JSON_RESPONSE_FILE}")
+
+          # AUX Data
+          AUX_QTY=$(jq -r '.instances[] | select(.group=="aux-nodes") | .spec.quantity' "${JSON_RESPONSE_FILE}")
+          AUX_TOLERATIONS=$(jq -c '.instances[] | select(.group=="aux-nodes") | .tolerations' "${JSON_RESPONSE_FILE}")
+          AUX_LABELS=$(jq -c '.instances[] | select(.group=="aux-nodes") | .labels' "${JSON_RESPONSE_FILE}")
+
+          # Set outputs
+          echo "namespace=${NAMESPACE}" >> "${GITHUB_OUTPUT}"
+          echo "kubernetes-fqdn=${CLUSTER_FQDN}" >> "${GITHUB_OUTPUT}"
+          echo "cn-quantity=${CN_QTY}" >> "${GITHUB_OUTPUT}"
+          echo "cn-tolerations=${CN_TOLERATIONS}" >> "${GITHUB_OUTPUT}"
+          echo "cn-labels=${CN_LABELS}" >> "${GITHUB_OUTPUT}"
+          echo "aux-quantity=${AUX_QTY}" >> "${GITHUB_OUTPUT}"
+          echo "aux-tolerations=${AUX_TOLERATIONS}" >> "${GITHUB_OUTPUT}"
+          echo "aux-labels=${AUX_LABELS}" >> "${GITHUB_OUTPUT}"
+
+          # Write step summary
+          echo "## Chewie Response Read" >> "${GITHUB_STEP_SUMMARY}"
+          echo "namespace=${NAMESPACE}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "test asset=${{ inputs.test-asset }}" >> "${GITHUB_STEP_SUMMARY}"
+
   performance-tests-start:
     name: Start
     runs-on: hl-cn-sdpt-lin-lg
+    needs:
+      - acquire-kubernetes-resources
     env:
       run_NLG_Test: NftTransferLoadTest
     outputs:
-      namespace: ${{ steps.set-namespace.outputs.namespace }}
-      run-hcn-version: ${{ steps.set-namespace.outputs.run-hcn-version }}
+      run-hcn-version: ${{ steps.set-hcn-version.outputs.run-hcn-version }}
       commit-sha: ${{ steps.hederahash.outputs.sha }}
-      kubernetes-cluster: ${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
       grafana-url: ${{ steps.set-k8s-cluster.outputs.grafana-url }}
     steps:
       - name: Harden Runner
@@ -121,10 +193,9 @@ jobs:
       - name: Check Test Asset
         id: set-k8s-cluster
         run: |
-          K8S_CLUSTER="k8s.pft.dal.lat.ope.eng.hashgraph.io"
+          K8S_CLUSTER="${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
           grafana_url="${{ env.GRAFANA_SYSADM_DAL }}"
           if [[ "${{ inputs.test-asset }}" =~ ^AdHoc(SD)?[0-9]+$ ]]; then
-            K8S_CLUSTER="k8s.pft.chi.lat.ope.eng.hashgraph.io"
             grafana_url="${{ env.GRAFANA_SYSADM_CHI }}"
           fi
           echo "kubernetes-cluster=${K8S_CLUSTER}" >> "${GITHUB_OUTPUT}"
@@ -208,24 +279,21 @@ jobs:
         run: |
           mkdir "${{ github.workspace }}"/report
 
-      - name: Set namespace
-        id: set-namespace
+      - name: Set CN Version
+        id: set-hcn-version
         run: |
           set +x
           set +e
           # trim the input ref
           echo "run-hcn-version=$(echo ${{ inputs.ref }} | awk '{print $1}')" >> "${GITHUB_OUTPUT}"
-          n="$(echo "${{ inputs.test-asset }}" | perl -ne 'print "$2\n" if /^(AdHocSD|AdHoc|SDPT|SDLT)(\d+)$/')"
-          echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_OUTPUT}"
-          echo "namespace=${NAMESPACE_PREFIX}${n}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Check for namespace collision
         run: |
           set +e
           set +x
-          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+          NETWORK_ID="$(echo "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "solo-.*t-n${NETWORK_ID}[ \t]"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | grep -E "chewie-solo-.*t-n${NETWORK_ID}[ \t]"
           if [[ ${?} -eq 0 ]]
           then
             echo "::error The namespace[s] with NETWORK_ID=${NETWORK_ID} already exist[s]. Please check previous run; remove with 'kubectl delete namespaces <namespace namespace ...>'"
@@ -245,8 +313,8 @@ jobs:
 
       - name: Print parameters
         run: |
-          echo "inputs.test-asset=${{ steps.set-namespace.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "inputs.ref=${{ steps.set-namespace.outputs.run-hcn-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.test-asset=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "inputs.ref=${{ steps.set-hcn-version.outputs.run-hcn-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -320,20 +388,14 @@ jobs:
           cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values7.yaml init-containers-values7.yaml
 
           # Update Taskfile values
-          sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" \
+          sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" \
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}@g" Taskfile.yml
 
           # Update Init Containers values
-          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+          NETWORK_ID="$( jq -r '.[] | select(.key=="solo.hashgraph.io/network-id") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
 
-          if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
-            NETWORK_OWNER="single-day-perf-test"
-          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
-            NETWORK_OWNER="adhoc-single-day-test"
-          else
-            NETWORK_OWNER="adhoc-performance-test"
-          fi
+          NETWORK_OWNER="$( jq -r '.[] | select(.key=="solo.hashgraph.io/owner") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
 
           # Generate the application.properties file inline
@@ -370,15 +432,15 @@ jobs:
           fi
 
           sleep 30
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
           cd "${{ github.workspace }}"
 
           mkdir solo_deploy
           cp -r "${HOME}"/.solo/logs solo_deploy/
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
-          cp -r podlog_"${{ steps.set-namespace.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+          cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}"/solo_deploy
 
           exit "${task_code}"
 
@@ -393,9 +455,9 @@ jobs:
           set +e
           cd ${{ github.workspace }}/solo
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ steps.set-namespace.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep -v 'node10' | grep -v 'CLUSTER-IP' > networks.txt
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ steps.set-namespace.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep 'node10' | grep -v 'CLUSTER-IP' >> networks.txt
 
           # Generate the nlg-values.yaml file inline
@@ -411,26 +473,16 @@ jobs:
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
           mv new.yml nlg-values.yaml
 
-          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+          NETWORK_ID="$( jq -r '.[] | select(.key=="solo.hashgraph.io/network-id") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
-          if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
-            NETWORK_OWNER="single-day-perf-test"
-          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
-            NETWORK_OWNER="adhoc-single-day-test"
-          else
-            NETWORK_OWNER="adhoc-performance-test"
-          fi
+
+          NETWORK_OWNER="$( jq -r '.[] | select(.key=="solo.hashgraph.io/owner") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
 
-          NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
+          NETWORK_ID="$( jq -r '.[] | select(.key=="solo.hashgraph.io/network-id") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" merkledb-values.yaml
-          if [[ "${NAMESPACE_ALIAS}" =~ ^SDPT[0-9]+$ ]]; then
-            NETWORK_OWNER="single-day-perf-test"
-          elif [[ "${NAMESPACE_ALIAS}" =~ ^AdHocSD[0-9]+$ ]]; then
-            NETWORK_OWNER="adhoc-single-day-test"
-          else
-            NETWORK_OWNER="adhoc-performance-test"
-          fi
+
+          NETWORK_OWNER="$( jq -r '.[] | select(.key=="solo.hashgraph.io/owner") | .value' <<< '${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}')"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" merkledb-values.yaml
 
       - name: Deploy NLG test
@@ -438,26 +490,26 @@ jobs:
           set +x
           set +e
           cd "${{ github.workspace }}"/solo
-          /usr/bin/helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+          /usr/bin/helm upgrade --install --set appName=nlg nlg oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values nlg-values.yaml -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           sleep 180
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
       - name: Deploy Validator
         run: |
           set +x
           set +e
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             cp ${{ github.workspace }}/hedera-state-validator/build/libs/hedera-state-validator-*-SNAPSHOT-all.jar network-node1-0:/tmp/
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "mkdir /opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             cp "${{ github.workspace }}"/.github/workflows/support/citr/checkValidatorNode.sh network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/checkValidatorNode.sh
 
       - name: Build swirlds-benchmark-CryptoBenchMerkleDb.transferPrefetch
@@ -488,26 +540,26 @@ jobs:
           set +e
           cd "${{ github.workspace }}"/solo
           sed -i -e 's/32Gi/256Gi/g' merkledb-values.yaml
-          /usr/bin/helm install --set name=merkle --set appName=merkle merklebench oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ steps.set-namespace.outputs.namespace }}"
+          /usr/bin/helm install --set name=merkle --set appName=merkle merklebench oci://artifacts.hashgraph.io/load-generator-helm-release-local/network-load-generator --version "${{ env.NLG_VERSION }}" --values merkledb-values.yaml -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           sleep 180
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods
-          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp /tmp/SwirldsMerkleDB.tgz ${merklebenchpod}:/app/
 
           # Copy run version
 
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${merklebenchpod}:/app/
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvfz /app/SwirldsMerkleDB.tgz; ls -l"
 
       - name: JDK25 for SwirldsMerkleDB test
         run: |
           set +x
           set +e
-          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "\
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -c nlg -- bash -c "\
           rm -rf /opt/java/openjdk; \
           apt install -y wget apt-transport-https gpg; \
           wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null; \
@@ -522,7 +574,7 @@ jobs:
 
           start_date=$(date +%Y-%m-%dT%T)
           echo "NODE                                      POD" | tee -a "${GITHUB_STEP_SUMMARY}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
             perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Start SwirldsMerkleDB test
@@ -530,9 +582,9 @@ jobs:
           set +x
           set +e
 
-          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
 
-          kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${merklebenchpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx16g -jar /app/build/libs/swirlds-benchmarks-*-jmh.jar \
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${merklebenchpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx16g -jar /app/build/libs/swirlds-benchmarks-*-jmh.jar \
           --jvmArgs '${{ inputs.crypto-bench-merkle-db-java-args }}' CryptoBench.transferPrefetch ${{ inputs.crypto-bench-merkle-db-test-params }} > /app/swirlds-benchmarks.log 2>&1 &"
 
       - name: Start Account Creation
@@ -540,7 +592,7 @@ jobs:
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           n="$(expr "${{ inputs.nlg-accounts }}" / 1000)"
           NLG_c=32
@@ -555,11 +607,11 @@ jobs:
           esac
 
           echo \
-          kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
           ${NLGargs} -tt 10s > client.log 2>&1 &"
 
-          kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
           ${NLGargs} -tt 10s > client.log 2>&1 &"
 
@@ -591,16 +643,16 @@ jobs:
 
           sleep 60
 
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time="$(date +%s)"
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -611,13 +663,13 @@ jobs:
            counter="$(expr "${current_time}" - "${start_time}")"
            counter="$(expr "${counter}" \/ 60)"
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
@@ -631,10 +683,10 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ steps.set-namespace.outputs.namespace }}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
-          cp -r podlog_"${{ steps.set-namespace.outputs.namespace }}" "${{ github.workspace }}"/report/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}
@@ -672,18 +724,18 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-namespace.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ steps.set-hcn-version.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/create_accounts"
 
           #echo "Truncating logs for next test..."
-          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ steps.set-namespace.outputs.namespace }}"
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
       - name: Start test
         run: |
           run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           n="$(expr "${{ inputs.nlg-accounts }}" / 1000)"
           NLG_c=32
@@ -698,11 +750,11 @@ jobs:
           esac
 
           echo \
-          kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
           ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
 
-          kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
           ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${{ env.run_NLG_Test }} \
           ${NLGargs} -tt ${{ inputs.nlg-time }}m > client.log 2>&1 &"
 
@@ -710,6 +762,7 @@ jobs:
     name: NFT Transfer Load Test
     runs-on: hl-cn-sdpt-lin-lg
     needs:
+      - acquire-kubernetes-resources
       - performance-tests-start
     env:
       RUN_HCN_VERSION: ${{ inputs.ref }}
@@ -755,7 +808,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
@@ -824,16 +877,16 @@ jobs:
 
           sleep 60
 
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time="$(date +%s)"
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -844,13 +897,13 @@ jobs:
            counter="$(expr "${current_time}" - "${start_time}")"
            counter="$(expr "${counter}" \/ 60)"
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
@@ -864,10 +917,10 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.performance-tests-start.outputs.namespace }}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
-          cp -r podlog_"${{ needs.performance-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}
@@ -886,6 +939,7 @@ jobs:
     name: NFT Transfer Load Test Report
     runs-on: hl-cn-sdpt-lin-lg
     needs:
+      - acquire-kubernetes-resources
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
     env:
@@ -934,7 +988,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
@@ -1000,16 +1054,16 @@ jobs:
 
           sleep 60
 
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
 
           counter=0
           start_time="$(date +%s)"
           max_counter=${{ env.TIMEOUT_6H_LIMIT }}  #max_counter=330 mins
 
           ec=2
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
           isRunning=${?}
 
           while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
@@ -1020,13 +1074,13 @@ jobs:
            counter="$(expr "${current_time}" - "${start_time}")"
            counter="$(expr "${counter}" \/ 60)"
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
            tail -n 1 client.log
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
            isRunning=${?}
 
-           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
            check_status client_state.log
            ec=${?}
            if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
@@ -1040,11 +1094,11 @@ jobs:
             rm -rf "${{ github.workspace }}"/report/*
           fi
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
           cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.performance-tests-start.outputs.namespace }}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
-          cp -r podlog_"${{ needs.performance-tests-start.outputs.namespace }}" "${{ github.workspace }}"/report/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/
 
           check_status "${{ github.workspace }}"/report/client.log
           ec=${?}
@@ -1093,22 +1147,22 @@ jobs:
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/${{ env.run_NLG_Test }}"
 
           #echo "Truncating logs for next test..."
-          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
       - name: Records logs of CryptoBenchMerkleDb
         run: |
           set +x
           set +e
           cd "${{ github.workspace }}"
-          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "cd /app; tar cfz swirlds-benchmarks_logs.tgz swirlds-benchmarks.log output ./*/BenchmarkMetrics.csv"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks_logs.tgz ./swirlds-benchmarks_logs.tgz
+          merklebenchpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep merklebench | awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${merklebenchpod} -- bash -c "cd /app; tar cfz swirlds-benchmarks_logs.tgz swirlds-benchmarks.log output ./*/BenchmarkMetrics.csv"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${merklebenchpod}:/app/swirlds-benchmarks_logs.tgz ./swirlds-benchmarks_logs.tgz
           rm -rf "${{ github.workspace }}"/report/*
           cp swirlds-benchmarks_logs.tgz "${{ github.workspace }}"/report/swirlds-benchmarks_logs.tgz
           cd "${{ github.workspace }}"/report
           tar xfz swirlds-benchmarks_logs.tgz
           cd "${{ github.workspace }}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" delete deployment merklebench-network-load-generator
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" delete deployment merklebench-network-load-generator
 
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
@@ -1145,10 +1199,11 @@ jobs:
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ needs.performance-tests-start.outputs.run-hcn-version }}_${{ inputs.test-asset }}_${{ github.run_number }}/report/CryptoBenchMerkleDb"
 
           #echo "Truncating logs for next test..."
-          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.performance-tests-start.outputs.namespace }}"
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-HCSLoadTest:
     needs:
+      - acquire-kubernetes-resources
       - performance-NftTransferLoadTest-report
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
@@ -1160,9 +1215,12 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+      k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
+      k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-CryptoTransferLoadTest:
     needs:
+      - acquire-kubernetes-resources
       - performance-HCSLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
@@ -1174,9 +1232,12 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+      k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
+      k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-SmartContractLoadTest:
     needs:
+      - acquire-kubernetes-resources
       - performance-CryptoTransferLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
@@ -1188,9 +1249,12 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+      k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
+      k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-HeliSwapLoadTest:
     needs:
+      - acquire-kubernetes-resources
       - performance-SmartContractLoadTest
     uses: ./.github/workflows/zxc-execute-performance-test.yaml
     with:
@@ -1202,11 +1266,14 @@ jobs:
       workspace: "${{ github.workspace }}"
       gs-root-dir: "gs://performance-engineering-reports/ephemeral/test_runs"
       gs-root-https: "https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs"
+      k8s-cluster: "${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
+      k8s-namespace: "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-post-test-validation:
     name: Consensus Node State Validator
     runs-on: hl-cn-sdpt-lin-lg
     needs:
+      - acquire-kubernetes-resources
       - performance-tests-start
       - performance-HeliSwapLoadTest
     outputs:
@@ -1249,7 +1316,7 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 24h
 
       - name: Authenticate to Google Cloud
@@ -1270,7 +1337,7 @@ jobs:
         run: |
           set +x
           set +e
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
                       exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0/data/saved; d=\$(date +%Y-%d-%mT%T); s=\$(du -sk swirlds-tmp ); a=\$(du -sk .); echo \"\${d} \${s} \${a}\""
 
       - name: Run Validator
@@ -1278,11 +1345,11 @@ jobs:
         run: |
           set +x
           set +e
-          kubectl -n "${{ needs.performance-tests-start.outputs.namespace }}" \
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; sh checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.performance-tests-start.outputs.namespace }}" \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validatorRun.log "${{ github.workspace }}"/report/validatorRun.log
           grep -E 'validation .* is OK' "${{ github.workspace }}"/report/validator_status.log
           echo "value=${?}" >> "${GITHUB_OUTPUT}"
@@ -1406,6 +1473,7 @@ jobs:
     name: Delete namespace
     runs-on: hl-cn-sdpt-lin-lg
     needs:
+      - acquire-kubernetes-resources
       - performance-tests-start
       - single-day-performance-test-result
     steps:
@@ -1443,18 +1511,19 @@ jobs:
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.performance-tests-start.outputs.kubernetes-cluster }}
+          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 168h
 
       - name: Delete namespace
         if: ${{ inputs.delete-namespace == true }}
         run: |
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.performance-tests-start.outputs.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
   performance-report-to-rootly:
     name: Report Failures to Rootly
     runs-on: hl-cn-sdpt-lin-sm
     needs:
+      - acquire-kubernetes-resources
       - performance-tests-start
       - performance-NftTransferLoadTest-watch1
       - performance-NftTransferLoadTest-report
