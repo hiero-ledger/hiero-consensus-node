@@ -31,10 +31,19 @@ public class BlockNode {
 
     private static final Logger logger = LogManager.getLogger(BlockNode.class);
 
+    /**
+     * Marker for logging that indicates a value is missing
+     */
     private static final String NIL = "-";
+    /**
+     * Marker for logging that indicates a value is inflight because the connection is still active.
+     */
     private static final String IN_PROGRESS = "*";
+    /**
+     * Maximum amount of time that can elapse between receiving a wanted block notice from a block node server status
+     * API call versus when it can be used as a new streaming connection's initial block.
+     */
     private static final long WANTED_BLOCK_EXPIRATION_MILLIS = 2_000;
-
     /**
      * Maximum number of connection history events to keep track of.
      */
@@ -85,9 +94,17 @@ public class BlockNode {
      * Reference to the clock used any time-based operations. This is used for testing for better time control.
      */
     private final Clock clock;
-
+    /**
+     * Reference that holds the most recent wanted block based on block node server status API calls.
+     */
     private final AtomicReference<WantedBlock> wantedBlockRef = new AtomicReference<>();
 
+    /**
+     * Simple data holder for a wanted block.
+     *
+     * @param blockNumber the block wanted
+     * @param timestamp the timestamp when the wanted block was recorded
+     */
     record WantedBlock(long blockNumber, Instant timestamp) {}
 
     /**
