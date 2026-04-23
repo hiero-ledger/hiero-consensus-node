@@ -5,13 +5,13 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "Dallas_n10"
-        description: "Test on given MQ Machine (Dallas_n10, Dallas_n11, Dallas_n12)"
+        default: "MQPT10"
+        description: "Test on given MQ Machine (MQPT10-12)"
         type: choice
         options:
-          - Dallas_n10
-          - Dallas_n11
-          - Dallas_n12
+          - MQPT10
+          - MQPT11
+          - MQPT12
 defaults:
   run:
     shell: bash
@@ -27,7 +27,7 @@ jobs:
     name: MQ Performance Test
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
-      test-asset: "${{ inputs.test-asset }}"
+      test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ github.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "20000000"
@@ -39,6 +39,7 @@ jobs:
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   get-commit-info:
     name: Get Commit Information

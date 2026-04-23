@@ -107,22 +107,6 @@ jobs:
     secrets:
       github-token: ${{ secrets.github-token }}
 
-  print-kubernetes-resources:
-    name: Print Kubernetes Resources
-    runs-on: hl-cn-default-lin-sm
-    needs:
-      - acquire-kubernetes-resources
-    steps:
-      - name: Print Kubernetes Resources
-        run: |
-          echo "Namespace: ${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
-          echo "FQDN: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}"
-          echo "CN Quantity: ${{ needs.acquire-kubernetes-resources.outputs.cn-quantity }}"
-          echo "Aux Quantity: ${{ needs.acquire-kubernetes-resources.outputs.aux-quantity }}"
-          echo "Aux Role: ${{ needs.acquire-kubernetes-resources.outputs.aux-role }}"
-          echo "Network ID: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-          echo "Owner: ${{ needs.acquire-kubernetes-resources.outputs.owner }}"
-
   performance-tests-start:
     name: Start
     runs-on: hl-cn-sdpt-lin-lg
