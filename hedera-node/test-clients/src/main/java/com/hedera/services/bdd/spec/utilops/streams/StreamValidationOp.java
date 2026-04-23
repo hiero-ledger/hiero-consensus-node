@@ -451,8 +451,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 stream.filter(Files::isRegularFile)
                         .filter(p -> p.getFileName().toString().startsWith(blockNumberPrefix))
                         .sorted()
-                        .forEach(p -> findings.add(subdirName + "/" + p.getFileName() + " ["
-                                + probeBlockFileStatus(p) + "]"));
+                        .forEach(p -> findings.add(
+                                subdirName + "/" + p.getFileName() + " [" + probeBlockFileStatus(p) + "]"));
             } catch (Exception e) {
                 findings.add(subdirName + " [listing-failed:" + e.getClass().getSimpleName() + "]");
             }
