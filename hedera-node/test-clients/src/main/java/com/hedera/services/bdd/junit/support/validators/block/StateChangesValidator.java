@@ -372,7 +372,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 logger.info(
                         "Block idx #{} startOfStateHash captured: hashPrefix={} (totalStateChangeItemsApplied={})",
                         i,
-                        hexPrefix(Bytes.wrap(startOfStateHash), 16),
+                        hexPrefix(Bytes.wrap(startOfStateHash.toByteArray()), 16),
                         totalStateChangeItemsApplied);
             }
             final long blockStateChangeItemsAtStart = totalStateChangeItemsApplied;
@@ -524,7 +524,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                             blockNumber,
                             hexPrefix(expectedBlockHash, 16),
                             hexPrefix(previousBlockHash, 16),
-                            hexPrefix(Bytes.wrap(startOfStateHash), 16),
+                            hexPrefix(Bytes.wrap(startOfStateHash.toByteArray()), 16),
                             hexPrefix(finalStateChangesHash, 16),
                             totalStateChangeItemsApplied - blockStateChangeItemsAtStart,
                             totalStateChangeItemsApplied);

@@ -227,14 +227,17 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}"
-      enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}"
-      enable-hapi-tests-simple-fees-and-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-simple-fees-and-nd-reconnect == 'true' }}"
-      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-atomic-batch == 'true' }}"
-      enable-hapi-tests-smart-contract-and-iss: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}"
+      # TEMPORARY (stream-validation flake debugging): only the Restart HAPI bucket
+      # should run. All other HAPI sub-buckets are force-disabled. Revert with the
+      # matching change in node-flow-pull-request-checks.yaml.
+      enable-hapi-tests-misc: "false"
+      enable-hapi-tests-misc-records-crypto-and-serial: "false"
+      enable-hapi-tests-token-and-time-consuming: "false"
+      enable-hapi-tests-simple-fees-and-nd-reconnect: "false"
+      enable-hapi-tests-atomic-batch: "false"
+      enable-hapi-tests-smart-contract-and-iss: "false"
       enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests-state-throttling == 'true' }}"
+      enable-hapi-tests-state-throttling: "false"
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
