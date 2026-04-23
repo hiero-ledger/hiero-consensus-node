@@ -120,7 +120,7 @@ public class StateChangesValidator implements BlockStreamValidator {
      * the last one that has an available block proof. (The blocks immediately
      * preceding a freeze will not have proofs.)
      */
-    private static final double PROOF_VERIFICATION_PROB = 0.1g;
+    private static final double PROOF_VERIFICATION_PROB = 0.1;
     /**
      * Must match the private constant in {@code com.hedera.cryptography.tss.TSS}.
      */
