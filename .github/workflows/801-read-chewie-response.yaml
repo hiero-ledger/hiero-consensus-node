@@ -1,0 +1,147 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "801: [CITR] Read Chewie Response"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        description: "The git ref to read the Chewie response from (branch, tag, or commit SHA)."
+        type: string
+      test-asset:
+        required: true
+        description: "The test asset to read the Chewie response for."
+        type: string
+      test-type:
+        required: true
+        description: "One of [sdpt,sdlt,mqpt,mdlt]"
+        type: string
+    secrets:
+      github-token:
+        required: true
+        description: "GitHub Authorization Token for the workflow"
+    outputs:
+      namespace:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.namespace }}
+      fqdn:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.fqdn }}
+      cn-quantity:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.cn-quantity }}
+      aux-quantity:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.aux-quantity }}
+      cn-tolerations:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.cn-tolerations }}
+      aux-tolerations:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.aux-tolerations }}
+      cn-role:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.cn-role }}
+      aux-role:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.aux-role }}
+      network-id:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.network-id }}
+      owner:
+        value: ${{ jobs.acquire-kubernetes-resources.outputs.owner }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  acquire-kubernetes-resources:
+    name: Get Kubernetes Resources
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      namespace: ${{ steps.read-chewie-response.outputs.namespace }}
+      fqdn: ${{ steps.read-chewie-response.outputs.kubernetes-fqdn }}
+      cn-quantity: ${{ steps.read-chewie-response.outputs.cn-quantity }}
+      aux-quantity: ${{ steps.read-chewie-response.outputs.aux-quantity }}
+      cn-tolerations: ${{ steps.read-chewie-response.outputs.cn-tolerations }}
+      aux-tolerations: ${{ steps.read-chewie-response.outputs.aux-tolerations }}
+      cn-role: ${{ steps.read-chewie-response.outputs.cn-role }}
+      aux-role: ${{ steps.read-chewie-response.outputs.aux-role }}
+      network-id: ${{ steps.read-chewie-response.outputs.network-id }}
+      owner: ${{ steps.read-chewie-response.outputs.owner }}
+    steps:
+      - name: Initialize Job
+        uses: PandasWhoCode/initialize-github-job@47186ab8b59085a7406a53c0b7a98031bcf4c4cc # v1.0.7
+        with:
+          checkout: true
+          checkout-token: ${{ secrets.github-token }}
+          checkout-ref: ${{ inputs.ref }}
+
+      - name: Validate Test Type
+        run: |
+          VALID_TEST_TYPES=("sdpt" "sdlt" "mqpt" "mdlt")
+          if [[ ! " ${VALID_TEST_TYPES[@]} " =~ "${{ inputs.test-type }}" ]]; then
+            echo "::error::Invalid test type: ${{ inputs.test-type }}. Must be one of: ${VALID_TEST_TYPES[*]}"
+            exit 1
+          fi
+
+      - name: Set up JQ
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      # Once chewie is ready and installed on the network this job will
+      # be responsible for making the api calls to chewie with requested
+      # resources so that chewie can find a suitable cluster and namespace
+      # for the test.
+      #
+      # The response from chewie will be a json object that we can parse.
+      - name: Read Chewie Response
+        id: read-chewie-response
+        run: |
+          echo "::group::Collect Chewie Response for test asset: ${{ inputs.test-asset }}"
+          JSON_RESPONSE_FILE="${{ github.workspace }}/.github/workflows/support/chewie/${{ inputs.test-asset }}-${{ inputs.test-type }}.json"
+          if [[ ! -f "${JSON_RESPONSE_FILE}" ]]; then
+              echo "::error::file ${JSON_RESPONSE_FILE} does not exist."
+              exit 1
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Collect Chewie Data"
+          # Now that we have the response "from chewie" we can parse out the necessary information
+          # to set up the init-containers-values files for solo.
+          NAMESPACE=$(jq -r '.namespace' "${JSON_RESPONSE_FILE}")
+          CLUSTER_FQDN=$(jq -r '.cluster_fqdn' "${JSON_RESPONSE_FILE}")
+
+          # CN Data
+          CN_QTY=$(jq -r '.instances[] | select(.group=="cn-nodes") | .spec.quantity' "${JSON_RESPONSE_FILE}")
+          CN_TOLERATIONS=$(jq -c '.instances[] | select(.group=="cn-nodes") | .tolerations' "${JSON_RESPONSE_FILE}")
+          CN_LABELS=$(jq -c '.instances[] | select(.group=="cn-nodes") | .labels' "${JSON_RESPONSE_FILE}")
+          CN_ROLE="$(jq -r '."solo.hashgraph.io/role"' <<< "${CN_LABELS}")"
+
+          # AUX Data
+          AUX_QTY=$(jq -r '.instances[] | select(.group=="aux-nodes") | .spec.quantity' "${JSON_RESPONSE_FILE}")
+          AUX_TOLERATIONS=$(jq -c '.instances[] | select(.group=="aux-nodes") | .tolerations' "${JSON_RESPONSE_FILE}")
+          AUX_LABELS=$(jq -c '.instances[] | select(.group=="aux-nodes") | .labels' "${JSON_RESPONSE_FILE}")
+          AUX_ROLE="$(jq -r '."solo.hashgraph.io/role"' <<< "${AUX_LABELS}")"
+
+          # Get Owner and network-id
+          NETWORK_ID="$(jq -r '."solo.hashgraph.io/network-id"' <<< "${CN_LABELS}")"
+          OWNER="$(jq -r '."solo.hashgraph.io/owner"' <<< "${CN_LABELS}")"
+
+          # Set outputs
+          echo "namespace=${NAMESPACE}" | tee -a "${GITHUB_OUTPUT}"
+          echo "kubernetes-fqdn=${CLUSTER_FQDN}" | tee -a "${GITHUB_OUTPUT}"
+          echo "network-id=${NETWORK_ID}" | tee -a "${GITHUB_OUTPUT}"
+          echo "owner=${OWNER}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-quantity=${CN_QTY}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-role=${CN_ROLE}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-quantity=${AUX_QTY}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-role=${AUX_ROLE}" | tee -a "${GITHUB_OUTPUT}"
+          echo "cn-tolerations=${CN_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
+          echo "aux-tolerations=${AUX_TOLERATIONS}" | tee -a "${GITHUB_OUTPUT}"
+          echo "::endgroup::"
+
+          # Write step summary
+          echo "## Chewie Response Read" >> "${GITHUB_STEP_SUMMARY}"
+          echo "namespace=${NAMESPACE}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "test asset=${{ inputs.test-asset }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Network ID=${NETWORK_ID}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "Owner=${OWNER}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "CN Quantity=${CN_QTY}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "AUX Quantity=${AUX_QTY}" >> "${GITHUB_STEP_SUMMARY}"
