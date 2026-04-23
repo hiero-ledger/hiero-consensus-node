@@ -572,8 +572,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     // when any future flake surfaces, this one line pinpoints whether the drift
                     // is in previousBlockHash, startOfStateHash, or one of the 6 item-derived
                     // subtree hashes (printed by computeBlockHash).
-                    final var footerPrevBlockHash =
-                            footer.blockFooterOrThrow().previousBlockRootHash();
+                    final var footerPrevBlockHash = footer.blockFooterOrThrow().previousBlockRootHash();
                     final var footerStartOfStateHash =
                             footer.blockFooterOrThrow().startOfBlockStateRootHash();
                     logger.info(
@@ -632,7 +631,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                             ? nextBlockItems.getLast().item().kind().toString()
                             : "<empty>";
                     final var nextBlockSizeMinus2Kind = nextBlockFooterIndex >= 0
-                            ? nextBlockItems.get(nextBlockFooterIndex).item().kind().toString()
+                            ? nextBlockItems
+                                    .get(nextBlockFooterIndex)
+                                    .item()
+                                    .kind()
+                                    .toString()
                             : "<out-of-bounds>";
                     final var sizeMinus2HasFooter = nextBlockFooterIndex >= 0
                             && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter();
@@ -1210,8 +1213,9 @@ public class StateChangesValidator implements BlockStreamValidator {
             final int stateId = stateChange.stateId();
             try {
                 switch (stateChange.changeOperation().kind()) {
-                    case UNSET -> throw new IllegalStateException(
-                            "Change operation is not set for stateId=" + stateId + " (" + stateName + ")");
+                    case UNSET ->
+                        throw new IllegalStateException(
+                                "Change operation is not set for stateId=" + stateId + " (" + stateName + ")");
                     case STATE_ADD, STATE_REMOVE -> {
                         // No-op for hashing purposes (schema bookkeeping only), but log so we can
                         // correlate mid-run schema deltas (e.g. hinTS/roster construction handoffs)
