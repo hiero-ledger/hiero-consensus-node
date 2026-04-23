@@ -288,11 +288,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         if (bestPaths == null || bestPaths.isEmpty()) {
             return Optional.empty();
         }
-        log.info(
-                "readBlocksFromDisk: winner={} (files={}) candidates={}",
-                bestDir,
-                bestPaths.size(),
-                dirFileCounts);
+        log.info("readBlocksFromDisk: winner={} (files={}) candidates={}", bestDir, bestPaths.size(), dirFileCounts);
         bestPaths = bestPaths.stream()
                 .sorted(Comparator.comparing(BlockStreamAccess::extractBlockNumber))
                 .toList();
@@ -368,7 +364,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
      * the node directory that supplied it, so callers can log unambiguously which node served
      * as the substitution source.
      */
-    private record FallbackBlock(@NonNull Block block, @NonNull Path sourceDir) {}
+    private record FallbackBlock(
+            @NonNull Block block, @NonNull Path sourceDir) {}
 
     /**
      * Logs one fallback event with enough context (winner dir, provider dir, block number,
@@ -389,8 +386,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 final var prev = footer.previousBlockRootHash();
                 if (prev != null && prev.length() > 0) {
                     final int n = (int) Math.min(prev.length(), 16);
-                    footerPrevHashPrefix =
-                            java.util.HexFormat.of().formatHex(prev.toByteArray(), 0, n);
+                    footerPrevHashPrefix = java.util.HexFormat.of().formatHex(prev.toByteArray(), 0, n);
                 }
                 break;
             }
@@ -469,8 +465,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             final long blockNumber,
             @NonNull final String reason) {
         log.info(
-                "findCompleteBlockIn: start — reason={} blockNumber=#{} relativePath={} "
-                        + "otherDirsSize={}",
+                "findCompleteBlockIn: start — reason={} blockNumber=#{} relativePath={} " + "otherDirsSize={}",
                 reason,
                 blockNumber,
                 relativePath,
