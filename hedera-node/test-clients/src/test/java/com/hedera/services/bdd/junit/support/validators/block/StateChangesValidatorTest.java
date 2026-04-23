@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.support.validators.block.StateChange
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -103,6 +104,28 @@ class StateChangesValidatorTest {
 
         // The new helper recovers the hash correctly:
         assertEquals(PREV_BLOCK_ROOT_HASH, currentBlockHashFromNextBlockFooter(incompleteNextBlock));
+    }
+
+    /**
+     * Documents why the {@code else if (i + 1 < n)} guard in
+     * {@code StateChangesValidator#validateBlocks} is required. The {@code hashChainBroken} branch
+     * forces {@code shouldVerifyProof=false} regardless of position, so the fall-through can be
+     * reached when {@code i == n - 1}. Without the guard, {@code blocks.get(i + 1)} throws; with
+     * it, the iteration safely leaves {@code previousBlockHash} unchanged for the last block.
+     *
+     * <p>Note: this is a demonstrative test — it doesn't invoke {@code validateBlocks} itself
+     * (which would require the full validator setup). A regression that removes the guard
+     * wouldn't fail this test; it would fail at runtime with an OOB. Keep the guard.
+     */
+    @Test
+    void documentsGuardRequirementAgainstOobOnLastBlock() {
+        final var blocks = List.of(blockBuilder()
+                .items(List.of(headerItem(100L), footerItem(PREV_BLOCK_ROOT_HASH), proofItem(100L)))
+                .build());
+        final int i = blocks.size() - 1;
+
+        // Inline the old unguarded lookup to prove it would have failed for the trailing block:
+        assertThrows(IndexOutOfBoundsException.class, () -> blocks.get(i + 1));
     }
 
     private static Block.Builder blockBuilder() {
