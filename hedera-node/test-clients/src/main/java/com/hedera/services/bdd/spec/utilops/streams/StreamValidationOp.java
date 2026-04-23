@@ -239,25 +239,60 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 .map(Path::toAbsolutePath)
                 .distinct()
                 .toList();
+        // Diagnostic: enumerate every node's blockStreams dir so a reader can confirm:
+        //   (1) each entry is an absolute path,
+        //   (2) the real path (symlink-resolved) matches the absolute path — if not,
+        //       toAbsolutePath-based deduplication may be missing aliased dirs so the
+        //       same physical directory is visited twice under different names,
+        //   (3) each dir actually exists and is a directory before Files.walk runs on it.
+        // These three properties together are the preconditions the cross-node fallback
+        // path-building assumes; if any fails the theory about broken relative/absolute
+        // path construction is confirmed on that specific entry.
+        for (int k = 0; k < blockStreamDirs.size(); k++) {
+            final var dir = blockStreamDirs.get(k);
+            String realPath = "<not-resolved>";
+            try {
+                realPath = dir.toRealPath().toString();
+            } catch (Exception e) {
+                realPath = "<resolve-failed:" + e.getClass().getSimpleName() + ">";
+            }
+            log.info(
+                    "readBlocksFromDisk dir-entry[{}]: abs={} real={} isAbsolute={} exists={} isDirectory={}",
+                    k,
+                    dir,
+                    realPath,
+                    dir.isAbsolute(),
+                    Files.exists(dir),
+                    Files.isDirectory(dir));
+        }
         // Pick the node directory with the most block files (compare by count first,
         // then sort only the winner to avoid unnecessary sorting of discarded lists)
         Path bestDir = null;
         List<Path> bestPaths = null;
+        // Diagnostic: log each candidate node's file count so a non-deterministic winner
+        // (ties broken by iteration order) is visible in CI logs.
+        final var dirFileCounts = new java.util.LinkedHashMap<Path, Integer>();
         for (final var dir : blockStreamDirs) {
             try (final var stream = Files.walk(dir)) {
                 final var paths = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
                         .toList();
+                dirFileCounts.put(dir, paths.size());
                 if (bestPaths == null || paths.size() > bestPaths.size()) {
                     bestDir = dir;
                     bestPaths = paths;
                 }
-            } catch (Exception ignore) {
-                // We will try the next node's directory
+            } catch (Exception e) {
+                log.warn("readBlocksFromDisk: Files.walk failed on {}: {}", dir, e.toString());
             }
         }
         if (bestPaths == null || bestPaths.isEmpty()) {
             return Optional.empty();
         }
+        log.info(
+                "readBlocksFromDisk: winner={} (files={}) candidates={}",
+                bestDir,
+                bestPaths.size(),
+                dirFileCounts);
         bestPaths = bestPaths.stream()
                 .sorted(Comparator.comparing(BlockStreamAccess::extractBlockNumber))
                 .toList();
@@ -265,17 +300,32 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         final var otherDirs = new ArrayList<>(blockStreamDirs);
         otherDirs.remove(bestDir);
         final var result = new ArrayList<Block>(bestPaths.size());
+        int parseFailFallbacks = 0;
+        int parseFailUnresolved = 0;
+        int incompleteFallbacks = 0;
+        int incompleteKeptAsIs = 0;
         for (final var blockPath : bestPaths) {
             final var relativePath = bestDir.relativize(blockPath);
+            final long blockNumber = BlockStreamAccess.extractBlockNumber(blockPath);
             Block block;
             try {
                 block = BlockStreamAccess.blockFrom(blockPath);
             } catch (Exception e) {
                 log.warn("Failed to parse block file {}", blockPath, e);
                 // Try the same file from other node directories to avoid a gap
-                final var fallback = findCompleteBlockIn(otherDirs, relativePath);
+                verifyRelativizeRoundTripOrWarn(blockNumber, bestDir, blockPath, relativePath);
+                final var fallback = findCompleteBlockIn(otherDirs, relativePath, blockNumber, "parse-failed");
                 if (fallback != null) {
-                    result.add(fallback);
+                    parseFailFallbacks++;
+                    logFallback("parse-failed", blockNumber, bestDir, relativePath, fallback);
+                    result.add(fallback.block());
+                } else {
+                    parseFailUnresolved++;
+                    log.warn(
+                            "readBlocksFromDisk: parse-failed fallback could not be satisfied for block #{} "
+                                    + "(relativePath={}); leaving a GAP in the block list",
+                            blockNumber,
+                            relativePath);
                 }
                 continue;
             }
@@ -285,33 +335,208 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 continue;
             }
             // Incomplete block — try the same relative path under other node directories
-            final var replacement = findCompleteBlockIn(otherDirs, relativePath);
-            result.add(replacement != null ? replacement : block);
+            verifyRelativizeRoundTripOrWarn(blockNumber, bestDir, blockPath, relativePath);
+            final var replacement = findCompleteBlockIn(otherDirs, relativePath, blockNumber, "incomplete");
+            if (replacement != null) {
+                incompleteFallbacks++;
+                logFallback("incomplete", blockNumber, bestDir, relativePath, replacement);
+                result.add(replacement.block());
+            } else {
+                incompleteKeptAsIs++;
+                log.info(
+                        "readBlocksFromDisk: incomplete block #{} has no complete copy on any node; "
+                                + "keeping winner's partial items (itemCount={}, lastItemIsFooter={})",
+                        blockNumber,
+                        items.size(),
+                        !items.isEmpty() && items.getLast().hasBlockFooter());
+                result.add(block);
+            }
         }
+        log.info(
+                "readBlocksFromDisk: finished assembling {} blocks (parseFailFallbacks={}, parseFailUnresolved={}, "
+                        + "incompleteFallbacks={}, incompleteKeptAsIs={})",
+                result.size(),
+                parseFailFallbacks,
+                parseFailUnresolved,
+                incompleteFallbacks,
+                incompleteKeptAsIs);
         return result.isEmpty() ? Optional.empty() : Optional.of(result);
     }
 
     /**
+     * Result of a fallback lookup — bundles the complete {@link Block} we ended up using with
+     * the node directory that supplied it, so callers can log unambiguously which node served
+     * as the substitution source.
+     */
+    private record FallbackBlock(@NonNull Block block, @NonNull Path sourceDir) {}
+
+    /**
+     * Logs one fallback event with enough context (winner dir, provider dir, block number,
+     * footer's {@code previousBlockRootHash} prefix, item count) that a future flake can be
+     * cross-referenced against the node that actually served the substituted bytes.
+     */
+    private static void logFallback(
+            @NonNull final String reason,
+            final long blockNumber,
+            @NonNull final Path winnerDir,
+            @NonNull final Path relativePath,
+            @NonNull final FallbackBlock fallback) {
+        final var items = fallback.block().items();
+        String footerPrevHashPrefix = "<no-footer>";
+        for (int j = items.size() - 1; j >= 0; j--) {
+            if (items.get(j).hasBlockFooter()) {
+                final var footer = items.get(j).blockFooterOrThrow();
+                final var prev = footer.previousBlockRootHash();
+                if (prev != null && prev.length() > 0) {
+                    final int n = (int) Math.min(prev.length(), 16);
+                    footerPrevHashPrefix =
+                            java.util.HexFormat.of().formatHex(prev.toByteArray(), 0, n);
+                }
+                break;
+            }
+        }
+        log.info(
+                "readBlocksFromDisk fallback: reason={} blockNumber=#{} relativePath={} winnerDir={} providerDir={} "
+                        + "itemCount={} footerPrevBlockRootHash(prefix)={}",
+                reason,
+                blockNumber,
+                relativePath,
+                winnerDir,
+                fallback.sourceDir(),
+                items.size(),
+                footerPrevHashPrefix);
+    }
+
+    /**
+     * Confirms the {@code relativize}/{@code resolve} round-trip still points back at the
+     * original winner file. If it doesn't, the cross-node fallback is already guaranteed to
+     * look at wrong paths under other node directories (since each candidate is built by
+     * {@code dir.resolve(relativePath)}). A mismatch here is the smoking gun for the theory
+     * that path construction for the fallback lookup is broken.
+     */
+    private static void verifyRelativizeRoundTripOrWarn(
+            final long blockNumber,
+            @NonNull final Path winnerDir,
+            @NonNull final Path winnerBlockPath,
+            @NonNull final Path relativePath) {
+        try {
+            final var roundTrip = winnerDir.resolve(relativePath).normalize();
+            final var originalNormalized = winnerBlockPath.normalize();
+            if (!roundTrip.equals(originalNormalized)) {
+                log.warn(
+                        "readBlocksFromDisk: relativize/resolve round-trip MISMATCH for block #{} — "
+                                + "winnerBlockPath={} winnerDir={} relativePath={} roundTrip={} — "
+                                + "cross-node fallback will look under WRONG paths",
+                        blockNumber,
+                        originalNormalized,
+                        winnerDir,
+                        relativePath,
+                        roundTrip);
+            } else {
+                log.info(
+                        "readBlocksFromDisk: round-trip ok for block #{}: winnerDir={} relativePath={} "
+                                + "resolve(relativePath) == winnerBlockPath",
+                        blockNumber,
+                        winnerDir,
+                        relativePath);
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "readBlocksFromDisk: round-trip check threw for block #{} (winnerDir={} relativePath={}): {}",
+                    blockNumber,
+                    winnerDir,
+                    relativePath,
+                    e.toString());
+        }
+    }
+
+    /**
      * Tries to find a complete version of a block file by resolving the same relative path
-     * under each of the given directories. Returns the first block whose last item is a proof.
+     * under each of the given directories. Returns the first block whose last item is a proof,
+     * along with the directory that supplied it (so callers can log unambiguously).
+     *
+     * <p>Emits one diagnostic line per candidate attempted — each line captures the resolved
+     * absolute {@code candidatePath}, the real-path after symlink resolution (so aliasing is
+     * visible), whether the file exists, whether parse succeeded, and whether the last item
+     * is a {@code BlockProof}. A reader can scan these to tell the difference between
+     * "fallback couldn't find a complete copy because no other node has this block" and
+     * "fallback built a wrong path so the file it's checking doesn't exist on any node".
      */
     @Nullable
-    private static Block findCompleteBlockIn(@NonNull final List<Path> otherDirs, @NonNull final Path relativePath) {
-        for (final var dir : otherDirs) {
+    private static FallbackBlock findCompleteBlockIn(
+            @NonNull final List<Path> otherDirs,
+            @NonNull final Path relativePath,
+            final long blockNumber,
+            @NonNull final String reason) {
+        log.info(
+                "findCompleteBlockIn: start — reason={} blockNumber=#{} relativePath={} "
+                        + "otherDirsSize={}",
+                reason,
+                blockNumber,
+                relativePath,
+                otherDirs.size());
+        for (int k = 0; k < otherDirs.size(); k++) {
+            final var dir = otherDirs.get(k);
             final var candidatePath = dir.resolve(relativePath);
-            if (!Files.exists(candidatePath)) {
+            final boolean exists = Files.exists(candidatePath);
+            String candidateRealPath = "<not-resolved>";
+            if (exists) {
+                try {
+                    candidateRealPath = candidatePath.toRealPath().toString();
+                } catch (Exception e) {
+                    candidateRealPath = "<resolve-failed:" + e.getClass().getSimpleName() + ">";
+                }
+            }
+            if (!exists) {
+                log.info(
+                        "findCompleteBlockIn: candidate[{}] — reason={} block=#{} dir={} "
+                                + "candidatePath={} exists=false",
+                        k,
+                        reason,
+                        blockNumber,
+                        dir,
+                        candidatePath);
                 continue;
             }
             try {
                 final var block = BlockStreamAccess.blockFrom(candidatePath);
                 final var items = block.items();
-                if (!items.isEmpty() && items.getLast().hasBlockProof()) {
-                    return block;
+                final boolean isEmpty = items.isEmpty();
+                final boolean lastIsProof = !isEmpty && items.getLast().hasBlockProof();
+                log.info(
+                        "findCompleteBlockIn: candidate[{}] — reason={} block=#{} dir={} "
+                                + "candidatePath={} candidateReal={} exists=true parseOk=true "
+                                + "itemCount={} lastIsProof={}",
+                        k,
+                        reason,
+                        blockNumber,
+                        dir,
+                        candidatePath,
+                        candidateRealPath,
+                        items.size(),
+                        lastIsProof);
+                if (!isEmpty && lastIsProof) {
+                    return new FallbackBlock(block, dir);
                 }
-            } catch (Exception ignore) {
-                // Try the next directory
+            } catch (Exception e) {
+                log.info(
+                        "findCompleteBlockIn: candidate[{}] — reason={} block=#{} dir={} "
+                                + "candidatePath={} candidateReal={} exists=true parseOk=false err={}",
+                        k,
+                        reason,
+                        blockNumber,
+                        dir,
+                        candidatePath,
+                        candidateRealPath,
+                        e.toString());
             }
         }
+        log.info(
+                "findCompleteBlockIn: done — reason={} blockNumber=#{} no complete copy found across "
+                        + "{} other dirs",
+                reason,
+                blockNumber,
+                otherDirs.size());
         return null;
     }
 

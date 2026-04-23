@@ -120,12 +120,14 @@ public class StateChangesValidator implements BlockStreamValidator {
      * the last one that has an available block proof. (The blocks immediately
      * preceding a freeze will not have proofs.)
      *
-     * <p>Temporarily set to 1.0 while investigating the
-     * {@code StreamValidationTest.streamsAreValid} flake so the first block
-     * whose derivation drifts from the network's consensus hash surfaces
-     * immediately instead of being sampled 100+ blocks later.
+     * <p>Kept at 0.05 so the complete-but-not-sampled {@code else} branch
+     * below (which reads the current block's hash from the next block's
+     * footer) actually runs in CI. That branch is the site of the
+     * {@code streamsAreValid} flake — at 1.0 every block is sampled and
+     * the branch never executes, which would mask the bug rather than
+     * expose it.
      */
-    private static final double PROOF_VERIFICATION_PROB = 1.0;
+    private static final double PROOF_VERIFICATION_PROB = 0.05;
     /**
      * Must match the private constant in {@code com.hedera.cryptography.tss.TSS}.
      */
@@ -519,9 +521,20 @@ public class StateChangesValidator implements BlockStreamValidator {
                     // But we must still add the skipped block's hash to the incremental
                     // hasher so the chain stays in sync for future proof verifications.
                     final var skippedBlockHash = footer.blockFooterOrThrow().previousBlockRootHash();
+                    // The skipped block's slot in the incremental chain is patched here
+                    // using THIS block's footer's previousBlockRootHash (which is the
+                    // skipped block's own root hash). Audit-log the entry so a failing
+                    // CI run shows the exact sequence of hashes that flowed into the
+                    // chain hasher.
+                    logIncrementalBlockHashAdd(i, blockNumber - 1, "skipped-block-recovery", skippedBlockHash);
                     incrementalBlockHashes.addNodeByHash(skippedBlockHash.toByteArray());
                     shouldVerifyProof = false;
                     hashChainBroken = false;
+                    logger.info(
+                            "hashChainBroken cleared: block=#{} i={} patched skipped hash={} into incremental chain",
+                            blockNumber,
+                            i,
+                            hexPrefix(skippedBlockHash, 16));
                 } else {
                     assertEquals(
                             previousBlockHash,
@@ -595,9 +608,36 @@ public class StateChangesValidator implements BlockStreamValidator {
                             expectedRootAndSiblings.siblingHashes());
                     previousBlockHash = expectedBlockHash;
                 } else {
+                    // Complete-but-not-sampled path: the bug targeted by PR #25097 lives here.
+                    // The code assumes the next block's items end with [..., footer, proof]
+                    // (complete shape, footer at size-2). If the next block is instead
+                    // incomplete — flushed at a freeze round or after a restart truncated the
+                    // proof delivery, ending with [..., footer] — then size-2 is the header,
+                    // hasBlockFooter() returns false, the if silently falls through, and
+                    // previousBlockHash stays stale. The stale value is then added to the
+                    // incremental chain hasher at the addNodeByHash call below, permanently
+                    // desyncing the chain by one entry. Every subsequent sampled block
+                    // computes the wrong prevBlocksRootHash and its signature fails to verify.
+                    //
+                    // Log the full shape so a flaky CI run leaves irrefutable evidence:
+                    // next-block item count, last-item kind, size-2 item kind, whether
+                    // hasBlockFooter at size-2 succeeded, and — most important — whether
+                    // previousBlockHash was actually updated or left stale.
+                    final var previousBlockHashBefore = previousBlockHash;
                     final var nextBlock = blocks.get(i + 1);
                     final var nextBlockItems = nextBlock.items();
                     final var nextBlockFooterIndex = nextBlockItems.size() - 2;
+                    final var nextBlockSize = nextBlockItems.size();
+                    final var nextBlockLastKind = nextBlockSize > 0
+                            ? nextBlockItems.getLast().item().kind().toString()
+                            : "<empty>";
+                    final var nextBlockSizeMinus2Kind = nextBlockFooterIndex >= 0
+                            ? nextBlockItems.get(nextBlockFooterIndex).item().kind().toString()
+                            : "<out-of-bounds>";
+                    final var sizeMinus2HasFooter = nextBlockFooterIndex >= 0
+                            && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter();
+                    final var nextBlockHasProof =
+                            nextBlockSize > 0 && nextBlockItems.getLast().hasBlockProof();
                     if (nextBlockFooterIndex >= 0
                             && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter()) {
                         previousBlockHash = nextBlockItems
@@ -605,11 +645,63 @@ public class StateChangesValidator implements BlockStreamValidator {
                                 .blockFooterOrThrow()
                                 .previousBlockRootHash();
                     }
+                    final var staleFallthrough = previousBlockHash.equals(previousBlockHashBefore);
+                    final long nextBlockNumber = nextBlockSize > 0
+                                    && nextBlockItems.getFirst().hasBlockHeader()
+                            ? nextBlockItems.getFirst().blockHeaderOrThrow().number()
+                            : -1L;
+                    if (staleFallthrough) {
+                        logger.error(
+                                "STALE-FALLTHROUGH (PR #25097 bug): block=#{} i={} next=#{} "
+                                        + "nextItemCount={} nextLastKind={} nextHasProof={} "
+                                        + "nextSize-2Kind={} sizeMinus2HasFooter={} "
+                                        + "previousBlockHash(unchanged)={} — the addNodeByHash "
+                                        + "call below will add this STALE value into block #{}'s "
+                                        + "slot in incrementalBlockHashes, desyncing the chain.",
+                                blockNumber,
+                                i,
+                                nextBlockNumber,
+                                nextBlockSize,
+                                nextBlockLastKind,
+                                nextBlockHasProof,
+                                nextBlockSizeMinus2Kind,
+                                sizeMinus2HasFooter,
+                                hexPrefix(previousBlockHash, 16),
+                                blockNumber);
+                    } else {
+                        logger.info(
+                                "next-block-footer lookup ok: block=#{} i={} next=#{} "
+                                        + "nextItemCount={} nextLastKind={} nextHasProof={} "
+                                        + "nextSize-2Kind={} sizeMinus2HasFooter={} "
+                                        + "previousBlockHash(before)={} previousBlockHash(after)={}",
+                                blockNumber,
+                                i,
+                                nextBlockNumber,
+                                nextBlockSize,
+                                nextBlockLastKind,
+                                nextBlockHasProof,
+                                nextBlockSizeMinus2Kind,
+                                sizeMinus2HasFooter,
+                                hexPrefix(previousBlockHashBefore, 16),
+                                hexPrefix(previousBlockHash, 16));
+                    }
                 }
 
+                logIncrementalBlockHashAdd(i, blockNumber, "per-block-accumulator", previousBlockHash);
                 incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
             } else if (i <= lastVerifiableIndex) {
-                logger.warn("Skipping proof verification for incomplete block #{} at index {}", blockNumber, i);
+                logger.warn(
+                        "Skipping proof verification for incomplete block #{} at index {} "
+                                + "(itemCount={}, lastItemKind={}, hasFooterAtLast={}); "
+                                + "hashChainBroken <- true — this is the shape that triggers "
+                                + "PR #25097's bug at the PREVIOUS block's else branch",
+                        blockNumber,
+                        i,
+                        block.items().size(),
+                        block.items().isEmpty()
+                                ? "<empty>"
+                                : block.items().getLast().item().kind(),
+                        !block.items().isEmpty() && block.items().getLast().hasBlockFooter());
                 hashChainBroken = true;
             }
         }
@@ -1063,6 +1155,33 @@ public class StateChangesValidator implements BlockStreamValidator {
                 blockNumber,
                 hashStr,
                 totalStateChangeItemsApplied);
+    }
+
+    /**
+     * Audit-logs every call to {@code incrementalBlockHashes.addNodeByHash(...)}.
+     *
+     * <p>PR #25097's bug (the flake we're chasing) manifests as two consecutive entries
+     * carrying <em>identical</em> hash prefixes: the prior block's hash is added once with
+     * {@code source=per-block-accumulator} on its own iteration, then again on the next
+     * iteration when the complete-but-not-sampled else branch silently fell through and
+     * left {@code previousBlockHash} stale. With this log, a flaky run is diagnosable by
+     * grepping {@code addNodeByHash} and spotting the duplicate in the sequence.
+     *
+     * <p>{@code sourceBlockNumber} is the block whose hash this entry is supposed to
+     * represent (may differ from {@code outerIndex}'s block when patching a skipped block
+     * in the {@code hashChainBroken} recovery path).
+     */
+    private void logIncrementalBlockHashAdd(
+            final int outerIndex,
+            final long sourceBlockNumber,
+            @NonNull final String source,
+            @NonNull final Bytes hash) {
+        logger.info(
+                "addNodeByHash: i={} sourceBlockNumber=#{} source={} hash={}",
+                outerIndex,
+                sourceBlockNumber,
+                source,
+                hexPrefix(hash, 16));
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
