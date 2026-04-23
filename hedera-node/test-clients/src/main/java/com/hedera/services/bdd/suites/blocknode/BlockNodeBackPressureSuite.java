@@ -137,7 +137,8 @@ public class BlockNodeBackPressureSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "5",
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.writerMode", "GRPC",
+                            "fallen.behind.fallenBehindThreshold", "2.0"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -146,7 +147,8 @@ public class BlockNodeBackPressureSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "5",
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.writerMode", "GRPC",
+                            "fallen.behind.fallenBehindThreshold", "2.0"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -155,7 +157,8 @@ public class BlockNodeBackPressureSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "5",
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.writerMode", "GRPC",
+                            "fallen.behind.fallenBehindThreshold", "2.0"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -164,7 +167,8 @@ public class BlockNodeBackPressureSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.buffer.maxBlocks", "5",
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "GRPC"
+                            "blockStream.writerMode", "GRPC",
+                            "fallen.behind.fallenBehindThreshold", "2.0"
                         })
             })
     @Order(3)
