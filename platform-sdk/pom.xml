@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (C) 2024-2025 Hedera Hashgraph, LLC
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.hedera.hashgraph</groupId>
+        <artifactId>hiero-consensus-node</artifactId>
+        <version>0.70.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>platform-sdk</artifactId>
+    <packaging>pom</packaging>
+    <name>Platform SDK</name>
+    <description>Hedera Platform SDK - Consensus and Platform Core Modules</description>
+
+    <modules>
+        <!-- Tier 1: Foundation (no internal dependencies) -->
+        <module>swirlds-base</module>
+        <module>swirlds-base-test-fixtures</module>
+        <module>swirlds-config-api</module>
+        <module>swirlds-config-api-test-fixtures</module>
+        <module>swirlds-config-processor</module>
+        <module>swirlds-config-extensions</module>
+        <module>swirlds-config-extensions-test-fixtures</module>
+        <module>swirlds-logging</module>
+        <module>swirlds-logging-test-fixtures</module>
+
+        <!-- Tier 2: Core utilities -->
+        <module>base-utility</module>
+        <module>base-utility-test-fixtures</module>
+        <module>base-concurrent</module>
+        <module>base-crypto</module>
+        <module>base-crypto-test-fixtures</module>
+        <module>swirlds-config-impl</module>
+        <module>junit-extensions</module>
+
+        <!-- Tier 3: Metrics and Core Infrastructure -->
+        <module>swirlds-logging-log4j-appender</module>
+        <module>swirlds-metrics-api</module>
+        <module>swirlds-metrics-impl</module>
+
+        <!-- Tier 4: Consensus Model -->
+        <module>consensus-model</module>
+        <module>consensus-model-test-fixtures</module>
+
+        <!-- Tier 5: Core Platform (main modules first) -->
+        <module>swirlds-common</module>
+        <module>swirlds-component-framework</module>
+        <module>swirlds-merkle</module>
+        <module>swirlds-virtualmap</module>
+        <module>swirlds-virtualmap-test-fixtures</module>
+        <module>swirlds-merkledb</module>
+        <module>swirlds-merkledb-test-fixtures</module>
+        <module>swirlds-state-api</module>
+        <module>swirlds-state-api-test-fixtures</module>
+        <module>swirlds-state-impl</module>
+        <module>swirlds-state-impl-test-fixtures</module>
+
+        <!-- Tier 6: Consensus Implementation -->
+        <module>consensus-utility</module>
+        <module>consensus-utility-test-fixtures</module>
+        <module>consensus-gossip</module>
+        <module>consensus-gossip-impl</module>
+        <module>consensus-hashgraph</module>
+        <module>consensus-hashgraph-impl</module>
+        <module>consensus-event-creator</module>
+        <module>consensus-event-creator-impl</module>
+        <module>consensus-event-intake</module>
+        <module>consensus-event-intake-impl</module>
+        <module>swirlds-cli</module>
+        <module>swirlds-platform-core</module>
+
+        <!-- Test fixtures that depend on platform-core -->
+        <module>swirlds-common-test-fixtures</module>
+        <module>swirlds-merkle-test-fixtures</module>
+        <module>swirlds-platform-core-test-fixtures</module>
+
+        <!-- Applications -->
+        <module>swirlds</module>
+        <module>swirlds-benchmarks</module>
+        <module>consensus-otter-docker-app</module>
+        <module>consensus-otter-tests</module>
+    </modules>
+</project>
