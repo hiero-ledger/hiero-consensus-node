@@ -404,6 +404,82 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     /**
+     * Lists the immediate {@code block-*} subdirectory names under a node's blockStreams
+     * parent. Used to diagnose the cross-node subdir mismatch: nodes write blocks into
+     * {@code block-<shard>.<realm>.<selfAccount>} (see
+     * {@code FileBlockItemWriter.nodeScopedBlockDir}), so the fallback's blind
+     * {@code otherDir.resolve(relativePath)} — which preserves the <em>winner's</em>
+     * account subdir — can never find files on another node.
+     */
+    @NonNull
+    private static List<String> listBlockSubdirs(@NonNull final Path blockStreamsParent) {
+        try (final var stream = Files.list(blockStreamsParent)) {
+            return stream.filter(Files::isDirectory)
+                    .map(p -> p.getFileName().toString())
+                    .filter(name -> name.startsWith("block-"))
+                    .sorted()
+                    .toList();
+        } catch (Exception e) {
+            return List.of("<listing-failed:" + e.getClass().getSimpleName() + ">");
+        }
+    }
+
+    /**
+     * Walks every {@code block-*} subdirectory under {@code otherDir} looking for files whose
+     * name starts with the same zero-padded block-number prefix as the winner's file. For
+     * each match, parses the block and reports its itemCount + whether the last item is a
+     * {@code BlockProof}. The output is what we'd need to see to confirm that the current
+     * cross-node fallback's blind {@code dir.resolve(relativePath)} is missing a perfectly
+     * usable completed copy that's sitting one subdir over.
+     *
+     * <p>Side-effect-free and exception-safe — swallows I/O errors into strings so a failing
+     * directory listing never breaks the validator.
+     */
+    @NonNull
+    private static String probeCorrectSubdirsForBlock(
+            @NonNull final Path otherDir,
+            @NonNull final List<String> siblingSubdirs,
+            @NonNull final Path winnerRelativePath) {
+        final var winnerFileName = winnerRelativePath.getFileName().toString();
+        final int dotIdx = winnerFileName.indexOf('.');
+        // Zero-padded block number, e.g. "000000000000000000000000000000000616".
+        final String blockNumberPrefix = dotIdx > 0 ? winnerFileName.substring(0, dotIdx) : winnerFileName;
+        final var findings = new ArrayList<String>();
+        for (final String subdirName : siblingSubdirs) {
+            final Path subdir = otherDir.resolve(subdirName);
+            try (final var stream = Files.list(subdir)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(p -> p.getFileName().toString().startsWith(blockNumberPrefix))
+                        .sorted()
+                        .forEach(p -> findings.add(
+                                subdirName + "/" + p.getFileName() + " [" + probeBlockFileStatus(p) + "]"));
+            } catch (Exception e) {
+                findings.add(subdirName + " [listing-failed:" + e.getClass().getSimpleName() + "]");
+            }
+        }
+        return findings.isEmpty()
+                ? "<no-file-matching-prefix-" + blockNumberPrefix + "-in-any-subdir>"
+                : findings.toString();
+    }
+
+    /**
+     * Parses a single block file and returns a short status string: item count and
+     * whether the last item is a {@code BlockProof}. Exceptions become diagnostic text.
+     */
+    @NonNull
+    private static String probeBlockFileStatus(@NonNull final Path blockFile) {
+        try {
+            final var block = BlockStreamAccess.blockFrom(blockFile);
+            final var items = block.items();
+            final boolean isEmpty = items.isEmpty();
+            final boolean lastIsProof = !isEmpty && items.getLast().hasBlockProof();
+            return "itemCount=" + items.size() + " lastIsProof=" + lastIsProof;
+        } catch (Exception e) {
+            return "parseFailed:" + e.getClass().getSimpleName();
+        }
+    }
+
+    /**
      * Confirms the {@code relativize}/{@code resolve} round-trip still points back at the
      * original winner file. If it doesn't, the cross-node fallback is already guaranteed to
      * look at wrong paths under other node directories (since each candidate is built by
@@ -483,14 +559,33 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 }
             }
             if (!exists) {
+                // Smoking gun for the cross-node subdir bug: winner's relativePath embeds
+                // its own `block-<shard>.<realm>.<selfAccount>` subdir (see
+                // FileBlockItemWriter.nodeScopedBlockDir). When we resolve that under another
+                // node's blockStreams parent, we're pointing at a subdir that node never
+                // writes to — its own account subdir has a different name. List whatever
+                // `block-*` subdirs DO exist on this otherDir so the mismatch is one log
+                // line away from obvious.
+                //
+                // Then, second half of the evidence: walk each of those real subdirs looking
+                // for files that match this block number, parse them, and report whether any
+                // of them is actually a complete block with a proof. If `correctSubdirProbe`
+                // ever reports `lastIsProof=true`, that's direct evidence the fallback would
+                // have succeeded with the right path construction — i.e. the current
+                // implementation is structurally blocking a substitution that would otherwise
+                // have repaired the incomplete block.
+                final var siblingSubdirs = listBlockSubdirs(dir);
+                final var correctSubdirProbe = probeCorrectSubdirsForBlock(dir, siblingSubdirs, relativePath);
                 log.info(
                         "findCompleteBlockIn: candidate[{}] — reason={} block=#{} dir={} "
-                                + "candidatePath={} exists=false",
+                                + "candidatePath={} exists=false siblingSubdirs={} correctSubdirProbe={}",
                         k,
                         reason,
                         blockNumber,
                         dir,
-                        candidatePath);
+                        candidatePath,
+                        siblingSubdirs,
+                        correctSubdirProbe);
                 continue;
             }
             try {
