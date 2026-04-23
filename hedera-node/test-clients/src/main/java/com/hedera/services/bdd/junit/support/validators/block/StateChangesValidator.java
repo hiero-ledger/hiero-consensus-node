@@ -119,6 +119,13 @@ public class StateChangesValidator implements BlockStreamValidator {
      * we always verify the first and
      * the last one that has an available block proof. (The blocks immediately
      * preceding a freeze will not have proofs.)
+     *
+     * <p>Kept at 0.05 so the complete-but-not-sampled {@code else} branch
+     * below (which reads the current block's hash from the next block's
+     * footer) actually runs in CI. That branch is the site of the
+     * {@code streamsAreValid} flake — at 1.0 every block is sampled and
+     * the branch never executes, which would mask the bug rather than
+     * expose it.
      */
     private static final double PROOF_VERIFICATION_PROB = 0.05;
     /**
@@ -131,6 +138,20 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final int COMPRESSED_WRAPS_PROOF_LENGTH = 704;
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
+
+    /**
+     * Set of round numbers (inclusive) for which the validator should log
+     * {@code state.getRoot().getHash()} at the round boundary, so we can
+     * bisect where its Merkle view of state diverges from the node's.
+     *
+     * <p>Configured via the {@code hapi.spec.perRoundStateHashRounds} system
+     * property. Accepts comma-separated round numbers and/or inclusive ranges
+     * (e.g. {@code "11099-11103"} or {@code "11099,11100,11101"}). Unset by
+     * default; round-boundary hashing is relatively expensive, so enable only
+     * while investigating a specific divergence.
+     */
+    private static final Set<Long> PER_ROUND_STATE_HASH_ROUNDS =
+            parseRoundSet(System.getProperty("hapi.spec.perRoundStateHashRounds", ""));
 
     private final long hintsThresholdDenominator;
     private final boolean assertAtLeastOneWraps;
@@ -388,8 +409,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                     new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
 
             long firstBlockRound = -1;
+            long currentRound = -1;
             long eventNodeId = -1;
             Timestamp firstConsensusTimestamp = null;
+            final long blockNumberForLogging =
+                    block.items().getFirst().blockHeaderOrThrow().number();
             for (final var item : block.items()) {
                 if (firstConsensusTimestamp == null && item.hasBlockHeader()) {
                     firstConsensusTimestamp = item.blockHeaderOrThrow().blockTimestamp();
@@ -398,8 +422,19 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     && !Objects.equals(firstConsensusTimestamp, Timestamp.DEFAULT),
                             "Block header timestamp is unset");
                 }
-                if (firstBlockRound == -1 && item.hasRoundHeader()) {
-                    firstBlockRound = item.roundHeaderOrThrow().roundNumber();
+                if (item.hasRoundHeader()) {
+                    final long newRound = item.roundHeaderOrThrow().roundNumber();
+                    if (firstBlockRound == -1) {
+                        firstBlockRound = newRound;
+                    }
+                    // A RoundHeader signals that the *previous* round's items (including
+                    // its state-change item) have been fully consumed. Report the boundary
+                    // before advancing so downstream cross-checks can line up the validator's
+                    // Merkle view with node0's per-round state-signature log.
+                    if (currentRound != -1) {
+                        maybeLogPerRoundStateHash(currentRound, blockNumberForLogging);
+                    }
+                    currentRound = newRound;
                 }
                 if (shouldVerifyProof) {
                     hashSubTrees(
@@ -455,6 +490,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                     }
                 }
             }
+            // Flush the per-round boundary log for the final round of this block
+            // — there is no trailing RoundHeader to trigger it in the item loop.
+            if (currentRound != -1) {
+                maybeLogPerRoundStateHash(currentRound, blockNumberForLogging);
+            }
             assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + i);
 
             // An incomplete block (missing footer/proof) can appear in the middle of the
@@ -481,9 +521,20 @@ public class StateChangesValidator implements BlockStreamValidator {
                     // But we must still add the skipped block's hash to the incremental
                     // hasher so the chain stays in sync for future proof verifications.
                     final var skippedBlockHash = footer.blockFooterOrThrow().previousBlockRootHash();
+                    // The skipped block's slot in the incremental chain is patched here
+                    // using THIS block's footer's previousBlockRootHash (which is the
+                    // skipped block's own root hash). Audit-log the entry so a failing
+                    // CI run shows the exact sequence of hashes that flowed into the
+                    // chain hasher.
+                    logIncrementalBlockHashAdd(i, blockNumber - 1, "skipped-block-recovery", skippedBlockHash);
                     incrementalBlockHashes.addNodeByHash(skippedBlockHash.toByteArray());
                     shouldVerifyProof = false;
                     hashChainBroken = false;
+                    logger.info(
+                            "hashChainBroken cleared: block=#{} i={} patched skipped hash={} into incremental chain",
+                            blockNumber,
+                            i,
+                            hexPrefix(skippedBlockHash, 16));
                 } else {
                     assertEquals(
                             previousBlockHash,
@@ -517,14 +568,28 @@ public class StateChangesValidator implements BlockStreamValidator {
                             finalStateChangesHash,
                             traceDataHasher);
                     final var expectedBlockHash = expectedRootAndSiblings.blockRootHash();
+                    // Side-by-side of validator vs footer for the two non-locally-derived inputs:
+                    // when any future flake surfaces, this one line pinpoints whether the drift
+                    // is in previousBlockHash, startOfStateHash, or one of the 6 item-derived
+                    // subtree hashes (printed by computeBlockHash).
+                    final var footerPrevBlockHash =
+                            footer.blockFooterOrThrow().previousBlockRootHash();
+                    final var footerStartOfStateHash =
+                            footer.blockFooterOrThrow().startOfBlockStateRootHash();
                     logger.info(
-                            "Block #{} derivation summary: expectedBlockHash={} prevBlockHash={} "
-                                    + "startOfStateHash={} finalStateChangesHash={} "
-                                    + "stateChangeItemsInThisBlock={} totalStateChangeItemsApplied={}",
+                            "Block #{} derivation summary: expectedBlockHash={} "
+                                    + "prevBlockHash(validator)={} prevBlockHash(footer)={} prevBlockHashMatch={} "
+                                    + "startOfStateHash(validator)={} startOfStateHash(footer)={} startOfStateMatch={} "
+                                    + "finalStateChangesHash={} stateChangeItemsInThisBlock={} "
+                                    + "totalStateChangeItemsApplied={}",
                             blockNumber,
                             hexPrefix(expectedBlockHash, 16),
                             hexPrefix(previousBlockHash, 16),
+                            hexPrefix(footerPrevBlockHash, 16),
+                            previousBlockHash.equals(footerPrevBlockHash),
                             hexPrefix(Bytes.wrap(startOfStateHash.toByteArray()), 16),
+                            hexPrefix(footerStartOfStateHash, 16),
+                            Bytes.wrap(startOfStateHash.toByteArray()).equals(footerStartOfStateHash),
                             hexPrefix(finalStateChangesHash, 16),
                             totalStateChangeItemsApplied - blockStateChangeItemsAtStart,
                             totalStateChangeItemsApplied);
@@ -543,9 +608,36 @@ public class StateChangesValidator implements BlockStreamValidator {
                             expectedRootAndSiblings.siblingHashes());
                     previousBlockHash = expectedBlockHash;
                 } else {
+                    // Complete-but-not-sampled path: the bug targeted by PR #25097 lives here.
+                    // The code assumes the next block's items end with [..., footer, proof]
+                    // (complete shape, footer at size-2). If the next block is instead
+                    // incomplete — flushed at a freeze round or after a restart truncated the
+                    // proof delivery, ending with [..., footer] — then size-2 is the header,
+                    // hasBlockFooter() returns false, the if silently falls through, and
+                    // previousBlockHash stays stale. The stale value is then added to the
+                    // incremental chain hasher at the addNodeByHash call below, permanently
+                    // desyncing the chain by one entry. Every subsequent sampled block
+                    // computes the wrong prevBlocksRootHash and its signature fails to verify.
+                    //
+                    // Log the full shape so a flaky CI run leaves irrefutable evidence:
+                    // next-block item count, last-item kind, size-2 item kind, whether
+                    // hasBlockFooter at size-2 succeeded, and — most important — whether
+                    // previousBlockHash was actually updated or left stale.
+                    final var previousBlockHashBefore = previousBlockHash;
                     final var nextBlock = blocks.get(i + 1);
                     final var nextBlockItems = nextBlock.items();
                     final var nextBlockFooterIndex = nextBlockItems.size() - 2;
+                    final var nextBlockSize = nextBlockItems.size();
+                    final var nextBlockLastKind = nextBlockSize > 0
+                            ? nextBlockItems.getLast().item().kind().toString()
+                            : "<empty>";
+                    final var nextBlockSizeMinus2Kind = nextBlockFooterIndex >= 0
+                            ? nextBlockItems.get(nextBlockFooterIndex).item().kind().toString()
+                            : "<out-of-bounds>";
+                    final var sizeMinus2HasFooter = nextBlockFooterIndex >= 0
+                            && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter();
+                    final var nextBlockHasProof =
+                            nextBlockSize > 0 && nextBlockItems.getLast().hasBlockProof();
                     if (nextBlockFooterIndex >= 0
                             && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter()) {
                         previousBlockHash = nextBlockItems
@@ -553,11 +645,63 @@ public class StateChangesValidator implements BlockStreamValidator {
                                 .blockFooterOrThrow()
                                 .previousBlockRootHash();
                     }
+                    final var staleFallthrough = previousBlockHash.equals(previousBlockHashBefore);
+                    final long nextBlockNumber = nextBlockSize > 0
+                                    && nextBlockItems.getFirst().hasBlockHeader()
+                            ? nextBlockItems.getFirst().blockHeaderOrThrow().number()
+                            : -1L;
+                    if (staleFallthrough) {
+                        logger.error(
+                                "STALE-FALLTHROUGH (PR #25097 bug): block=#{} i={} next=#{} "
+                                        + "nextItemCount={} nextLastKind={} nextHasProof={} "
+                                        + "nextSize-2Kind={} sizeMinus2HasFooter={} "
+                                        + "previousBlockHash(unchanged)={} — the addNodeByHash "
+                                        + "call below will add this STALE value into block #{}'s "
+                                        + "slot in incrementalBlockHashes, desyncing the chain.",
+                                blockNumber,
+                                i,
+                                nextBlockNumber,
+                                nextBlockSize,
+                                nextBlockLastKind,
+                                nextBlockHasProof,
+                                nextBlockSizeMinus2Kind,
+                                sizeMinus2HasFooter,
+                                hexPrefix(previousBlockHash, 16),
+                                blockNumber);
+                    } else {
+                        logger.info(
+                                "next-block-footer lookup ok: block=#{} i={} next=#{} "
+                                        + "nextItemCount={} nextLastKind={} nextHasProof={} "
+                                        + "nextSize-2Kind={} sizeMinus2HasFooter={} "
+                                        + "previousBlockHash(before)={} previousBlockHash(after)={}",
+                                blockNumber,
+                                i,
+                                nextBlockNumber,
+                                nextBlockSize,
+                                nextBlockLastKind,
+                                nextBlockHasProof,
+                                nextBlockSizeMinus2Kind,
+                                sizeMinus2HasFooter,
+                                hexPrefix(previousBlockHashBefore, 16),
+                                hexPrefix(previousBlockHash, 16));
+                    }
                 }
 
+                logIncrementalBlockHashAdd(i, blockNumber, "per-block-accumulator", previousBlockHash);
                 incrementalBlockHashes.addNodeByHash(previousBlockHash.toByteArray());
             } else if (i <= lastVerifiableIndex) {
-                logger.warn("Skipping proof verification for incomplete block #{} at index {}", blockNumber, i);
+                logger.warn(
+                        "Skipping proof verification for incomplete block #{} at index {} "
+                                + "(itemCount={}, lastItemKind={}, hasFooterAtLast={}); "
+                                + "hashChainBroken <- true — this is the shape that triggers "
+                                + "PR #25097's bug at the PREVIOUS block's else branch",
+                        blockNumber,
+                        i,
+                        block.items().size(),
+                        block.items().isEmpty()
+                                ? "<empty>"
+                                : block.items().getLast().item().kind(),
+                        !block.items().isEmpty() && block.items().getLast().hasBlockFooter());
                 hashChainBroken = true;
             }
         }
@@ -962,6 +1106,84 @@ public class StateChangesValidator implements BlockStreamValidator {
         return HexFormat.of().formatHex(b.toByteArray(), 0, n);
     }
 
+    private static Set<Long> parseRoundSet(@NonNull final String spec) {
+        if (spec.isBlank()) {
+            return Set.of();
+        }
+        final var result = new HashSet<Long>();
+        for (final var part : spec.split(",")) {
+            final var trimmed = part.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            if (trimmed.contains("-")) {
+                final var rangeParts = trimmed.split("-", 2);
+                final long start = Long.parseLong(rangeParts[0].trim());
+                final long end = Long.parseLong(rangeParts[1].trim());
+                for (long r = start; r <= end; r++) {
+                    result.add(r);
+                }
+            } else {
+                result.add(Long.parseLong(trimmed));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Logs the validator's Merkle root hash for the round that just finished
+     * (and the running {@code totalStateChangeItemsApplied}) whenever the
+     * round number is in {@link #PER_ROUND_STATE_HASH_ROUNDS}. The hash is
+     * read without forcing a freeze/copy — if the tree has not been hashed
+     * yet, the log reports {@code unavailable} so the diagnostic stays
+     * side-effect-free.
+     */
+    private void maybeLogPerRoundStateHash(final long justFinishedRound, final long blockNumber) {
+        if (!PER_ROUND_STATE_HASH_ROUNDS.contains(justFinishedRound)) {
+            return;
+        }
+        String hashStr;
+        try {
+            final var rootHash = state.getRoot().getHash();
+            hashStr = rootHash == null ? "unavailable" : hexPrefix(rootHash.getBytes(), 16);
+        } catch (Exception e) {
+            hashStr = "error:" + e.getClass().getSimpleName();
+        }
+        logger.info(
+                "Per-round validator state hash: round={} block=#{} stateRootHash={} totalStateChangeItemsApplied={}",
+                justFinishedRound,
+                blockNumber,
+                hashStr,
+                totalStateChangeItemsApplied);
+    }
+
+    /**
+     * Audit-logs every call to {@code incrementalBlockHashes.addNodeByHash(...)}.
+     *
+     * <p>PR #25097's bug (the flake we're chasing) manifests as two consecutive entries
+     * carrying <em>identical</em> hash prefixes: the prior block's hash is added once with
+     * {@code source=per-block-accumulator} on its own iteration, then again on the next
+     * iteration when the complete-but-not-sampled else branch silently fell through and
+     * left {@code previousBlockHash} stale. With this log, a flaky run is diagnosable by
+     * grepping {@code addNodeByHash} and spotting the duplicate in the sequence.
+     *
+     * <p>{@code sourceBlockNumber} is the block whose hash this entry is supposed to
+     * represent (may differ from {@code outerIndex}'s block when patching a skipped block
+     * in the {@code hashChainBroken} recovery path).
+     */
+    private void logIncrementalBlockHashAdd(
+            final int outerIndex,
+            final long sourceBlockNumber,
+            @NonNull final String source,
+            @NonNull final Bytes hash) {
+        logger.info(
+                "addNodeByHash: i={} sourceBlockNumber=#{} source={} hash={}",
+                outerIndex,
+                sourceBlockNumber,
+                source,
+                hexPrefix(hash, 16));
+    }
+
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
         String lastService = null;
         CommittableWritableStates lastWritableStates = null;
@@ -971,6 +1193,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         for (int i = 0; i < n; i++) {
             final var stateChange = stateChanges.stateChanges().get(i);
 
+            // stateNameOf already throws on UNKNOWN/UNRECOGNIZED ordinals; anything it returns
+            // should contain a service-name delimiter. Both conditions are asserted here so any
+            // silent mapping failure surfaces at exactly the first offending item.
             final var stateName = stateNameOf(stateChange.stateId());
             final var delimIndex = stateName.indexOf('.');
             if (delimIndex == -1) {
@@ -978,55 +1203,100 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
             final var serviceName = stateName.substring(0, delimIndex);
             final var writableStates = state.getWritableStates(serviceName);
+            if (writableStates == null) {
+                throw new IllegalStateException("No WritableStates registered for service '" + serviceName
+                        + "' (stateId=" + stateChange.stateId() + ", stateName=" + stateName + ")");
+            }
             final int stateId = stateChange.stateId();
-            switch (stateChange.changeOperation().kind()) {
-                case UNSET -> throw new IllegalStateException("Change operation is not set");
-                case STATE_ADD, STATE_REMOVE -> {
-                    // No-op
-                }
-                case SINGLETON_UPDATE -> {
-                    final var singletonState = writableStates.getSingleton(stateId);
-                    final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
-                    singletonState.put(singleton);
-                    stateChangesSummary.countSingletonPut(serviceName, stateId);
-                    if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
-                        ledgerIdFromState = ((ProtoBytes) singleton).value();
+            try {
+                switch (stateChange.changeOperation().kind()) {
+                    case UNSET -> throw new IllegalStateException(
+                            "Change operation is not set for stateId=" + stateId + " (" + stateName + ")");
+                    case STATE_ADD, STATE_REMOVE -> {
+                        // No-op for hashing purposes (schema bookkeeping only), but log so we can
+                        // correlate mid-run schema deltas (e.g. hinTS/roster construction handoffs)
+                        // with any downstream state-hash drift.
+                        logger.info(
+                                "applyStateChanges: observed {} for stateId={} ({}) — no-op, but recorded",
+                                stateChange.changeOperation().kind(),
+                                stateId,
+                                stateName);
+                    }
+                    case SINGLETON_UPDATE -> {
+                        final var singletonState = writableStates.getSingleton(stateId);
+                        if (singletonState == null) {
+                            throw new IllegalStateException("No singleton state registered for stateId=" + stateId
+                                    + " (" + stateName + ") on service '" + serviceName + "'");
+                        }
+                        final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
+                        singletonState.put(singleton);
+                        stateChangesSummary.countSingletonPut(serviceName, stateId);
+                        if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
+                            ledgerIdFromState = ((ProtoBytes) singleton).value();
+                        }
+                    }
+                    case MAP_UPDATE -> {
+                        final var mapState = writableStates.get(stateId);
+                        if (mapState == null) {
+                            throw new IllegalStateException("No map state registered for stateId=" + stateId + " ("
+                                    + stateName + ") on service '" + serviceName + "'");
+                        }
+                        final var key = BlockStreamUtils.mapKeyFor(
+                                stateChange.mapUpdateOrThrow().keyOrThrow());
+                        final var value = BlockStreamUtils.mapValueFor(
+                                stateChange.mapUpdateOrThrow().valueOrThrow());
+                        mapState.put(key, value);
+                        entityChanges
+                                .computeIfAbsent(stateName, k -> new HashSet<>())
+                                .add(key);
+                        stateChangesSummary.countMapUpdate(serviceName, stateId);
+                    }
+                    case MAP_DELETE -> {
+                        final var mapState = writableStates.get(stateId);
+                        if (mapState == null) {
+                            throw new IllegalStateException("No map state registered for stateId=" + stateId + " ("
+                                    + stateName + ") on service '" + serviceName + "'");
+                        }
+                        mapState.remove(BlockStreamUtils.mapKeyFor(
+                                stateChange.mapDeleteOrThrow().keyOrThrow()));
+                        final var keyToRemove = BlockStreamUtils.mapKeyFor(
+                                stateChange.mapDeleteOrThrow().keyOrThrow());
+                        final var maybeTrackedKeys = entityChanges.get(stateName);
+                        if (maybeTrackedKeys != null) {
+                            maybeTrackedKeys.remove(keyToRemove);
+                        }
+                        stateChangesSummary.countMapDelete(serviceName, stateId);
+                    }
+                    case QUEUE_PUSH -> {
+                        final var queueState = writableStates.getQueue(stateId);
+                        if (queueState == null) {
+                            throw new IllegalStateException("No queue state registered for stateId=" + stateId + " ("
+                                    + stateName + ") on service '" + serviceName + "'");
+                        }
+                        queueState.add(BlockStreamUtils.queuePushFor(stateChange.queuePushOrThrow()));
+                        stateChangesSummary.countQueuePush(serviceName, stateId);
+                    }
+                    case QUEUE_POP -> {
+                        final var queueState = writableStates.getQueue(stateId);
+                        if (queueState == null) {
+                            throw new IllegalStateException("No queue state registered for stateId=" + stateId + " ("
+                                    + stateName + ") on service '" + serviceName + "'");
+                        }
+                        queueState.poll();
+                        stateChangesSummary.countQueuePop(serviceName, stateId);
                     }
                 }
-                case MAP_UPDATE -> {
-                    final var mapState = writableStates.get(stateId);
-                    final var key = BlockStreamUtils.mapKeyFor(
-                            stateChange.mapUpdateOrThrow().keyOrThrow());
-                    final var value = BlockStreamUtils.mapValueFor(
-                            stateChange.mapUpdateOrThrow().valueOrThrow());
-                    mapState.put(key, value);
-                    entityChanges
-                            .computeIfAbsent(stateName, k -> new HashSet<>())
-                            .add(key);
-                    stateChangesSummary.countMapUpdate(serviceName, stateId);
-                }
-                case MAP_DELETE -> {
-                    final var mapState = writableStates.get(stateId);
-                    mapState.remove(BlockStreamUtils.mapKeyFor(
-                            stateChange.mapDeleteOrThrow().keyOrThrow()));
-                    final var keyToRemove = BlockStreamUtils.mapKeyFor(
-                            stateChange.mapDeleteOrThrow().keyOrThrow());
-                    final var maybeTrackedKeys = entityChanges.get(stateName);
-                    if (maybeTrackedKeys != null) {
-                        maybeTrackedKeys.remove(keyToRemove);
-                    }
-                    stateChangesSummary.countMapDelete(serviceName, stateId);
-                }
-                case QUEUE_PUSH -> {
-                    final var queueState = writableStates.getQueue(stateId);
-                    queueState.add(BlockStreamUtils.queuePushFor(stateChange.queuePushOrThrow()));
-                    stateChangesSummary.countQueuePush(serviceName, stateId);
-                }
-                case QUEUE_POP -> {
-                    final var queueState = writableStates.getQueue(stateId);
-                    queueState.poll();
-                    stateChangesSummary.countQueuePop(serviceName, stateId);
-                }
+            } catch (RuntimeException e) {
+                logger.error(
+                        "applyStateChanges failed at item {}/{}: kind={} stateId={} ({}) service='{}': {}",
+                        i,
+                        n,
+                        stateChange.changeOperation().kind(),
+                        stateId,
+                        stateName,
+                        serviceName,
+                        e.toString());
+                throw e;
             }
             if ((lastService != null && !lastService.equals(serviceName))) {
                 lastWritableStates.commit();
