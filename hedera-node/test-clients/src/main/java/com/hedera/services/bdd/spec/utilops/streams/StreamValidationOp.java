@@ -399,18 +399,13 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 relativePath,
                 otherDirs.size());
         if (targetBlockNumber == -1) {
-            log.warn(
-                    "findCompleteBlockIn: could not parse block number from relativePath={}; giving up",
-                    relativePath);
+            log.warn("findCompleteBlockIn: could not parse block number from relativePath={}; giving up", relativePath);
             return null;
         }
         for (int k = 0; k < otherDirs.size(); k++) {
             final var dir = otherDirs.get(k);
             if (!Files.exists(dir)) {
-                log.info(
-                        "findCompleteBlockIn: peer[{}] dir={} — does not exist, skipping",
-                        k,
-                        dir);
+                log.info("findCompleteBlockIn: peer[{}] dir={} — does not exist, skipping", k, dir);
                 continue;
             }
             final List<Path> candidates;
@@ -419,11 +414,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         .filter(p -> BlockStreamAccess.extractBlockNumber(p) == targetBlockNumber)
                         .toList();
             } catch (Exception e) {
-                log.warn(
-                        "findCompleteBlockIn: peer[{}] dir={} — walk failed: {}",
-                        k,
-                        dir,
-                        e.toString());
+                log.warn("findCompleteBlockIn: peer[{}] dir={} — walk failed: {}", k, dir, e.toString());
                 continue;
             }
             // Key diagnostic for PR #25097's subdir fix: the old code would have produced 0
