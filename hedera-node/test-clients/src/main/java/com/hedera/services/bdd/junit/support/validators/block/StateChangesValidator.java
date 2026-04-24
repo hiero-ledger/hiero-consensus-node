@@ -514,12 +514,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                 final var blockProof = lastBlockItem.blockProofOrThrow();
 
                 if (hashChainBroken) {
-                    // An incomplete block broke the hash chain; we cannot verify
-                    // previousBlockHash or do full proof verification for this block.
-                    // Force shouldVerifyProof off so we resume the chain from the
-                    // next block's footer instead.
-                    // But we must still add the skipped block's hash to the incremental
-                    // hasher so the chain stays in sync for future proof verifications.
+                    // An incomplete block broke the hash chain; add the skipped block's hash
+                    // (carried in this block's footer as previousBlockRootHash) to the incremental
+                    // hasher so the chain stays in sync for future proof verifications, and skip
+                    // proof verification for this block since we don't have its expected predecessor.
                     final var skippedBlockHash = footer.blockFooterOrThrow().previousBlockRootHash();
                     // The skipped block's slot in the incremental chain is patched here
                     // using THIS block's footer's previousBlockRootHash (which is the
@@ -606,27 +604,24 @@ public class StateChangesValidator implements BlockStreamValidator {
                             firstConsensusTimestamp,
                             expectedRootAndSiblings.siblingHashes());
                     previousBlockHash = expectedBlockHash;
-                } else {
-                    // Complete-but-not-sampled path: the bug targeted by PR #25097 lives here.
-                    // The code assumes the next block's items end with [..., footer, proof]
-                    // (complete shape, footer at size-2). If the next block is instead
-                    // incomplete — flushed at a freeze round or after a restart truncated the
-                    // proof delivery, ending with [..., footer] — then size-2 is the header,
-                    // hasBlockFooter() returns false, the if silently falls through, and
-                    // previousBlockHash stays stale. The stale value is then added to the
-                    // incremental chain hasher at the addNodeByHash call below, permanently
-                    // desyncing the chain by one entry. Every subsequent sampled block
-                    // computes the wrong prevBlocksRootHash and its signature fails to verify.
+                } else if (i + 1 < n) {
+                    // Guard against the last block landing here: the hashChainBroken branch above
+                    // forces shouldVerifyProof=false regardless of index, so it may equal n - 1.
                     //
-                    // Log the full shape so a flaky CI run leaves irrefutable evidence:
-                    // next-block item count, last-item kind, size-2 item kind, whether
-                    // hasBlockFooter at size-2 succeeded, and — most important — whether
-                    // previousBlockHash was actually updated or left stale.
+                    // PR #25097 extracted the shape-robust next-block-footer lookup into
+                    // currentBlockHashFromNextBlockFooter (it handles both complete and incomplete
+                    // next-block shapes). The diagnostic block below captures the pre-fix
+                    // variables so a post-fix CI run leaves concrete evidence: when the next
+                    // block is incomplete the helper still resolves the footer (nextLastKind
+                    // reports BLOCK_FOOTER, sizeMinus2HasFooter is false, and previousBlockHash
+                    // is updated rather than left stale). If STALE-FALLTHROUGH ever fires on a
+                    // post-fix run it means the helper returned null and the chain is desyncing
+                    // for a shape the current fix doesn't cover — an immediate regression alert.
                     final var previousBlockHashBefore = previousBlockHash;
                     final var nextBlock = blocks.get(i + 1);
                     final var nextBlockItems = nextBlock.items();
-                    final var nextBlockFooterIndex = nextBlockItems.size() - 2;
                     final var nextBlockSize = nextBlockItems.size();
+                    final var nextBlockFooterIndex = nextBlockSize - 2;
                     final var nextBlockLastKind = nextBlockSize > 0
                             ? nextBlockItems.getLast().item().kind().toString()
                             : "<empty>";
@@ -641,13 +636,18 @@ public class StateChangesValidator implements BlockStreamValidator {
                             && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter();
                     final var nextBlockHasProof =
                             nextBlockSize > 0 && nextBlockItems.getLast().hasBlockProof();
-                    if (nextBlockFooterIndex >= 0
-                            && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter()) {
-                        previousBlockHash = nextBlockItems
-                                .get(nextBlockFooterIndex)
-                                .blockFooterOrThrow()
-                                .previousBlockRootHash();
+
+                    final var fromFooter = currentBlockHashFromNextBlockFooter(nextBlock);
+                    if (fromFooter != null) {
+                        previousBlockHash = fromFooter;
+                    } else {
+                        logger.warn(
+                                "Could not recover hash of block #{} at index {} from next block's footer; "
+                                        + "incremental block-hashes chain may be stale",
+                                blockNumber,
+                                i);
                     }
+
                     final var staleFallthrough = previousBlockHash.equals(previousBlockHashBefore);
                     final long nextBlockNumber = nextBlockSize > 0
                                     && nextBlockItems.getFirst().hasBlockHeader()
@@ -824,6 +824,30 @@ public class StateChangesValidator implements BlockStreamValidator {
                 // Other items are not part of the input/output trees
             }
         }
+    }
+
+    /**
+     * Returns the given block's own root hash by reading the next block's {@link BlockFooter}'s
+     * {@code previousBlockRootHash}. Handles both complete blocks (items end with
+     * {@code [..., footer, proof]}, footer at index {@code size - 2}) and incomplete blocks flushed
+     * at a freeze round without a proof (items end with {@code [..., footer]}, footer at index
+     * {@code size - 1}). Returns {@code null} if the next block has no recognizable footer.
+     */
+    @Nullable
+    static Bytes currentBlockHashFromNextBlockFooter(@NonNull final Block nextBlock) {
+        final var items = nextBlock.items();
+        if (items.isEmpty()) {
+            return null;
+        }
+        final var last = items.getLast();
+        if (last.hasBlockFooter()) {
+            return last.blockFooterOrThrow().previousBlockRootHash();
+        }
+        final int secondToLastIndex = items.size() - 2;
+        if (secondToLastIndex >= 0 && items.get(secondToLastIndex).hasBlockFooter()) {
+            return items.get(secondToLastIndex).blockFooterOrThrow().previousBlockRootHash();
+        }
+        return null;
     }
 
     private static Bytes hashLeaf(final Bytes leafData) {
