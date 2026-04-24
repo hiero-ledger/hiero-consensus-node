@@ -15,7 +15,7 @@ on:
         options:
           - AdHoc5
           - AdHoc6
-          - AdHoc7
+          - chewie-solo-sdpt-n7
           - AdHoc13
           - AdHoc14
           - AdHocSD9
