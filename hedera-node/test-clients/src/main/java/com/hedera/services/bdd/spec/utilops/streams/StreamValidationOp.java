@@ -313,7 +313,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 continue;
             }
             final List<Path> candidates;
-            try (final var stream = Files.walk(dir)) {
+            // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.gz.
+            try (final var stream = Files.walk(dir, 2)) {
                 candidates = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
                         .filter(p -> BlockStreamAccess.extractBlockNumber(p) == targetBlockNumber)
                         .toList();
