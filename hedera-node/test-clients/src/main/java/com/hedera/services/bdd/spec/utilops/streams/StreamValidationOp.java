@@ -292,24 +292,45 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     /**
-     * Tries to find a complete version of a block file by resolving the same relative path
-     * under each of the given directories. Returns the first block whose last item is a proof.
+     * Tries to find a complete version of a block across the given node directories. Each node
+     * writes its blocks under a node-specific {@code block-<shard>.<realm>.<nodeAccountId>/}
+     * subdirectory (and DAB can renumber those account IDs on upgrades), so resolving the same
+     * relative path across nodes is unreliable. Instead, walk each directory and match by the
+     * parsed block number, returning the first block whose last item is a proof. When a peer has
+     * multiple candidates with the same block number (e.g. orphaned subdirs from a prior run)
+     * the first proof-bearing match wins; this matches pre-existing "first proof-bearing block
+     * wins" semantics and is good enough for our test harness, where each node only actively
+     * writes to a single subdir per run.
      */
     @Nullable
-    private static Block findCompleteBlockIn(@NonNull final List<Path> otherDirs, @NonNull final Path relativePath) {
+    static Block findCompleteBlockIn(@NonNull final List<Path> otherDirs, @NonNull final Path relativePath) {
+        final long targetBlockNumber = BlockStreamAccess.extractBlockNumber(relativePath);
+        if (targetBlockNumber == -1) {
+            return null;
+        }
         for (final var dir : otherDirs) {
-            final var candidatePath = dir.resolve(relativePath);
-            if (!Files.exists(candidatePath)) {
+            if (!Files.exists(dir)) {
                 continue;
             }
-            try {
-                final var block = BlockStreamAccess.blockFrom(candidatePath);
-                final var items = block.items();
-                if (!items.isEmpty() && items.getLast().hasBlockProof()) {
-                    return block;
-                }
+            final List<Path> candidates;
+            // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.gz.
+            try (final var stream = Files.walk(dir, 2)) {
+                candidates = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+                        .filter(p -> BlockStreamAccess.extractBlockNumber(p) == targetBlockNumber)
+                        .toList();
             } catch (Exception ignore) {
-                // Try the next directory
+                continue;
+            }
+            for (final var candidatePath : candidates) {
+                try {
+                    final var block = BlockStreamAccess.blockFrom(candidatePath);
+                    final var items = block.items();
+                    if (!items.isEmpty() && items.getLast().hasBlockProof()) {
+                        return block;
+                    }
+                } catch (Exception ignore) {
+                    // Try the next candidate
+                }
             }
         }
         return null;

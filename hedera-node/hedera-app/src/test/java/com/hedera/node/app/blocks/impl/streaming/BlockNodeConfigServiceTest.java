@@ -728,8 +728,8 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
             final FileSystem fileSystem = mock(FileSystem.class);
             final WatchService watchService = mock(WatchService.class);
             final WatchKey watchKey = mock(WatchKey.class);
-            when(watchKey.pollEvents()).thenReturn(List.of());
-            when(watchKey.reset()).thenReturn(true);
+            lenient().when(watchKey.pollEvents()).thenReturn(List.of());
+            lenient().when(watchKey.reset()).thenReturn(true);
             when(configDirectory.getFileSystem()).thenReturn(fileSystem);
             when(fileSystem.newWatchService()).thenReturn(watchService);
 

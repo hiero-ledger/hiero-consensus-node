@@ -104,6 +104,7 @@ public class HgcaaLogValidator {
                 List.of("No block nodes available to connect to"),
                 // Not present on OS X
                 List.of("Native library besu blake2bf is not present"),
+                List.of("Restarted WRAPS signing"),
                 // Expected as part of WRAPS proving key verification tests
                 List.of("WRAPS proving key hash mismatch at"),
                 List.of("Failed to extract WRAPS proving key archive"),

@@ -20,6 +20,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapIterator;
+import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -109,7 +110,6 @@ public final class MerkleTestUtils {
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
-    @SuppressWarnings("unchecked")
     public static VirtualMap testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
@@ -127,9 +127,9 @@ public final class MerkleTestUtils {
             final LearningSynchronizer learner;
             final TeachingSynchronizer teacher;
 
-            final VirtualMap newRoot = startingMap.newReconnectRoot();
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
+            final VirtualMapLearner vmapLearner = new VirtualMapLearner(startingMap, reconnectConfig, mapStats);
+            final LearnerTreeView learnerView = vmapLearner.getLearnerView();
 
             if (latencyMilliseconds == 0) {
                 learner =
@@ -137,7 +137,6 @@ public final class MerkleTestUtils {
                                 getStaticThreadManager(),
                                 streams.getLearnerInput(),
                                 streams.getLearnerOutput(),
-                                newRoot,
                                 learnerView,
                                 streams::disconnect,
                                 reconnectConfig) {
@@ -182,7 +181,6 @@ public final class MerkleTestUtils {
                         new LaggingLearningSynchronizer(
                                 streams.getLearnerInput(),
                                 streams.getLearnerOutput(),
-                                newRoot,
                                 learnerView,
                                 latencyMilliseconds,
                                 streams::disconnect,
@@ -241,11 +239,12 @@ public final class MerkleTestUtils {
             }
 
             if (workGroup.hasExceptions()) {
+                vmapLearner.abortOnException();
                 throw new MerkleSynchronizationException(
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            final VirtualMap generatedTree = newRoot;
+            final VirtualMap generatedTree = vmapLearner.getVirtualMap();
 
             assertReconnectValidity(startingTree, desiredTree, generatedTree);
 
@@ -289,24 +288,18 @@ public final class MerkleTestUtils {
 
         assertEquals(1, desiredTree.getReservationCount(), "teacher tree should have a reference count of exactly 1");
 
-        if (startingTree != null) {
-            assertTrue(startingTree.isMutable(), "tree should be mutable");
-        }
+        assertTrue(startingTree.isMutable(), "tree should be mutable");
     }
 
     public static VirtualMap hashAndTestSynchronization(
             final VirtualMap startingTree, final VirtualMap desiredTree, final ReconnectConfig reconnectConfig)
             throws Exception {
         System.out.println("------------");
-        System.out.println("starting: " + startingTree);
-        System.out.println("desired: " + desiredTree);
+        System.out.println("starting tree: " + startingTree.getMetadata());
+        System.out.println("desired tree: " + desiredTree.getMetadata());
 
-        if (startingTree != null) {
-            startingTree.getHash(); // calculate hash
-        }
-        if (desiredTree != null) {
-            desiredTree.getHash(); // calculate hash
-        }
+        startingTree.getHash(); // calculate hash
+        desiredTree.getHash(); // calculate hash
         return testSynchronization(startingTree, desiredTree, 0, reconnectConfig);
     }
 

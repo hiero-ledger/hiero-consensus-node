@@ -116,7 +116,8 @@ jobs:
 
   generate-release-notes:
     name: Generate Release Notes File
-    needs: validate-input-version
+    needs:
+      - validate-input-version
     runs-on: hl-cn-default-lin-sm
     if: ${{ inputs.create-release-notes == true }}
     steps:
@@ -165,7 +166,8 @@ jobs:
 
   full-commit-history:
     name: Full Commit History
-    needs: validate-input-version
+    needs:
+      - validate-input-version
     runs-on: hl-cn-default-lin-sm
     steps:
       - name: Harden Runner
