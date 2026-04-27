@@ -356,7 +356,7 @@ public class DataFileCompactor {
                 // Clear compaction start time
                 currentCompactionStartTime.set(null);
                 if (allDataItemsProcessed) {
-                    logger.info(
+                    logger.debug(
                             MERKLE_DB.getMarker(), "All files to compact have been processed, they will be deleted");
                     // Close the readers and delete compacted files
                     dataFileCollection.deleteFiles(filesToCompact);
@@ -393,7 +393,8 @@ public class DataFileCompactor {
         final DataFileMetadata newFileMetadata = newFileWriter.getMetadata();
         final DataFileReader newFileReader = dataFileCollection.addNewDataFileReader(newFileCreated, newFileMetadata);
         currentReader.set(newFileReader);
-        logger.info(MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
+        logger.debug(
+                MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
     }
 
     /**

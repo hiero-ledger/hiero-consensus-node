@@ -122,7 +122,8 @@ jobs:
 
   xts-execution:
     name: Execute XTS
-    needs: parameters
+    needs:
+      - parameters
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
       ref: ${{ inputs.ref }}

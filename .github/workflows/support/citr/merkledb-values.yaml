@@ -3,11 +3,11 @@ replicas: 1
 
 resources:
   limits:
-    cpu: 20
-    memory: 32Gi
+    cpu: 32
+    memory: 256Gi
   requests:
-    cpu: 20
-    memory: 32Gi
+    cpu: 32
+    memory: 256Gi
 
 nodeSelector:
   solo.hashgraph.io/role: "consensus-node"
