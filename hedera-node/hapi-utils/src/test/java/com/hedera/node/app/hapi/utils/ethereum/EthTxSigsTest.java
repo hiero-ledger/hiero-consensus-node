@@ -41,6 +41,8 @@ class EthTxSigsTest {
                         "f88b718601d1a94a20008316e360940000000000000000000000000000000002e8a7b980a4fdacd5760000000000000000000000000000000000000000000000000000000000000002820273a076398dfd239dcdf69aeef7328a5e8cc69ef1b4ba5cca56eab1af06d7959923599f8194cd217b301cbdbdcd05b3572c411ec9333af39c98af8c5c9de45ddb05c5"));
         final var ethTxSigs = EthTxSigs.extractSignatures(ethTxData);
         assertArrayEquals(expectedFromAddress, ethTxSigs.address());
+        assertArrayEquals(BouncyCastleSecp256k1Support.recoverCompressedPublicKey(ethTxData), ethTxSigs.publicKey());
+        assertArrayEquals(BouncyCastleSecp256k1Support.recoverAddress(ethTxData), ethTxSigs.address());
     }
 
     @Test
@@ -146,6 +148,8 @@ class EthTxSigsTest {
                 ));
         final var ethTxSigs = EthTxSigs.extractSignatures(ethTxData);
         assertArrayEquals(expectedFromAddress, ethTxSigs.address());
+        assertArrayEquals(BouncyCastleSecp256k1Support.recoverCompressedPublicKey(ethTxData), ethTxSigs.publicKey());
+        assertArrayEquals(BouncyCastleSecp256k1Support.recoverAddress(ethTxData), ethTxSigs.address());
     }
 
     @Test
@@ -158,5 +162,7 @@ class EthTxSigsTest {
                 ));
         final var ethTxSigs = EthTxSigs.extractSignatures(ethTxData);
         assertArrayEquals(expectedFromAddress, ethTxSigs.address());
+        assertArrayEquals(BouncyCastleSecp256k1Support.recoverCompressedPublicKey(ethTxData), ethTxSigs.publicKey());
+        assertArrayEquals(BouncyCastleSecp256k1Support.recoverAddress(ethTxData), ethTxSigs.address());
     }
 }

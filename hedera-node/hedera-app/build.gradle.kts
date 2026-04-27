@@ -1,4 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
+import groovy.json.JsonSlurper
+import java.io.File
+import java.time.Instant
+import java.util.Locale
+import java.util.concurrent.TimeUnit
+import me.champeau.jmh.JMHTask
+import org.gradle.api.DefaultTask
+import org.gradle.api.GradleException
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+import org.gradle.util.GradleVersion
+import org.gradle.work.DisableCachingByDefault
+
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.benchmark")
@@ -6,6 +25,168 @@ plugins {
 }
 
 description = "Hedera Application - Implementation"
+
+@DisableCachingByDefault(because = "Produces environment-specific benchmark artifacts intended for manual comparison.")
+abstract class Secp256k1InteropBenchmarkReportTask : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val resultsJson: RegularFileProperty
+
+    @get:OutputFile
+    abstract val summaryFile: RegularFileProperty
+
+    @get:OutputFile
+    abstract val metadataFile: RegularFileProperty
+
+    @get:InputDirectory
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val gitWorkingDirectory: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        @Suppress("UNCHECKED_CAST")
+        val results = JsonSlurper().parse(resultsJson.get().asFile) as List<Map<String, Any?>>
+
+        fun primaryMetricFor(methodName: String): Map<String, Any?> {
+            val benchmarkResult = results.single { result ->
+                (result["benchmark"] as String).endsWith(".$methodName")
+            }
+            @Suppress("UNCHECKED_CAST")
+            return benchmarkResult["primaryMetric"] as Map<String, Any?>
+        }
+
+        fun scoreFor(methodName: String): Double =
+            (primaryMetricFor(methodName)["score"] as Number).toDouble()
+
+        fun scoreErrorFor(methodName: String): Double? =
+            (primaryMetricFor(methodName)["scoreError"] as? Number)?.toDouble()
+
+        fun scoreUnitFor(methodName: String): String =
+            primaryMetricFor(methodName)["scoreUnit"] as String
+
+        val generatedAt = Instant.now().toString()
+        val gitDir = gitWorkingDirectory.get().asFile
+        val gitBranch = runCommand(gitDir, "git", "branch", "--show-current")
+        val gitCommit = runCommand(gitDir, "git", "rev-parse", "HEAD")
+        val gitStatus = runCommand(gitDir, "git", "status", "--short")
+        val workingTreeStatus = if (gitStatus.isBlank()) "clean" else "dirty"
+        val metadataOutput = metadataFile.get().asFile
+        val summaryOutput = summaryFile.get().asFile
+        metadataOutput.parentFile.mkdirs()
+        summaryOutput.parentFile.mkdirs()
+
+        metadataOutput.writeText(
+            buildString {
+                appendLine("# Secp256k1 Interop Benchmark Metadata")
+                appendLine()
+                appendLine("- Generated: `$generatedAt`")
+                appendLine("- Git branch: `$gitBranch`")
+                appendLine("- Git commit: `$gitCommit`")
+                appendLine("- Working tree: `$workingTreeStatus`")
+                appendLine("- OS: `${System.getProperty("os.name")} ${System.getProperty("os.version")}`")
+                appendLine("- Architecture: `${System.getProperty("os.arch")}`")
+                appendLine("- Available processors: `${Runtime.getRuntime().availableProcessors()}`")
+                appendLine("- Java vendor: `${System.getProperty("java.vendor")}`")
+                appendLine("- Java runtime version: `${System.getProperty("java.runtime.version")}`")
+                appendLine("- Java VM: `${System.getProperty("java.vm.name")}`")
+                appendLine("- Gradle version: `${GradleVersion.current().version}`")
+                appendLine("- Benchmark task: `:app:jmhSecp256k1Interop`")
+                appendLine("- Benchmark class: `com.hedera.node.app.signature.impl.Secp256k1InteropBenchmark`")
+                appendLine("- Configuration: `2 forks`, `3 x 2s warmup`, `5 x 2s measurement`, `1 thread`, `-prof gc`")
+                appendLine("- JVM args: `-Xms2g -Xmx2g`")
+                appendLine("- Artifact directory: `${summaryOutput.parentFile.absolutePath}`")
+                if (gitStatus.isNotBlank()) {
+                    appendLine()
+                    appendLine("## Working Tree")
+                    appendLine("```text")
+                    appendLine(gitStatus)
+                    appendLine("```")
+                }
+            }
+        )
+
+        summaryOutput.writeText(
+            buildString {
+                appendLine("# Secp256k1 Interop Benchmark Summary")
+                appendLine()
+                appendLine("Generated: `$generatedAt`")
+                appendLine()
+                appendLine("Mode: `avgt`. Lower is better.")
+                appendLine()
+                appendLine("| Comparison | Native | BouncyCastle | BC / Native |")
+                appendLine("| --- | ---: | ---: | ---: |")
+                COMPARISONS.forEach { comparison ->
+                    val nativeScore = scoreFor(comparison.nativeMethod)
+                    val bcScore = scoreFor(comparison.bcMethod)
+                    val nativeError = scoreErrorFor(comparison.nativeMethod)
+                    val bcError = scoreErrorFor(comparison.bcMethod)
+                    val unit = scoreUnitFor(comparison.nativeMethod)
+                    appendLine(
+                        "| ${comparison.label} | " +
+                            "${formatDecimal(nativeScore)}" +
+                            (nativeError?.let { " +/- ${formatDecimal(it)}" } ?: "") +
+                            " $unit | " +
+                            "${formatDecimal(bcScore)}" +
+                            (bcError?.let { " +/- ${formatDecimal(it)}" } ?: "") +
+                            " $unit | " +
+                            "${formatDecimal(bcScore / nativeScore)}x |"
+                    )
+                }
+                appendLine()
+                appendLine("Artifacts:")
+                appendLine("- `results.txt`: human-readable JMH output including GC profiler metrics")
+                appendLine("- `results.json`: machine-readable JMH output")
+                appendLine("- `metadata.md`: environment and git context for the run")
+            }
+        )
+    }
+
+    private fun runCommand(workingDirectory: File, vararg command: String): String {
+        val process = ProcessBuilder(*command)
+            .directory(workingDirectory)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().use { it.readText().trim() }
+        if (!process.waitFor(30, TimeUnit.SECONDS)) {
+            process.destroyForcibly()
+            throw GradleException("Command timed out: ${command.joinToString(" ")}")
+        }
+        if (process.exitValue() != 0) {
+            throw GradleException("Command failed (${process.exitValue()}): ${command.joinToString(" ")}\n$output")
+        }
+        return output
+    }
+
+    private fun formatDecimal(value: Double): String = String.format(Locale.US, "%.3f", value)
+
+    private data class BenchmarkComparison(val label: String, val nativeMethod: String, val bcMethod: String)
+
+    companion object {
+        private val COMPARISONS = listOf(
+            BenchmarkComparison(
+                "Decompress compressed key",
+                "nativeDecompressCompressedKey",
+                "bcDecompressCompressedKey",
+            ),
+            BenchmarkComparison(
+                "Extract Ethereum transaction signatures",
+                "nativeExtractEthereumTransactionSignatures",
+                "bcExtractEthereumTransactionSignatures",
+            ),
+            BenchmarkComparison(
+                "Recover address from compressed key",
+                "nativeRecoverAddressFromCompressedKey",
+                "bcRecoverAddressFromCompressedKey",
+            ),
+            BenchmarkComparison("Verify signature", "nativeVerifySignature", "bcVerifySignature"),
+        )
+    }
+}
+
+val secp256k1InteropResultsJson = layout.buildDirectory.file("reports/benchmarks/secp256k1-interop/results.json")
+val secp256k1InteropHumanOutput = layout.buildDirectory.file("reports/benchmarks/secp256k1-interop/results.txt")
+val secp256k1InteropSummary = layout.buildDirectory.file("reports/benchmarks/secp256k1-interop/summary.md")
+val secp256k1InteropMetadata = layout.buildDirectory.file("reports/benchmarks/secp256k1-interop/metadata.md")
 
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
@@ -73,8 +254,45 @@ jmhModuleInfo {
     requires("io.helidon.webserver")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.platformstate")
+    requires("org.bouncycastle.provider")
     requires("jmh.core")
     requires("org.hiero.base.crypto")
+}
+
+tasks.register<JMHTask>("jmhSecp256k1Interop") {
+    group = "jmh"
+    description = "Runs the secp256k1 native-vs-BouncyCastle benchmark with shareable output artifacts."
+
+    includes.set(listOf("Secp256k1InteropBenchmark"))
+    benchmarkMode.set(listOf("avgt"))
+    timeUnit.set("us")
+    threads.set(1)
+    synchronizeIterations.set(true)
+    fork.set(2)
+    warmupIterations.set(3)
+    warmup.set("2s")
+    iterations.set(5)
+    timeOnIteration.set("2s")
+    failOnError.set(true)
+    jvmArgs.set(listOf("-Xms2g", "-Xmx2g"))
+    profilers.set(listOf("gc"))
+    resultFormat.set("JSON")
+    resultsFile.convention(secp256k1InteropResultsJson)
+    humanOutputFile.convention(secp256k1InteropHumanOutput)
+
+    outputs.upToDateWhen { false }
+}
+
+tasks.register<Secp256k1InteropBenchmarkReportTask>("secp256k1InteropBenchmarkReport") {
+    group = "jmh"
+    description = "Runs the secp256k1 interop benchmark and writes a shareable report bundle."
+
+    dependsOn("jmhSecp256k1Interop")
+    resultsJson.set(secp256k1InteropResultsJson)
+    summaryFile.set(secp256k1InteropSummary)
+    metadataFile.set(secp256k1InteropMetadata)
+    gitWorkingDirectory.set(rootProject.layout.projectDirectory)
+    outputs.upToDateWhen { false }
 }
 
 // Add all the libs dependencies into the jar manifest!
