@@ -61,8 +61,11 @@ jobs:
           java-version: "25"
           setup-node: "true"
           node-version: "22"
-          node-cache: "pnpm"
           setup-gradle: "true"
+
+      - name: Setup PNPM
+        run: |
+          npm install -g pnpm
 
       # Build the hiero-consensus-node artifacts
       - name: Build hiero-consensus-node
@@ -76,10 +79,6 @@ jobs:
           CN_LATEST_TAG="v${CN_VERSION}"
           echo "CN version from version.txt: ${RAW_VERSION}. Setting CN_LATEST_TAG=${CN_LATEST_TAG}"
           echo "CN_LATEST_TAG=${CN_LATEST_TAG}" >> "$GITHUB_ENV"
-
-      - name: Setup PNPM
-        run: |
-          npm install -g pnpm
 
       - name: Install jq
         run: |
@@ -593,6 +592,7 @@ jobs:
 
   report-block-node-recovery-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
+    timeout-minutes: 10
     runs-on: hiero-citr-linux-medium
     needs: block-node-recovery
     if: ${{ always() }}
