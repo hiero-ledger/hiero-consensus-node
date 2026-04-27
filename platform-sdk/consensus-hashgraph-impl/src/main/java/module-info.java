@@ -6,15 +6,19 @@ module org.hiero.consensus.hashgraph.impl {
     exports org.hiero.consensus.hashgraph.impl to
             com.swirlds.platform.core.test.fixtures,
             org.hiero.consensus.gossip.impl.test.fixtures,
+            org.hiero.consensus.gui,
             org.hiero.consensus.hashgraph.impl.test.fixtures;
     exports org.hiero.consensus.hashgraph.impl.consensus to
             com.swirlds.platform.core.test.fixtures,
+            org.hiero.consensus.gui,
             org.hiero.consensus.hashgraph.impl.test.fixtures,
             org.hiero.consensus.pcli;
     exports org.hiero.consensus.hashgraph.impl.linking to
             com.swirlds.platform.core.test.fixtures,
+            org.hiero.consensus.gui,
             org.hiero.consensus.hashgraph.impl.test.fixtures;
     exports org.hiero.consensus.hashgraph.impl.metrics to
+            org.hiero.consensus.gui,
             org.hiero.consensus.hashgraph.impl.test.fixtures;
 
     requires transitive com.hedera.node.hapi;
