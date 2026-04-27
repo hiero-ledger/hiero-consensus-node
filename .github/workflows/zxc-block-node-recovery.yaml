@@ -51,7 +51,7 @@ jobs:
     runs-on: hl-cn-bn-regression-lin-lg
     steps:
       - name: Initialize GitHub Job
-        uses: PandasWhoCode/initialize-github-action@47186ab8b59085a7406a53c0b7a98031bcf4c4cc # v1.0.7
+        uses: PandasWhoCode/initialize-github-job@47186ab8b59085a7406a53c0b7a98031bcf4c4cc # v1.0.7
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref || '' }}"
