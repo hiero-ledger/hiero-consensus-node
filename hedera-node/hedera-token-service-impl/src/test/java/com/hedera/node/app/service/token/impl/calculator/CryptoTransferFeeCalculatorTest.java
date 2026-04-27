@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.token.impl.calculator;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.hapi.fees.FeeScheduleUtils.*;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -10,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.NftTransfer;
@@ -208,8 +208,8 @@ class CryptoTransferFeeCalculatorTest {
         }
 
         @Test
-        @DisplayName("Token transfers require a non-null feeContext")
-        void tokenTransferRequiresFeeContext() {
+        @DisplayName("Token transfers without feeContext estimate TOKEN_TYPES from transfer lists")
+        void tokenTransferWithoutFeeContextEstimatesTokenTypesFromTransferLists() {
             final var cryptoTransferFeeCalculator = new CryptoTransferFeeCalculator();
             final var txnBody = TransactionBody.newBuilder()
                     .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
@@ -224,10 +224,9 @@ class CryptoTransferFeeCalculatorTest {
             final var feeResult = new FeeResult();
             final var feeSchedule = createTestFeeSchedule();
 
-            assertThatThrownBy(() -> cryptoTransferFeeCalculator.accumulateServiceFee(
-                            txnBody, mockSimpleFeeContext, feeResult, feeSchedule))
-                    .isInstanceOf(NullPointerException.class)
-                    .hasMessageContaining("requires a non-null feeContext");
+            cryptoTransferFeeCalculator.accumulateServiceFee(txnBody, mockSimpleFeeContext, feeResult, feeSchedule);
+
+            assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(TOKEN_TYPES_EXTRA_FEE);
         }
     }
 
@@ -333,6 +332,45 @@ class CryptoTransferFeeCalculatorTest {
 
             // TOKEN_TRANSFER_BASE + 1 hook
             assertThat(result.getServiceTotalTinycents()).isEqualTo(TOKEN_TRANSFER_FEE + HOOK_EXECUTION_FEE);
+        }
+
+        @Test
+        @DisplayName("Hook execution without feeContext uses intrinsic estimate gas limit")
+        void hookExecutionWithoutFeeContextUsesIntrinsicEstimateGasLimit() {
+            final var tokenTransfers = TokenTransferList.newBuilder()
+                    .token(TokenID.newBuilder().tokenNum(2001L).build())
+                    .transfers(
+                            AccountAmount.newBuilder()
+                                    .accountID(AccountID.newBuilder()
+                                            .accountNum(1001L)
+                                            .build())
+                                    .amount(-50L)
+                                    .preTxAllowanceHook(HookCall.newBuilder()
+                                            .evmHookCall(EvmHookCall.newBuilder()
+                                                    .gasLimit(20_000_000L)
+                                                    .build())
+                                            .build())
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(AccountID.newBuilder()
+                                            .accountNum(1002L)
+                                            .build())
+                                    .amount(50L)
+                                    .build())
+                    .build();
+            final var txnBody = TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .tokenTransfers(tokenTransfers)
+                            .build())
+                    .build();
+            final var feeResult = new FeeResult();
+
+            new CryptoTransferFeeCalculator()
+                    .accumulateServiceFee(
+                            txnBody, new SimpleFeeContextImpl(null, null), feeResult, createTestFeeSchedule());
+
+            assertThat(feeResult.getServiceTotalTinycents())
+                    .isEqualTo(TOKEN_TYPES_EXTRA_FEE + HOOK_EXECUTION_FEE + 45_000_000L);
         }
     }
 

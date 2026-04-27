@@ -59,7 +59,7 @@ class TokenAirdropFeeCalculatorsTest {
                         new TokenAirdropFeeCalculator(),
                         new TokenClaimAirdropFeeCalculator(),
                         new TokenCancelAirdropFeeCalculator()));
-        when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_AIRDROP);
+        lenient().when(feeContext.functionality()).thenReturn(HederaFunctionality.TOKEN_AIRDROP);
     }
 
     @Test
@@ -107,6 +107,36 @@ class TokenAirdropFeeCalculatorsTest {
     }
 
     @Test
+    @DisplayName("TokenAirdropFeeCalculator estimates fees without feeContext")
+    void tokenAirdropFeeCalculatorCalculatesIntrinsicEstimateWithoutFeeContext() {
+        final var tokenTransfers = TokenTransferList.newBuilder()
+                .token(TOKEN_ID)
+                .transfers(
+                        AccountAmount.newBuilder()
+                                .accountID(
+                                        AccountID.newBuilder().accountNum(1001L).build())
+                                .amount(-50L)
+                                .build(),
+                        AccountAmount.newBuilder()
+                                .accountID(
+                                        AccountID.newBuilder().accountNum(1002L).build())
+                                .amount(50L)
+                                .build())
+                .build();
+        final var body = TransactionBody.newBuilder()
+                .tokenAirdrop(TokenAirdropTransactionBody.newBuilder()
+                        .tokenTransfers(tokenTransfers)
+                        .build())
+                .build();
+        final var feeResult = new org.hiero.hapi.fees.FeeResult();
+
+        new TokenAirdropFeeCalculator()
+                .accumulateServiceFee(body, new SimpleFeeContextImpl(null, null), feeResult, createTestFeeSchedule());
+
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(1_000_100L);
+    }
+
+    @Test
     @DisplayName("TokenCancelAirdropFeeCalculator calculates correct fees")
     void tokenCancelAirdropFeeCalculatorCalculatesCorrectFees() {
         lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
@@ -145,6 +175,20 @@ class TokenAirdropFeeCalculatorsTest {
         assertThat(result.getNodeTotalTinycents()).isEqualTo(1000L);
         assertThat(result.getServiceTotalTinycents()).isEqualTo(299000000L);
         assertThat(result.getNetworkTotalTinycents()).isEqualTo(2000L);
+    }
+
+    @Test
+    @DisplayName("TokenClaimAirdropFeeCalculator estimates fees without feeContext")
+    void tokenClaimAirdropFeeCalculatorCalculatesIntrinsicEstimateWithoutFeeContext() {
+        final var body = TransactionBody.newBuilder()
+                .tokenClaimAirdrop(TokenClaimAirdropTransactionBody.newBuilder().build())
+                .build();
+        final var feeResult = new org.hiero.hapi.fees.FeeResult();
+
+        new TokenClaimAirdropFeeCalculator()
+                .accumulateServiceFee(body, new SimpleFeeContextImpl(null, null), feeResult, createTestFeeSchedule());
+
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(299000000L);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
