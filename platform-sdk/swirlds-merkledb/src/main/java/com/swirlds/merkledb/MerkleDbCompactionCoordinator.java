@@ -254,6 +254,12 @@ class MerkleDbCompactionCoordinator {
      *       remaining pool. Absorbed files are removed from the pool so no other group at the
      *       same level can claim them.</li>
      *   <li><b>Submit:</b> submit each group as a compaction task.</li>
+     *   <li><b>Consolidation:</b> after all garbage-based tasks are submitted, runs a second
+     *       pass via {@code submitConsolidationTasks()}. Files already assigned to garbage-based
+     *       tasks are excluded. Small files (below {@code consolidationMaxInputFileSizeMB}) at
+     *       each level are grouped by raw file size and submitted as independent consolidation
+     *       tasks. This addresses the accumulation of many small files with little garbage
+     *       (e.g. under update-heavy workloads).</li>
      * </ol>
      *
      * <p>For each level, new tasks are only submitted when ALL tasks from the previous
@@ -330,7 +336,6 @@ class MerkleDbCompactionCoordinator {
 
                 for (final List<DataFileReader> group : groups) {
                     absorbIntoGroup(storeName, group, sortedPool, stats, gcRateThreshold, maxProjectedBytes);
-                    alreadyAssigned.addAll(group);
                 }
             }
 
@@ -338,6 +343,7 @@ class MerkleDbCompactionCoordinator {
             for (int i = 0; i < groups.size(); i++) {
                 final String taskKey = levelKey + "_" + i;
                 taskKeys.add(taskKey);
+                alreadyAssigned.addAll(groups.get(i));
                 executor.submit(new CompactionTask(taskKey, levelKey, level, groups.get(i), compactorFactory, config));
             }
 
@@ -365,9 +371,10 @@ class MerkleDbCompactionCoordinator {
      * @return {@code true} if any compaction for this store is submitted or running
      */
     synchronized boolean isCompactionRunning(final @NonNull String storeName) {
-        final String prefix = storeName + "_compact_";
+        final String compactPrefix = storeName + "_compact_";
+        final String consolidatePrefix = storeName + "_consolidate_";
         for (final String key : taskKeys) {
-            if (key.startsWith(prefix)) {
+            if (key.startsWith(compactPrefix) || key.startsWith(consolidatePrefix)) {
                 return true;
             }
         }
@@ -533,10 +540,9 @@ class MerkleDbCompactionCoordinator {
      *
      * <p>The algorithm per level:
      * <ol>
-     *   <li>Collect all files at this level whose size is below
-     *       {@code consolidationMaxInputFileSizeMB}.</li>
-     *   <li>Exclude files already assigned to a garbage-based compaction task in this cycle
-     *       (tracked via the {@code alreadyAssigned} set).</li>
+     *   <li>Collect all files at this level whose size is below  {@code consolidationMaxInputFileSizeMB},
+     *   excluding files already assigned to a garbage-based compaction task in the current cycle.
+     *   </li>
      *   <li>If the count is below {@code consolidationMinFileCount}, skip — not enough
      *       small files to justify consolidation.</li>
      *   <li>Group the small files into batches bounded by {@code maxProjectedBytes}

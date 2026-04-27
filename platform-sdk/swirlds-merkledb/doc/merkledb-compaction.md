@@ -287,12 +287,12 @@ garbage-based compaction. Over time, hundreds of small files accumulate on disk.
 Consolidation addresses this with a size-based second pass that runs after garbage-based compaction in each
 `submitCompactionTasks()` call. The algorithm per level:
 
-1. Collect all files at this level whose size is below `consolidationMaxInputFileSizeMB` (default 50 MB).
-2. Exclude files already assigned to a garbage-based compaction task in the current cycle.
-3. If the count is below `consolidationMinFileCount` (default 10), skip — not enough small files to justify the work.
-4. Group the small files into batches bounded by `maxCompactedFileSizeInMB`, using raw file size (not projected alive
+1. Collect all files at this level whose size is below `consolidationMaxInputFileSizeMB` (default 50 MB),
+   excluding files already assigned to a garbage-based compaction task in the current cycle.
+2. If the count is below `consolidationMinFileCount` (default 10), skip — not enough small files to justify the work.
+3. Group the small files into batches bounded by `maxCompactedFileSizeInMB`, using raw file size (not projected alive
    bytes — consolidation does not estimate garbage).
-5. Submit each batch as a compaction task (reuses `CompactionTask`).
+4. Submit each batch as a compaction task (reuses `CompactionTask`).
    This is self-limiting by design. The output file from consolidation exceeds `consolidationMaxInputFileSizeMB`, so it
    will never be re-selected as a consolidation candidate. Small files accumulate again from subsequent flushes, and the
    cycle repeats. Each file participates in at most one consolidation, preventing endless re-copying of live data.

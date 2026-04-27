@@ -110,7 +110,7 @@ public record MerkleDbConfig(
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel,
         @ConfigProperty(defaultValue = "false") boolean useDiskIndices,
-        @Min(0) @ConfigProperty(defaultValue = "10") long consolidationMaxInputFileSizeMB,
+        @Min(0) @ConfigProperty(defaultValue = "50") long consolidationMaxInputFileSizeMB,
         @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount){
 
     // spotless:on

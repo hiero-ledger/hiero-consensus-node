@@ -4,6 +4,7 @@ package com.swirlds.merkledb;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
+import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -688,6 +689,122 @@ class MerkleDbCompactionCoordinatorTest {
         // Flag should have been set then reset in finally
         verify(file).setCompactionInProgress();
         verify(file).resetCompactionInProgress();
+    }
+
+    @Test
+    void testIsCompactionRunningDetectsGarbageCompactionTask() throws InterruptedException, IOException {
+        final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
+
+        final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            taskStarted.countDown();
+            releaseTask.await(2, TimeUnit.SECONDS);
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+        assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
+
+        assertTrue(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return true while a garbage compaction task is active");
+
+        releaseTask.countDown();
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
+        assertFalse(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return false after all tasks complete");
+    }
+
+    @Test
+    void testIsCompactionRunningDetectsConsolidationTask() throws InterruptedException, IOException {
+        // 12 small clean files → no garbage tasks, only consolidation
+        final MerkleDbConfig consolidationConfig = configWithConsolidation(50, 10);
+        final List<DataFileReader> smallFiles = new ArrayList<>();
+        final List<StatsEntry> statsEntries = new ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            final DataFileReader f = mockFileReader(i, 0, 100, 5 * 1024 * 1024);
+            smallFiles.add(f);
+            statsEntries.add(new StatsEntry(f, 100)); // all alive → d/a = 0.0
+        }
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(smallFiles);
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(statsEntries.toArray(StatsEntry[]::new)));
+
+        final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            taskStarted.countDown();
+            releaseTask.await(2, TimeUnit.SECONDS);
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, consolidationConfig);
+        assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Consolidation task didn't start");
+
+        assertTrue(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return true while a consolidation task is active");
+
+        releaseTask.countDown();
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
+        assertFalse(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return false after consolidation completes");
+    }
+
+    @Test
+    void testIsCompactionRunningReturnsFalseWhenNoTasksSubmitted() {
+        assertFalse(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return false when no tasks have been submitted");
+    }
+
+    @Test
+    void testIsCompactionRunningDoesNotCrossStores() throws InterruptedException, IOException {
+        final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
+
+        final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            taskStarted.countDown();
+            releaseTask.await(2, TimeUnit.SECONDS);
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+        assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
+
+        assertTrue(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should be true for the store with an active task");
+        assertFalse(
+                coordinator.isCompactionRunning(OBJECT_KEY_TO_PATH),
+                "isCompactionRunning should be false for a different store");
+
+        releaseTask.countDown();
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
     }
 
     // ========================================================================
