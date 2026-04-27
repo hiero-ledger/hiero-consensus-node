@@ -145,7 +145,6 @@ public final class ConsensusTestDefinitions {
                 .setEventSourceBuilder(eventSourceBuilder)
                 .build();
         orchestrator.generateEvents(1.0);
-        ConsensusTestDebugGui.runGui(orchestrator);
         orchestrator.validateAndClear(consensusOutputValidator);
     }
 

@@ -2,7 +2,7 @@
 package org.hiero.consensus.gui;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import org.hiero.consensus.gui.api.TestGuiSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
@@ -21,8 +21,7 @@ public class HashgraphGuiMain {
     public static void main(final String[] args) {
         final int initialEvents = 20;
 
-        final Configuration defaultConfig =
-                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration defaultConfig = new TestConfigBuilder().getOrCreateConfig();
 
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(4)
