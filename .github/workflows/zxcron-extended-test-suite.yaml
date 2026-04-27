@@ -647,7 +647,7 @@ jobs:
       - name: Build Cancelled Summary Payload
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
         env:
-          SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS run cancelled (${{ needs.fetch-xts-candidate.outputs.xts-info }}) — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+          SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS run cancelled${{ needs.fetch-xts-candidate.outputs.xts-info != '' && format(' ({0})', needs.fetch-xts-candidate.outputs.xts-info) || '' }} — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
         run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_summary.json
 
       # Notification routing:
