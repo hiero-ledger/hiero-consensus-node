@@ -3,6 +3,7 @@ package org.hiero.consensus.crypto;
 
 import static org.hiero.consensus.crypto.SigningImplementation.ED25519_SODIUM;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -13,6 +14,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.base.crypto.BytesSigner;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.consensus.crypto.internal.JcaSigner;
 import org.hiero.consensus.crypto.internal.JcaVerifier;
@@ -80,6 +82,17 @@ public final class SigningFactory {
         }
         return new JcaSigner(
                 keyPair.getPrivate(), signType.getSigningSchema().getSigningAlgorithm(), signType.getProvider());
+    }
+
+    /**
+     * Creates a verifier for the specified key pair using the default implementation for the key type.
+     *
+     * @param publicKey the key to use for verification
+     * @return the verifier
+     */
+    public static @NonNull BytesSignatureVerifier createVerifier(@NonNull final Bytes publicKey) {
+        PublicKey pk = CryptoUtils.decodeCertificate(publicKey.toByteArray()).getPublicKey();
+        return createVerifier(pk);
     }
 
     /**

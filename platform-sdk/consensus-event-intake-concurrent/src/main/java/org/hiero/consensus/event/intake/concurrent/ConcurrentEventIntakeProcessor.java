@@ -5,29 +5,23 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_2;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.PublicKey;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.event.validation.EventFieldValidator;
+import org.hiero.consensus.event.intake.utils.EventFieldValidator;
+import org.hiero.consensus.event.intake.utils.EventSignatureChecker;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -35,10 +29,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterEntryNotFoundException;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Implementation of {@link EventIntakeProcessor}. Combines hashing, field validation,
@@ -63,25 +54,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     private final ConcurrentHashMap<Long, ConcurrentHashMap<EventDescriptorWrapper, Set<Bytes>>> observedEvents =
             new ConcurrentHashMap<>();
 
-    private final Function<PublicKey, BytesSignatureVerifier> verifierFactory;
-    private volatile RosterHistory rosterHistory;
-
-    /**
-     * Shared public key cache keyed by {@code (nodeId, birthRound)}.
-     * Ancient entries are evicted in {@link #setEventWindow}.
-     */
-    private final ConcurrentHashMap<VerifierKey, PublicKey> publicKeyCache = new ConcurrentHashMap<>();
-
-    /**
-     * Per-thread verifier cache keyed by {@link PublicKey}.
-     * This resolves the situation where we don't know if BytesSignatureVerifier implementation is concurrent or not
-     * with minimal overhead.
-     * This cache is never cleaned up but memory is bounded by nodes × roster_changes × threads and acceptable (before DAB)
-     */
-    private final ThreadLocal<HashMap<PublicKey, BytesSignatureVerifier>> threadLocalVerifiers =
-            ThreadLocal.withInitial(HashMap::new);
-
-    private record VerifierKey(NodeId nodeId, long birthRound) {}
+    private final EventSignatureChecker signatureChecker;
 
     private volatile EventWindow eventWindow = EventWindow.getGenesisEventWindow();
     private final IntakeEventCounter intakeEventCounter;
@@ -129,8 +102,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
      * @param time               the time source
      * @param eventHasher        hashes events
      * @param eventFieldValidator validates event fields
-     * @param verifierFactory    creates a {@link BytesSignatureVerifier} for a given public key
-     * @param rosterHistory      the complete roster history
+     * @param signatureChecker   shared signature verification logic
      * @param intakeEventCounter tracks event counts in the intake pipeline
      * @param pipelineTracker    optional tracker for per-stage event delay metrics
      */
@@ -139,15 +111,13 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
             @NonNull final Time time,
             @NonNull final EventHasher eventHasher,
             @NonNull final EventFieldValidator eventFieldValidator,
-            @NonNull final Function<PublicKey, BytesSignatureVerifier> verifierFactory,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final EventSignatureChecker signatureChecker,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker pipelineTracker) {
 
         this.eventHasher = Objects.requireNonNull(eventHasher);
         this.eventFieldValidator = Objects.requireNonNull(eventFieldValidator);
-        this.verifierFactory = Objects.requireNonNull(verifierFactory);
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
+        this.signatureChecker = Objects.requireNonNull(signatureChecker);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
         this.pipelineTracker = pipelineTracker;
 
@@ -212,7 +182,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
         // 4. Verify signature (RUNTIME events are trusted — we just created and signed them)
         try {
             if (event.getOrigin() != EventOrigin.RUNTIME) {
-                if (!isSignatureValid(event)) {
+                if (!signatureChecker.isSignatureValid(event)) {
                     intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
                     sigValidationFailedAccumulator.update(1);
                     rateLimitedLogger.error(
@@ -262,7 +232,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
         // Two-level lookup: birth round → (descriptor → signatures).
         // computeIfAbsent on both levels is atomic — only one thread creates each bucket/set.
         final ConcurrentHashMap<EventDescriptorWrapper, Set<Bytes>> bucket =
-                observedEvents.computeIfAbsent(event.getBirthRound(), k -> new ConcurrentHashMap<>());
+                observedEvents.computeIfAbsent(event.getBirthRound(), _ -> new ConcurrentHashMap<>());
         final Set<Bytes> signatures = bucket.computeIfAbsent(event.getDescriptor(), k -> ConcurrentHashMap.newKeySet());
         // thread-safe
         if (signatures.add(
@@ -295,63 +265,6 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     }
 
     /**
-     * Determine whether a given event has a valid signature.
-     *
-     * @param event the event to validate
-     * @return true if the event has a valid signature, otherwise false
-     */
-    private boolean isSignatureValid(@NonNull final PlatformEvent event) {
-        // 1. Resolve the public key from the shared cache (expensive roster + cert parsing once globally)
-        final VerifierKey key = new VerifierKey(event.getCreatorId(), event.getBirthRound());
-        final PublicKey publicKey = publicKeyCache.computeIfAbsent(key, this::resolvePublicKey);
-        // it does not cache null returns so we will call
-        // resolvePublicKey multiple times for every invalid: nodeId-birthround combination
-        if (publicKey == null) {
-            return false;
-        }
-
-        // 2. Get or create a per-thread verifier for this public key (no contention).
-        //    Before dynamic address book, this stores at most 2 × nodes verifiers per thread.
-        final BytesSignatureVerifier verifier = threadLocalVerifiers.get().computeIfAbsent(publicKey, verifierFactory);
-
-        return verifier.verify(event.getHash().getBytes(), event.getSignature());
-    }
-
-    /**
-     * Resolve the public key for a given node from the roster.
-     *
-     * @param key the node ID and birth round for look-ups
-     * @return the node's public key, or null if it could not be resolved
-     */
-    @Nullable
-    private PublicKey resolvePublicKey(@NonNull final VerifierKey key) {
-        final Roster roster = rosterHistory.getRosterForRound(key.birthRound());
-        if (roster == null) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Cannot validate events for birth round {} without a roster",
-                    key.birthRound());
-            return null;
-        }
-        final RosterEntry rosterEntry;
-        try {
-            rosterEntry = RosterUtils.getRosterEntry(roster, key.nodeId().id());
-        } catch (RosterEntryNotFoundException e) {
-            rateLimitedLogger.error(EXCEPTION.getMarker(), "Node {} doesn't exist in applicable roster", key.nodeId());
-            return null;
-        }
-
-        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
-        if (cert == null || cert.getPublicKey() == null) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(), "Cannot find publicKey for creator with ID: {}", key.nodeId());
-            return null;
-        }
-
-        return cert.getPublicKey();
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -360,8 +273,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
         // Purge all birth-round buckets below the ancient threshold.
         // Iterates only round keys (~20), not every event entry.
         observedEvents.keySet().removeIf(round -> round < eventWindow.ancientThreshold());
-        // Evict ancient public key cache entries. Bounded by nodes × active rounds.
-        publicKeyCache.keySet().removeIf(key -> key.birthRound() < eventWindow.ancientThreshold());
+        signatureChecker.evictAncient(eventWindow.ancientThreshold());
     }
 
     /**
@@ -369,7 +281,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
      */
     @Override
     public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
+        signatureChecker.setRosterHistory(rosterHistory);
     }
 
     /**
@@ -378,6 +290,5 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     @Override
     public void clear() {
         observedEvents.clear();
-        publicKeyCache.clear();
     }
 }
