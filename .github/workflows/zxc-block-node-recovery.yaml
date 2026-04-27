@@ -71,13 +71,11 @@ jobs:
       # Get latest tag for the checked out hiero-consensus-node
       - name: Get Latest Stable CN Tag
         run: |
-          git fetch --tags
-          LATEST_STABLE=$(git for-each-ref 'refs/tags/v*' --sort=-version:refname --format='%(refname:strip=2)' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
-          if [[ -z "${LATEST_STABLE:-}" ]]; then
-            echo "No stable v*.*.* tags found."; exit 1
-          fi
-          echo "Latest stable tag: ${LATEST_STABLE}"
-          echo "CN_LATEST_TAG=${LATEST_STABLE}" >> "$GITHUB_ENV"
+          RAW_VERSION=$(cat version.txt)
+          CN_VERSION="${RAW_VERSION%-SNAPSHOT}"
+          CN_LATEST_TAG="v${CN_VERSION}"
+          echo "CN version from version.txt: ${RAW_VERSION}. Setting CN_LATEST_TAG=${CN_LATEST_TAG}"
+          echo "CN_LATEST_TAG=${CN_LATEST_TAG}" >> "$GITHUB_ENV"
 
       - name: Setup PNPM
         run: |
