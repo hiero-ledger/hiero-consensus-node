@@ -207,7 +207,9 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
             while (input.hasRemaining()) {
                 final int tag = input.readVarInt(false);
                 switch (tag) {
+                    // consensus_timestamp: field 1, message => (1 << 3) | 2 = 10
                     case 10 -> skipMessage(input);
+                    // state_changes:       field 2, message => (2 << 3) | 2 = 18
                     case 18 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
@@ -229,8 +231,12 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
             while (input.position() < endPosition) {
                 final int tag = input.readVarInt(false);
                 switch (tag) {
+                    // state_id:         field 1, uint32 varint => (1 << 3) | 0 = 8
                     case 8 -> stateId = ProtoParserTools.readUint32(input);
+                    // state_add:        field 2, message       => (2 << 3) | 2 = 18
+                    // state_remove:     field 3, message       => (3 << 3) | 2 = 26
                     case 18, 26 -> skipMessage(input);
+                    // singleton_update: field 4, message       => (4 << 3) | 2 = 34
                     case 34 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
@@ -239,6 +245,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                             stateChangesSummary.countSingletonPut(stateId);
                         }
                     }
+                    // map_update:       field 5, message       => (5 << 3) | 2 = 42
                     case 42 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
@@ -247,6 +254,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                             stateChangesSummary.countMapUpdate(stateId);
                         }
                     }
+                    // map_delete:       field 6, message       => (6 << 3) | 2 = 50
                     case 50 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
@@ -255,6 +263,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                             stateChangesSummary.countMapDelete(stateId);
                         }
                     }
+                    // queue_push:       field 7, message       => (7 << 3) | 2 = 58
                     case 58 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
@@ -263,6 +272,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                             stateChangesSummary.countQueuePush(stateId);
                         }
                     }
+                    // queue_pop:        field 8, message       => (8 << 3) | 2 = 66
                     case 66 -> {
                         skipMessage(input);
                         processQueuePopChange(virtualMap, requireStateId(stateId));
@@ -293,6 +303,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
             while (input.position() < endPosition) {
                 final int tag = input.readVarInt(false);
                 switch (tag) {
+                    // key:   field 1, message => (1 << 3) | 2 = 10
                     case 10 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
@@ -300,6 +311,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                             mapKeyAsStateKey = kvKey(stateId, rawKey);
                         }
                     }
+                    // value: field 2, message => (2 << 3) | 2 = 18
                     case 18 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
@@ -326,6 +338,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
             while (input.position() < endPosition) {
                 final int tag = input.readVarInt(false);
                 switch (tag) {
+                    // key: field 1, message => (1 << 3) | 2 = 10
                     case 10 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
