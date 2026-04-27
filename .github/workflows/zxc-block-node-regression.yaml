@@ -240,11 +240,6 @@ jobs:
                     stream:
                       maxSubscribeAttempts: 10
                       responseTimeout: 10s
-            # custom image to support preview streams hash verification
-            #image:
-            #  registry: docker.io
-            #  repository: xin323/importer
-            #  tag: 0.152.0-f5f5faa13
           EOF
 
       - name: Print MN Override Values
