@@ -45,7 +45,7 @@ import org.hiero.consensus.reconnect.config.ReconnectConfig;
  * <ul>
  *     <li>Constructor {@link #VirtualMapLearner(VirtualMap, ReconnectConfig, ReconnectMapStats)}</li>
  *     <li>Caller accesses {@link LearnerTreeView} via {@link #getLearnerView()} to start lessons using reconnect input/output streams.</li>
- *     <li>When synchronization starts, the teacher first sends its current leaf path range, and the {@link LearnerTreeView} implementation triggers {@link #init(long, long, Runnable)}.</li>
+ *     <li>When synchronization starts, the teacher first sends its current leaf path range, and the {@link LearnerTreeView} implementation triggers {@link #init(long, long)}.</li>
  *     <li>Then on each dirty leaf {@link #onDirtyLeaf(VirtualLeafBytes)} has to be called</li>
  *     <li>On successful reconnect completion, the reconnect framework calls {@link #finish()} to finalize synchronization and create the new {@link VirtualMap} instance accessible via {@link #getVirtualMap()}.</li>
  *     <li>If reconnect fails before successful completion, the caller/reconnect orchestration code is responsible for aborting the reconnect attempt and cleaning up resources associated with the failed attempt via {@link #abortOnException()}.</li>
@@ -92,8 +92,12 @@ public final class VirtualMapLearner {
     private final VirtualMapMetadata reconnectState = new VirtualMapMetadata();
     private final ConcurrentBlockingIterator<VirtualLeafBytes> reconnectIterator =
             new ConcurrentBlockingIterator<>(MAX_RECONNECT_HASHING_BUFFER_SIZE);
+
     private final CompletableFuture<Hash> reconnectHashingFuture = new CompletableFuture<>();
     private final AtomicBoolean reconnectHashingStarted = new AtomicBoolean(false);
+
+    private final CompletableFuture<Void> leafDeletionFuture = new CompletableFuture<>();
+    private final AtomicBoolean leafDeletionStarted = new AtomicBoolean(false);
 
     // Tracks current stage of the reconnect process
     private final AtomicReference<Stage> stage = new AtomicReference<>(Stage.NEW);
@@ -209,15 +213,15 @@ public final class VirtualMapLearner {
     /**
      * Called when the teacher has sent the root response, establishing the first and last leaf
      * paths of the reconnected tree. This initializes the reconnect state and flusher,
-     * starts the background hashing thread and registers old leaves that need to be removed.
+     * starts the background hashing thread, and starts a background thread to delete old leaves
+     * that fall outside the new leaf path range.
      *
      * <p><b>Must</b> be called before any {@link #onDirtyLeaf(VirtualLeafBytes)} and {@link #finish()} calls.
      *
      * @param firstLeafPath first leaf path in the reconnected tree
      * @param lastLeafPath  last leaf path in the reconnected tree
-     * @param beforeCleaningLeavesAction an action to run after the reconnect state is initialized but before any old leaves are marked for deletion. Can be {@code null}.
      */
-    public void init(final long firstLeafPath, final long lastLeafPath, @Nullable Runnable beforeCleaningLeavesAction) {
+    public void init(final long firstLeafPath, final long lastLeafPath) {
         updateStage(Stage.NEW, Stage.INITIALIZING);
 
         logger.info(
@@ -230,56 +234,11 @@ public final class VirtualMapLearner {
 
         reconnectState.setPaths(firstLeafPath, lastLeafPath);
         reconnectFlusher.init(firstLeafPath, lastLeafPath);
-        updateStage(Stage.INITIALIZING, Stage.INITIALIZED);
 
+        startLeafDeletionThread();
         startReconnectHashingThread(firstLeafPath, lastLeafPath);
 
-        // setPathInformation() below may take a while if many old leaves need to be marked for deletion,
-        // so we run the provided action before that to allow the caller to do any necessary preparation
-        // (e.g., send an acknowledgment to the teacher to unblock it).
-        if (beforeCleaningLeavesAction != null) {
-            beforeCleaningLeavesAction.run();
-        }
-
-        deleteOldLeavesBeforeNewFirstLeafPath();
-    }
-
-    /**
-     * Check if old leaves before new first leaf path have to be deleted.
-     *
-     * <p>If the old learner tree contained fewer elements than the new tree from the teacher, all leaves
-     * from the old {@code firstLeafPath} inclusive to the new {@code firstLeafPath} exclusive are
-     * marked for deletion.
-     */
-    private void deleteOldLeavesBeforeNewFirstLeafPath() {
-        final long newFirstLeafPath = reconnectState.getFirstLeafPath();
-        final long oldFirstLeafPath = originalState.getFirstLeafPath();
-
-        // no-op if new first leaf path is less or equal to old first leaf path
-        if (originalState.getLastLeafPath() > 0 && oldFirstLeafPath < newFirstLeafPath) {
-            final long limit = Long.min(newFirstLeafPath, originalState.getLastLeafPath() + 1);
-
-            logger.info(
-                    RECONNECT.getMarker(),
-                    "Starting deleting {} nodes from oldFirstLeafPath={} to {} exclusive.",
-                    (limit - oldFirstLeafPath),
-                    oldFirstLeafPath,
-                    limit);
-
-            for (long path = oldFirstLeafPath; path < limit; path++) {
-                final VirtualLeafBytes<?> oldRecord = originalRecords.findLeafRecord(path);
-                assert oldRecord != null : "Cannot find an old leaf record at path " + path;
-                reconnectFlusher.deleteLeaf(oldRecord);
-            }
-
-            logger.info(
-                    RECONNECT.getMarker(),
-                    "Finished deleting nodes from oldFirstLeafPath={} to {} exclusive",
-                    oldFirstLeafPath,
-                    limit);
-        } else {
-            logger.info(RECONNECT.getMarker(), "No nodes to delete before newFirstLeafPath={}", newFirstLeafPath);
-        }
+        updateStage(Stage.INITIALIZING, Stage.INITIALIZED);
     }
 
     /**
@@ -335,7 +294,7 @@ public final class VirtualMapLearner {
 
         logger.info(RECONNECT.getMarker(), "Finalizing learner reconnect");
 
-        deleteOldLeavesAfterNewLastLeafPath();
+        waitForLeafDeletionToComplete();
         waitForHashingToComplete();
         reconnectFlusher.finish();
 
@@ -344,6 +303,44 @@ public final class VirtualMapLearner {
 
         updateStage(Stage.FINISHING, Stage.FINISHED);
         logger.info(RECONNECT.getMarker(), "Learner reconnect complete");
+    }
+
+    /**
+     * Check if old leaves before new first leaf path have to be deleted.
+     *
+     * <p>If the old learner tree contained fewer elements than the new tree from the teacher, all leaves
+     * from the old {@code firstLeafPath} inclusive to the new {@code firstLeafPath} exclusive are
+     * marked for deletion.
+     */
+    private void deleteOldLeavesBeforeNewFirstLeafPath() {
+        final long newFirstLeafPath = reconnectState.getFirstLeafPath();
+        final long oldFirstLeafPath = originalState.getFirstLeafPath();
+
+        // no-op if new first leaf path is less or equal to old first leaf path
+        if (originalState.getLastLeafPath() > 0 && oldFirstLeafPath < newFirstLeafPath) {
+            final long limit = Long.min(newFirstLeafPath, originalState.getLastLeafPath() + 1);
+
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Starting deleting {} nodes from oldFirstLeafPath={} to {} exclusive.",
+                    (limit - oldFirstLeafPath),
+                    oldFirstLeafPath,
+                    limit);
+
+            for (long path = oldFirstLeafPath; path < limit; path++) {
+                final VirtualLeafBytes<?> oldRecord = originalRecords.findLeafRecord(path);
+                assert oldRecord != null : "Cannot find an old leaf record at path " + path;
+                reconnectFlusher.deleteLeaf(oldRecord);
+            }
+
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Finished deleting nodes from oldFirstLeafPath={} to {} exclusive",
+                    oldFirstLeafPath,
+                    limit);
+        } else {
+            logger.info(RECONNECT.getMarker(), "No nodes to delete before newFirstLeafPath={}", newFirstLeafPath);
+        }
     }
 
     /**
@@ -441,6 +438,54 @@ public final class VirtualMapLearner {
     }
 
     /**
+     * Starts a background thread that deletes old leaves falling outside the new leaf path range.
+     * Runs both {@link #deleteOldLeavesBeforeNewFirstLeafPath()} and
+     * {@link #deleteOldLeavesAfterNewLastLeafPath()} sequentially and completes
+     * {@link #leafDeletionFuture} when done.
+     */
+    private void startLeafDeletionThread() {
+        new ThreadConfiguration(getStaticThreadManager())
+                .setComponent("virtualmap")
+                .setThreadName("leaf-deleter")
+                .setRunnable(() -> {
+                    deleteOldLeavesBeforeNewFirstLeafPath();
+                    deleteOldLeavesAfterNewLastLeafPath();
+                    leafDeletionFuture.complete(null);
+                })
+                .setExceptionHandler((thread, exception) -> {
+                    final var message = "VirtualMap failed to delete old leaves during reconnect";
+                    logger.error(EXCEPTION.getMarker(), message, exception);
+                    leafDeletionFuture.completeExceptionally(new MerkleSynchronizationException(message, exception));
+                })
+                .build()
+                .start();
+
+        leafDeletionStarted.set(true);
+        logger.info(RECONNECT.getMarker(), "Reconnect leaf deletion thread started");
+    }
+
+    /**
+     * Waits for the background leaf-deletion thread to complete.
+     * Called by {@link #finish()} before {@link ReconnectHashLeafFlusher#finish()}.
+     */
+    private void waitForLeafDeletionToComplete() {
+        try {
+            if (leafDeletionStarted.get()) {
+                logger.info(RECONNECT.getMarker(), "Waiting for reconnect leaf deletion to complete");
+                leafDeletionFuture.get();
+                logger.info(RECONNECT.getMarker(), "Reconnect leaf deletion completed");
+            } else {
+                logger.warn(RECONNECT.getMarker(), "Leaf deletion thread was never started");
+            }
+        } catch (final ExecutionException e) {
+            throw new MerkleSynchronizationException(e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException(e);
+        }
+    }
+
+    /**
      * Builds a {@link LearnerTreeView} for this reconnect operation.
      *
      * <p>Must be called before passing this instance to a {@code LearningSynchronizer}.
@@ -503,6 +548,7 @@ public final class VirtualMapLearner {
     public void abortOnException() {
         logger.info(RECONNECT.getMarker(), "Aborting reconnect and cleaning up resources");
 
+        leafDeletionFuture.cancel(true);
         reconnectIterator.close();
         try {
             dataSource.close(false);
