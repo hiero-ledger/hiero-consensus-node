@@ -1,29 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui;
 
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import org.hiero.consensus.gui.runner.TestGuiSource;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import org.hiero.consensus.gui.api.TestGuiSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
- * Main class for running the hashgraph GUI.
+ * Main class for running the hashgraph GUI with generated events.
  */
 public class HashgraphGuiMain {
 
     /**
-     * The main method that runs the GUI. It creates a Randotron, a GraphGenerator, and a TestGuiSource.
-     * It generates events and runs the GUI.
+     * The main method that runs the GUI, showing a randomly generated graph.
      *
-     * @param args command line arguments - if "branch" is passed the GUI will have a branching event source and branched
-     *             events will be shown
+     * @param args command line arguments
      */
     public static void main(final String[] args) {
         final int initialEvents = 20;
 
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
+        final Configuration defaultConfig =
+                ConfigurationBuilder.create().autoDiscoverExtensions().build();
 
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(4)
@@ -31,7 +30,8 @@ public class HashgraphGuiMain {
                 .seed(0)
                 .build();
 
-        final TestGuiSource guiSource = new TestGuiSource(platformContext, generator.getRoster(), generator);
+        final TestGuiSource guiSource =
+                new TestGuiSource(new NoOpMetrics(), defaultConfig, generator.getRoster(), generator);
         guiSource.generateEvents(initialEvents);
         guiSource.runGui();
     }

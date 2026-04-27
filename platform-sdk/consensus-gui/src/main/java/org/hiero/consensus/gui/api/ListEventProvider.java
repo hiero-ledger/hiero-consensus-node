@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.gui.runner;
+package org.hiero.consensus.gui.api;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;

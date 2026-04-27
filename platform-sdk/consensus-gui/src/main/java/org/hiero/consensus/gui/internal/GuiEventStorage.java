@@ -6,7 +6,7 @@ import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -49,12 +49,8 @@ public class GuiEventStorage {
      * @param roster the network's roster
      */
     public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
-
         this.configuration = Objects.requireNonNull(configuration);
-        final PlatformContext platformContext = PlatformContext.create(configuration);
-
-        this.consensus = new ConsensusImpl(
-                platformContext.getConfiguration(), platformContext.getTime(), new NoOpConsensusMetrics(), roster);
+        this.consensus = new ConsensusImpl(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster);
         this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
 

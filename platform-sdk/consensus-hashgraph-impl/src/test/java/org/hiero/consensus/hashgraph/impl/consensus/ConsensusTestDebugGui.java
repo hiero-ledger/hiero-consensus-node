@@ -2,8 +2,8 @@
 package org.hiero.consensus.hashgraph.impl.consensus;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.gui.runner.ListEventProvider;
-import org.hiero.consensus.gui.runner.TestGuiSource;
+import org.hiero.consensus.gui.api.ListEventProvider;
+import org.hiero.consensus.gui.api.TestGuiSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusTestNode;
 
@@ -32,7 +32,8 @@ public final class ConsensusTestDebugGui {
         final ConsensusTestNode node =
                 orchestrator.getNodes().stream().findAny().orElseThrow();
         new TestGuiSource(
-                        orchestrator.getPlatformContext(),
+                        orchestrator.getPlatformContext().getMetrics(),
+                        orchestrator.getPlatformContext().getConfiguration(),
                         orchestrator.getRoster(),
                         new ListEventProvider(node.getOutput().getAddedEvents()))
                 .runGui();

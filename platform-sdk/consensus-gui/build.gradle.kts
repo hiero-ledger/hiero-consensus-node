@@ -6,7 +6,4 @@ plugins {
 
 description = "Consensus Hashgraph GUI"
 
-testModuleInfo {
-    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
-    requires("com.swirlds.common.test.fixtures")
-}
+testModuleInfo { requires("org.hiero.consensus.hashgraph.impl.test.fixtures") }

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.gui.runner;
+package org.hiero.consensus.gui.api;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.FlowLayout;
 import java.util.Collection;
@@ -16,6 +17,7 @@ import javax.swing.SpinnerNumberModel;
 import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.gui.internal.GuiEventStorage;
+import org.hiero.consensus.gui.internal.HashgraphGuiRunner;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.gui.internal.hashgraph.util.StandardGuiSource;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -34,15 +36,17 @@ public class TestGuiSource {
     /**
      * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics system
+     * @param configuration the platform configuration
      * @param roster     the roster
      * @param eventSource   the source of events
      */
     public TestGuiSource(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
+            @NonNull final Configuration configuration,
             @NonNull final Roster roster,
             @NonNull final EventGraphSource eventSource) {
-        this(platformContext, roster, wrapEventGraphSource(eventSource));
+        this(metrics, configuration, roster, wrapEventGraphSource(eventSource));
     }
 
     private static @NonNull GuiEventProvider wrapEventGraphSource(@NonNull final EventGraphSource eventSource) {
@@ -63,18 +67,20 @@ public class TestGuiSource {
     /**
      * Construct a {@link TestGuiSource} with the given platform context, address book, and event provider.
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics system
+     * @param configuration the platform configuration
      * @param roster     the roster
      * @param eventProvider   the event provider
      */
     public TestGuiSource(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
+            @NonNull final Configuration configuration,
             @NonNull final Roster roster,
             @NonNull final GuiEventProvider eventProvider) {
-        this.eventStorage = new GuiEventStorage(platformContext.getConfiguration(), roster);
+        this.eventStorage = new GuiEventStorage(configuration, roster);
         this.guiSource = new StandardGuiSource(roster, eventStorage);
         this.eventProvider = eventProvider;
-        this.orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), new NoOpIntakeEventCounter());
+        this.orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
     }
 
     public void runGui() {
