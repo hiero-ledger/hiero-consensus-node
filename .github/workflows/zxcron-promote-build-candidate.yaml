@@ -101,7 +101,8 @@ jobs:
   promote-build-candidate:
     name: Promote Build Candidate
     runs-on: hl-cn-default-lin-sm
-    needs: determine-build-candidate
+    needs:
+      - determine-build-candidate
     outputs:
       build-candidate-tag: ${{ steps.tag-build-candidate.outputs.build-candidate-tag }}
     if: ${{ needs.determine-build-candidate.outputs.promote-build-candidate == 'true' && needs.determine-build-candidate.outputs.build-candidate-exists == 'true' }}

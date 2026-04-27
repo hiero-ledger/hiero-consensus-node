@@ -202,7 +202,8 @@ jobs:
   report-json-rpc-relay-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-rpc-relay-lin-sm
-    needs: json-rpc-relay-regression
+    needs:
+      - json-rpc-relay-regression
     if: ${{ always() }}
     steps:
       - name: Harden Runner
