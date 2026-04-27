@@ -16,9 +16,8 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * Validates the structure of blocks, including both normal blocks and
- * Wrapped Record Blocks (WRBs) produced by the historical record file
- * wrapping process defined in HIP-1427.
+ * Validates the structure of blocks, including both normal blocks and Wrapped Record Blocks (WRBs)
+ * produced by the historical record file wrapping process.
  */
 public class BlockContentsValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(BlockContentsValidator.class);
@@ -40,9 +39,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
 
     /**
      * Returns {@code true} if the given block items represent a Wrapped Record Block.
-     * Detection is based on the presence of a {@code RECORD_FILE} item, per
-     * {@code block_item.proto} field 10: "If this item is present, special treatment
-     * is REQUIRED for this block."
+     * Detection is based on the presence of a {@code RECORD_FILE} item.
      */
     public static boolean isWrappedRecordBlock(@NonNull final List<BlockItem> items) {
         for (final var item : items) {
