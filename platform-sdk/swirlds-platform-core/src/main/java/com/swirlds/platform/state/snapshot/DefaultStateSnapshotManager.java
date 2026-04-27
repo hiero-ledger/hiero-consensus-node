@@ -267,7 +267,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             final double signingWeight1Percent = (((double) signingWeight1) / ((double) totalWeight1)) * 100.0;
             final double signingWeight2Percent = (((double) signingWeight2) / ((double) totalWeight2)) * 100.0;
 
-            logger.warn(STATE_TO_DISK.getMarker(), new InsufficientSignaturesPayload(("""
+            logger.info(STATE_TO_DISK.getMarker(), new InsufficientSignaturesPayload(("""
                                     State written to disk for round %d did not have enough signatures.
                                     This log adds debug information for #11422.
                                     Pre-check weight: %d/%d (%f%%)  Post-check weight: %d/%d (%f%%)
