@@ -56,13 +56,13 @@ on:
         type: boolean
         required: false
         default: false
-        description: "solo-sd*t-n8 (SDPT/SDLT)"
+        description: "*solo-sd*t-n8 (SDPT/SDLT)"
 
       Chicago_n9:
         type: boolean
         required: false
         default: false
-        description: "solo-sd*t-n9 (SDPT/SDLT)"
+        description: "*solo-sd*t-n9 (SDPT/SDLT)"
 
       Dallas_n10:
         type: boolean

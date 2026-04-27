@@ -167,7 +167,8 @@ jobs:
   report-mirror-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
     runs-on: hl-cn-mn-regression-lin-sm
-    needs: mirror-node-regression
+    needs:
+      - mirror-node-regression
     permissions:
       id-token: write
     if: ${{ always() }}
