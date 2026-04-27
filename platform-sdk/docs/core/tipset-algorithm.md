@@ -34,7 +34,8 @@ Each event in the hashgraph has a tipset.
 To calculate the tipset of an event, iterate over all ancestors of the event (in this context,
 an event is considered to be an ancestor to itself). From all of these ancestors, sort
 by event creator. For each event creator, choose the event with the highest sequence number. The entry for that node
-in the tipset is equal to the sequence number of that event. If no event was ever seen for that creator, the number will be set to -1.
+in the tipset is equal to the sequence number of that event. If no event was ever seen for that creator, the number will
+be set to -1.
 
 ```
 Example
@@ -76,8 +77,10 @@ Time starts at the bottom and moves forward as you go up the graph. Numbers for 
 Although calculating an event tipset by iterating the graph is conceptually simple, in practice it's way too slow.
 This section describes a faster algorithm.
 
-Merging two tipsets is defined as taking two or more tipsets, for each event creator selecting the maximum sequence number
-across all tipsets being merged, and constructing the resulting tipset using those sequence numbers. Or to put it another
+Merging two tipsets is defined as taking two or more tipsets, for each event creator selecting the maximum sequence
+number
+across all tipsets being merged, and constructing the resulting tipset using those sequence numbers. Or to put it
+another
 way, just take the maximum for each element in the list.
 
 ```
@@ -162,7 +165,8 @@ the previous event created.
 
 The snapshot tipset is defined as follows.
 
-The snapshot starts out empty, i.e. `[-1, -1, -1, ..., -1]` at genesis (in the current code, sequence numbers start at 1).
+The snapshot starts out empty, i.e. `[-1, -1, -1, ..., -1]` at genesis (in the current code, sequence numbers start at
+1).
 Periodically, the snapshot is updated to a more recent tipset.
 
 Each time a node creates a new event, compare that new event's tipset to the snapshot tipset and find the partial
@@ -209,7 +213,8 @@ Consider from A's perspective. A's snapshot advancement threshold is 14.
 
 Initially, the snapshot is [-1, -1, -1, -1].
 
-A creates a genesis event with tipset [1, -1, -1, -1] (A's first event has sequence number 1).
+A creates a genesis event with tipset [1, -1, -1, -1] (A's first event has sequence number 1 in such case, as it
+hasn't seen any other events yet).
 The snapshot improvement score is 0, which is ok since this is a genesis event.
 (It will never again be ok to have an advancement score of 0.)
 
@@ -221,7 +226,7 @@ The tipset of the new event is [1, 2, -1, -1]. (Note that the sequence number fo
 are assigned only after self event has gone through entire intake pipeline).
 The partial weighted snapshot advancement score is 14, because we add self weight of 5 in any case to node B 9.
 
-Next, A creates an event with self parent [3, 2, -1, -1] and other parent [1, 2, 5, 7] with a sequence id 5. The tipset
+Next, A creates an event with self parent [3, 2, -1, -1] and other parent [1, 2, 5, 7] with a sequence number 5. The tipset
 of the new event is [3, 2, 5, 7]. The partial weighted snapshot advancement score is 27, which exceeds the threshold
 of 14. Therefore, the snapshot is updated to [3, 2, 5, 7].
 
