@@ -140,12 +140,12 @@ public final class ConsensusTestDefinitions {
                 new OutputEventsAddedInDifferentOrderValidation(),
                 new OutputEventsEqualityValidation(),
                 OutputEventRatioValidation.standard().setMaximumStaleRatio(0.1)));
-        OrchestratorBuilder.builder()
+        final ConsensusTestOrchestrator orchestrator = OrchestratorBuilder.builder()
                 .setTestInput(input)
                 .setEventSourceBuilder(eventSourceBuilder)
-                .build()
-                .generateEvents(1.0)
-                .validateAndClear(consensusOutputValidator);
+                .build();
+        orchestrator.generateEvents(1.0);
+        orchestrator.validateAndClear(consensusOutputValidator);
     }
 
     /**
