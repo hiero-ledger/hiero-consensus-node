@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.LongSummaryStatistics;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -578,14 +579,16 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     size,
                     oneTransactionsData.stream().mapToLong(List::size).sum());
         }
+        final long start = System.currentTimeMillis();
         final DataFileReader dataFileReader;
         try {
             if (size > 0) {
-                final Iterator<IntObjectPair<List<BucketMutation>>> it =
-                        oneTransactionsData.keyValuesView().iterator();
                 fileCollection.startWriting();
                 final ForkJoinPool pool = getFlushingPool(config);
                 resetEndWriting(pool, size);
+/*
+                final Iterator<IntObjectPair<List<BucketMutation>>> it =
+                        oneTransactionsData.keyValuesView().iterator();
                 // Create a task to submit bucket processing tasks. This initial submit task
                 // is scheduled to run right away. Subsequent submit tasks will be run only
                 // after some buckets are completely processed to make sure no more than
@@ -596,6 +599,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 // Wait until all tasks are completed by waiting for the notify task to join. This
                 // task depends on the last "store bucket" task
                 notifyTaskRef.get().join();
+*/
+                exceptionOccurred.set(null);
+                final SubmitBucketTask submitTask = new SubmitBucketTask(pool);
+                notifyTaskRef.set(submitTask);
+                submitTask.send();
+                submitTask.join();
                 if (exceptionOccurred.get() != null) {
                     throw new IOException(exceptionOccurred.get());
                 }
@@ -619,6 +628,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             oneTransactionsData = null;
             currentSubmitTask.set(null);
         }
+        final long end = System.currentTimeMillis();
+        logger.info(MERKLE_DB.getMarker(), "endWriting took {} ms", end - start);
         return dataFileReader;
     }
 
@@ -878,6 +889,127 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             // Task body is empty: the task is only needed to wait until its dependency
             // tasks are complete
             return true;
+        }
+    }
+
+    private class SubmitBucketTask extends AbstractTask {
+
+        private final CountDownLatch finishLatch;
+
+        public SubmitBucketTask(final ForkJoinPool pool) {
+            super(pool, 1);
+            finishLatch = new CountDownLatch(oneTransactionsData.size());
+        }
+
+        @Override
+        protected boolean onExecute() throws InterruptedException {
+            for (final IntObjectPair<List<BucketMutation>> pair : oneTransactionsData.keyValuesView()) {
+                final int bucketIndex = pair.getOne();
+                final List<BucketMutation> mutations = pair.getTwo();
+                final BucketTask bucketTask = new BucketTask(getPool(), bucketIndex, mutations, finishLatch);
+                bucketTask.send();
+            }
+            finishLatch.await();
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error(MERKLE_DB.getMarker(), "Failed to submit bucket tasks", t);
+            if (exceptionOccurred.compareAndSet(null, t)) {
+                notifyTaskRef.get().completeExceptionally(t);
+            }
+        }
+    }
+
+    private class BucketTask extends AbstractTask {
+
+        private final int bucketIndex;
+
+        private final List<BucketMutation> updates;
+
+        private final CountDownLatch finishLatch;
+
+        BucketTask(
+                final ForkJoinPool pool,
+                final int bucketIndex,
+                final List<BucketMutation> updates,
+                final CountDownLatch finishLatch) {
+            super(pool, 1);
+            this.bucketIndex = bucketIndex;
+            this.updates = updates;
+            this.finishLatch = finishLatch;
+        }
+
+        @Override
+        protected boolean onExecute() throws IOException {
+            final BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
+            try (final Bucket bucket = bucketPool.getBucket()) {
+                boolean bucketChanged = false;
+                if (bucketData == null) {
+                    // An empty bucket
+                    bucket.setBucketIndex(bucketIndex);
+                    // Add all entries
+                    assert updates != null;
+                    for (int i = 0; i < updates.size(); i++) {
+                        final BucketMutation m = updates.get(i);
+                        assert m.oldPath() == Path.INVALID_PATH;
+                        if (m.path() != Path.INVALID_PATH) {
+                            assert m.value() != null;
+                            bucket.addValue(m.key(), m.keyHashCode(), m.path(), m.value());
+                        }
+                    }
+                    bucketChanged = true;
+                } else {
+                    // Read from bytes
+                    bucket.readFrom(bucketData);
+                    if ((bucket.getBucketIndex() & bucketIndex) != bucket.getBucketIndex()) {
+                        logger.error(
+                                MERKLE_DB.getMarker(),
+                                "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
+                    /*
+                       This is a workaround for issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
+                       which caused possible corruption in snapshots.
+                       If the snapshot is corrupted, the code may read a bucket from the file, and the bucket index
+                       may be different from the expected one. In this case, we clear the bucket (as it contains garbage
+                       anyway) and set the correct index.
+                    */
+                        bucket.clear();
+                    }
+                    // Apply all updates
+                    for (int i = 0; i < updates.size(); i++) {
+                        final BucketMutation m = updates.get(i);
+                        if (bucket.putLeaf(m.key(), m.keyHashCode(), m.oldPath(), m.path(), m.value())) {
+                            bucketChanged = true;
+                        }
+                    }
+                    // Sanitize the bucket only if there have been any updates to it
+                    if (bucketChanged) {
+                        // Clear old bucket entries with wrong hash codes
+                        bucket.sanitize(bucketIndex, bucketMaskBits.get());
+                    }
+                }
+                if (bucket.isEmpty()) {
+                    // bucket is missing or empty, remove it from the index
+                    bucketIndexToBucketLocation.remove(bucketIndex);
+                } else {
+                    // save bucket
+                    final long bucketLocation = fileCollection.storeDataItem(bucket::writeTo, bucket.sizeInBytes());
+                    // update bucketIndexToBucketLocation
+                    bucketIndexToBucketLocation.put(bucketIndex, bucketLocation);
+                }
+            } finally {
+                finishLatch.countDown();
+            }
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error(MERKLE_DB.getMarker(), "Failed to write bucket " + bucketIndex, t);
+            if (exceptionOccurred.compareAndSet(null, t)) {
+                notifyTaskRef.get().completeExceptionally(t);
+            }
         }
     }
 
