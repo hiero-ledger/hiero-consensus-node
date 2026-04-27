@@ -87,7 +87,7 @@ env:
   #Release version from jFrog
   NLG_VERSION: 0.13.2
   BlockNode_version: v0.28.0-rc1
-  NUM_OF_BLOCK_NODES: 7
+  NUM_OF_BLOCK_NODES: 3
 
 
 jobs:
@@ -537,7 +537,7 @@ jobs:
 
           #dedicate top-3 nodes for BN
           NETWORK_ID="$(echo "${{ steps.set-namespace.outputs.namespace }}" | perl -pne '~s/^.*[^\d](\d+)$/$1/g')"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 3  | grep -n -E '^' > top3nodes.txt
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
 
           #create local-path-storage
           #sed -i -e "s@%SOLO_NAMESPACE%@${{ steps.set-namespace.outputs.namespace }}@g" "${{ github.workspace }}"/.github/workflows/support/citr/local-path-storage.yaml
@@ -554,14 +554,29 @@ jobs:
              sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml
            done
            sleep 10
-          
-           bnindex=$(expr ${i} % 3)
-           bnindex=$(expr $bnindex + 1)
-           BNNODE=$(grep "${bnindex}:" top3nodes.txt | awk -F : '{print $2}')
-           sed -e "s@%NODE_ID%@${i}@g" -e "s@%BNNODE%@${BNNODE}@g" block-node-values.yaml.orig > block-node-values.yaml
-           export BN_MAPPING="node${i}=1"
-           task solo:block:add
           done
+
+          bnindex=1
+          BNNODE=$(grep "${bnindex}:" firstNode.txt | awk -F : '{print $2}')
+
+          #BN node 1
+          sed -e "s@%NODE_ID%@1@g" -e "s@%BNNODE%@${BNNODE}@g" block-node-values.yaml.orig > block-node-values1.yaml
+          cp block-node-values1.yaml block-node-values.yaml;
+          export BN_MAPPING="node1=1,node2=2,node3=2,node4=2,node5=3,node6=2,node7=3"
+          task solo:block:add
+
+          #BN node 2
+          sed -e "s@%NODE_ID%@2@g" -e "s@%BNNODE%@${BNNODE}@g" block-node-values.yaml.orig > block-node-values2.yaml
+          cp block-node-values2.yaml block-node-values.yaml;
+          export BN_MAPPING="node1=1,node2=2,node3=1,node4=1,node5=2,node6=1,node7=2"
+          task solo:block:add
+
+          #BN node 3
+          sed -e "s@%NODE_ID%@3@g" -e "s@%BNNODE%@${BNNODE}@g" block-node-values.yaml.orig > block-node-values3.yaml
+          cp block-node-values3.yaml block-node-values.yaml;
+          export BN_MAPPING="node1=3,node2=1,node3=3,node4=3,node5=1,node6=3,node7=1"
+          task solo:block:add
+
           sleep 30
 
       - name: Start CNs
