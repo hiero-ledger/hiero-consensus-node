@@ -186,14 +186,14 @@ StateLifecycleManager.createSnapshot
 `MerkleDbDataSource.snapshot` runs six parallel tasks against a `MerkleDbPaths`
 rooted at `data/<vm-label>/`:
 
-|       Task        |                           Writes                           |
-|-------------------|------------------------------------------------------------|
-| metadata          | `table_metadata.pbj`                                       |
-| idToDiskLocation… | `idToDiskLocationHashChunks.ll` (off-heap LongList flush)  |
-| pathToDiskLocat…  | `pathToDiskLocationLeafNodes.ll` (off-heap LongList flush) |
-| hashChunkStore    | `idToHashChunk/` (DataFileCollection.snapshot)             |
-| keyValueStore     | `pathToHashKeyValue/` (DataFileCollection.snapshot)        |
-| keyToPath         | `objectKeyToPath/` (HalfDiskHashMap.snapshot)              |
+|       Task        |                       Writes                        |
+|-------------------|-----------------------------------------------------|
+| metadata          | `table_metadata.pbj`                                |
+| idToDiskLocation… | `idToDiskLocationHashChunks.ll` (LongList flush)    |
+| pathToDiskLocat…  | `pathToDiskLocationLeafNodes.ll` (LongList flush)   |
+| hashChunkStore    | `idToHashChunk/` (DataFileCollection.snapshot)      |
+| keyValueStore     | `pathToHashKeyValue/` (DataFileCollection.snapshot) |
+| keyToPath         | `objectKeyToPath/` (HalfDiskHashMap.snapshot)       |
 
 ### 3.1 `table_metadata.pbj` — MerkleDb table metadata
 
@@ -217,7 +217,7 @@ message MerkleDbTableMetadata {
 `VirtualMapMetadata` on load directly from these two values; no separate virtual
 map metadata file is written.
 
-### 3.2 `idToDiskLocationHashChunks.ll` & `pathToDiskLocationLeafNodes.ll` — off-heap index flush
+### 3.2 `idToDiskLocationHashChunks.ll` & `pathToDiskLocationLeafNodes.ll` — index flush
 
 Produced by `AbstractLongList.writeToFile`. Proprietary binary format (not
 protobuf):
