@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.token.impl.calculator;
 
 import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.getHookInfo;
-import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
 import static org.hiero.hapi.support.fees.Extra.GAS;
@@ -49,6 +48,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  * </ul>
  */
 public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
+    private static final long INTRINSIC_ESTIMATE_MAX_GAS_PER_TRANSACTION = 15_000_000L;
 
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
@@ -67,27 +67,38 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
         addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
-        final var feeContext = requireNonNull(
-                simpleFeeContext.feeContext(), "Transaction fee calculation requires a non-null feeContext");
-        final var config = feeContext.configuration();
-        final var hookInfo =
-                getHookInfo(op, config.getConfigData(ContractsConfig.class).maxGasPerTransaction());
+        // Could be null if the context is an intrinsic fee estimate w/o state access
+        final var maybeFeeContext = simpleFeeContext.feeContext();
+        final var hookInfo = getHookInfo(
+                op,
+                maybeFeeContext == null
+                        ? INTRINSIC_ESTIMATE_MAX_GAS_PER_TRANSACTION
+                        : maybeFeeContext
+                                .configuration()
+                                .getConfigData(ContractsConfig.class)
+                                .maxGasPerTransaction());
         if (hookInfo.numHookInvocations() > 0) {
             addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, hookInfo.numHookInvocations());
             // We clamp each gas limit summed by the hook info in the [0, maxTxGasLimit] range already
             addExtraFee(feeResult, serviceDef, GAS, feeSchedule, hookInfo.totalGasLimitOfHooks());
         }
-        final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
-        final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
-
-        final Extra transferType = determineTransferType(tokenCounts);
-        if (transferType != null) {
-            addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
+        if (maybeFeeContext != null) {
+            final ReadableTokenStore tokenStore = maybeFeeContext.readableStore(ReadableTokenStore.class);
+            final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
+            final Extra transferType = determineTransferType(tokenCounts);
+            if (transferType != null) {
+                addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
+            }
+            final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
+            final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
+            addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, totalFungible + totalNft);
+        } else {
+            for (final var ttl : op.tokenTransfers()) {
+                var regular_count = ttl.transfers().size();
+                var nft_count = ttl.nftTransfers().size();
+                addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, regular_count + nft_count);
+            }
         }
-
-        final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
-        final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
-        addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, totalFungible + totalNft);
     }
 
     /**
