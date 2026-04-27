@@ -60,16 +60,12 @@ jobs:
           ref: ${{ inputs.ref || '' }}
           fetch-depth: 0
 
-      # Get latest tag for the checked out hiero-consensus-node
-      - name: Get Latest Stable CN Tag
+      # Get version for the checked out hiero-consensus-node
+      - name: Get Version of Checkout CN Codebase
         run: |
-          git fetch --tags
-          LATEST_STABLE=$(git for-each-ref 'refs/tags/v*' --sort=-version:refname --format='%(refname:strip=2)' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
-          if [[ -z "${LATEST_STABLE:-}" ]]; then
-            echo "No stable v*.*.* tags found."; exit 1
-          fi
-          echo "Latest stable tag: ${LATEST_STABLE}"
-          echo "CN_LATEST_TAG=${LATEST_STABLE}" >> "$GITHUB_ENV"
+          RAW_VERSION=$(cat version.txt)
+          echo "CN version from version.txt: ${RAW_VERSION}. Setting value to CN_LATEST_TAG env var"
+          echo "CN_LATEST_TAG=${RAW_VERSION}" >> "$GITHUB_ENV"
 
       #  Checkout the block-node repository
       - name: Checkout Block-Node Code
