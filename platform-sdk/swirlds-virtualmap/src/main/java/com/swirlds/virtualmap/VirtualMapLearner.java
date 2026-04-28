@@ -410,9 +410,9 @@ public final class VirtualMapLearner {
                         firstLeafPath,
                         lastLeafPath,
                         hashListener)))
-                .setExceptionHandler((thread, exception) -> {
+                .setExceptionHandler((_, exception) -> {
                     reconnectIterator.close();
-                    final var message = "VirtualMap failed to hash during reconnect";
+                    final var message = "Failed to hash during reconnect";
                     logger.error(EXCEPTION.getMarker(), message, exception);
                     reconnectHashingFuture.completeExceptionally(
                             new MerkleSynchronizationException(message, exception));
@@ -463,6 +463,9 @@ public final class VirtualMapLearner {
                 .setComponent("virtualmap")
                 .setThreadName("leaf-deleter")
                 .setRunnable(leafDeletionTask)
+                .setExceptionHandler((_, exception) -> {
+                    logger.error(EXCEPTION.getMarker(), "Failed to delete old leaves during reconnect", exception);
+                })
                 .build()
                 .start();
 
