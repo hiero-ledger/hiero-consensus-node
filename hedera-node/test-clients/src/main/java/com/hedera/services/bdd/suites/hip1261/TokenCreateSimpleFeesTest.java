@@ -27,12 +27,14 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateFungibleWithCustomFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenCreateNftWithCustomFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -363,14 +365,12 @@ public class TokenCreateSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenCreate - large key txn above NODE_INCLUDED_BYTES threshold - extra PROCESSING_BYTES charged")
         final Stream<DynamicTest> tokenCreateLargeKeyExtraProcessingBytesFee() {
-            final KeyShape largeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     tokenCreate("fungibleToken")
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .tokenType(FUNGIBLE_COMMON)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
@@ -397,17 +397,12 @@ public class TokenCreateSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenCreate - very large txn (just below 6KB) - full charging with extra PROCESSING_BYTES")
         final Stream<DynamicTest> tokenCreateVeryLargeKeyBelowOversizeFee() {
-            final KeyShape veryLargeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(55)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     tokenCreate("fungibleToken")
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(55)))
                             .tokenType(FUNGIBLE_COMMON)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
@@ -658,18 +653,12 @@ public class TokenCreateSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenCreate - very large txn (above 6KB) - fails on ingest")
             final Stream<DynamicTest> tokenCreateTransactionOversizeFailsOnIngest() {
-                final KeyShape veryLargeKeyShape = threshOf(
-                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
                 return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(70)),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
                         tokenCreate("fungibleToken")
+                                .sigControl(forKey(PAYER_KEY, allOnSigControl(70)))
                                 .tokenType(FUNGIBLE_COMMON)
                                 .treasury(TREASURY)
                                 .payingWith(PAYER)
@@ -818,7 +807,7 @@ public class TokenCreateSimpleFeesTest {
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                         validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                txnSize -> expectedTokenCreateNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(INNER_ID, "0.0.4"));

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli;
 
-import static com.swirlds.platform.crypto.CryptoStatic.generateKeysAndCerts;
+import static org.hiero.consensus.crypto.KeysAndCertsGenerator.generateKeysAndCerts;
 
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;

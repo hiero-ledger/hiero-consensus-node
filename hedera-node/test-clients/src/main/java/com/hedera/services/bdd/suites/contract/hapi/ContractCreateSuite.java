@@ -497,13 +497,20 @@ public class ContractCreateSuite {
                         .refusingEthConversion());
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
     final Stream<DynamicTest> rejectsNegativeGas() {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 cryptoCreate(PAYER), // need to use a payer that is not throttle_exempt
+                overriding("contracts.maxGasPerSec", "300000"),
                 // refuse eth conversion because ethereum transaction fails in IngestChecker with precheck status
                 // INSUFFICIENT_GAS
+                // fill the gas throttle bucket and defer so the next tx arrives before it refills
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .gas(300_000L)
+                        .payingWith(PAYER)
+                        .deferStatusResolution()
+                        .refusingEthConversion(),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .gas(-50L)
                         .payingWith(PAYER)

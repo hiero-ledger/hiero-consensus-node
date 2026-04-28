@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
+import static com.hedera.node.app.history.impl.ProofVoteCategory.NOT_RECURSIVE;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.time.Instant.EPOCH;
 import static org.junit.jupiter.api.Assertions.*;
@@ -613,7 +614,7 @@ class WrapsHistoryProverTest {
                 HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
 
         // voteDecisionFuture is null by default, so this should return early
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
@@ -627,7 +628,7 @@ class WrapsHistoryProverTest {
         final var vote =
                 HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
@@ -641,7 +642,7 @@ class WrapsHistoryProverTest {
         final var vote =
                 HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, true);
+        subject.observeProofVote(OTHER_NODE_ID, vote, true, NOT_RECURSIVE);
 
         // The vote decision future should be completed
         assertTrue(pendingFuture.isDone());
@@ -657,7 +658,7 @@ class WrapsHistoryProverTest {
                 .build();
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // The vote decision future should NOT be completed since historyProof is null
         assertFalse(pendingFuture.isDone());
@@ -677,7 +678,7 @@ class WrapsHistoryProverTest {
         // Create a vote with the same proof
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // The vote decision future should be completed since the proofs match
         assertTrue(pendingFuture.isDone());
@@ -702,7 +703,7 @@ class WrapsHistoryProverTest {
                 .build();
         final var vote = HistoryProofVote.newBuilder().proof(otherProof).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // The vote decision future should NOT be completed since the proofs don't match
         assertFalse(pendingFuture.isDone());
@@ -716,7 +717,7 @@ class WrapsHistoryProverTest {
         // Create a vote with congruent_node_id instead of proof
         final var vote = HistoryProofVote.newBuilder().congruentNodeId(999L).build();
 
-        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
         // The vote decision future should NOT be completed
         assertFalse(pendingFuture.isDone());

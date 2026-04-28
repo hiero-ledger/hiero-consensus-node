@@ -44,6 +44,7 @@ with "conn" for identification.
 | `blockStream_conn_blockEndSentToAckLatency`        | Running average | Average latency (ms) between streaming a BlockEnd and receiving its BlockAcknowledgement               |
 | `blockStream_conn_blockClosedToAckLatency`         | Running average | Average latency (ms) between the block closing (Proof produced) and receiving its BlockAcknowledgement |
 | `blockStream_conn_pipelineOperationTimeoutCounter` | Counter         | Number of times a pipeline operation has occured                                                       |
+| `blockStream_conn_activeConnectionCount`           | Gauge (long)    | Current number of streaming connections that are active                                                |
 
 ## Connection Receive Metrics
 

@@ -4,7 +4,6 @@ package com.swirlds.platform.crypto;
 import static com.swirlds.logging.legacy.LogMarker.CERTIFICATES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.utility.CommonUtils;
@@ -24,25 +23,17 @@ import java.security.NoSuchProviderException;
 import java.security.Security;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.hiero.base.crypto.CryptographyException;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.KeyGeneratingException;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -84,68 +75,6 @@ public final class CryptoStatic {
         }
 
         return store;
-    }
-
-    /**
-     * This method is designed to generate all a user's keys from their master key, to help with key recovery if their
-     * computer is erased.
-     * <p>
-     * We follow the "CNSA Suite" (Commercial National Security Algorithm), which is the current US government standard
-     * for protecting information up to and including Top Secret:
-     * <p>
-     * <a
-     * href="https://www.iad.gov/iad/library/ia-guidance/ia-solutions-for-classified/algorithm-guidance/commercial-national-security-algorithm-suite-factsheet.cfm">...</a>
-     * <p>
-     * The CNSA standard specifies AES-256, SHA-384, RSA, ECDH and ECDSA. So that is what is used here. Their intent
-     * appears to be that AES and SHA will each have 128 bits of post-quantum security, against Grover's and the BHT
-     * algorithm, respectively. Of course, ECDH and ECDSA aren't post-quantum, but AES-256 and SHA-384 are (as far as we
-     * know).
-     *
-     * @param nodeIds The nodeIds to generate keys for
-     * @throws ExecutionException   if key generation throws an exception, it will be wrapped in an ExecutionException
-     * @throws InterruptedException if this thread is interrupted
-     * @throws KeyStoreException    if there is no provider that supports the required keystore type
-     */
-    @NonNull
-    public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(final @NonNull Collection<NodeId> nodeIds)
-            throws ExecutionException, InterruptedException, KeyStoreException {
-        final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
-        try (final ExecutorService threadPool =
-                Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
-                        .setComponent("browser")
-                        .setThreadName("crypto-generate")
-                        .setDaemon(false)
-                        .buildFactory())) {
-            for (final NodeId nodeId : nodeIds) {
-                // Crypto objects will be created in parallel. The process of creating a Crypto object is
-                // very CPU intensive even if the keys are loaded from the hard drive, so making it parallel
-                // greatly reduces the time it takes to create them all.
-                futures.put(nodeId, threadPool.submit(() -> KeysAndCertsGenerator.generate(nodeId)));
-            }
-            final Map<NodeId, KeysAndCerts> keysAndCerts = futuresToMap(futures);
-            threadPool.shutdown();
-            // After the keys have been generated or loaded, they are then copied to the address book
-            return keysAndCerts;
-        }
-    }
-
-    /**
-     * Wait for all futures to finish and return the results as an array
-     *
-     * @param futures the futures to wait for
-     * @param <T>     the result and array type
-     * @return all results
-     * @throws ExecutionException   if {@link Future#get} throws
-     * @throws InterruptedException if {@link Future#get} throws
-     */
-    @NonNull
-    private static <T> Map<NodeId, T> futuresToMap(@NonNull final Map<NodeId, Future<T>> futures)
-            throws ExecutionException, InterruptedException {
-        final Map<NodeId, T> map = new HashMap<>();
-        for (final Map.Entry<NodeId, Future<T>> entry : futures.entrySet()) {
-            map.put(entry.getKey(), entry.getValue().get());
-        }
-        return map;
     }
 
     /**
