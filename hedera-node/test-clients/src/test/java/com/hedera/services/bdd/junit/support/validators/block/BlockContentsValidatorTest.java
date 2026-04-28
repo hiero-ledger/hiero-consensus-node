@@ -146,12 +146,19 @@ class BlockContentsValidatorTest {
     }
 
     @Test
-    void wrbNonGenesisWithStateChanges() {
+    void wrbWithStateChangesOnAnyBlock() {
         final var block = new Block(
                 List.of(headerItem(5), stateChangesItem(), recordFileItem(), footerItem(), wrbProofItem(5, 6)));
+        assertDoesNotThrow(() -> new BlockContentsValidator().validateBlocks(List.of(block)));
+    }
+
+    @Test
+    void wrbStateChangesAfterRecordFile() {
+        final var block = new Block(
+                List.of(headerItem(1), recordFileItem(), stateChangesItem(), footerItem(), wrbProofItem(1, 6)));
         final var err =
                 assertThrows(AssertionError.class, () -> new BlockContentsValidator().validateBlocks(List.of(block)));
-        assertTrue(err.getMessage().contains("non-genesis block"));
+        assertTrue(err.getMessage().contains("StateChanges found after RecordFileItem"));
     }
 
     @Test
