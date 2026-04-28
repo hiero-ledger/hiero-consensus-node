@@ -289,9 +289,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         this.assertAtLeastOneWraps = assertAtLeastOneWraps;
 
         System.setProperty(
-                "hedera.app.properties.path",
-                pathToOverrideProperties.toAbsolutePath().toString());
-        System.setProperty(
                 "networkAdmin.upgradeSysFilesLoc",
                 pathToUpgradeSysFilesLoc.toAbsolutePath().toString());
         System.setProperty("tss.hintsEnabled", "" + (hintsEnabled == HintsEnabled.YES));

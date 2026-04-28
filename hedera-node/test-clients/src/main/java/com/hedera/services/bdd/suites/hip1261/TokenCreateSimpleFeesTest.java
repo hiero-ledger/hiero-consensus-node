@@ -208,7 +208,7 @@ public class TokenCreateSimpleFeesTest {
                             .via(tokenCreateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenCreateTxn,
-                            txnSize -> expectedTokenCreateFullFeeUsd(Map.of(
+                            txnSize -> expectedTokenCreateFungibleWithCustomFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 7L,
                                     PROCESSING_BYTES, (long) txnSize)),
@@ -245,7 +245,7 @@ public class TokenCreateSimpleFeesTest {
                             .via(tokenCreateTxn),
                     validateChargedUsdWithinWithTxnSize(
                             tokenCreateTxn,
-                            txnSize -> expectedTokenCreateNftFullFeeUsd(Map.of(
+                            txnSize -> expectedTokenCreateNftWithCustomFullFeeUsd(Map.of(
                                     SIGNATURES, 3L,
                                     KEYS, 7L,
                                     PROCESSING_BYTES, (long) txnSize)),
