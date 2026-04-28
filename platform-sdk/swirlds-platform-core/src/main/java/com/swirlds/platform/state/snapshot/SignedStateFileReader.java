@@ -25,7 +25,6 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;

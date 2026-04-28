@@ -40,7 +40,7 @@ affecting `saved/…/<round>/`.
 ├── currentRoster.json               ← active Roster as PBJ JSON
 ├── signatureSet.pbj                 ← SigSet (PBJ binary)
 ├── settingsUsed.txt                 ← effective Configuration dump
-├── data/                           ←  State snapshot (see reference below) 
+├── data/                           ←  State snapshot (see reference below)
 └── <pces sub-tree, see §4>
 ```
 
