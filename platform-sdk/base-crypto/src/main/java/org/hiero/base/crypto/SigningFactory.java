@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.crypto;
+package org.hiero.base.crypto;
 
-import static org.hiero.consensus.crypto.SigningImplementation.ED25519_SODIUM;
+import static org.hiero.base.crypto.SigningImplementation.ED25519_SODIUM;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.KeyPair;
@@ -11,13 +11,10 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.util.EnumMap;
 import java.util.Map;
-import org.hiero.base.crypto.BytesSignatureVerifier;
-import org.hiero.base.crypto.BytesSigner;
-import org.hiero.base.crypto.CryptographyException;
-import org.hiero.consensus.crypto.internal.JcaSigner;
-import org.hiero.consensus.crypto.internal.JcaVerifier;
-import org.hiero.consensus.crypto.internal.SodiumSigner;
-import org.hiero.consensus.crypto.internal.SodiumVerifier;
+import org.hiero.base.crypto.internal.JcaSigner;
+import org.hiero.base.crypto.internal.JcaVerifier;
+import org.hiero.base.crypto.internal.SodiumSigner;
+import org.hiero.base.crypto.internal.SodiumVerifier;
 
 /**
  * Factory for creating instances to use for the supported signing schemas.

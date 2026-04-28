@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.crypto.internal;
+package org.hiero.base.crypto.internal;
 
 import com.goterl.lazysodium.interfaces.Sign;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
