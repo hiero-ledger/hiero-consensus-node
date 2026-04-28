@@ -451,12 +451,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                 final var blockProof = lastBlockItem.blockProofOrThrow();
 
                 if (hashChainBroken) {
-                    // An incomplete block broke the hash chain; we cannot verify
-                    // previousBlockHash or do full proof verification for this block.
-                    // Force shouldVerifyProof off so we resume the chain from the
-                    // next block's footer instead.
-                    // But we must still add the skipped block's hash to the incremental
-                    // hasher so the chain stays in sync for future proof verifications.
+                    // An incomplete block broke the hash chain; add the skipped block's hash
+                    // (carried in this block's footer as previousBlockRootHash) to the incremental
+                    // hasher so the chain stays in sync for future proof verifications, and skip
+                    // proof verification for this block since we don't have its expected predecessor.
                     final var skippedBlockHash = footer.blockFooterOrThrow().previousBlockRootHash();
                     incrementalBlockHashes.addNodeByHash(skippedBlockHash.toByteArray());
                     shouldVerifyProof = false;
@@ -506,16 +504,18 @@ public class StateChangesValidator implements BlockStreamValidator {
                             firstConsensusTimestamp,
                             expectedRootAndSiblings.siblingHashes());
                     previousBlockHash = expectedBlockHash;
-                } else {
-                    final var nextBlock = blocks.get(i + 1);
-                    final var nextBlockItems = nextBlock.items();
-                    final var nextBlockFooterIndex = nextBlockItems.size() - 2;
-                    if (nextBlockFooterIndex >= 0
-                            && nextBlockItems.get(nextBlockFooterIndex).hasBlockFooter()) {
-                        previousBlockHash = nextBlockItems
-                                .get(nextBlockFooterIndex)
-                                .blockFooterOrThrow()
-                                .previousBlockRootHash();
+                } else if (i + 1 < n) {
+                    // Guard against the last block landing here: the hashChainBroken branch above
+                    // forces shouldVerifyProof=false regardless of index, so it may equal n - 1.
+                    final var fromFooter = currentBlockHashFromNextBlockFooter(blocks.get(i + 1));
+                    if (fromFooter != null) {
+                        previousBlockHash = fromFooter;
+                    } else {
+                        logger.warn(
+                                "Could not recover hash of block #{} at index {} from next block's footer; "
+                                        + "incremental block-hashes chain may be stale",
+                                blockNumber,
+                                i);
                     }
                 }
 
@@ -640,6 +640,30 @@ public class StateChangesValidator implements BlockStreamValidator {
                 // Other items are not part of the input/output trees
             }
         }
+    }
+
+    /**
+     * Returns the given block's own root hash by reading the next block's {@link BlockFooter}'s
+     * {@code previousBlockRootHash}. Handles both complete blocks (items end with
+     * {@code [..., footer, proof]}, footer at index {@code size - 2}) and incomplete blocks flushed
+     * at a freeze round without a proof (items end with {@code [..., footer]}, footer at index
+     * {@code size - 1}). Returns {@code null} if the next block has no recognizable footer.
+     */
+    @Nullable
+    static Bytes currentBlockHashFromNextBlockFooter(@NonNull final Block nextBlock) {
+        final var items = nextBlock.items();
+        if (items.isEmpty()) {
+            return null;
+        }
+        final var last = items.getLast();
+        if (last.hasBlockFooter()) {
+            return last.blockFooterOrThrow().previousBlockRootHash();
+        }
+        final int secondToLastIndex = items.size() - 2;
+        if (secondToLastIndex >= 0 && items.get(secondToLastIndex).hasBlockFooter()) {
+            return items.get(secondToLastIndex).blockFooterOrThrow().previousBlockRootHash();
+        }
+        return null;
     }
 
     private static Bytes hashLeaf(final Bytes leafData) {

@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
@@ -48,6 +49,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -342,8 +344,6 @@ class AtomicBatchContractSignatureValidationTest {
     final Stream<DynamicTest> fridayThe13thSpec() {
         final var contract = "SimpleStorage";
         final var suffix = "Clone";
-        final var newExpiry = Instant.now().getEpochSecond() + DEFAULT_PROPS.defaultExpirationSecs() + 200;
-        final var betterExpiry = Instant.now().getEpochSecond() + DEFAULT_PROPS.defaultExpirationSecs() + 300;
         final var initialMemo = "This is a memo string with only Ascii characters";
         final var newMemo = "Turning and turning in the widening gyre, the falcon cannot hear the falconer...";
         final var betterMemo = "This was Mr. Bleaney's room...";
@@ -360,7 +360,8 @@ class AtomicBatchContractSignatureValidationTest {
                 atomicBatchDefaultOperator(contractCustomCreate(contract, suffix)
                         .payingWith(payer)
                         .adminKey("INITIAL_ADMIN_KEY")
-                        .entityMemo(initialMemo)),
+                        .entityMemo(initialMemo)
+                        .refusingEthConversion()),
                 getContractInfo(contract + suffix)
                         .payingWith(payer)
                         .logged()
@@ -381,69 +382,78 @@ class AtomicBatchContractSignatureValidationTest {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
                 atomicBatchDefaultOperator(
                         contractUpdate(contract + suffix).payingWith(payer).newKey("NEW_ADMIN_KEY")),
-                atomicBatchDefaultOperator(contractUpdate(contract + suffix)
-                        .payingWith(payer)
-                        .newExpirySecs(newExpiry)
-                        .newMemo(newMemo)),
-                getContractInfo(contract + suffix)
-                        .payingWith(payer)
-                        .logged()
-                        .has(contractWith()
-                                .solidityAddress(contract + suffix)
-                                .memo(newMemo)
-                                .expiry(newExpiry)),
-                atomicBatchDefaultOperator(
-                        contractUpdate(contract + suffix).payingWith(payer).newMemo(betterMemo)),
-                getContractInfo(contract + suffix)
-                        .payingWith(payer)
-                        .logged()
-                        .has(contractWith().memo(betterMemo).expiry(newExpiry)),
-                atomicBatchDefaultOperator(
-                        contractUpdate(contract + suffix).payingWith(payer).newExpirySecs(betterExpiry)),
-                getContractInfo(contract + suffix)
-                        .payingWith(payer)
-                        .logged()
-                        .has(contractWith().memo(betterMemo).expiry(betterExpiry)),
-                atomicBatchDefaultOperator(contractUpdate(contract + suffix)
+                doSeveralWithStartupConfigNow("entities.maxLifetime", (String value, Instant now) -> {
+                    final var newExpiry = now.getEpochSecond() + DEFAULT_PROPS.defaultExpirationSecs() + 200;
+                    final var betterExpiry = now.getEpochSecond() + DEFAULT_PROPS.defaultExpirationSecs() + 300;
+                    return new SpecOperation[] {
+                        atomicBatchDefaultOperator(contractUpdate(contract + suffix)
                                 .payingWith(payer)
-                                .signedBy(payer)
                                 .newExpirySecs(newExpiry)
-                                .via("updateTxn_3")
-                                .hasKnownStatus(EXPIRATION_REDUCTION_NOT_ALLOWED))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatchDefaultOperator(contractUpdate(contract + suffix)
+                                .newMemo(newMemo)),
+                        getContractInfo(contract + suffix)
                                 .payingWith(payer)
-                                .signedBy(payer)
-                                .newMemo(newMemo)
-                                .via("updateTxn_4")
-                                .hasKnownStatus(INVALID_SIGNATURE))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatchDefaultOperator(contractUpdate(contract)
+                                .logged()
+                                .has(contractWith()
+                                        .solidityAddress(contract + suffix)
+                                        .memo(newMemo)
+                                        .expiry(newExpiry)),
+                        atomicBatchDefaultOperator(contractUpdate(contract + suffix)
                                 .payingWith(payer)
-                                .newMemo(betterMemo)
-                                .via("updateTxn_5")
-                                .hasKnownStatus(MODIFYING_IMMUTABLE_CONTRACT))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatchDefaultOperator(contractDelete(contract)
+                                .newMemo(betterMemo)),
+                        getContractInfo(contract + suffix)
                                 .payingWith(payer)
-                                .via("deleteTxn_1")
-                                .hasKnownStatus(MODIFYING_IMMUTABLE_CONTRACT))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatchDefaultOperator(
-                        contractUpdate(contract).payingWith(payer).newExpirySecs(betterExpiry)),
-                atomicBatchDefaultOperator(contractDelete(contract + suffix)
+                                .logged()
+                                .has(contractWith().memo(betterMemo).expiry(newExpiry)),
+                        atomicBatchDefaultOperator(contractUpdate(contract + suffix)
                                 .payingWith(payer)
-                                .signedBy(payer, "INITIAL_ADMIN_KEY")
-                                .via("deleteTxn_2")
-                                .hasKnownStatus(INVALID_SIGNATURE))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatchDefaultOperator(contractDelete(contract + suffix)
+                                .newExpirySecs(betterExpiry)),
+                        getContractInfo(contract + suffix)
                                 .payingWith(payer)
-                                .signedBy(payer)
-                                .via("deleteTxn_3")
-                                .hasKnownStatus(INVALID_SIGNATURE))
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                atomicBatchDefaultOperator(contractDelete(contract + suffix).payingWith(payer)));
+                                .logged()
+                                .has(contractWith().memo(betterMemo).expiry(betterExpiry)),
+                        atomicBatchDefaultOperator(contractUpdate(contract + suffix)
+                                        .payingWith(payer)
+                                        .signedBy(payer)
+                                        .newExpirySecs(newExpiry)
+                                        .via("updateTxn_3")
+                                        .hasKnownStatus(EXPIRATION_REDUCTION_NOT_ALLOWED))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatchDefaultOperator(contractUpdate(contract + suffix)
+                                        .payingWith(payer)
+                                        .signedBy(payer)
+                                        .newMemo(newMemo)
+                                        .via("updateTxn_4")
+                                        .hasKnownStatus(INVALID_SIGNATURE))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatchDefaultOperator(contractUpdate(contract)
+                                        .payingWith(payer)
+                                        .newMemo(betterMemo)
+                                        .via("updateTxn_5")
+                                        .hasKnownStatus(MODIFYING_IMMUTABLE_CONTRACT))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatchDefaultOperator(contractDelete(contract)
+                                        .payingWith(payer)
+                                        .via("deleteTxn_1")
+                                        .hasKnownStatus(MODIFYING_IMMUTABLE_CONTRACT))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatchDefaultOperator(
+                                contractUpdate(contract).payingWith(payer).newExpirySecs(betterExpiry)),
+                        atomicBatchDefaultOperator(contractDelete(contract + suffix)
+                                        .payingWith(payer)
+                                        .signedBy(payer, "INITIAL_ADMIN_KEY")
+                                        .via("deleteTxn_2")
+                                        .hasKnownStatus(INVALID_SIGNATURE))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatchDefaultOperator(contractDelete(contract + suffix)
+                                        .payingWith(payer)
+                                        .signedBy(payer)
+                                        .via("deleteTxn_3")
+                                        .hasKnownStatus(INVALID_SIGNATURE))
+                                .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        atomicBatchDefaultOperator(
+                                contractDelete(contract + suffix).payingWith(payer))
+                    };
+                }));
     }
 
     private HapiAtomicBatch atomicBatchDefaultOperator(final HapiTxnOp<?>... ops) {

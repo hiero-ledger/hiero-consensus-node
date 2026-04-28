@@ -55,21 +55,3 @@ tasks.register<JMHTask>("jmhReconnect") {
     jvmArgs.set(listOf("-Xmx16g"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))
 }
-
-tasks.register<JMHTask>("jmhDataFileCollection") {
-    includes.set(listOf("DataFileCollectionBench"))
-    jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-datafilecollection.txt"))
-}
-
-tasks.register<JMHTask>("jmhHalfDiskMap") {
-    includes.set(listOf("HalfDiskMapBench"))
-    jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-halfdiskmap.txt"))
-}
-
-tasks.register<JMHTask>("jmhKeyValueStore") {
-    includes.set(listOf("KeyValueStoreBench"))
-    jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-keyvaluestore.txt"))
-}

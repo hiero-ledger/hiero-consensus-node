@@ -9,6 +9,12 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class ContainerConstants {
 
+    /** System property key for the working directory. */
+    public static final String ENV_SLOTH_WORKDIR = "sloth.workdir";
+
+    /** System property key for the Java executable path. */
+    public static final String ENV_SLOTH_JAVA = "sloth.java";
+
     /**
      * Working directory of the container
      */
