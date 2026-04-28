@@ -6,7 +6,7 @@ on:
       test-asset:
         required: true
         default: "MQPT10"
-        description: "Merge Queue Performance Test machine (Dallas_n10, Dallas_n11, Dallas_n12)"
+        description: "Merge Queue Performance Test machine (MQPT10,11,12)"
         type: choice
         options:
           - MQPT10
