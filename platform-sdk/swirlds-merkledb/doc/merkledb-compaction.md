@@ -280,9 +280,10 @@ level can claim them. This maximizes file consolidation across all groups at a l
 
 ### Consolidation of Small Files
 
-When workloads are update-heavy (e.g. `ObjectKeyToPath` receiving entity updates rather than inserts), flushes produce
-many small files with little garbage. These files have dead/alive ratios below `gcRateThreshold` and are invisible to
-garbage-based compaction. Over time, hundreds of small files accumulate on disk.
+When workloads are update-heavy (e.g. `ObjectKeyToPath` receiving entity updates rather than inserts),
+flushes produce many small files with little garbage. These files accumulate garbage very slowly -
+each one stays on disk for a long time before its dead/alive ratio reaches `gcRateThreshold`.
+As a result, many small files coexist on disk at any given time.
 
 Consolidation addresses this with a size-based second pass that runs after garbage-based compaction in each
 `submitCompactionTasks()` call. The algorithm per level:
@@ -290,9 +291,7 @@ Consolidation addresses this with a size-based second pass that runs after garba
 1. Collect all files at this level whose size is below `consolidationMaxInputFileSizeMB` (default 50 MB),
    excluding files already assigned to a garbage-based compaction task in the current cycle.
 2. If the count is below `consolidationMinFileCount` (default 10), skip — not enough small files to justify the work.
-3. Group the small files into batches bounded by `maxCompactedFileSizeInMB`, using raw file size (not projected alive
-   bytes — consolidation does not estimate garbage).
-4. Submit each batch as a compaction task (reuses `CompactionTask`).
+3. Submit all candidates as a single consolidation task (reuses `CompactionTask`).
    This is self-limiting by design. The output file from consolidation exceeds `consolidationMaxInputFileSizeMB`, so it
    will never be re-selected as a consolidation candidate. Small files accumulate again from subsequent flushes, and the
    cycle repeats. Each file participates in at most one consolidation, preventing endless re-copying of live data.
@@ -447,8 +446,7 @@ absorbs files that fit both ratio and size limits, and removes them from the poo
 4. Submit each group as a `CompactionTask`.
 5. Consolidation pass: `submitConsolidationTasks()` runs as a second pass after all garbage-based tasks are submitted.
 It collects files below `consolidationMaxInputFileSizeMB`, excludes files already assigned to garbage tasks, and
-groups them by raw file size via `splitByFileSize()`. Unlike `splitIntoGroups()`, `splitByFileSize()` uses raw
-`reader.getSize()` rather than projected alive bytes — consolidation does not estimate garbage.
+submits all candidates at each level as a single consolidation task.
 
 **`DataFileCompactor`** performs the actual compaction for a given file collection. Each instance is used for a single
 compaction run — the coordinator creates a fresh instance per task because each instance carries its own `snapshotCompactionLock`,
@@ -542,12 +540,13 @@ compaction produces no tasks. However, if the number of small files (below `cons
 or exceeds `consolidationMinFileCount`, consolidation will merge them regardless of garbage ratio. This is the primary
 scenario consolidation was designed for: update-heavy workloads where files are mostly alive but individually too small.
 
-**Consolidation output re-consolidation.** A consolidation run that merges 100 × 1 MB files produces an output of
-roughly 70–100 MB (depending on garbage). This output exceeds the default `consolidationMaxInputFileSizeMB` (50 MB),
-so it is never selected as a consolidation candidate. If the output happens to be below the threshold (e.g. only a few
-files were merged), it may be re-consolidated in a future cycle — but only once enough additional small files accumulate
-to meet `consolidationMinFileCount`. This makes re-consolidation rare and bounded.
-
+**Consolidation output re-consolidation.** Consider a hypothetical example: if consolidation merges
+100 × 1 MB files, the output is roughly 70–100 MB (depending on how much garbage is reclaimed).
+Assuming a `consolidationMaxInputFileSizeMB` of 50 MB, this output exceeds the threshold and will
+never be re-selected as a consolidation candidate. If the output happens to be below the threshold
+(e.g. only a few files were merged), it may be re-consolidated in a future cycle — but only once
+enough additional small files accumulate to meet `consolidationMinFileCount`. This makes
+re-consolidation rare and bounded.
 **Stale scan results referencing deleted files.** Between the time a scan completes and a compaction task executes,
 concurrent compaction tasks may have already compacted and deleted some of the candidate files. This can occur when a
 task is submitted but sits in the executor queue: the scan ran before the task started (so the `compactionInProgress`

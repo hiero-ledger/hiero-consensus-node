@@ -316,56 +316,6 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     // ========================================================================
-    // splitIntoGroups tests
-    // ========================================================================
-
-    @Test
-    void testSplitByFileSizeSingleGroup() {
-        final DataFileReader f1 = mockFileReader(1, 0, 100, 200);
-        final DataFileReader f2 = mockFileReader(2, 0, 100, 300);
-        final DataFileReader f3 = mockFileReader(3, 0, 100, 400);
-
-        final List<List<DataFileReader>> groups =
-                MerkleDbCompactionCoordinator.splitByFileSize(List.of(f1, f2, f3), 1000);
-
-        assertEquals(1, groups.size());
-        assertEquals(List.of(f1, f2, f3), groups.getFirst());
-    }
-
-    @Test
-    void testSplitByFileSizeMultipleGroups() {
-        // f1=200, f2=300, f3=400. Cap=500.
-        // f1+f2=500 fits; f1+f2+f3=900 doesn't → split
-        final DataFileReader f1 = mockFileReader(1, 0, 100, 200);
-        final DataFileReader f2 = mockFileReader(2, 0, 100, 300);
-        final DataFileReader f3 = mockFileReader(3, 0, 100, 400);
-
-        final List<List<DataFileReader>> groups =
-                MerkleDbCompactionCoordinator.splitByFileSize(List.of(f1, f2, f3), 500);
-
-        assertEquals(2, groups.size());
-        assertEquals(List.of(f1, f2), groups.get(0));
-        assertEquals(List.of(f3), groups.get(1));
-    }
-
-    @Test
-    void testSplitByFileSizeOversizedFileGetsOwnGroup() {
-        final DataFileReader big = mockFileReader(1, 0, 100, 2000);
-
-        final List<List<DataFileReader>> groups = MerkleDbCompactionCoordinator.splitByFileSize(List.of(big), 500);
-
-        assertEquals(1, groups.size());
-        assertEquals(List.of(big), groups.getFirst());
-    }
-
-    @Test
-    void testSplitByFileSizeEmpty() {
-        final List<List<DataFileReader>> groups = MerkleDbCompactionCoordinator.splitByFileSize(List.of(), 1000);
-
-        assertTrue(groups.isEmpty());
-    }
-
-    // ========================================================================
     // Consolidation task submission tests
     // ========================================================================
 

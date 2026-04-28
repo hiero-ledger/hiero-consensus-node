@@ -358,8 +358,7 @@ class MerkleDbCompactionCoordinator {
             }
         }
         // Second pass: consolidation of small files regardless of garbage ratio
-        submitConsolidationTasks(
-                storeName, fileStats, alreadyAssigned, compactorFactory, config, maxProjectedBytes, executor);
+        submitConsolidationTasks(storeName, fileStats, alreadyAssigned, compactorFactory, config, executor);
     }
 
     /**
@@ -545,10 +544,7 @@ class MerkleDbCompactionCoordinator {
      *   </li>
      *   <li>If the count is below {@code consolidationMinFileCount}, skip — not enough
      *       small files to justify consolidation.</li>
-     *   <li>Group the small files into batches bounded by {@code maxProjectedBytes}
-     *       (using file size directly, not projected alive bytes — consolidation does not
-     *       estimate garbage).</li>
-     *   <li>Submit each batch as a compaction task.</li>
+     *   <li>Submit the small files as a single consolidation task.</li>
      * </ol>
      *
      * <p>This is self-limiting: the output file exceeds {@code consolidationMaxInputFileSizeMB},
@@ -561,7 +557,6 @@ class MerkleDbCompactionCoordinator {
      *                         from consolidation candidates
      * @param compactorFactory creates a fresh {@link DataFileCompactor} per task
      * @param config           MerkleDb config
-     * @param maxProjectedBytes maximum output size per task in bytes
      * @param executor         the compaction thread pool
      */
     private void submitConsolidationTasks(
@@ -570,7 +565,6 @@ class MerkleDbCompactionCoordinator {
             final @NonNull Set<DataFileReader> alreadyAssigned,
             final @NonNull Supplier<DataFileCompactor> compactorFactory,
             final @NonNull MerkleDbConfig config,
-            final long maxProjectedBytes,
             final @NonNull ExecutorService executor) {
 
         final long consolidationMaxInputSizeBytes = config.consolidationMaxInputFileSizeMB() * MEBIBYTES_TO_BYTES;
@@ -601,65 +595,23 @@ class MerkleDbCompactionCoordinator {
                 continue;
             }
 
-            final String levelKey = consolidationTaskKey(storeName, level);
+            final String taskKey = consolidationTaskKey(storeName, level);
 
             // Same counter-based guard as garbage compaction
-            if (compactionTaskCounts.getOrDefault(levelKey, 0) > 0) {
+            if (compactionTaskCounts.getOrDefault(taskKey, 0) > 0) {
                 continue;
             }
 
-            // Group by raw file size (not projected alive — consolidation doesn't estimate garbage)
-            final List<List<DataFileReader>> groups = splitByFileSize(smallFiles, maxProjectedBytes);
-
-            compactionTaskCounts.put(levelKey, groups.size());
-            for (int i = 0; i < groups.size(); i++) {
-                final String taskKey = levelKey + "_" + i;
-                taskKeys.add(taskKey);
-                executor.submit(new CompactionTask(taskKey, levelKey, level, groups.get(i), compactorFactory, config));
-            }
-
-            if (!groups.isEmpty()) {
-                final int totalFiles = groups.stream().mapToInt(List::size).sum();
-                logger.info(
-                        MERKLE_DB.getMarker(),
-                        "[{}] Submitted {} consolidation task(s) for level {} ({} small files)",
-                        storeName,
-                        groups.size(),
-                        level,
-                        totalFiles);
-            }
+            compactionTaskCounts.put(taskKey, 1);
+            taskKeys.add(taskKey);
+            executor.submit(new CompactionTask(taskKey, taskKey, level, smallFiles, compactorFactory, config));
+            logger.info(
+                    MERKLE_DB.getMarker(),
+                    "[{}] Submitted consolidation task for level {} ({} small files)",
+                    storeName,
+                    level,
+                    smallFiles.size());
         }
-    }
-
-    /**
-     * Partitions files into groups where each group's total file size (not projected alive size)
-     * fits within the cap. At least one file per group is always included.
-     *
-     * @param files             files to partition
-     * @param maxGroupSizeBytes maximum total file size per group
-     * @return list of groups; each group is a non-empty sublist
-     */
-    static List<List<DataFileReader>> splitByFileSize(
-            final @NonNull List<DataFileReader> files, final long maxGroupSizeBytes) {
-        final List<List<DataFileReader>> groups = new ArrayList<>();
-        List<DataFileReader> currentGroup = new ArrayList<>();
-        long currentSize = 0;
-
-        for (final DataFileReader reader : files) {
-            final long fileSize = reader.getSize();
-            if (!currentGroup.isEmpty() && currentSize + fileSize > maxGroupSizeBytes) {
-                groups.add(currentGroup);
-                currentGroup = new ArrayList<>();
-                currentSize = 0;
-            }
-            currentGroup.add(reader);
-            currentSize += fileSize;
-        }
-        if (!currentGroup.isEmpty()) {
-            groups.add(currentGroup);
-        }
-
-        return groups;
     }
 
     // ========================================================================
