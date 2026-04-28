@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Wrapped Record Block Jumpstart Scenario
-# 1) Deploy a solo consensus network on v0.73.0-rc.1
+# 1) Deploy a solo consensus network on v0.73.0
 # 2) Wait 30s, then run offline wrapping from genesis records
 # 3) Build temp upgrade application.properties from 0.74 base + jumpstart values
 # 4) Upgrade to local build with temp properties
@@ -21,7 +21,7 @@ Environment:
   UPGRADE_VERSION               Solo upgrade-version for network upgrade
                                 (explicit value uses tag-based upgrade)
   LOCAL_BUILD_UPGRADE_TAG       Optional placeholder tag passed to Solo for local-build upgrades
-                                (default: v0.73.0-rc.5)
+                                (default: v0.74.0-rc.1)
   LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars
                                 (used when UPGRADE_VERSION is not set; default: <repo>/hedera-node/data)
   DEPLOY_APP_PROPS_FILE         application.properties used for initial deploy
@@ -92,9 +92,9 @@ else
 fi
 
 CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
-INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0-rc.1}"
+INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_VERSION="${UPGRADE_VERSION:-${UPGRADE_LOCAL_VERSION:-}}"
-LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.73.0-rc.5}"
+LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.74.0-rc.1}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
