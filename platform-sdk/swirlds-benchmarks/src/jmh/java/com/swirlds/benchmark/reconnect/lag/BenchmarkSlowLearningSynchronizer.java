@@ -6,7 +6,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -29,7 +28,6 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
      *
      * @param in the input stream for receiving data from the teacher
      * @param out the output stream for sending data to the teacher
-     * @param newRoot the root of the virtual tree being reconstructed
      * @param view the learner's view into the merkle tree
      * @param randomSeed seed for the delay fuzzers
      * @param delayStorageMicroseconds base storage delay in microseconds
@@ -42,7 +40,6 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
     public BenchmarkSlowLearningSynchronizer(
             @NonNull final DataInputStream in,
             @NonNull final DataOutputStream out,
-            @NonNull final VirtualMap newRoot,
             @NonNull final LearnerTreeView view,
             final long randomSeed,
             final long delayStorageMicroseconds,
@@ -52,7 +49,7 @@ public class BenchmarkSlowLearningSynchronizer extends LearningSynchronizer {
             @NonNull final Runnable breakConnection,
             @NonNull final ReconnectConfig reconnectConfig) {
 
-        super(getStaticThreadManager(), in, out, newRoot, view, breakConnection, reconnectConfig);
+        super(getStaticThreadManager(), in, out, view, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;
