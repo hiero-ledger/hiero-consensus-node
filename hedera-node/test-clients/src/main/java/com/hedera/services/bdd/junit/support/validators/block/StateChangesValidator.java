@@ -357,7 +357,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 startOfStateHash =
                         requireNonNull(stateToBeCopied.getRoot().getHash()).getBytes();
                 logger.info(
-                        "Block #{} (idx {}) startOfStateHash captured: {}",
+                        "Block #{} (idx {}) startOfStateHash captured: hashPrefix={}",
                         block.items().getFirst().blockHeaderOrThrow().number(),
                         i,
                         hexPrefix(startOfStateHash, 16));
