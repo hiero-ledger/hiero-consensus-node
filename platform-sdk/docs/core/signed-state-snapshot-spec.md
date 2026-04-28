@@ -1,7 +1,7 @@
 # Signed State Snapshot On-Disk Representation
 
 This document describes the exact on-disk layout and binary formats produced by
-`SignedStateFileWriter.writeSignedStateToDisk` — the entry point used by the platform
+`SignedStateFileWriter.writeSignedStateToDisk` — the entry point used by the consensus layer
 whenever a signed state is persisted for a round (periodic snapshot, freeze state,
 state dump). It consolidates every wire-level definition the reader needs,
 whether declared in a `.proto` file or in Java via PBJ `FieldDefinition` constants.
