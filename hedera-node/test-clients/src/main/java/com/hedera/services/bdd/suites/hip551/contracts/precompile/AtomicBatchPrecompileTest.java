@@ -201,7 +201,7 @@ class AtomicBatchPrecompileTest {
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000L;
     private static final String TEST_METADATA_1 = "Test metadata 1";
     private static final long AUTO_RENEW_PERIOD = 8_000_000L;
-    private static final long DEFAULT_AMOUNT_TO_SEND = 20 * ONE_HBAR;
+    private static final long DEFAULT_AMOUNT_TO_SEND = 30 * ONE_HBAR;
     public static final String TOKEN_SYMBOL = "tokenSymbol";
     public static final String TOKEN_NAME = "tokenName";
     public static final String MEMO = "memo";
