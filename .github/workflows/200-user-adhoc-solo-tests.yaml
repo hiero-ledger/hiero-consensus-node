@@ -13,6 +13,15 @@ on:
         required: false
         type: string
         default: "latest"
+      scenario:
+        description: "Which Solo test scenario to run."
+        required: false
+        type: choice
+        default: "both"
+        options:
+          - "both"
+          - "jumpstart"
+          - "wrb-streaming"
       starting-tag:
         description: "Consensus-node release tag used for the initial network deployment."
         required: false
@@ -52,6 +61,7 @@ env:
 jobs:
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
+    if: ${{ inputs.scenario == 'both' || inputs.scenario == 'jumpstart' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
     steps:
@@ -185,6 +195,7 @@ jobs:
 
   solo-wrb-block-node-streaming:
     name: "Solo WRB Streaming to Block Node"
+    if: ${{ inputs.scenario == 'both' || inputs.scenario == 'wrb-streaming' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
     steps:
@@ -243,11 +254,18 @@ jobs:
           echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
           "${RUNNER_TEMP}/helm" version --short
 
+      - name: Install grpcurl
+        run: |
+          curl -L https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz -o grpcurl.tar.gz
+          sudo tar -xzf grpcurl.tar.gz -C /usr/local/bin grpcurl
+          rm grpcurl.tar.gz
+
       - name: Verify Solo Dependency Versions
         run: |
           set -eo pipefail
           helm version --short
           kind --version
+          grpcurl --version
           kubectl version --client=true
 
       - name: Build Consensus Node Local Artifacts
