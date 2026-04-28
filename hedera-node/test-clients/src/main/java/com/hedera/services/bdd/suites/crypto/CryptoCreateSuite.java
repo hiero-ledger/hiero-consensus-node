@@ -81,7 +81,6 @@ import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
-
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
