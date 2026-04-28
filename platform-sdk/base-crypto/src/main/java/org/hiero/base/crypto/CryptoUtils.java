@@ -111,9 +111,9 @@ public class CryptoUtils {
         final CryptoConfig configData = configuration.getConfigData(CryptoConfig.class);
         final String passphrase = configData.keystorePassword();
         if (passphrase == null || passphrase.isBlank()) {
-            throw new IllegalStateException("crypto.password must not be null or blank");
+            throw new IllegalStateException("crypto.keystorePassword must not be null or blank");
         }
-        warnIfNonCompliant("crypto.password", passphrase);
+        warnIfNonCompliant("crypto.keystorePassword", passphrase);
 
         return passphrase;
     }
