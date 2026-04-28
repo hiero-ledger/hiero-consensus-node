@@ -701,10 +701,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 }
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt(); // Restore interrupt status
-                logger.warn("{} Interrupted while waiting for pipeline.onNext()", this, e);
                 throw new RuntimeException("Interrupted while waiting for pipeline.onNext()", e);
             } catch (final ExecutionException e) {
-                logger.warn("{} Error executing pipeline.onNext()", this, e.getCause());
                 throw new RuntimeException("Error executing pipeline.onNext()", e.getCause());
             }
         } catch (final RuntimeException e) {
@@ -716,6 +714,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             connection is in another state (e.g. CLOSING) then we want to ignore the error.
              */
             if (isActive()) {
+                logger.warn("{} Error occurred while sending request", this, e);
                 blockStreamMetrics.recordRequestSendFailure();
                 throw e;
             } else {
