@@ -96,7 +96,6 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
-
 import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -172,8 +171,7 @@ class HevmTransactionFactoryTest {
     @Test
     void fromHapiCallFailsWithGasBelowFixedLowerBound() {
         assertCallFailsWith(
-                INSUFFICIENT_GAS,
-                b -> b.contractID(CALLED_CONTRACT_ID).gas(20_999L));
+                INSUFFICIENT_GAS, b -> b.contractID(CALLED_CONTRACT_ID).gas(20_999L));
     }
 
     @Test
@@ -181,8 +179,7 @@ class HevmTransactionFactoryTest {
         given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.EMPTY, false, 0L))
                 .willReturn(22_000L);
         assertCallFailsWith(
-                INSUFFICIENT_GAS,
-                b -> b.contractID(CALLED_CONTRACT_ID).gas(21_999L));
+                INSUFFICIENT_GAS, b -> b.contractID(CALLED_CONTRACT_ID).gas(21_999L));
     }
 
     @Test
@@ -194,9 +191,8 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsOverMaxGas() {
-        assertCallFailsWith(
-                MAX_GAS_LIMIT_EXCEEDED,
-                b -> b.contractID(CALLED_CONTRACT_ID).gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
+        assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.contractID(CALLED_CONTRACT_ID)
+                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
     }
 
     @Test
