@@ -16,8 +16,11 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -50,6 +53,7 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.VersionConfig;
+import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.platform.system.InitTrigger;
@@ -59,8 +63,10 @@ import java.io.OutputStream;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.InstantSource;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 import org.hiero.base.crypto.DigestType;
@@ -1699,8 +1705,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
 
         // Capture every writer the supplier hands out so we can assert against each one individually
-        final java.util.List<BlockItemWriter> handedOutWriters = new java.util.ArrayList<>();
-        final java.util.function.Supplier<BlockItemWriter> capturingSupplier = () -> {
+        final List<BlockItemWriter> handedOutWriters = new ArrayList<>();
+        final Supplier<BlockItemWriter> capturingSupplier = () -> {
             final var w = mock(BlockItemWriter.class);
             handedOutWriters.add(w);
             return w;
@@ -1738,20 +1744,18 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         // Each writer must have received: openBlock -> writePbjItem(header) -> writePbjItem(recordFile),
         // and must NOT have been closed (block proof / footer is produced by a follow-up).
         for (final var w : handedOutWriters) {
-            final var inOrder = org.mockito.Mockito.inOrder(w);
-            inOrder.verify(w).openBlock(org.mockito.ArgumentMatchers.anyLong());
-            inOrder.verify(w, org.mockito.Mockito.times(2)).writePbjItem(org.mockito.ArgumentMatchers.any());
-            inOrder.verifyNoMoreInteractions();
+            final var ordered = inOrder(w);
+            ordered.verify(w).openBlock(anyLong());
+            ordered.verify(w, times(2)).writePbjItem(any());
+            ordered.verifyNoMoreInteractions();
             verify(w, never()).closeCompleteBlock();
-            verify(w, never())
-                    .flushPendingBlock(
-                            org.mockito.ArgumentMatchers.any(com.hedera.node.internal.network.PendingProof.class));
+            verify(w, never()).flushPendingBlock(any(PendingProof.class));
         }
 
         // The two items written to each writer must be a BlockHeader followed by a RecordFile
         for (final var w : handedOutWriters) {
             final var captor = ArgumentCaptor.forClass(BlockItem.class);
-            verify(w, org.mockito.Mockito.times(2)).writePbjItem(captor.capture());
+            verify(w, times(2)).writePbjItem(captor.capture());
             final var items = captor.getAllValues();
             assertNotNull(items.get(0).blockHeader(), "first item must be a BlockHeader");
             assertNotNull(items.get(1).recordFile(), "second item must be a RecordFile");
@@ -1778,8 +1782,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
 
-        final java.util.List<BlockItemWriter> handedOutWriters = new java.util.ArrayList<>();
-        final java.util.function.Supplier<BlockItemWriter> capturingSupplier = () -> {
+        final List<BlockItemWriter> handedOutWriters = new ArrayList<>();
+        final Supplier<BlockItemWriter> capturingSupplier = () -> {
             final var w = mock(BlockItemWriter.class);
             handedOutWriters.add(w);
             return w;
@@ -1808,10 +1812,10 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         // Closing the manager must drain the parked writer via flushPendingBlock(PendingProof.DEFAULT)
         mgr.close();
 
-        verify(handedOutWriters.get(0)).flushPendingBlock(com.hedera.node.internal.network.PendingProof.DEFAULT);
+        verify(handedOutWriters.get(0)).flushPendingBlock(PendingProof.DEFAULT);
     }
 
-    private void seedRequiredState(final com.hedera.node.app.fixtures.AppTestBase.App app) {
+    private void seedRequiredState(final AppTestBase.App app) {
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
