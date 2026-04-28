@@ -227,12 +227,16 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: ${{ inputs.java-version || '25' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}"
-      enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}"
-      enable-hapi-tests-simple-fees-and-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-simple-fees-and-nd-reconnect == 'true' }}"
-      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-atomic-batch == 'true' }}"
-      enable-hapi-tests-smart-contract-and-iss: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}"
+      # debug/stream-validation-flake-diagnostics: only `enable-hapi-tests-restart`
+      # is wired through `enable-hapi-tests`; all other groups are forced off so PR
+      # CI runs only `hapiTestRestart` and saves runner time while we hunt the
+      # `streamsAreValid` flake. Revert these lines before merging back to main.
+      enable-hapi-tests-misc: "false"
+      enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}"
+      enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}"
+      enable-hapi-tests-simple-fees-and-nd-reconnect: "${{ inputs.enable-hapi-tests-simple-fees-and-nd-reconnect == 'true' }}"
+      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests-atomic-batch == 'true' }}"
+      enable-hapi-tests-smart-contract-and-iss: "${{ inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}"
       enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
       enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests-state-throttling == 'true' }}"
       enable-network-log-capture: "true"

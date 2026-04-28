@@ -78,6 +78,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -355,6 +356,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                 this.state = stateLifecycleManager.copyMutableState();
                 startOfStateHash =
                         requireNonNull(stateToBeCopied.getRoot().getHash()).getBytes();
+                logger.info(
+                        "Block #{} (idx {}) startOfStateHash captured: {}",
+                        block.items().getFirst().blockHeaderOrThrow().number(),
+                        i,
+                        hexPrefix(startOfStateHash, 16));
             }
             final IncrementalStreamingHasher inputTreeHasher =
                     new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
@@ -727,6 +733,24 @@ public class StateChangesValidator implements BlockStreamValidator {
         // Compute the block's root hash (depth 1)
         final var root = hashInternalNode(depth2Node1, depth2Node2);
 
+        // Diagnostics: dump every intermediate hash used to build the block root so
+        // when verifyAggregate later rejects the signature we can pinpoint which
+        // sub-tree diverges from the nodes' view of the same block.
+        logger.info(
+                "computeBlockHash components: prevBlockHash={} prevBlocksRootHash={} startOfBlockStateHash={} "
+                        + "consensusHeaderHash={} inputTreeHash={} outputTreeHash={} finalStateChangesHash={} "
+                        + "traceDataHash={} blockTimestamp={} root={}",
+                hexPrefix(previousBlockHash, 16),
+                hexPrefix(prevBlocksRootHash, 16),
+                hexPrefix(startOfBlockStateHash, 16),
+                hexPrefix(consensusHeaderHash, 16),
+                hexPrefix(inputTreeHash, 16),
+                hexPrefix(outputTreeHash, 16),
+                hexPrefix(finalStateChangesHash, 16),
+                hexPrefix(traceDataHash, 16),
+                asInstant(blockTimestamp),
+                hexPrefix(root, 16));
+
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
             new MerkleSiblingHash(false, prevBlocksRootHash),
             new MerkleSiblingHash(false, depth5Node2),
@@ -801,30 +825,90 @@ public class StateChangesValidator implements BlockStreamValidator {
             if (historyLibrary == null || (!wrapsEnabled && proof.block() > 0)) {
                 // C.f. cases in BlockStreamManagerImpl.finishProofWithSignature(); cannot use the
                 // convenience API directly here since we don't have a chain-of-trust proof
+                final long trailerLen = signature.length() - HintsLibraryImpl.VK_LENGTH - HINTS_SIGNATURE_LENGTH;
+                final String layout = (trailerLen == 0) ? "vk+hintsSig" : ("vk+hintsSig+trailer(" + trailerLen + "B)");
+                logger.info(
+                        "Block #{} HINTS_AGGREGATE: sigLen={}, layout={}, trailerLen={}",
+                        blockNumber,
+                        signature.length(),
+                        layout,
+                        trailerLen);
                 final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
                 final var sig =
                         signature.slice(HintsLibraryImpl.VK_LENGTH, signature.length() - HintsLibraryImpl.VK_LENGTH);
                 final boolean valid =
                         hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
                 if (!valid) {
-                    Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
+                    final var vkPrefix = hexPrefix(vk, 8);
+                    final var sigPrefix = hexPrefix(sig, 8);
+                    final var hashPrefix = hexPrefix(expectedBlockHash, 16);
+                    final var prevHashPrefix = hexPrefix(previousBlockHash, 16);
+                    final var ts = asInstant(blockTimestamp);
+                    logger.error(
+                            "Block #{} HINTS_AGGREGATE verify FAILED: layout={}, sigLen={}, firstRound={}, "
+                                    + "blockTs={}, vkPrefix={}, hintsSigPrefix={}, expectedBlockHashPrefix={}, "
+                                    + "prevBlockHashPrefix={}, thresholdNum=1, thresholdDen={}",
+                            blockNumber,
+                            layout,
+                            signature.length(),
+                            firstRound,
+                            ts,
+                            vkPrefix,
+                            sigPrefix,
+                            hashPrefix,
+                            prevHashPrefix,
+                            hintsThresholdDenominator);
+                    Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + " @ " + ts
+                            + "; layout=" + layout + ", vk=" + vkPrefix + ", hintsSig=" + sigPrefix + ", expHash="
+                            + hashPrefix + ", prevHash=" + prevHashPrefix + ", thresh=1/" + hintsThresholdDenominator
+                            + ") - " + proof);
                 } else {
-                    logger.info("Verified signature on #{}", proof.block());
+                    logger.info("Verified signature on #{} via HINTS_AGGREGATE ({})", proof.block(), layout);
                 }
             } else {
                 requireNonNull(ledgerIdFromState);
                 final var usedCompressedWrapsProof = hasCompressedWrapsProof(signature);
+                logger.info(
+                        "Block #{} TSS verify: sigLen={}, usedCompressedWrapsProof={}, ledgerIdLen={}",
+                        blockNumber,
+                        signature.length(),
+                        usedCompressedWrapsProof,
+                        ledgerIdFromState.length());
                 // Use convenience API to verify signature
                 final var valid = TSS.verifyTSS(
                         ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
                 if (!valid) {
                     final var details = invalidSigDetails(
                             ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
-                    Assertions.fail(() -> "Invalid TSS signature in proof (start round #" + firstRound + " @ "
-                            + asInstant(blockTimestamp) + "; best-guess---" + details + ") - " + proof);
+                    final var sigPrefix = hexPrefix(signature, 8);
+                    final var hashPrefix = hexPrefix(expectedBlockHash, 16);
+                    final var prevHashPrefix = hexPrefix(previousBlockHash, 16);
+                    final var ledgerIdPrefix = hexPrefix(ledgerIdFromState, 16);
+                    final var ts = asInstant(blockTimestamp);
+                    logger.error(
+                            "Block #{} TSS verify FAILED: sigLen={}, firstRound={}, blockTs={}, sigPrefix={}, "
+                                    + "expectedBlockHashPrefix={}, prevBlockHashPrefix={}, ledgerIdPrefix={}, "
+                                    + "usedCompressedWrapsProof={}, details={}",
+                            blockNumber,
+                            signature.length(),
+                            firstRound,
+                            ts,
+                            sigPrefix,
+                            hashPrefix,
+                            prevHashPrefix,
+                            ledgerIdPrefix,
+                            usedCompressedWrapsProof,
+                            details);
+                    Assertions.fail(() -> "Invalid TSS signature in proof (start round #" + firstRound + " @ " + ts
+                            + "; sig=" + sigPrefix + ", expHash=" + hashPrefix + ", prevHash=" + prevHashPrefix
+                            + ", ledgerId=" + ledgerIdPrefix + ", compressedWraps=" + usedCompressedWrapsProof
+                            + "; best-guess---" + details + ") - " + proof);
                 }
                 observedCompressedWrapsProof |= usedCompressedWrapsProof;
-                logger.info("Verified signature on #{} via TSS", blockNumber);
+                logger.info(
+                        "Verified signature on #{} via TSS (compressedWraps={})",
+                        blockNumber,
+                        usedCompressedWrapsProof);
             }
             if (indirectProofsNeedVerification()) {
                 logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
@@ -848,6 +932,14 @@ public class StateChangesValidator implements BlockStreamValidator {
         requireNonNull(tssSignature);
         return tssSignature.length() - HintsLibraryImpl.VK_LENGTH - HINTS_SIGNATURE_LENGTH
                 == COMPRESSED_WRAPS_PROOF_LENGTH;
+    }
+
+    private static String hexPrefix(@Nullable final Bytes b, final int maxBytes) {
+        if (b == null || b.length() == 0) {
+            return "<empty>";
+        }
+        final int n = (int) Math.min(b.length(), maxBytes);
+        return HexFormat.of().formatHex(b.toByteArray(), 0, n);
     }
 
     private void applyStateChanges(@NonNull final StateChanges stateChanges) {
