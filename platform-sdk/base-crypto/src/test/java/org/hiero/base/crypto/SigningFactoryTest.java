@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.crypto;
+package org.hiero.base.crypto;
 
 import static org.hiero.base.crypto.SigningImplementation.ED25519_SODIUM;
 import static org.hiero.base.crypto.SigningImplementation.ED25519_SUN;
@@ -9,11 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.KeyPair;
 import java.security.SecureRandom;
-import org.hiero.base.crypto.BytesSignatureVerifier;
-import org.hiero.base.crypto.BytesSigner;
-import org.hiero.base.crypto.SigningFactory;
-import org.hiero.base.crypto.SigningImplementation;
-import org.hiero.base.crypto.SigningSchema;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
