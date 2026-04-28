@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
@@ -80,10 +79,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         final var validator = new BinaryStateChangesValidator(
                 Bytes.fromHex(
                         "50ea5c2588457b952dba215bcefc5f54a1b87c298e5c0f2a534a8eb7177354126c55ee5c23319187e964443e4c17c007"),
-                node0Dir.resolve("output/swirlds.log"),
-                node0Dir.resolve("data/config/application.properties"),
-                shard,
-                realm);
+                node0Dir.resolve("output/swirlds.log"));
         final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(
                 node0Dir.resolve("data/blockStreams/block-%d.%d.3".formatted(shard, realm)));
         validator.validateBlocks(blocks);
@@ -124,28 +120,13 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
 
         final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-        return new BinaryStateChangesValidator(
-                rootHash,
-                node0.getExternalPath(SWIRLDS_LOG),
-                node0.getExternalPath(APPLICATION_PROPERTIES),
-                spec.shard(),
-                spec.realm());
+        return new BinaryStateChangesValidator(rootHash, node0.getExternalPath(SWIRLDS_LOG));
     }
 
     public BinaryStateChangesValidator(
-            @NonNull final Bytes expectedRootHash,
-            @NonNull final Path pathToNode0SwirldsLog,
-            @NonNull final Path pathToOverrideProperties,
-            final long shard,
-            final long realm) {
+            @NonNull final Bytes expectedRootHash, @NonNull final Path pathToNode0SwirldsLog) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
-
-        System.setProperty(
-                "hedera.app.properties.path",
-                pathToOverrideProperties.toAbsolutePath().toString());
-        System.setProperty("hedera.shard", String.valueOf(shard));
-        System.setProperty("hedera.realm", String.valueOf(realm));
 
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var metrics = new NoOpMetrics();
