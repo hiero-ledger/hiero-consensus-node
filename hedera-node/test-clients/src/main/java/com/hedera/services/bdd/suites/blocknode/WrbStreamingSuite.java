@@ -56,7 +56,7 @@ public class WrbStreamingSuite {
                             "blockStream.jumpstart.blockNum", "1"
                         })
             })
-    @Order(1)
+    @Order(0)
     final Stream<DynamicTest> wrbHappyPathSingleNode() {
         final AtomicReference<Map<Long, RecordFileItem>> seenRef = new AtomicReference<>();
         return hapiTest(
@@ -70,13 +70,34 @@ public class WrbStreamingSuite {
                     for (long n = first; n <= last; n++) {
                         final RecordFileItem item = seen.get(n);
                         assertNotNull(item, "missing RecordFileItem for block " + n);
+                        assertNotNull(
+                                item.creationTime(), "RecordFileItem for block " + n + " is missing creation_time");
+                        final var contents = item.recordFileContents();
+                        assertNotNull(contents, "RecordFileItem for block " + n + " is missing record_file_contents");
                         assertEquals(
                                 n,
-                                item.recordFileContents().blockNumber(),
+                                contents.blockNumber(),
                                 "RecordFileItem for block " + n + " carries mismatched block_number");
-                        assertTrue(
-                                !item.recordFileContents().recordStreamItems().isEmpty(),
+                        assertNotNull(
+                                contents.hapiProtoVersion(),
+                                "RecordFileItem for block " + n + " is missing hapi_proto_version");
+                        assertNotNull(
+                                contents.startObjectRunningHash(),
+                                "RecordFileItem for block " + n + " is missing start_object_running_hash");
+                        assertNotNull(
+                                contents.endObjectRunningHash(),
+                                "RecordFileItem for block " + n + " is missing end_object_running_hash");
+                        assertFalse(
+                                contents.recordStreamItems().isEmpty(),
                                 "RecordFileItem for block " + n + " has no record_stream_items");
+                        for (final var rsi : contents.recordStreamItems()) {
+                            assertNotNull(
+                                    rsi.transaction(),
+                                    "RecordStreamItem in block " + n + " is missing its transaction");
+                            assertNotNull(
+                                    rsi.record(),
+                                    "RecordStreamItem in block " + n + " is missing its transaction_record");
+                        }
                     }
                 }));
     }
@@ -100,7 +121,7 @@ public class WrbStreamingSuite {
                             "blockStream.streamWrappedRecordBlocks", "false"
                         })
             })
-    @Order(2)
+    @Order(1)
     final Stream<DynamicTest> wrbDisabledProducesNoRecordFile() {
         final AtomicReference<Map<Long, RecordFileItem>> seenRef = new AtomicReference<>();
         return hapiTest(
