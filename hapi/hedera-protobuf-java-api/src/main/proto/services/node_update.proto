@@ -43,8 +43,16 @@ message NodeUpdateTransactionBody {
      * An account identifier.
      * <p>
      * If set, this SHALL replace the node account identifier.<br/>
-     * If set, this transaction MUST be signed by the active `key` for _both_
-     * the current node account _and_ the identified new node account.
+     * If set to a valid, non-zero account identifier, this transaction MUST
+     * be signed by the `Key` for the new account. Additionally, when only
+     * the `account_id` is updated (no other fields changed), the transaction
+     * MUST also be signed by either the current node account `Key` or
+     * the node `admin_key`. When other fields are also changed, the node
+     * `admin_key` MUST sign (as required for any non-account field update).<br/>
+     * If set to the sentinel value `0.0.0`, the node account association
+     * SHALL be removed, and this transaction MUST be signed by either
+     * the current node account `Key` or the node `admin_key`.<br/>
+     * Each `account_id` MUST NOT be associated with more than one node.
      */
     proto.AccountID account_id = 2;
 

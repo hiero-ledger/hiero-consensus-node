@@ -83,7 +83,7 @@ jobs:
       solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
     steps:
       - name: Initialize GitHub Job
-        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
+        uses: pandaswhocode/initialize-github-job@d93cd457947758129c6d93e09f89ad528119960f # v1.0.8
 
       - name: Print Params
         id: params
