@@ -58,6 +58,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -94,6 +96,8 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
+
+import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -550,6 +554,16 @@ class HevmTransactionFactoryTest {
     void fromHapiEthFailsImmediatelyWithoutToAddressButNoCallData() {
         givenInsteadHydratedEthTxWithRightChainId(ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[0]));
         assertEthTxFailsWith(INVALID_ETHEREUM_TRANSACTION, b -> {});
+    }
+
+    @Test
+    void fromHapiEthFailsImmediatelyWithTooHighGasLimit() {
+        final var txData = ETH_DATA_WITH_TO_ADDRESS.replaceGasLimit(16_000_000L);
+        final var sigs = mock(EthTxSigs.class);
+        when(sigs.address()).thenReturn(Hex.decode("00000000000000000000000000000000cafebabe"));
+        given(ethereumSignatures.computeIfAbsent(txData)).willReturn(sigs);
+        givenInsteadHydratedEthTxWithRightChainId(txData);
+        assertEthTxFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> {});
     }
 
     @Test
