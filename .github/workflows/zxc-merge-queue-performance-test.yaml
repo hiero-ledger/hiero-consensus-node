@@ -322,7 +322,7 @@ jobs:
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
           sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
 
-          NETWORK_OWNER="${{ needs.acquite-kubernetes-resources.outputs.owner }}"
+          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
 
           # Generate the application.properties file inline
