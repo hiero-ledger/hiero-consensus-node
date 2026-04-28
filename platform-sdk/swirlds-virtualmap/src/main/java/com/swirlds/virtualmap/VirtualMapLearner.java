@@ -28,8 +28,10 @@ import com.swirlds.virtualmap.internal.reconnect.TopToBottomTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.TwoPhasePessimisticTraversalOrder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -96,8 +98,7 @@ public final class VirtualMapLearner {
     private final CompletableFuture<Hash> reconnectHashingFuture = new CompletableFuture<>();
     private final AtomicBoolean reconnectHashingStarted = new AtomicBoolean(false);
 
-    private final CompletableFuture<Void> leafDeletionFuture = new CompletableFuture<>();
-    private final AtomicBoolean leafDeletionStarted = new AtomicBoolean(false);
+    private volatile FutureTask<Void> leafDeletionTask;
 
     // Tracks current stage of the reconnect process
     private final AtomicReference<Stage> stage = new AtomicReference<>(Stage.NEW);
@@ -328,6 +329,10 @@ public final class VirtualMapLearner {
                     limit);
 
             for (long path = oldFirstLeafPath; path < limit; path++) {
+                if (Thread.currentThread().isInterrupted()) {
+                    logger.info(RECONNECT.getMarker(), "Leaf deletion interrupted before newFirstLeafPath");
+                    return;
+                }
                 final VirtualLeafBytes<?> oldRecord = originalRecords.findLeafRecord(path);
                 assert oldRecord != null : "Cannot find an old leaf record at path " + path;
                 reconnectFlusher.deleteLeaf(oldRecord);
@@ -365,6 +370,10 @@ public final class VirtualMapLearner {
                     oldLastLeafPath);
 
             for (long p = firstOldPathToDelete; p <= oldLastLeafPath; p++) {
+                if (Thread.currentThread().isInterrupted()) {
+                    logger.info(RECONNECT.getMarker(), "Leaf deletion interrupted after newLastLeafPath");
+                    return;
+                }
                 final VirtualLeafBytes<?> oldExtraLeafRecord = originalRecords.findLeafRecord(p);
                 assert oldExtraLeafRecord != null;
                 reconnectFlusher.deleteLeaf(oldExtraLeafRecord);
@@ -440,27 +449,23 @@ public final class VirtualMapLearner {
     /**
      * Starts a background thread that deletes old leaves falling outside the new leaf path range.
      * Runs both {@link #deleteOldLeavesBeforeNewFirstLeafPath()} and
-     * {@link #deleteOldLeavesAfterNewLastLeafPath()} sequentially and completes
-     * {@link #leafDeletionFuture} when done.
+     * {@link #deleteOldLeavesAfterNewLastLeafPath()} sequentially. The result (or any exception)
+     * is captured by {@link #leafDeletionTask} and can be retrieved via its {@code get()} method.
      */
     private void startLeafDeletionThread() {
+        leafDeletionTask = new FutureTask<>(() -> {
+            deleteOldLeavesBeforeNewFirstLeafPath();
+            deleteOldLeavesAfterNewLastLeafPath();
+            return null;
+        });
+
         new ThreadConfiguration(getStaticThreadManager())
                 .setComponent("virtualmap")
                 .setThreadName("leaf-deleter")
-                .setRunnable(() -> {
-                    deleteOldLeavesBeforeNewFirstLeafPath();
-                    deleteOldLeavesAfterNewLastLeafPath();
-                    leafDeletionFuture.complete(null);
-                })
-                .setExceptionHandler((thread, exception) -> {
-                    final var message = "VirtualMap failed to delete old leaves during reconnect";
-                    logger.error(EXCEPTION.getMarker(), message, exception);
-                    leafDeletionFuture.completeExceptionally(new MerkleSynchronizationException(message, exception));
-                })
+                .setRunnable(leafDeletionTask)
                 .build()
                 .start();
 
-        leafDeletionStarted.set(true);
         logger.info(RECONNECT.getMarker(), "Reconnect leaf deletion thread started");
     }
 
@@ -469,14 +474,18 @@ public final class VirtualMapLearner {
      * Called by {@link #finish()} before {@link ReconnectHashLeafFlusher#finish()}.
      */
     private void waitForLeafDeletionToComplete() {
+        if (leafDeletionTask == null) {
+            logger.warn(RECONNECT.getMarker(), "Leaf deletion thread was never started");
+            return;
+        }
+
         try {
-            if (leafDeletionStarted.get()) {
-                logger.info(RECONNECT.getMarker(), "Waiting for reconnect leaf deletion to complete");
-                leafDeletionFuture.get();
-                logger.info(RECONNECT.getMarker(), "Reconnect leaf deletion completed");
-            } else {
-                logger.warn(RECONNECT.getMarker(), "Leaf deletion thread was never started");
-            }
+            logger.info(RECONNECT.getMarker(), "Waiting for reconnect leaf deletion to complete");
+            leafDeletionTask.get();
+            logger.info(RECONNECT.getMarker(), "Reconnect leaf deletion completed");
+        } catch (final CancellationException e) {
+            // Reached only when abortOnException() cancelled the task before finish() waited for it
+            logger.debug(RECONNECT.getMarker(), "Reconnect leaf deletion was cancelled", e);
         } catch (final ExecutionException e) {
             throw new MerkleSynchronizationException(e);
         } catch (final InterruptedException e) {
@@ -548,7 +557,9 @@ public final class VirtualMapLearner {
     public void abortOnException() {
         logger.info(RECONNECT.getMarker(), "Aborting reconnect and cleaning up resources");
 
-        leafDeletionFuture.cancel(true);
+        if (leafDeletionTask != null) {
+            leafDeletionTask.cancel(true);
+        }
         reconnectIterator.close();
         try {
             dataSource.close(false);
