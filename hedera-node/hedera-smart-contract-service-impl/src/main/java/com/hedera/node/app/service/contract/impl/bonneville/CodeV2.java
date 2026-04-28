@@ -32,12 +32,8 @@ public class CodeV2 extends Code {
     // "Good enough" non-secure fast Hashcode, computed once
     private int _hash;
 
-    public CodeV2(Bytes byteCode) {
-        super(byteCode);
-    }
-
-    public CodeV2(Bytes byteCode, Hash codeHash) {
-        super(byteCode, codeHash);
+    public CodeV2() {
+        super(null, null);
     }
 
     // Return a CodeV2 of these bytes
@@ -45,7 +41,7 @@ public class CodeV2 extends Code {
         CodeV2 code;
         synchronized (FREE) {
             // Under lock, pull from free-list, do the cheap-init
-            code = (FREE.isEmpty() ? EMPTY : FREE.removeLast()).init(codes, off, len);
+            code = (FREE.isEmpty() ? new CodeV2() : FREE.removeLast()).init(codes, off, len);
             // probe the hash table
             PROBES++;
             CodeV2 old = CODES.get(code);
