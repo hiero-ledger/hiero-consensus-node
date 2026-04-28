@@ -167,24 +167,32 @@ class HevmTransactionFactoryTest {
 
     @Test
     void fromHapiCallFailsWithGasBelowFixedLowerBound() {
-        assertCallFailsWith(INSUFFICIENT_GAS, b -> b.gas(20_999L));
+        assertCallFailsWith(
+                INSUFFICIENT_GAS,
+                b -> b.contractID(CALLED_CONTRACT_ID).gas(20_999L));
     }
 
     @Test
     void fromHapiCallFailsWithGasBelowGasCalculatorIntrinsicCost() {
         given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.EMPTY, false, 0L))
                 .willReturn(22_000L);
-        assertCallFailsWith(INSUFFICIENT_GAS, b -> b.gas(21_999L));
+        assertCallFailsWith(
+                INSUFFICIENT_GAS,
+                b -> b.contractID(CALLED_CONTRACT_ID).gas(21_999L));
     }
 
     @Test
     void fromHapiCallFailsNegativeValue() {
-        assertCallFailsWith(CONTRACT_NEGATIVE_VALUE, b -> b.gas(30_000L).amount(-1L));
+        assertCallFailsWith(
+                CONTRACT_NEGATIVE_VALUE,
+                b -> b.contractID(CALLED_CONTRACT_ID).gas(30_000L).amount(-1L));
     }
 
     @Test
     void fromHapiCallFailsOverMaxGas() {
-        assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
+        assertCallFailsWith(
+                MAX_GAS_LIMIT_EXCEEDED,
+                b -> b.contractID(CALLED_CONTRACT_ID).gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
     }
 
     @Test
