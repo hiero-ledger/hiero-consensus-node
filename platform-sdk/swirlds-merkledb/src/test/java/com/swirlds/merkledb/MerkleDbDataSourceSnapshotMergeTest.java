@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.MerkleDbDataSourceTest.assertLeaf;
 import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
@@ -16,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -26,7 +26,6 @@ import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -138,8 +137,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
             assertTrue(countDownLatch.await(5, TimeUnit.SECONDS), "Timed out while waiting for threads");
             submit.get();
             // check data in original dataSource it should have the new data written in another thread while we were
-            // doing
-            // the snapshot
+            // doing the snapshot
             checkData(COUNT2, testType, dataSource);
             // load snapshot and check data
             final MerkleDbDataSource snapshotDataSource =
@@ -151,7 +149,8 @@ class MerkleDbDataSourceSnapshotMergeTest {
             // close and cleanup snapshot
             snapshotDataSource.close();
             deleteDirectoryAndContents(snapshotDir);
-            // do a merge
+
+            // do a compaction
             final AtomicBoolean compacting = new AtomicBoolean(true);
 
             IntStream.range(0, 2).parallel().forEach(thread -> {
@@ -161,24 +160,14 @@ class MerkleDbDataSourceSnapshotMergeTest {
                             checkData(COUNT2, testType, dataSource);
                         }
                     } catch (final IOException e) {
-                        e.printStackTrace();
+                        fail(e);
                     }
                 } else { // thread 1 initiates compaction and waits for its completion
-                    dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "idToHashChunk", dataSource.newHashChunkStoreCompactor());
-                    dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "objectKeyToPath", dataSource.newKeyToPathCompactor());
-                    dataSource.compactionCoordinator.compactIfNotRunningYet(
-                            "pathToKeyValue", dataSource.newKeyValueStoreCompactor());
+                    dataSource.runHashChunkStoreCompaction();
+                    dataSource.runKeyToPathStoreCompaction();
+                    dataSource.runPathToKeyValueStoreCompaction();
 
-                    assertEventuallyTrue(
-                            () -> {
-                                synchronized (dataSource.compactionCoordinator) {
-                                    return dataSource.compactionCoordinator.compactorsByName.isEmpty();
-                                }
-                            },
-                            Duration.ofSeconds(4),
-                            "compaction tasks should have been completed");
+                    dataSource.awaitForCurrentCompactionsToComplete(4000);
 
                     compacting.set(false);
                 }
@@ -232,40 +221,6 @@ class MerkleDbDataSourceSnapshotMergeTest {
             fileSizeInMB = (double) fileSizeEntry.get(VALUE);
             assertNotEquals(0.0, fileSizeInMB, "leafHKVFileSizeInMB was unexpectedly 0.");
 
-            // tests for the "Merge" statistics - only Small Merges are being performed, so Medium/Large give back 0.0
-            Metric smallMergeTimeStat = getMetric(metrics, dataSource, "internalHashSmallMergeTime_");
-            double smallMergeTime = (double) smallMergeTimeStat.get(VALUE);
-            assertNotEquals(0.0, smallMergeTime, "internalHashesStoreSmallMergeTime was unexpectedly 0.0");
-
-            Metric mediumMergeTimeStat = getMetric(metrics, dataSource, "internalHashMediumMergeTime_");
-            double mediumMergeTime = (double) mediumMergeTimeStat.get(VALUE);
-            assertEquals(0.0, mediumMergeTime, "internalHashesStoreMediumMergeTime was unexpectedly not 0.0");
-
-            Metric largeMergeTimeStat = getMetric(metrics, dataSource, "internalHashLargeMergeTime_");
-            double largeMergeTime = (double) largeMergeTimeStat.get(VALUE);
-            assertEquals(0.0, largeMergeTime, "internalHashesStoreLargeMergeTime was unexpectedly not 0.0");
-
-            smallMergeTimeStat = getMetric(metrics, dataSource, "leafKeyToPathSmallMergeTime_", true);
-            smallMergeTime = (double) smallMergeTimeStat.get(VALUE);
-            assertNotEquals(0.0, smallMergeTime, "leafKeyToPathStoreSmallMergeTime was unexpectedly 0.0");
-            mediumMergeTimeStat = getMetric(metrics, dataSource, "leafKeyToPathMediumMergeTime_", true);
-            mediumMergeTime = (double) mediumMergeTimeStat.get(VALUE);
-            assertEquals(0.0, mediumMergeTime, "leafKeyToPathStoreMediumMergeTime was unexpectedly not 0.0");
-            largeMergeTimeStat = getMetric(metrics, dataSource, "leafKeyToPathLargeMergeTime_", true);
-            largeMergeTime = (double) largeMergeTimeStat.get(VALUE);
-            assertEquals(0.0, largeMergeTime, "leafKeyToPathStoreLargeMergeTime was unexpectedly not 0.0");
-
-            smallMergeTimeStat = getMetric(metrics, dataSource, "leafHKVSmallMergeTime_");
-            smallMergeTime = (double) smallMergeTimeStat.get(VALUE);
-            assertNotEquals(0.0, smallMergeTime, "leafPathToHashKeyValueStoreSmallMergeTime was unexpectedly 0.0");
-
-            mediumMergeTimeStat = getMetric(metrics, dataSource, "leafHKVMediumMergeTime_");
-            mediumMergeTime = (double) mediumMergeTimeStat.get(VALUE);
-            assertEquals(0.0, mediumMergeTime, "leafPathToHashKeyValueStoreMediumMergeTime was unexpectedly not 0.0");
-
-            largeMergeTimeStat = getMetric(metrics, dataSource, "leafHKVLargeMergeTime_");
-            largeMergeTime = (double) largeMergeTimeStat.get(VALUE);
-            assertEquals(0.0, largeMergeTime, "leafPathToHashKeyValueStoreLargeMergeTime was unexpectedly not 0.0");
         } catch (ExecutionException e) {
             throw new RuntimeException(e);
         } finally {

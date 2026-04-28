@@ -10,7 +10,7 @@ import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.statevalidation.validator.util.ValidationAssertions;
+import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.state.merkle.StateKeyUtils;
 import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -121,20 +121,21 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
                 && numAccounts == accountsCreated.get()
                 && invalidAccountBalanceCount.get() == 0;
 
-        ValidationAssertions.requireTrue(
-                ok,
-                getName(),
-                ("""
-                        %s validation failed.
-                        totalSupplyExpected=%d vs totalSupplyActual=%d
-                        accountsExpected=%d vs accountsObserved=%d
-                        invalidAccountBalanceCount=%d""")
-                        .formatted(
-                                getName(),
-                                TOTAL_tHBAR_SUPPLY,
-                                totalBalance.get(),
-                                numAccounts,
-                                accountsCreated.get(),
-                                invalidAccountBalanceCount.get()));
+        if (!ok) {
+            throw new ValidationException(
+                    getName(),
+                    ("""
+                %s validation failed.
+                totalSupplyExpected=%d vs totalSupplyActual=%d
+                accountsExpected=%d vs accountsObserved=%d
+                invalidAccountBalanceCount=%d""")
+                            .formatted(
+                                    getName(),
+                                    TOTAL_tHBAR_SUPPLY,
+                                    totalBalance.get(),
+                                    numAccounts,
+                                    accountsCreated.get(),
+                                    invalidAccountBalanceCount.get()));
+        }
     }
 }

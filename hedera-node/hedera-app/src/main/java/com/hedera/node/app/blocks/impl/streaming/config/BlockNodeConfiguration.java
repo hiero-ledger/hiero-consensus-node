@@ -16,17 +16,13 @@ public class BlockNodeConfiguration {
      */
     public static final long DEFAULT_MESSAGE_SOFT_LIMIT_BYTES = 2L * 1024 * 1024; // 2 MB
     /**
-     * The address of the block node (domain name or IP address)
+     * The streaming endpoint associated with this block node.
      */
-    private final String address;
+    private final BlockNodeEndpoint streamingEndpoint;
     /**
-     * Port to use when connecting to the block node for streaming blocks.
+     * The service endpoint associated with this block node.
      */
-    private final int streamingPort;
-    /**
-     * Port to use when connecting to the block node for accessing the service API.
-     */
-    private final int servicePort;
+    private final BlockNodeEndpoint serviceEndpoint;
     /**
      * Priority of the block node.
      */
@@ -50,20 +46,19 @@ public class BlockNodeConfiguration {
     private final BlockNodeHelidonGrpcConfiguration clientGrpcConfig;
 
     private BlockNodeConfiguration(final Builder builder) {
-        address = requireNonNull(builder.address, "Address must be specified");
+        requireNonNull(builder.address, "Address must be specified");
         clientHttpConfig = requireNonNull(builder.clientHttpConfig, "Client HTTP config must be specified");
         clientGrpcConfig = requireNonNull(builder.clientGrpcConfig, "Client gRPC config must be specified");
-        streamingPort = builder.streamingPort;
         // default the service port to the streaming port
-        servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
+        final int servicePort = builder.servicePort == -1 ? builder.streamingPort : builder.servicePort;
         priority = builder.priority;
         messageSizeSoftLimitBytes = builder.messageSizeSoftLimitBytes;
         messageSizeHardLimitBytes = builder.messageSizeHardLimitBytes;
 
-        if (address.isBlank()) {
+        if (builder.address.isBlank()) {
             throw new IllegalArgumentException("Address must not be empty");
         }
-        if (streamingPort < 1) {
+        if (builder.streamingPort < 1) {
             throw new IllegalArgumentException("Streaming port must be greater than or equal to 1");
         }
         if (servicePort < 1) {
@@ -76,21 +71,32 @@ public class BlockNodeConfiguration {
             throw new IllegalArgumentException("Message size soft limit must be greater than 0");
         }
         if (messageSizeHardLimitBytes < messageSizeSoftLimitBytes) {
-            throw new IllegalArgumentException(
-                    "Message size hard limit must be greater than or equal to soft limit size");
+            throw new IllegalArgumentException("Message size hard limit (" + messageSizeHardLimitBytes
+                    + ") must be greater than or equal to soft limit size (" + messageSizeSoftLimitBytes + ")");
         }
+
+        streamingEndpoint = new BlockNodeEndpoint(builder.address, builder.streamingPort);
+        serviceEndpoint = new BlockNodeEndpoint(builder.address, servicePort);
+    }
+
+    public @NonNull BlockNodeEndpoint streamingEndpoint() {
+        return streamingEndpoint;
+    }
+
+    public @NonNull BlockNodeEndpoint serviceEndpoint() {
+        return serviceEndpoint;
     }
 
     public @NonNull String address() {
-        return address;
+        return streamingEndpoint.host();
     }
 
     public int streamingPort() {
-        return streamingPort;
+        return streamingEndpoint.port();
     }
 
     public int servicePort() {
-        return servicePort;
+        return serviceEndpoint.port();
     }
 
     public int priority() {
@@ -119,12 +125,11 @@ public class BlockNodeConfiguration {
             return false;
         }
         final BlockNodeConfiguration that = (BlockNodeConfiguration) o;
-        return streamingPort == that.streamingPort
-                && servicePort == that.servicePort
-                && priority == that.priority
+        return priority == that.priority
                 && messageSizeSoftLimitBytes == that.messageSizeSoftLimitBytes
                 && messageSizeHardLimitBytes == that.messageSizeHardLimitBytes
-                && Objects.equals(address, that.address)
+                && Objects.equals(streamingEndpoint, that.streamingEndpoint)
+                && Objects.equals(serviceEndpoint, that.serviceEndpoint)
                 && Objects.equals(clientHttpConfig, that.clientHttpConfig)
                 && Objects.equals(clientGrpcConfig, that.clientGrpcConfig);
     }
@@ -132,9 +137,8 @@ public class BlockNodeConfiguration {
     @Override
     public int hashCode() {
         return Objects.hash(
-                address,
-                streamingPort,
-                servicePort,
+                streamingEndpoint,
+                serviceEndpoint,
                 priority,
                 messageSizeSoftLimitBytes,
                 messageSizeHardLimitBytes,
@@ -144,10 +148,9 @@ public class BlockNodeConfiguration {
 
     @Override
     public String toString() {
-        return "BlockNodeConfiguration{" + "address="
-                + (address == null ? null : "'" + address + "'") + ", streamingPort="
-                + streamingPort + ", servicePort="
-                + servicePort + ", priority="
+        return "BlockNodeConfiguration{" + "streamingEndpoint="
+                + streamingEndpoint + ", serviceEndpoint="
+                + serviceEndpoint + ", priority="
                 + priority + ", messageSizeSoftLimitBytes="
                 + messageSizeSoftLimitBytes + ", messageSizeHardLimitBytes="
                 + messageSizeHardLimitBytes + ", clientHttpConfig="
@@ -163,7 +166,7 @@ public class BlockNodeConfiguration {
 
         b.address(config.address());
         b.streamingPort(config.streamingPort());
-        b.servicePort(config.servicePort());
+        b.servicePort(config.servicePortOrElse(-1));
         b.priority(config.priority());
         b.messageSizeSoftLimitBytes(config.messageSizeSoftLimitBytesOrElse(DEFAULT_MESSAGE_SOFT_LIMIT_BYTES));
         b.messageSizeHardLimitBytes(config.messageSizeHardLimitBytesOrElse(defaultHardLimitBytes));

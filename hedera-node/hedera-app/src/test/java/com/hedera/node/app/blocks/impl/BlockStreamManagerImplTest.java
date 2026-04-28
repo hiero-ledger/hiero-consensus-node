@@ -311,6 +311,50 @@ class BlockStreamManagerImplTest {
     }
 
     @Test
+    void startRoundInitializesLastUsedTimeFromDefaultBlockEndTimeWhenMissingFromState() {
+        final var blockStreamInfo = BlockStreamInfo.newBuilder()
+                .blockNumber(N_MINUS_1_BLOCK_NO)
+                .creationSoftwareVersion(CREATION_VERSION.copyBuilder().patch(0).build())
+                .trailingBlockHashes(NONZERO_PREV_BLOCK_HASH)
+                .trailingOutputHashes(Bytes.EMPTY)
+                .lastIntervalProcessTime(CONSENSUS_THEN)
+                .blockEndTime((Timestamp) null)
+                .lastHandleTime(CONSENSUS_THEN)
+                .blockTime(asTimestamp(asInstant(CONSENSUS_THEN).minusSeconds(5)))
+                .build();
+        givenSubjectWith(1, 0, blockStreamInfo, platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+
+        subject.startRound(round, state);
+
+        assertEquals(asInstant(blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT)), subject.lastUsedConsensusTime());
+    }
+
+    @Test
+    void startRoundInitializesLastUsedTimeFromBlockEndTimeFromState() {
+        final var blockEndTime = new Timestamp(CONSENSUS_THEN.seconds() + 123, CONSENSUS_THEN.nanos());
+        final var blockStreamInfo = blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build())
+                .copyBuilder()
+                .blockEndTime(blockEndTime)
+                .build();
+        givenSubjectWith(1, 0, blockStreamInfo, platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+
+        subject.initLastBlockHash(FAKE_RESTART_BLOCK_HASH);
+
+        subject.startRound(round, state);
+
+        assertEquals(asInstant(blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT)), subject.lastUsedConsensusTime());
+    }
+
+    @Test
     void startsAndEndsBlockWithSingleRoundPerBlockAsExpected() throws ParseException {
         givenSubjectWith(
                 1,
@@ -1671,6 +1715,40 @@ class BlockStreamManagerImplTest {
         lenient()
                 .when(mockEvent.consensusTransactionIterator())
                 .thenReturn(new Arrays.Iterator<>(new ConsensusTransaction[] {txn}));
+    }
+
+    @Test
+    void fatalShutdownClosesCurrentWriter() {
+        // Given a subject with a block that has been opened
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        lenient().when(blockHashSigner.isReady()).thenReturn(true);
+        given(blockHashSigner.sign(any())).willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        doAnswer(invocationOnMock -> {
+                    final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
+                    consumer.accept(FIRST_FAKE_SIGNATURE);
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, N_MINUS_2_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        // Trigger fatal shutdown (simulating ISS detection)
+        subject.notifyFatalEvent();
+
+        // End the round — the fatalShutdownFuture check should close the current writer
+        subject.endRound(state, ROUND_NO);
+
+        // Verify the current writer was prematurely closed during fatal shutdown
+        verify(aWriter).closeCompleteBlock();
     }
 
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {

@@ -4,7 +4,9 @@ package com.hedera.services.bdd.suites.blocknode;
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -15,9 +17,9 @@ import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -29,6 +31,7 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
 
+    // Reenable TSS feature flags, after BNs are capable of verifying StateProofs
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,
@@ -43,16 +46,20 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "BLOCKS",
                             "blockStream.writerMode",
                             "GRPC",
+                            /*"blockStream.enableStateProofs",
+                            "true",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
                             "true",
                             "tss.forceHandoffs",
-                            "true",
+                            "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
-                            "true"
+                            "true",
+                            "blockNode.blockNodeStatusTimeout",
+                            "10s"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -63,16 +70,20 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "BLOCKS",
                             "blockStream.writerMode",
                             "GRPC",
+                            /*"blockStream.enableStateProofs",
+                            "true",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
                             "true",
                             "tss.forceHandoffs",
-                            "true",
+                            "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
-                            "true"
+                            "true",
+                            "blockNode.blockNodeStatusTimeout",
+                            "10s"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -83,16 +94,20 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "BLOCKS",
                             "blockStream.writerMode",
                             "GRPC",
+                            /*"blockStream.enableStateProofs",
+                            "true",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
                             "true",
                             "tss.forceHandoffs",
-                            "true",
+                            "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
-                            "true"
+                            "true",
+                            "blockNode.blockNodeStatusTimeout",
+                            "10s"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -103,43 +118,60 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "BLOCKS",
                             "blockStream.writerMode",
                             "GRPC",
+                            /*"blockStream.enableStateProofs",
+                            "true",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
                             "true",
                             "tss.forceHandoffs",
-                            "true",
+                            "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
-                            "true"
+                            "true",
+                            "blockNode.blockNodeStatusTimeout",
+                            "10s"
                         }),
             })
     @Order(0)
-    @Disabled
     final Stream<DynamicTest> multiUpgradeGrpcWriterTss() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        // After each upgrade, verify the connection manager started and established a connection.
+        // Use "Streaming connection update requested" (INFO level) which appears reliably at
+        // startup when the monitor first runs.
+        final AtomicInteger blockNodePort = new AtomicInteger();
         return hapiTest(
-                doingContextual(spec -> timeRef.set(Instant.now())),
-                sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofSeconds(30), Duration.ofSeconds(30), "saturation=0.0%")),
+                doingContextual(spec -> {
+                    blockNodePort.set(spec.getBlockNodePortById(0));
+                    timeRef.set(Instant.now());
+                }),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(),
-                doingContextual((spec) -> sleepForSeconds(30)),
                 doingContextual(spec -> timeRef.set(Instant.now())),
+                upgradeToNextConfigVersion(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")),
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(),
-                doingContextual((spec) -> sleepForSeconds(30)),
                 doingContextual(spec -> timeRef.set(Instant.now())),
+                upgradeToNextConfigVersion(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")),
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
                 prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(),
-                doingContextual((spec) -> sleepForSeconds(30)),
                 doingContextual(spec -> timeRef.set(Instant.now())),
+                upgradeToNextConfigVersion(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation=0.0%")));
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))));
     }
 }

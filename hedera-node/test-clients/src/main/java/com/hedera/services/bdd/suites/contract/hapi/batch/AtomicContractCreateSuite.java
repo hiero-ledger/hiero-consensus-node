@@ -41,6 +41,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.contractListWithPro
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyFromSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -83,6 +84,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -392,13 +394,21 @@ class AtomicContractCreateSuite {
                         .hasPrecheck(INSUFFICIENT_GAS));
     }
 
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
     @HapiTest
     final Stream<DynamicTest> rejectsNegativeGas() {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 cryptoCreate(PAYER), // need to use a payer that is not throttle_exempt
+                overriding("contracts.maxGasPerSec", "300000"),
                 // refuse eth conversion because ethereum transaction fails in IngestChecker with precheck status
                 // INSUFFICIENT_GAS
+                // fill the gas throttle bucket outside the batch
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .gas(300_000L)
+                        .payingWith(PAYER)
+                        .deferStatusResolution()
+                        .refusingEthConversion(),
                 atomicBatch(contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                                 .gas(-50L)
                                 .payingWith(PAYER)

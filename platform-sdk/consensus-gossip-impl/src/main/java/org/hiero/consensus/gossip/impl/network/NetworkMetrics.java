@@ -194,7 +194,7 @@ public class NetworkMetrics {
         for (final Iterator<Connection> iterator = connections.iterator(); iterator.hasNext(); ) {
             final Connection conn = iterator.next();
             if (conn != null) {
-                final long bytesSent = conn.getDos().getConnectionByteCounter().getAndResetCount();
+                final long bytesSent = conn.getDos().connectionByteCounter().getAndReset();
                 totalBytesSent += bytesSent;
                 final NodeId otherId = conn.getOtherId();
 

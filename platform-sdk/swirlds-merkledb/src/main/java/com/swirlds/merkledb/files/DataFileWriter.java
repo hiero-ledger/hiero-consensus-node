@@ -65,7 +65,10 @@ public final class DataFileWriter {
     private final FileChannel fileChannel;
 
     /** File metadata */
-    private final DataFileMetadata metadata;
+    private DataFileMetadata metadata;
+
+    /** Total number of items written to this file */
+    private long itemsCount = 0;
 
     private final long dataBufferSize;
 
@@ -110,10 +113,11 @@ public final class DataFileWriter {
             throws IOException {
         this.dataBufferSize = dataBufferSize;
 
-        path = createDataFilePath(filePrefix, dataFileDir, index, creationTime, DataFileCommon.FILE_EXTENSION);
+        path = createDataFilePath(
+                filePrefix, dataFileDir, index, creationTime, compactionLevel, DataFileCommon.FILE_EXTENSION);
         Files.createFile(path);
         fileChannel = FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE);
-        metadata = new DataFileMetadata(index, creationTime, compactionLevel);
+        metadata = new DataFileMetadata(index, creationTime, compactionLevel, itemsCount);
 
         bufferPositionInFile = writeHeader();
         moveWritingBuffer(bufferPositionInFile);
@@ -214,6 +218,7 @@ public final class DataFileWriter {
                     + (getCurrentFilePosition() - fileOffset));
         }
 
+        itemsCount++;
         // return the offset where we wrote the data
         return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
     }
@@ -258,6 +263,7 @@ public final class DataFileWriter {
                     + (getCurrentFilePosition() - fileOffset));
         }
 
+        itemsCount++;
         // return the offset where we wrote the data
         return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
     }
@@ -277,8 +283,18 @@ public final class DataFileWriter {
         // release all the resources
         MemoryUtils.closeMmapBuffer(mappedDataBuffer);
 
+        // Update metadata with the final items count and rewrite the header.
+        // The header size is identical to the original because FIELD_ITEMS_COUNT
+        // is FIXED64 (always 8 bytes regardless of value), so this cannot
+        // overwrite data items.
+        metadata = new DataFileMetadata(
+                metadata.getIndex(), metadata.getCreationDate(), metadata.getCompactionLevel(), itemsCount);
+        writeHeader();
+
+        // Truncate after header rewrite. writeHeader() maps a 1024-byte buffer
+        // which may extend the file beyond totalFileSize; truncating here removes
+        // any zero padding.
         fileChannel.truncate(totalFileSize);
-        bufferPositionInFile = totalFileSize;
 
         fileChannel.close();
     }

@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.hedera.utils;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.crypto.KeysAndCertsGenerator.generateKeysAndCerts;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -10,7 +11,7 @@ import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
-import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -32,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.node.NodeUtilities;
 
 public class WorkingDirUtils {
     private static final Path BASE_WORKING_LOC = Path.of("./build");
@@ -48,7 +50,7 @@ public class WorkingDirUtils {
         final var selfId = NodeId.of(1);
         final Map<NodeId, KeysAndCerts> sigAndCerts;
         try {
-            sigAndCerts = CryptoStatic.generateKeysAndCerts(List.of(selfId));
+            sigAndCerts = generateKeysAndCerts(List.of(selfId));
         } catch (ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);
         }
@@ -82,7 +84,19 @@ public class WorkingDirUtils {
     }
 
     /**
+     * System property key whose value, when set, is inserted as a subdirectory
+     * beneath the scope-level directory so that each Gradle subtask writes its
+     * logs into an isolated location (e.g. {@code build/hapi-test/hapiTestMisc/node0}).
+     */
+    public static final String SUBTASK_NAME_PROPERTY = "hapi.spec.subtask.name";
+
+    /**
      * Returns the path to the working directory for the given node ID.
+     *
+     * <p>When the {@value #SUBTASK_NAME_PROPERTY} system property is set, the
+     * subtask name is inserted as an intermediate directory between the scope
+     * and the node directory, giving every Gradle subtask its own isolated log
+     * directory.
      *
      * @param nodeId the ID of the node
      * @param scope if non-null, an additional scope to use for the working directory
@@ -90,10 +104,16 @@ public class WorkingDirUtils {
      */
     public static Path workingDirFor(final long nodeId, @Nullable String scope) {
         scope = scope == null ? DEFAULT_SCOPE : scope;
-        return BASE_WORKING_LOC
-                .resolve(scope + "-test")
-                .resolve("node" + nodeId)
-                .normalize();
+        Path base = BASE_WORKING_LOC.resolve(scope + "-test");
+        final String subtask = System.getProperty(SUBTASK_NAME_PROPERTY);
+        if (subtask != null && !subtask.isBlank()) {
+            // Guard against path traversal; subtask names must be simple directory names
+            if (subtask.contains("/") || subtask.contains("\\") || subtask.contains("..")) {
+                throw new IllegalArgumentException("Invalid subtask name: " + subtask);
+            }
+            base = base.resolve(subtask);
+        }
+        return base.resolve("node" + nodeId).normalize();
     }
 
     /**
@@ -109,8 +129,23 @@ public class WorkingDirUtils {
         requireNonNull(workingDir);
         requireNonNull(network);
 
-        // Clean up any existing directory structure
-        rm(workingDir);
+        // If a previous run exists, archive it under a numbered sibling directory (e.g.
+        // "node0-run-1", "node0-run-2") so that every retry's logs, block streams, and record
+        // streams are preserved without overwriting each other. The CI upload globs cover all
+        // archived directories automatically because they use "**" patterns.
+        if (Files.exists(workingDir)) {
+            int runNumber = 1;
+            Path archivedDir;
+            do {
+                archivedDir = workingDir.resolveSibling(workingDir.getFileName() + "-run-" + runNumber);
+                runNumber++;
+            } while (Files.exists(archivedDir));
+            try {
+                Files.move(workingDir, archivedDir);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
         // Initialize the data folders
         WORKING_DIR_DATA_FOLDERS.forEach(folder ->
                 createDirectoriesUnchecked(workingDir.resolve(DATA_DIR).resolve(folder)));
@@ -125,6 +160,29 @@ public class WorkingDirUtils {
         copyBootstrapAssets(bootstrapAssetsLoc(), workingDir);
         // Update the log4j2.xml file with the correct output directory
         updateLog4j2XmlOutputDir(workingDir, nodeId);
+    }
+
+    /**
+     * Writes the signing private key PEM file for the given node into the working directory's
+     * {@code data/keys/} folder, using the naming convention expected by
+     * {@code EnhancedKeyStoreLoader}: {@code s-private-node{nodeId+1}.pem}.
+     *
+     * @param workingDir the node's working directory
+     * @param nodeId the node ID
+     * @param kac the keys and certs for the node
+     */
+    public static void writeSigningKey(
+            @NonNull final Path workingDir, final long nodeId, @NonNull final KeysAndCerts kac) {
+        requireNonNull(workingDir);
+        requireNonNull(kac);
+        final String pemFileName = "s-private-" + NodeUtilities.formatNodeName(nodeId) + ".pem";
+        final Path pemPath = workingDir.resolve(DATA_DIR).resolve(KEYS_FOLDER).resolve(pemFileName);
+        try {
+            EnhancedKeyStoreLoader.writePemFile(
+                    true, pemPath, kac.sigKeyPair().getPrivate().getEncoded());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**

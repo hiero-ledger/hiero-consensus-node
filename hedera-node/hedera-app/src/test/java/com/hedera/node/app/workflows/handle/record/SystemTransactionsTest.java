@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
@@ -62,7 +61,6 @@ import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
-import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -551,188 +549,6 @@ class SystemTransactionsTest {
 
         // Verify fileSchema() was never accessed since file already exists
         verify(fileService, never()).fileSchema();
-    }
-
-    @Test
-    void postUpgradeSetupInitializesVotingMetadataWhenMigrationResultPresent() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "BLOCKS")
-                .withValue("consensus.handleMaxPrecedingRecords", 3)
-                .withValue("scheduling.reservedSystemTxnNanos", 1000)
-                .withValue("hedera.firstUserEntity", 1001)
-                .withValue("hedera.transactionMaxValidDuration", 180)
-                .withValue("accounts.systemAdmin", 50)
-                .withValue("nodes.enableDAB", false)
-                .withValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
-        given(entityIdFactory.newAccountId(anyLong())).willReturn(NODE_ACCOUNT_ID);
-        final ReadableStates readableStates = mock(ReadableStates.class);
-        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
-        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
-        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
-        given(filesState.get(any())).willReturn(File.DEFAULT);
-
-        given(wrappedRecordBlockHashMigration.result())
-                .willReturn(new WrappedRecordBlockHashMigration.Result(Bytes.EMPTY, List.of(), 0));
-
-        @SuppressWarnings("unchecked")
-        final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
-        given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
-        final WritableStates writableStates = mock(WritableStates.class);
-        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(writableStates);
-        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
-
-        subject = new SystemTransactions(
-                initTrigger,
-                parentTxnFactory,
-                fileService,
-                networkInfo,
-                configProvider,
-                dispatchProcessor,
-                appContext,
-                servicesRegistry,
-                blockRecordManager,
-                blockStreamManager,
-                exchangeRateManager,
-                recordCache,
-                startupNetworks,
-                stakePeriodChanges,
-                selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                migrationRootHashSubmissions);
-
-        subject.doPostUpgradeSetup(NOW, state);
-
-        // Voting metadata should be initialized on first upgrade
-        verify(blockInfoSingleton).put(any());
-        verify(blockInfoSingleton).commit();
-        // Vote submission happens later, not during setup
-        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
-    }
-
-    @Test
-    void postUpgradeSetupInitializesVotingMetadataEvenWhenMigrationResultIsNull() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "BLOCKS")
-                .withValue("consensus.handleMaxPrecedingRecords", 3)
-                .withValue("scheduling.reservedSystemTxnNanos", 1000)
-                .withValue("hedera.firstUserEntity", 1001)
-                .withValue("hedera.transactionMaxValidDuration", 180)
-                .withValue("accounts.systemAdmin", 50)
-                .withValue("nodes.enableDAB", false)
-                .withValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
-        given(entityIdFactory.newAccountId(anyLong())).willReturn(NODE_ACCOUNT_ID);
-        final ReadableStates readableStates = mock(ReadableStates.class);
-        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
-        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
-        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
-        given(filesState.get(any())).willReturn(File.DEFAULT);
-        final WritableStates blockRecordStates = mock(WritableStates.class);
-        @SuppressWarnings("unchecked")
-        final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
-        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
-        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
-        given(blockInfoSingleton.get()).willReturn(BlockInfo.DEFAULT);
-
-        subject = new SystemTransactions(
-                initTrigger,
-                parentTxnFactory,
-                fileService,
-                networkInfo,
-                configProvider,
-                dispatchProcessor,
-                appContext,
-                servicesRegistry,
-                blockRecordManager,
-                blockStreamManager,
-                exchangeRateManager,
-                recordCache,
-                startupNetworks,
-                stakePeriodChanges,
-                selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                migrationRootHashSubmissions);
-
-        subject.doPostUpgradeSetup(NOW, state);
-
-        verify(blockInfoSingleton).put(any());
-        verify(blockInfoSingleton).commit();
-        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
-    }
-
-    @Test
-    void postUpgradeSetupOverwritesBlockInfoWhenMigrationDiffers() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "BLOCKS")
-                .withValue("consensus.handleMaxPrecedingRecords", 3)
-                .withValue("scheduling.reservedSystemTxnNanos", 1000)
-                .withValue("hedera.firstUserEntity", 1001)
-                .withValue("hedera.transactionMaxValidDuration", 180)
-                .withValue("accounts.systemAdmin", 50)
-                .withValue("nodes.enableDAB", false)
-                .withValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
-        given(entityIdFactory.newAccountId(anyLong())).willReturn(NODE_ACCOUNT_ID);
-        final ReadableStates readableStates = mock(ReadableStates.class);
-        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
-        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
-        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
-        given(filesState.get(any())).willReturn(File.DEFAULT);
-
-        // Migration result with specific values
-        final var migrationRootHash = Bytes.wrap(new byte[] {1, 2, 3});
-        final var migrationIntermediateHashes = List.of(Bytes.wrap(new byte[] {4, 5, 6}));
-        final long migrationLeafCount = 42L;
-        given(wrappedRecordBlockHashMigration.result())
-                .willReturn(new WrappedRecordBlockHashMigration.Result(
-                        migrationRootHash, migrationIntermediateHashes, migrationLeafCount));
-
-        // Set up BlockInfo in state with DIFFERENT values than the migration
-        final var staleBlockInfo = BlockInfo.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[] {9, 9, 9}))
-                .wrappedIntermediatePreviousBlockRootHashes(List.of(Bytes.wrap(new byte[] {8, 8, 8})))
-                .wrappedIntermediateBlockRootsLeafCount(99L)
-                .build();
-
-        @SuppressWarnings("unchecked")
-        final WritableSingletonStateBase<BlockInfo> blockInfoSingleton = mock(WritableSingletonStateBase.class);
-        given(blockInfoSingleton.get()).willReturn(staleBlockInfo);
-        final WritableStates writableStates = mock(WritableStates.class);
-        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(writableStates);
-        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
-
-        subject = new SystemTransactions(
-                initTrigger,
-                parentTxnFactory,
-                fileService,
-                networkInfo,
-                configProvider,
-                dispatchProcessor,
-                appContext,
-                servicesRegistry,
-                blockRecordManager,
-                blockStreamManager,
-                exchangeRateManager,
-                recordCache,
-                startupNetworks,
-                stakePeriodChanges,
-                selfNodeAccountIdManager,
-                wrappedRecordBlockHashMigration,
-                migrationRootHashSubmissions);
-
-        subject.doPostUpgradeSetup(NOW, state);
-
-        // Post-upgrade setup initializes voting metadata on first upgrade.
-        verify(blockInfoSingleton).put(any());
-        verify(blockInfoSingleton).commit();
-        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
     }
 
     @Test

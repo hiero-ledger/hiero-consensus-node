@@ -96,6 +96,8 @@ class LongListValidRangeTest {
         new LongListOffHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
         new LongListHeap(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
         new LongListHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
+        new LongListSegment(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
+        new LongListSegment(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
         new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, CONFIGURATION)
                 .resetTransferBuffer()
                 .close();
@@ -118,6 +120,11 @@ class LongListValidRangeTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new LongListDisk(32, AbstractLongList.MAX_NUM_CHUNKS * 32 + 1, 1, CONFIGURATION));
+        assertThrows(
+                IllegalArgumentException.class, () -> new LongListSegment(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LongListSegment(8, AbstractLongList.MAX_NUM_CHUNKS * 8 + 1, 1));
     }
 
     @Tag(TestComponentTags.VMAP)
@@ -754,7 +761,8 @@ class LongListValidRangeTest {
         return Stream.of(
                 Arguments.of(new LongListOffHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
                 Arguments.of(new LongListHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
-                Arguments.of(new LongListDisk(longsPerChunk, MAX_LONGS, reservedBufferLength, CONFIGURATION)));
+                Arguments.of(new LongListDisk(longsPerChunk, MAX_LONGS, reservedBufferLength, CONFIGURATION)),
+                Arguments.of(new LongListSegment(longsPerChunk, MAX_LONGS, reservedBufferLength)));
     }
 
     private long maxValidIndex() {

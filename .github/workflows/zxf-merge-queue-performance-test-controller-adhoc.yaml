@@ -5,18 +5,22 @@ on:
     inputs:
       test-asset:
         required: true
-        default: "Dallas_n10"
-        description: "Merge Queue Performance Test machine (Dallas_n10, Dallas_n11, Dallas_n12)"
+        default: "MQPT10"
+        description: "Merge Queue Performance Test machine (MQPT10,11,12)"
         type: choice
         options:
-          - Dallas_n10
-          - Dallas_n11
-          - Dallas_n12
+          - MQPT10
+          - MQPT11
+          - MQPT12
           - AdHoc5
           - AdHoc6
           - AdHoc7
           - AdHocSD8
           - AdHocSD9
+      ref:
+        description: "The git ref (branch or tag) to checkout"
+        required: false
+        default: ""
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
         default: "100000"
@@ -87,8 +91,8 @@ jobs:
     name: MQ Performance Test
     uses: ./.github/workflows/zxc-merge-queue-performance-test.yaml
     with:
-      test-asset: "${{ inputs.test-asset }}"
-      ref: "${{ github.ref }}"
+      test-asset: "${{ inputs.test-asset }}" # TODO: Once Chewie application is installed we can remove this input.
+      ref: "${{ inputs.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
@@ -99,6 +103,7 @@ jobs:
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   get-commit-info:
     name: Get Commit Information
@@ -111,7 +116,7 @@ jobs:
       commit: ${{ steps.find-commit-author-slack.outputs.commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -159,7 +164,7 @@ jobs:
       inputs.disable-notifications != true && !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -266,7 +271,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 

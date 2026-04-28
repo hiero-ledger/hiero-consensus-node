@@ -3,7 +3,9 @@ package com.hedera.services.bdd.junit.hedera.simulator;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -17,6 +19,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -91,6 +94,13 @@ public class SimulatedBlockNodeServer {
 
     // Track all block numbers for which we have received end of block
     private final Set<Long> endedBlocks = ConcurrentHashMap.newKeySet();
+
+    // Store block items per block number for later retrieval (e.g., by StreamValidationOp)
+    private static final int MAX_STORED_BLOCKS = 10_000;
+    private final Map<Long, List<BlockItem>> storedBlockItems = new ConcurrentHashMap<>();
+
+    // Store RecordFileItems per block number, populated as they arrive (before block is closed)
+    private final Map<Long, RecordFileItem> storedRecordFileItems = new ConcurrentHashMap<>();
 
     // Track all block numbers for which we have received headers but not yet end of block
     private final Set<Long> blocksWithHeadersOnly = ConcurrentHashMap.newKeySet();
@@ -292,6 +302,55 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Gets the RecordFileItem received for the specified block number, if any.
+     * This returns the item as soon as it arrives, even before the block is closed.
+     *
+     * @param blockNumber the block number to query
+     * @return an Optional containing the RecordFileItem, or empty if none received for that block
+     */
+    @NonNull
+    public Optional<RecordFileItem> getRecordFileItem(final long blockNumber) {
+        blockTrackingLock.readLock().lock();
+        try {
+            return Optional.ofNullable(storedRecordFileItems.get(blockNumber));
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Checks if a RecordFileItem has been received for the specified block number.
+     * Returns true as soon as the item arrives, even before the block is closed.
+     *
+     * @param blockNumber the block number to check
+     * @return true if a RecordFileItem has been received for this block
+     */
+    public boolean hasReceivedRecordFileItem(final long blockNumber) {
+        blockTrackingLock.readLock().lock();
+        try {
+            return storedRecordFileItems.containsKey(blockNumber);
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Gets all RecordFileItems received so far, keyed by block number.
+     * Includes items from blocks that have not yet been closed.
+     *
+     * @return an unmodifiable copy of the map from block number to RecordFileItem
+     */
+    @NonNull
+    public Map<Long, RecordFileItem> getAllRecordFileItems() {
+        blockTrackingLock.readLock().lock();
+        try {
+            return Map.copyOf(storedRecordFileItems);
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
      * @return whether this server has ever been shutdown.
      */
     public boolean hasEverBeenShutdown() {
@@ -394,6 +453,9 @@ public class SimulatedBlockNodeServer {
                         } else if (request.hasBlockItems()) {
                             // Iterate through each BlockItem in the request
                             for (final BlockItem item : request.blockItems().blockItems()) {
+                                // Store all block items for later retrieval by StreamValidationOp
+                                storeBlockItem(item, currentBlockNumber);
+
                                 if (item.hasBlockHeader()) {
                                     final var header = item.blockHeader();
                                     final long blockNumber = header.number();
@@ -476,8 +538,10 @@ public class SimulatedBlockNodeServer {
                                 } else if (item.hasBlockProof()) {
                                     final var proof = item.blockProof();
                                     final long blockNumber = proof.block();
+                                    final var proofType = proof.proof().kind();
                                     log.info(
-                                            "Received BlockProof for block {} on port {} from stream {}",
+                                            "Received BlockProof ({}) for block {} on port {} from stream {}",
+                                            proofType,
                                             blockNumber,
                                             port,
                                             replies.hashCode());
@@ -488,7 +552,8 @@ public class SimulatedBlockNodeServer {
                                             || !streamingBlocks.containsKey(blockNumber)
                                             || streamingBlocks.get(blockNumber) != replies) {
                                         log.error(
-                                                "Received BlockProof for block {} from stream {} on port {}, but stream state is inconsistent (currentBlockNumber={}, expectedStream={}). Ignoring proof.",
+                                                "Received BlockProof ({}) for block {} from stream {} on port {}, but stream state is inconsistent (currentBlockNumber={}, expectedStream={}). Ignoring proof.",
+                                                proofType,
                                                 blockNumber,
                                                 replies.hashCode(),
                                                 port,
@@ -978,6 +1043,74 @@ public class SimulatedBlockNodeServer {
                 @NonNull Pipeline<? super Bytes> replies) {
             return BlockStreamPublishServiceInterface.super.open(method, options, replies);
         }
+    }
+
+    /**
+     * Stores a block item for the given block number. If the item is a block header, it initializes
+     * storage for that block. For all other items, they are appended to the current block's storage.
+     * Evicts oldest blocks if the storage limit is exceeded.
+     *
+     * @param item the block item to store
+     * @param currentBlockNumber the block number currently being processed, may be null
+     */
+    private void storeBlockItem(@NonNull final BlockItem item, @Nullable final Long currentBlockNumber) {
+        if (item.hasBlockHeader()) {
+            final long blockNumber = item.blockHeader().number();
+            storedBlockItems
+                    .computeIfAbsent(blockNumber, k -> new ArrayList<>())
+                    .add(item);
+            // Evict oldest blocks if we exceed the limit
+            while (storedBlockItems.size() > MAX_STORED_BLOCKS) {
+                storedBlockItems.keySet().stream().min(Long::compareTo).ifPresent(storedBlockItems::remove);
+            }
+            while (storedRecordFileItems.size() > MAX_STORED_BLOCKS) {
+                storedRecordFileItems.keySet().stream().min(Long::compareTo).ifPresent(storedRecordFileItems::remove);
+            }
+        } else if (currentBlockNumber != null) {
+            final var items = storedBlockItems.get(currentBlockNumber);
+            if (items != null) {
+                items.add(item);
+            }
+        }
+        // Track RecordFileItems separately for WRB comparison in tests
+        if (item.hasRecordFile() && currentBlockNumber != null) {
+            storedRecordFileItems.put(currentBlockNumber, item.recordFile());
+        }
+    }
+
+    /**
+     * Returns all verified blocks (those for which both header and end-of-block were received)
+     * as {@link Block} objects, sorted by block number in ascending order.
+     *
+     * @return list of verified blocks
+     */
+    @NonNull
+    public List<Block> getAllVerifiedBlocks() {
+        blockTrackingLock.readLock().lock();
+        try {
+            return endedBlocks.stream()
+                    .sorted()
+                    .map(this::getBlock)
+                    .filter(Objects::nonNull)
+                    .toList();
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Returns a single block by number, constructed from the stored block items.
+     *
+     * @param blockNumber the block number to retrieve
+     * @return the block, or null if no items are stored for this block number
+     */
+    @Nullable
+    private Block getBlock(final long blockNumber) {
+        final var items = storedBlockItems.get(blockNumber);
+        if (items == null || items.isEmpty()) {
+            return null;
+        }
+        return new Block(List.copyOf(items));
     }
 
     /**
