@@ -57,22 +57,6 @@ public class StatsRunningAverage implements StatsBuffered {
     private StatsBuffer recentHistory;
 
     /**
-     * get the entire history of values of means of this RunningAverage. The caller should not modify it.
-     */
-    @Override
-    public StatsBuffer getAllHistory() {
-        return allHistory;
-    }
-
-    /**
-     * get the recent history of values of means of this RunningAverage. The caller should not modify it.
-     */
-    @Override
-    public StatsBuffer getRecentHistory() {
-        return recentHistory;
-    }
-
-    /**
      * instantiation a RunningAverage and start the measurements right now.
      */
     public StatsRunningAverage() {
