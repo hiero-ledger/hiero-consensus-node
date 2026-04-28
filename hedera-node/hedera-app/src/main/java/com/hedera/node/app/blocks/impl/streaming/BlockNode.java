@@ -40,11 +40,6 @@ public class BlockNode {
      */
     private static final String IN_PROGRESS = "*";
     /**
-     * Maximum amount of time that can elapse between receiving a wanted block notice from a block node server status
-     * API call versus when it can be used as a new streaming connection's initial block.
-     */
-    private static final long WANTED_BLOCK_EXPIRATION_MILLIS = 2_000;
-    /**
      * Maximum number of connection history events to keep track of.
      */
     private static final int MAX_HISTORY_ENTRIES = 5;
@@ -409,11 +404,20 @@ public class BlockNode {
 
         final long millis =
                 Duration.between(wantedBlock.timestamp(), Instant.now(clock)).toMillis();
-        if (millis > WANTED_BLOCK_EXPIRATION_MILLIS) {
+        final long wantedBlockExpirationMillis = bncConfig().wantedBlockExpirationMillis();
+
+        if (millis > wantedBlockExpirationMillis) {
             return -1L;
         }
 
         return wantedBlock.blockNumber();
+    }
+
+    /**
+     * @return the latest {@link BlockNodeConnectionConfig} configuration object
+     */
+    private BlockNodeConnectionConfig bncConfig() {
+        return configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
     }
 
     /**
@@ -446,12 +450,11 @@ public class BlockNode {
                     case ServiceConnectionFailure() -> CoolDownType.BASIC;
                     case DeviantConnectionClose(final CloseReason closeReason) -> closeReason.coolDownType();
                 };
-        final BlockNodeConnectionConfig bncConfig =
-                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+
         final int coolDownSeconds =
                 switch (coolDownType) {
-                    case BASIC -> bncConfig.basicNodeCoolDownSeconds();
-                    case EXTENDED -> bncConfig.extendedNodeCoolDownSeconds();
+                    case BASIC -> bncConfig().basicNodeCoolDownSeconds();
+                    case EXTENDED -> bncConfig().extendedNodeCoolDownSeconds();
                     default -> 0;
                 };
 

@@ -88,6 +88,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
                 .thenReturn(bncConfig);
         lenient().when(bncConfig.basicNodeCoolDownSeconds()).thenReturn(BASIC_COOL_DOWN_SECONDS);
         lenient().when(bncConfig.extendedNodeCoolDownSeconds()).thenReturn(EXTENDED_COOL_DOWN_SECONDS);
+        lenient().when(bncConfig.wantedBlockExpirationMillis()).thenReturn(2_000L);
 
         configuration = newBlockNodeConfig("localhost", 1234, 1);
         globalActiveStreamConnectionCount = new AtomicInteger();
