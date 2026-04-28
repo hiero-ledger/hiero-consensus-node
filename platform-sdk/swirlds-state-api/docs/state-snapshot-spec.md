@@ -1,5 +1,25 @@
 ## State data specification: `data/state/`
 
+```
+<round>/
+├── data/
+│   └── state/
+│       ├── table_metadata.pbj
+│       ├── idToDiskLocationHashChunks.ll
+│       ├── pathToDiskLocationLeafNodes.ll
+│       ├── idToHashChunk/           ← DataFileCollection
+│       │   ├── state_idToHashChunk_metadata.pbj
+│       │   └── state_idToHashChunk_<ts>_L<lvl>_<idx>.pbj   (1..N)
+│       ├── pathToHashKeyValue/      ← DataFileCollection
+│       │   ├── state_pathToHashKeyValue_metadata.pbj
+│       │   └── state_pathToHashKeyValue_<ts>_L<lvl>_<idx>.pbj   (1..N)
+│       └── objectKeyToPath/         ← HalfDiskHashMap
+│           ├── state_objectkeytopath_metadata.hdhm
+│           ├── state_objectkeytopath_bucket_index.ll
+│           ├── state_objectkeytopath_metadata.pbj     (DataFileCollection metadata)
+│           └── state_objectkeytopath_<ts>_L<lvl>_<idx>.pbj   (1..N bucket files)
+```
+
 Produced by:
 
 ```

@@ -6,14 +6,6 @@ whenever a signed state is persisted for a round (periodic snapshot, freeze stat
 state dump). It consolidates every wire-level definition the reader needs,
 whether declared in a `.proto` file or in Java via PBJ `FieldDefinition` constants.
 
-> **Source anchors.** `SignedStateFileWriter`, `SignedStateFilePath`,
-> `SignedStateFileUtils`, `SavedStateMetadata[Field]` (platform-core);
-> `VirtualMap`, `VirtualMapMetadata`, `VirtualLeafBytes`, `VirtualHashChunk`
-> (virtualmap); `MerkleDbDataSource`, `MerkleDbPaths`, `MerkleDbDataSourceBuilder`,
-> `DataFileCollection`, `DataFileMetadata`, `DataFileCommon`, `HalfDiskHashMap`,
-> `Bucket`, `AbstractLongList` (merkledb); `platform_state.proto`,
-> `virtual_map_state.proto`, `roster.proto`, `bucket.proto` (hapi / merkledb proto).
-
 ---
 
 ## 1. Top-level directory
@@ -21,7 +13,7 @@ whether declared in a `.proto` file or in Java via PBJ `FieldDefinition` constan
 `SignedStateFilePath` computes the round directory as:
 
 ```
-<stateConfig.savedStateDirectory>/<mainClassName>/<selfId>/<swirldName>/<round>/
+<savedStateDirectory>/<mainClassName>/<selfId>/<swirldName>/<round>/
 ```
 
 Example: `data/saved/com.hedera.services.ServicesMain/0/123/4242`.
@@ -48,24 +40,11 @@ affecting `saved/…/<round>/`.
 ├── currentRoster.json               ← active Roster as PBJ JSON
 ├── signatureSet.pbj                 ← SigSet (PBJ binary)
 ├── settingsUsed.txt                 ← effective Configuration dump
-├── data/
-│   └── state/                      ← MerkleDb snapshot (see §3)
-│       ├── table_metadata.pbj
-│       ├── idToDiskLocationHashChunks.ll
-│       ├── pathToDiskLocationLeafNodes.ll
-│       ├── idToHashChunk/           ← DataFileCollection
-│       │   ├── state_idToHashChunk_metadata.pbj
-│       │   └── state_idToHashChunk_<ts>_L<lvl>_<idx>.pbj   (1..N)
-│       ├── pathToHashKeyValue/      ← DataFileCollection
-│       │   ├── state_pathToHashKeyValue_metadata.pbj
-│       │   └── state_pathToHashKeyValue_<ts>_L<lvl>_<idx>.pbj   (1..N)
-│       └── objectKeyToPath/         ← HalfDiskHashMap
-│           ├── state_objectkeytopath_metadata.hdhm
-│           ├── state_objectkeytopath_bucket_index.ll
-│           ├── state_objectkeytopath_metadata.pbj     (DataFileCollection metadata)
-│           └── state_objectkeytopath_<ts>_L<lvl>_<idx>.pbj   (1..N bucket files)
+├── data/                           ←  State snapshot (see reference below) 
 └── <pces sub-tree, see §4>
 ```
+
+See all the details on `data/` in the [State snapshot spec](../../swirlds-state-api/docs/state-snapshot-spec.md).
 
 Data files (`*.pbj`) inside the three sub-directories are **hard-linked** from
 the live `swirlds-tmp/…` working directory, never byte-copied. This makes
@@ -230,22 +209,3 @@ message RosterEntry  {
 ```
 
 See more details about proto definition in the [State snapshot spec field reference](../../swirlds-state-api/docs/state-snapshot-spec.md#consolidated-protobuf--field-reference).
-
-## 6. Read path summary
-
-`SignedStateFileReader.readStateFile` mirrors the writer:
-
-1. `stateLifecycleManager.loadSnapshot(stateDir)`
-   → `VirtualMap.loadFromDirectory`
-   → private `VirtualMap` constructor
-   → `MerkleDbDataSourceBuilder.build(LABEL, snapshotPath, true, false)`
-   → `hardLinkTree(snapshotDir/data/<label>, swirlds-tmp/<new working dir>)`
-   → `MerkleDbDataSource` opens the linked directory as a live store.
-   The call returns the hash captured from the first loaded
-   `VirtualMap.getHash()` **before** the mutable copy is made.
-2. Reads `signatureSet.pbj` with `SigSet.deserialize(in)`.
-3. Constructs a `SignedState`, attaches the `SigSet`, registers service
-   stub states, and returns a `DeserializedSignedState(reservedState, originalHash)`.
-
-The other files (`stateMetadata.txt`, `hashInfo.txt`, `currentRoster.json`,
-`settingsUsed.txt`) are advisory and not required for state reconstitution.
