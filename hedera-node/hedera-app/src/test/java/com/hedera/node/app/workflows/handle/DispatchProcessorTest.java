@@ -33,6 +33,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -428,7 +429,11 @@ class DispatchProcessorTest {
         verifyUtilization();
         verify(dispatcher).dispatchHandle(context);
         verify(recordBuilder).status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
-        verify(feeAccumulator, times(2)).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
+        final var inOrder = inOrder(feeAccumulator, stack);
+        inOrder.verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
+        inOrder.verify(stack).rollbackFullStack();
+        inOrder.verify(feeAccumulator).resetRefundableFees();
+        inOrder.verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
 
         assertFinished();
@@ -642,6 +647,7 @@ class DispatchProcessorTest {
     @Test
     void happyPathFreeChildCryptoTransferAsExpected() {
         given(dispatch.fees()).willReturn(Fees.FREE);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatchValidator.validateFeeChargingScenario(dispatch))
                 .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
