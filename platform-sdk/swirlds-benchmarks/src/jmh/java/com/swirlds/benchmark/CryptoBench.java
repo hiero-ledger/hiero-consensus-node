@@ -465,8 +465,8 @@ public class CryptoBench extends VirtualMapBench {
 
     static void main() throws Exception {
         new Runner(new OptionsBuilder()
-                        .include(CryptoBench.class.getSimpleName())
-                        .jvmArgs("-Xmx16g")
+                        .include(CryptoBench.class.getSimpleName() + ".transferPrefetch")
+                        .forks(0)
                         .build())
                 .run();
     }

@@ -240,7 +240,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
     static void main() throws Exception {
         new Runner(new OptionsBuilder()
                         .include(VirtualMapBench.class.getSimpleName())
-                        .jvmArgs("-Xmx16g")
+                        .forks(0)
                         .build())
                 .run();
     }

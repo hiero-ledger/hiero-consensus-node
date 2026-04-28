@@ -39,7 +39,7 @@ fun listProperty(value: String) = objects.listProperty<String>().value(listOf(va
 // ── Benchmark run configurations ─────────────────────────────────────
 
 tasks.register<JMHTask>("jmhCrypto") {
-    includes.set(listOf("CryptoBench"))
+    includes.set(listOf("CryptoBench.transferPrefetch"))
     jvmArgs.set(listOf("-Xmx16g"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-crypto.txt"))
 }

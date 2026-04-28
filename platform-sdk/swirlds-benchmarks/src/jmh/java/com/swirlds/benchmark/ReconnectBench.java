@@ -223,7 +223,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
     static void main() throws Exception {
         new Runner(new OptionsBuilder()
                         .include(ReconnectBench.class.getSimpleName())
-                        .jvmArgs("-Xmx16g")
+                        .forks(0)
                         .build())
                 .run();
     }
