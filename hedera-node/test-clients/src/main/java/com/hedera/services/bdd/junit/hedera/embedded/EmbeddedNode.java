@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.hedera.embedded;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.GENESIS_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.NODE_ADMIN_KEYS_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
@@ -45,6 +46,12 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
         assertWorkingDirInitialized();
         // Without the normal lag of node startup, record stream assertions may check this directory too fast
         ensureDir(getExternalPath(RECORD_STREAMS_DIR).normalize().toString());
+        System.setProperty(
+                "hedera.app.properties.path",
+                getExternalPath(APPLICATION_PROPERTIES).toAbsolutePath().toString());
+        System.setProperty(
+                "hedera.genesis.properties.path",
+                getExternalPath(GENESIS_PROPERTIES).toAbsolutePath().toString());
         System.setProperty(
                 "hedera.recordStream.logDir",
                 getExternalPath(RECORD_STREAMS_DIR).getParent().toString());
