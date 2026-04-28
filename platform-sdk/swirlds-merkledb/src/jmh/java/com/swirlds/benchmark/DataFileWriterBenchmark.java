@@ -5,7 +5,7 @@ import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.test.fixtures.util.DataUtils;
-import com.swirlds.common.io.utility.FileUtils;
+import org.hiero.base.file.FileUtils;
 import com.swirlds.merkledb.files.DataFileWriter;
 import java.io.IOException;
 import java.nio.file.Files;

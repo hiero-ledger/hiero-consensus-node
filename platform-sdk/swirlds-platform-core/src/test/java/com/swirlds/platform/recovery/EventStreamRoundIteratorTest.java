@@ -16,7 +16,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.FileUtils;
+import org.hiero.base.file.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamPathIterator;
 import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;

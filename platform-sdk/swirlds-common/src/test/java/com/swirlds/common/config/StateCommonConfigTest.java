@@ -2,6 +2,7 @@
 package com.swirlds.common.config;
 
 import com.swirlds.config.api.ConfigurationBuilder;
+import org.hiero.consensus.config.StateCommonConfig;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

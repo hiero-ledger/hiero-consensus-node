@@ -2,7 +2,7 @@
 package com.swirlds.platform;
 
 import static com.swirlds.base.test.fixtures.util.DataUtils.randomUtf8Bytes;
-import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
+import static org.hiero.base.file.FileUtils.throwIfFileExists;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -47,6 +46,7 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.config.StateCommonConfig_;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.signed.SigSet;

@@ -18,7 +18,7 @@ import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
-import com.swirlds.common.io.utility.FileUtils;
+import org.hiero.base.file.FileUtils;
 import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;

@@ -3,7 +3,6 @@ module com.swirlds.common {
 
     /* Exported packages. This list should remain alphabetized. */
     exports com.swirlds.common;
-    exports com.swirlds.common.config;
     exports com.swirlds.common.constructable;
     exports com.swirlds.common.context;
     exports com.swirlds.common.io.config;

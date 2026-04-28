@@ -6,8 +6,7 @@ import static org.hiero.otter.fixtures.app.OtterApp.SWIRLD_NAME;
 import static org.hiero.otter.fixtures.util.OtterSavedStateUtils.fetchApplicationVersion;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.utility.FileUtils;
+import org.hiero.base.file.FileUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -20,6 +19,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
+import org.hiero.consensus.config.StateCommonConfig;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;

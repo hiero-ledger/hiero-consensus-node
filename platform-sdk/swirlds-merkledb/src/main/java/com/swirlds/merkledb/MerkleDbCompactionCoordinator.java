@@ -10,7 +10,7 @@ import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.common.io.utility.IORunnable;
+import org.hiero.base.io.IORunnable;
 import com.swirlds.merkledb.GarbageScanner.GarbageFileStats;
 import com.swirlds.merkledb.GarbageScanner.IndexedGarbageFileStats;
 import com.swirlds.merkledb.config.MerkleDbConfig;

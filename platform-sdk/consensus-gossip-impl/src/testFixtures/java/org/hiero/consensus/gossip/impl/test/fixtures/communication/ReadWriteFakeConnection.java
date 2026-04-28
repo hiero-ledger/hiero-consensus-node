@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.test.fixtures.communication;
 
-import com.swirlds.common.io.utility.IOConsumer;
+import org.hiero.base.io.IOConsumer;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.IOException;

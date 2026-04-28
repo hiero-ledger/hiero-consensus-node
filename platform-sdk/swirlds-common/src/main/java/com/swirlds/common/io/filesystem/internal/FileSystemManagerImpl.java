@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.filesystem.internal;
 
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 import static java.nio.file.Files.exists;
 
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.FileUtils;
+import org.hiero.base.file.FileUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

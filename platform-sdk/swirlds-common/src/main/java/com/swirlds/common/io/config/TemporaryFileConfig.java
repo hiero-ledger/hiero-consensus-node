@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.config;
 
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import org.hiero.consensus.config.StateCommonConfig;
 
 /**
  * Settings for temporary files
@@ -12,7 +12,8 @@ import com.swirlds.config.api.ConfigProperty;
  * 		The directory where temporary files are created.
  */
 @ConfigData("temporaryFiles")
-public record TemporaryFileConfig(@ConfigProperty(defaultValue = "swirlds-tmp") String temporaryFilePath) {
+public record TemporaryFileConfig(
+        @ConfigProperty(defaultValue = "swirlds-tmp") String temporaryFilePath) {
 
     /**
      * Returns the real path to the temporary files that depends on the {@link StateCommonConfig#savedStateDirectory()}

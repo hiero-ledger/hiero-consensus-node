@@ -2,7 +2,7 @@
 package com.swirlds.platform.state;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.FileUtils;
+import org.hiero.base.file.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;

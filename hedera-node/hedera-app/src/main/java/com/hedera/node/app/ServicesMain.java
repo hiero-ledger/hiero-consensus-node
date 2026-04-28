@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;

@@ -3,7 +3,7 @@ package com.hedera.node.app.hapi.utils.exports;
 
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readMaybeCompressedRecordStreamFile;
 import static com.hedera.services.stream.proto.SignatureType.SHA_384_WITH_RSA;
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.utility;
 
-import static com.swirlds.common.io.utility.FileUtils.deleteDirectoryAndLog;
-import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.io.utility.FileUtils.hardLinkTree;
-import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
-import static com.swirlds.common.io.utility.FileUtils.writeAndFlush;
+import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
+import static org.hiero.base.file.FileUtils.executeAndRename;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.hardLinkTree;
+import static org.hiero.base.file.FileUtils.throwIfFileExists;
+import static org.hiero.base.file.FileUtils.writeAndFlush;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static java.nio.file.Files.delete;
@@ -21,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -41,6 +40,7 @@ import java.util.stream.Stream;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.consensus.config.StateCommonConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -587,7 +587,7 @@ class FileUtilsTests {
         Files.createFile(second);
         Files.createFile(third);
 
-        final List<Path> files = FileUtils.findFiles(dir, ".foo");
+        final List<Path> files = org.hiero.base.file.FileUtils.findFiles(dir, ".foo");
         assertEquals(2, files.size(), "incorrect number of files found");
         assertTrue(files.contains(first), "first.foo not found");
         assertTrue(files.contains(third), "third.foo not found");
@@ -628,7 +628,7 @@ class FileUtilsTests {
         Files.writeString(file2, "world");
         Files.writeString(file3, "root");
 
-        FileUtils.moveDirectory(source, target);
+        org.hiero.base.file.FileUtils.moveDirectory(source, target);
 
         assertFalse(Files.exists(source), "source directory should be deleted after move");
         assertTrue(Files.exists(target), "target directory should exist after move");
@@ -671,7 +671,7 @@ class FileUtilsTests {
         final Path targetOnly = target.resolve("targetOnly.txt");
         Files.writeString(targetOnly, "keep-me");
 
-        FileUtils.moveDirectory(source, target);
+        org.hiero.base.file.FileUtils.moveDirectory(source, target);
 
         // Source should be deleted
         assertFalse(Files.exists(source), "source directory should be deleted after move");
@@ -697,7 +697,7 @@ class FileUtilsTests {
         final Path source = testDirectory.resolve("no_such_source");
         final Path target = testDirectory.resolve("should_not_be_created");
 
-        assertThrows(IOException.class, () -> FileUtils.moveDirectory(source, target));
+        assertThrows(IOException.class, () -> org.hiero.base.file.FileUtils.moveDirectory(source, target));
         assertFalse(Files.exists(target), "target directory should not be created on failure");
     }
 }

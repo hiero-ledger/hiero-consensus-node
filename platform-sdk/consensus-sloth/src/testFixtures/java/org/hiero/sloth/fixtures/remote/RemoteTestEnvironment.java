@@ -4,7 +4,7 @@ package org.hiero.sloth.fixtures.remote;
 import static java.util.Collections.unmodifiableSet;
 import static org.assertj.core.api.Fail.fail;
 
-import com.swirlds.common.io.utility.FileUtils;
+import org.hiero.base.file.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;

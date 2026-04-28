@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.utility;
 
-import static com.swirlds.common.io.utility.FileUtils.deleteDirectory;
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.deleteDirectory;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemporaryDirectory;
 import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemporaryFile;
 import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.getTemporaryFileLocation;
@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -23,6 +22,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.config.StateCommonConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

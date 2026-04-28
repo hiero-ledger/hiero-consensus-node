@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.common.io.utility.FileUtils.hardLinkTree;
+import static org.hiero.base.file.FileUtils.hardLinkTree;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;

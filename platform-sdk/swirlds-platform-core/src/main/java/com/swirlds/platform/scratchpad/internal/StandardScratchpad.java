@@ -6,8 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 import com.swirlds.base.formatting.TextTable;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.utility.FileUtils;
+import org.hiero.base.file.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.scratchpad.ScratchpadType;
@@ -38,6 +37,7 @@ import org.hiero.base.concurrent.locks.locked.Locked;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.config.StateCommonConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -139,13 +139,9 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
             }
         }
 
-        logger.info(
-                STARTUP.getMarker(),
-                """
+        logger.info(STARTUP.getMarker(), """
                         Scratchpad {} contents:
-                        {}""",
-                id,
-                table.render());
+                        {}""", id, table.render());
     }
 
     /**

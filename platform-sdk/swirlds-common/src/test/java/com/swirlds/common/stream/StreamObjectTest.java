@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.stream;
 
-import static com.swirlds.common.io.utility.FileUtils.deleteDirectory;
+import static org.hiero.base.file.FileUtils.deleteDirectory;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateStreamFileNameFromInstant;
 import static com.swirlds.common.stream.internal.StreamValidationResult.OK;
 import static com.swirlds.common.stream.internal.StreamValidationResult.SIG_FILE_COUNT_MISMATCH;

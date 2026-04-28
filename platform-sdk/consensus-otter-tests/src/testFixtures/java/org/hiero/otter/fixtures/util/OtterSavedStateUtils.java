@@ -6,7 +6,7 @@ import static org.hiero.otter.fixtures.tools.GenerateStateTool.PCES_DIRECTORY;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.SAVE_STATE_DIRECTORY;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.common.io.utility.FileUtils;
+import org.hiero.base.file.FileUtils;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
