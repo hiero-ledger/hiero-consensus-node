@@ -15,7 +15,6 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.TraceData;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -152,25 +151,8 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                                                 derivedBuilder, evmResult.contractNonces());
                                     }
                                 }
-                                if (knownCreation) {
-                                    if (!PRE_NONCE_ERROR_MESSAGE.equals(evmResult.errorMessage())) {
-                                        baseTranslator.addSignerNonce(
-                                                evmResult.senderId(), derivedBuilder, remainingStateChanges);
-                                    }
-                                } else {
-                                    if (!PRE_NONCE_ERROR_MESSAGE.equals(evmResult.errorMessage())) {
-                                        if (parts.isBatchScoped() && finalEthTxData != null) {
-                                            handleBatchScopedNonce(
-                                                    evmResult.senderId(),
-                                                    finalEthTxData.nonce(),
-                                                    derivedBuilder,
-                                                    baseTranslator,
-                                                    remainingStateChanges);
-                                        } else {
-                                            baseTranslator.addSignerNonce(
-                                                    evmResult.senderId(), derivedBuilder, remainingStateChanges);
-                                        }
-                                    }
+                                if (!PRE_NONCE_ERROR_MESSAGE.equals(evmResult.errorMessage())) {
+                                    derivedBuilder.signerNonce(evmResult.signerNonce());
                                 }
                                 final var fnResult = derivedBuilder.build();
                                 if (knownCreation) {
@@ -187,20 +169,5 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                 remainingStateChanges,
                 followingUnitTraces,
                 executingHookId);
-    }
-
-    private void handleBatchScopedNonce(
-            AccountID senderId,
-            long currentNonce,
-            ContractFunctionResult.Builder builder,
-            BaseTranslator baseTranslator,
-            List<StateChange> remainingStateChanges) {
-        if (baseTranslator.isNonceIncremented(senderId, currentNonce, remainingStateChanges)) {
-            // If we have multiple ethereum transactions in a batch, and they increment the same nonce,
-            // we have to derive the nonce from the input for the transactions that are in the middle of the batch.
-            builder.signerNonce(currentNonce + 1L);
-        } else {
-            baseTranslator.addSignerNonce(senderId, builder, remainingStateChanges);
-        }
     }
 }

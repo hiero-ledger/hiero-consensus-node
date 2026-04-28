@@ -490,15 +490,6 @@ public class BaseTranslator {
         resultBuilder.evmAddress(evmAddress);
     }
 
-    public void addSignerNonce(
-            @Nullable final AccountID senderId,
-            @NonNull final ContractFunctionResult.Builder derivedBuilder,
-            @NonNull final List<StateChange> remainingStateChanges) {
-        if (senderId != null) {
-            derivedBuilder.signerNonce(getSignerNonce(senderId, remainingStateChanges));
-        }
-    }
-
     public void toggleNoncesExternalization(final boolean externalizeNonces) {
         this.externalizeNonces = externalizeNonces;
     }

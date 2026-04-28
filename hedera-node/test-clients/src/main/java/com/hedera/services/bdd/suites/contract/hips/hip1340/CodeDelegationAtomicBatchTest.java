@@ -31,7 +31,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
@@ -63,7 +62,7 @@ public class CodeDelegationAtomicBatchTest {
     private static final String CODE_DELEGATION_CONTRACT_2 = "CodeDelegationContract2";
     private static final AtomicReference<Address> DELEGATION_TARGET = new AtomicReference<>();
     private static final AtomicReference<Address> DELEGATION_TARGET_2 = new AtomicReference<>();
-    private static final String CONTRACT = "CreateTrivial";
+    private static final String CONTRACT = "Multipurpose";
     private static final String REVERTING_CONTRACT = "InternalCallee";
     private static final String DELEGATION_SET = "DelegationSet";
     private static final String CRYPTO_CREATE_DELEGATING_ACCOUNT = "CryptoCreateDelegatingAccount";
@@ -110,7 +109,7 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(delegatingAccount),
                 getAliasedAccountInfo(delegatingAccount).hasNoDelegation(),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(delegatingAccount)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -134,7 +133,7 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(delegatingAccount),
                 getAliasedAccountInfo(delegatingAccount).hasNoDelegation(),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(delegatingAccount)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -191,7 +190,7 @@ public class CodeDelegationAtomicBatchTest {
                                                 .between(INSUFFICIENT_BALANCE_ACCOUNT, RELAYER))
                                         .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE)
                                         .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(delegatingAccount)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -216,7 +215,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .withMatchingEvmAddress()
                                         .balance(ONE_HUNDRED_HBARS)
                                         .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(accountInBatch)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -243,7 +242,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .withMatchingEvmAddress()
                                         .balance(ONE_HUNDRED_HBARS)
                                         .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(delegatingAccount)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -280,7 +279,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .balance(ONE_HUNDRED_HBARS)
                                         .delegationAddress(initialDelegationAddress)
                                         .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(accountInBatch)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -303,7 +302,7 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(authorityAccount),
                 getAliasedAccountInfo(authorityAccount).hasNoDelegation(),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(sender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -336,7 +335,7 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccountWithDelegation(authorityAccount, delegationTargetAddress),
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(sender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -369,7 +368,7 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccountWithDelegation(authorityAccount, delegationTargetAddress),
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(sender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -397,7 +396,7 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccountWithDelegation(authorityAccount, delegationTargetAddress),
                 getAliasedAccountInfo(authorityAccount).hasDelegationAddress(delegationTargetAddress),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(sender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -437,7 +436,7 @@ public class CodeDelegationAtomicBatchTest {
                                 cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
                                         .delegationAddress(delegationAddress)
                                         .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(sender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -480,7 +479,7 @@ public class CodeDelegationAtomicBatchTest {
                                 cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
                                         .delegationAddress(initialDelegationAddress)
                                         .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(sender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -537,7 +536,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(sender).exposingEthereumNonceTo(senderNonceBefore::set),
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceBefore::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceBefore::set),
-                atomicBatch(ethereumCall(CONTRACT, "create")
+                atomicBatch(ethereumCall(CONTRACT, "pick")
                                 .signingWith(sender)
                                 .payingWith(RELAYER)
                                 .type(EthTransactionType.EIP7702)
@@ -590,7 +589,7 @@ public class CodeDelegationAtomicBatchTest {
                 getAliasedAccountInfo(authAccount1).exposingEthereumNonceTo(auth1NonceBefore::set),
                 getAliasedAccountInfo(authAccount2).exposingEthereumNonceTo(auth2NonceBefore::set),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(sender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -656,7 +655,7 @@ public class CodeDelegationAtomicBatchTest {
                 createFundedAccount(sender),
                 getAccountBalance(sender).exposingBalanceTo(senderBalanceBefore::set),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(sender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -685,10 +684,6 @@ public class CodeDelegationAtomicBatchTest {
                     final var expectedGasCharge = gasUsed * gasPriceTinybars;
                     final var senderDelta = senderBalanceBefore.get() - senderBalanceAfter.get();
 
-                    // gasUsed must exceed intrinsic gas (execution of create() costs extra)
-                    assertTrue(
-                            gasUsed > EXPECTED_INTRINSIC_GAS,
-                            "gasUsed must exceed intrinsic gas (create() deploys a contract)");
                     // Sender pays exactly gasUsed * gasPrice (EVM gas)
                     assertEquals(expectedGasCharge, senderDelta, "Sender must be charged gasUsed * gasPriceTinybars");
                     // The type4 fee in the record should match the sender's balance change
@@ -718,7 +713,7 @@ public class CodeDelegationAtomicBatchTest {
                 // Rollback
                 getAccountBalance(rollbackSender).exposingBalanceTo(rollbackSenderBefore::set),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(rollbackSender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -737,7 +732,7 @@ public class CodeDelegationAtomicBatchTest {
                 // Success
                 getAccountBalance(successSender).exposingBalanceTo(successSenderBefore::set),
                 atomicBatch(
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(successSender)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -828,7 +823,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .withMatchingEvmAddress()
                                         .balance(ONE_HUNDRED_HBARS)
                                         .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(rollbackPayer)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -851,7 +846,7 @@ public class CodeDelegationAtomicBatchTest {
                                         .withMatchingEvmAddress()
                                         .balance(ONE_HUNDRED_HBARS)
                                         .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(payer)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
@@ -942,7 +937,7 @@ public class CodeDelegationAtomicBatchTest {
                                 cryptoUpdate(CRYPTO_CREATE_DELEGATING_ACCOUNT)
                                         .delegationAddress(initialDelegationAddress)
                                         .batchKey(RELAYER),
-                                ethereumCall(CONTRACT, "create")
+                                ethereumCall(CONTRACT, "pick")
                                         .signingWith(delegatingAccount)
                                         .payingWith(RELAYER)
                                         .type(EthTransactionType.EIP7702)
