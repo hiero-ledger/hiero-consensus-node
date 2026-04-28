@@ -182,32 +182,49 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
             if (isAnnotated(method, HapiBlockNode.class)) {
                 // If a per-method network exists, run validation and terminate it
                 try {
-                    // Create a temporary HapiSpec to run the validation against the per-method network
-                    // Validate logs after a short delay to ensure all log entries are flushed
-                    final var logValidationOp = validateAllLogsAfter(Duration.ofSeconds(1L));
-                    final var streamValidationOp = validateStreams();
-                    final var validationSpec = new HapiSpec(
-                            "LogAndStreamValidationSpec", new SpecOperation[] {logValidationOp, streamValidationOp});
-                    validationSpec.setTargetNetwork(
-                            requireNonNull(SHARED_NETWORK.get(), "Shared network cannot be null"));
-                    validationSpec.setBlockNodeNetwork(SHARED_BLOCK_NODE_NETWORK.get());
-                    // Execute the validation spec
-                    try {
-                        validationSpec.execute();
-                    } catch (final Throwable e) {
-                        throw new RuntimeException(e);
+                    // Skip validation if the network was never started
+                    final var sharedNetwork = SHARED_NETWORK.get();
+                    if (sharedNetwork != null) {
+                        // Create a temporary HapiSpec to run the validation against the per-method network
+                        // Validate logs after a short delay to ensure all log entries are flushed
+                        final var logValidationOp = validateAllLogsAfter(Duration.ofSeconds(1L));
+                        final var streamValidationOp = validateStreams();
+                        final var validationSpec = new HapiSpec(
+                                "LogAndStreamValidationSpec",
+                                new SpecOperation[] {logValidationOp, streamValidationOp});
+                        validationSpec.setTargetNetwork(sharedNetwork);
+                        validationSpec.setBlockNodeNetwork(SHARED_BLOCK_NODE_NETWORK.get());
+                        // Execute the validation spec
+                        try {
+                            validationSpec.execute();
+                        } catch (final Throwable e) {
+                            throw new RuntimeException(e);
+                        }
                     }
                 } catch (final Exception e) {
                     System.err.println("Error during post-test log and stream validation: " + e.getMessage());
                 } finally {
                     // Ensure network termination even if validation fails
                     final var network = SHARED_NETWORK.get();
-                    final var scopeRoot = network.nodes()
-                            .getFirst()
-                            .getExternalPath(ExternalPath.WORKING_DIR)
-                            .getParent();
-                    network.terminate();
-                    SHARED_BLOCK_NODE_NETWORK.get().terminate(scopeRoot);
+                    final var blockNodeNetwork = SHARED_BLOCK_NODE_NETWORK.get();
+                    try {
+                        if (network != null) {
+                            final var scopeRoot = network.nodes()
+                                    .getFirst()
+                                    .getExternalPath(ExternalPath.WORKING_DIR)
+                                    .getParent();
+                            network.terminate();
+                            if (blockNodeNetwork != null) {
+                                blockNodeNetwork.terminate(scopeRoot);
+                            }
+                        } else if (blockNodeNetwork != null) {
+                            logger.warn("Terminating block node network without log dump;"
+                                    + " consensus network was never started");
+                            blockNodeNetwork.terminateQuietly();
+                        }
+                    } catch (final Exception e) {
+                        logger.warn("Error during network termination in afterEach", e);
+                    }
                     // Clear the static shared network reference as the per-method network is gone
                     SHARED_NETWORK.set(null);
                     SHARED_BLOCK_NODE_NETWORK.set(null);

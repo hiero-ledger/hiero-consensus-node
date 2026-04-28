@@ -601,7 +601,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return msg.contains("NO_ERROR")
                 || msg.contains("Received unexpected EOS on DATA frame from server")
                 || msg.contains("REFUSED_STREAM")
-                || msg.contains("UNAVAILABLE: Channel shutdown invoked");
+                || msg.contains("UNAVAILABLE");
     }
 
     private void pause(long forMs) {

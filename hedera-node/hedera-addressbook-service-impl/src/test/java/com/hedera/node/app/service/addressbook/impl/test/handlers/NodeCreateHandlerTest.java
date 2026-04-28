@@ -757,22 +757,51 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     @Test
     void preHandleWorksWhenAdminKeyValid() throws PreCheckException {
         mockAccountLookup(anotherKey, payerId, accountStore);
-        txn = new NodeCreateBuilder().withAdminKey(key).build(payerId);
+        mockAccountLookup(aPrimitiveKey, accountId, accountStore);
+        txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
         subject.preHandle(context);
         assertThat(txn).isEqualTo(context.body());
         assertThat(context.payerKey()).isEqualTo(anotherKey);
         assertThat(context.requiredNonPayerKeys()).contains(key);
+        assertThat(context.requiredNonPayerKeys()).contains(aPrimitiveKey);
     }
 
     @Test
     void preHandleFailedWhenAdminKeyInValid() throws PreCheckException {
         mockAccountLookup(anotherKey, payerId, accountStore);
-        txn = new NodeCreateBuilder().withAdminKey(invalidKey).build(payerId);
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withAdminKey(invalidKey)
+                .build(payerId);
         final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
         assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_ADMIN_KEY);
         assertThat(context.payerKey()).isEqualTo(anotherKey);
         assertThat(context.requiredNonPayerKeys()).isEmpty();
+    }
+
+    @Test
+    void preHandleRequiresAccountOwnerKey() throws PreCheckException {
+        mockAccountLookup(anotherKey, payerId, accountStore);
+        mockAccountLookup(aPrimitiveKey, accountId, accountStore);
+        txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
+        final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
+        subject.preHandle(context);
+        assertThat(context.requiredNonPayerKeys()).contains(aPrimitiveKey);
+    }
+
+    @Test
+    void preHandleSkipsAccountKeyWhenAccountNotFound() throws PreCheckException {
+        mockAccountLookup(anotherKey, payerId, accountStore);
+        txn = new NodeCreateBuilder().withAccountId(accountId).withAdminKey(key).build(payerId);
+        final var context = new FakePreHandleContext(accountStore, txn);
+        context.registerStore(ReadableAccountStore.class, accountStore);
+        subject.preHandle(context);
+        assertThat(context.requiredNonPayerKeys()).contains(key);
+        assertThat(context.requiredNonPayerKeys()).doesNotContain(aPrimitiveKey);
     }
 
     @Test

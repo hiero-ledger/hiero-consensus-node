@@ -26,7 +26,6 @@ module org.hiero.consensus.reconnect.impl {
     requires com.swirlds.component.framework;
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;
-    requires org.hiero.base.utility;
     requires org.hiero.consensus.event.creator;
     requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.hashgraph;

@@ -83,12 +83,13 @@ there is no separate staging area. Old files are deleted in place after compacti
 
 Data files follow the naming convention:
 
-```
-{storeName}_{timestamp}_{index}.pbj
-```
+{storeName}_{timestamp}_L{level}_{index}.pbj
 
-where `storeName` is the table-qualified store name (e.g. `state_idtohashchunk`), `timestamp` is the creation time
-in `yyyy-MM-dd_HH-mm-ss-SSS` format (UTC), and `index` is a zero-padded integer (10 characters wide, right-aligned with underscores).
+where `storeName` is the table-qualified store name (e.g. `state_idtohashchunk`),
+`timestamp` is the creation time in `yyyy-MM-dd_HH-mm-ss-SSS` format (UTC),
+`level` is the compaction level (0 for flush files, incremented on each compaction),
+and `index` is a zero-padded integer (10 characters wide, right-aligned with
+underscores).
 
 Each store also has a metadata file (`{storeName}_metadata.pbj`) that persists the valid key range across restarts.
 

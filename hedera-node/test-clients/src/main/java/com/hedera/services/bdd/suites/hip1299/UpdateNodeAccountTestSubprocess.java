@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.hip1299;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.CLASSIC_FIRST_NODE_ACCOUNT_NUM;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
@@ -29,7 +30,7 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -62,7 +63,9 @@ public class UpdateNodeAccountTestSubprocess {
             final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
             final AtomicReference<AccountID> oldNodeAccountId = new AtomicReference<>();
             final String nodeToUpdate = "3";
-            final String baseDir = "build/hapi-test/node" + nodeToUpdate + "/data/recordStreams/";
+            final Path recordsDir = workingDirFor(Long.parseLong(nodeToUpdate), null)
+                    .resolve("data")
+                    .resolve("recordStreams");
 
             return hapiTest(
                     cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
@@ -74,8 +77,8 @@ public class UpdateNodeAccountTestSubprocess {
                     // assert record paths
                     withOpContext((spec, log) -> {
                         final var oldRecordPath =
-                                Paths.get(baseDir + "record" + asAccountString(oldNodeAccountId.get()));
-                        final var newRecordPath = Paths.get(baseDir + "record" + asAccountString(newAccountId.get()));
+                                recordsDir.resolve("record" + asAccountString(oldNodeAccountId.get()));
+                        final var newRecordPath = recordsDir.resolve("record" + asAccountString(newAccountId.get()));
                         assertTrue(oldRecordPath.toFile().exists());
                         assertFalse(newRecordPath.toFile().exists());
                     }));

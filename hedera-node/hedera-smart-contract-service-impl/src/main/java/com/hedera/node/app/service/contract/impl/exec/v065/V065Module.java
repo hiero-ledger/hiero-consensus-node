@@ -96,7 +96,8 @@ public interface V065Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                codeFactory);
+                codeFactory,
+                null);
     }
 
     @Provides

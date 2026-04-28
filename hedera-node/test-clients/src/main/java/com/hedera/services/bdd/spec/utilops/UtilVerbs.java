@@ -549,6 +549,22 @@ public class UtilVerbs {
     }
 
     /**
+     * Returns an operation that polls the selected nodes' block node comms logs until they contain
+     * the given text, or the timeout elapses.
+     *
+     * @param selector the selector for the nodes whose logs to poll
+     * @param text the text that must eventually be present
+     * @param timeout the maximum amount of time to keep polling
+     * @return the operation that polls until the target logs contain the given text
+     */
+    public static UntilLogContainsOp awaitBlockNodeCommsLogContainsText(
+            @NonNull final NodeSelector selector, @NonNull final String text, @NonNull final Duration timeout) {
+        return new UntilLogContainsOp(selector, BLOCK_NODE_COMMS_LOG, text, null, () -> new SpecOperation[0])
+                .lasting(timeout)
+                .pollingEvery(Duration.ofSeconds(1));
+    }
+
+    /**
      * Returns an operation that repeatedly runs freshly sourced operations until the selected nodes'
      * application logs contain the given text, or the timeout elapses.
      *
@@ -797,10 +813,6 @@ public class UtilVerbs {
 
     public static ContextualActionOp doingContextual(Consumer<HapiSpec> action) {
         return new ContextualActionOp(action);
-    }
-
-    public static WaitForStatusOp waitForActive(String name, Duration timeout) {
-        return waitForActive(NodeSelector.byName(name), timeout);
     }
 
     public static WaitForStatusOp waitForActive(@NonNull final NodeSelector selector, @NonNull final Duration timeout) {
@@ -1762,6 +1774,18 @@ public class UtilVerbs {
 
     public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator() {
         return ValidContractIdsAssertion::new;
+    }
+
+    /**
+     * Returns a sidecar ID validator scoped to only the given spec transaction IDs. When scoped, the
+     * validator only checks sidecars whose consensus timestamps match record stream items for the
+     * specified transactions, preventing cross-test interference on shared networks.
+     *
+     * @param specTxnIds the transaction names (registered via {@code .via()}) to scope validation to
+     * @return the scoped sidecar ID validator factory
+     */
+    public static Function<HapiSpec, RecordStreamAssertion> sidecarIdValidator(@NonNull final String... specTxnIds) {
+        return spec -> new ValidContractIdsAssertion(spec, specTxnIds);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> allVisibleItems(

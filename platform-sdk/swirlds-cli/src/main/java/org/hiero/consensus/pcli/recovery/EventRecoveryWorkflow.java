@@ -161,11 +161,7 @@ public final class EventRecoveryWorkflow {
             stateLifecycleManager.initWithState(recoveredState.state().get().getState());
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
-                    selfId,
-                    resultingStateDirectory,
-                    recoveredState.state().get(),
-                    stateLifecycleManager);
+                    platformContext, selfId, resultingStateDirectory, recoveredState.state(), stateLifecycleManager);
 
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
 

@@ -46,6 +46,7 @@ public class ScheduleLongTermExecutionTest {
     private static final String SENDER_TXN = "senderTxn";
     private static final String FAILED_XFER = "failedXfer";
     private static final long ONE_MINUTE = 60;
+    private static final long TWO_MINUTES = 2 * ONE_MINUTE;
     private static final long ONE_MONTH = 2678400;
     private static final long TWO_MONTHS = 5356800;
 
@@ -104,9 +105,9 @@ public class ScheduleLongTermExecutionTest {
                 cryptoCreate("luckyYou").balance(0L).via("cryptoCreate"),
                 // Expiring the schedules relative to the cryptoCreate so the expiry time will be exactly the same
                 scheduleCreate("payerOnly", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
-                        .withRelativeExpiry("cryptoCreate", ONE_MINUTE),
+                        .withRelativeExpiry("cryptoCreate", TWO_MINUTES),
                 scheduleCreate("payerOnly", cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "luckyYou", 1L)))
-                        .withRelativeExpiry("cryptoCreate", ONE_MINUTE)
+                        .withRelativeExpiry("cryptoCreate", TWO_MINUTES)
                         .hasKnownStatus(IDENTICAL_SCHEDULE_ALREADY_CREATED));
     }
 
@@ -121,9 +122,9 @@ public class ScheduleLongTermExecutionTest {
                 contractCreate(contract),
 
                 // Expiring the schedules relative to the cryptoCreate so the expiry time will be exactly the same
-                scheduleCreate("payerOnly", contractCall(contract)).withRelativeExpiry("cryptoCreate", ONE_MINUTE),
+                scheduleCreate("payerOnly", contractCall(contract)).withRelativeExpiry("cryptoCreate", TWO_MINUTES),
                 scheduleCreate("payerOnly", contractCall(contract))
-                        .withRelativeExpiry("cryptoCreate", ONE_MINUTE)
+                        .withRelativeExpiry("cryptoCreate", TWO_MINUTES)
                         .hasKnownStatus(IDENTICAL_SCHEDULE_ALREADY_CREATED));
     }
 
