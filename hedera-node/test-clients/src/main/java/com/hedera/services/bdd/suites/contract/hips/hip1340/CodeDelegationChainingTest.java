@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,37 +13,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("Code Delegation Chaining Tests")
-@HapiTestLifecycle
 public class CodeDelegationChainingTest extends CodeDelegationTestBase {
 
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("contracts.codeDelegations.enabled", "true"));
-    }
-
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     @DisplayName("Delegation chain through two EOAs fails with banned opcode")
     final Stream<DynamicTest> testDelegationChainThroughTwoEoasResultsInFailure() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -69,10 +60,12 @@ public class CodeDelegationChainingTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     @DisplayName("Delegation loop between two EOAs fails with banned opcode")
     final Stream<DynamicTest> testDelegationLoopResultsInFailure() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -105,10 +98,12 @@ public class CodeDelegationChainingTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     @DisplayName("Self-delegation fails with banned opcode")
     final Stream<DynamicTest> testSelfDelegationResultsInFailure() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -129,10 +124,12 @@ public class CodeDelegationChainingTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     @DisplayName("Delegation to non-existent address is a no-op with value transfer")
     final Stream<DynamicTest> testDelegationToNonExistentAddressIsNoOp() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -168,10 +165,12 @@ public class CodeDelegationChainingTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     @DisplayName("Delegation chain reached via inner CALL reverts the inner call")
     final Stream<DynamicTest> testDelegationChainViaInnerCallReverts() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 

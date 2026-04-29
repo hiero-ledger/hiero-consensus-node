@@ -67,9 +67,8 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -81,17 +80,14 @@ import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.RealmID;
 import com.hederahashgraph.api.proto.java.ShardID;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
-@HapiTestLifecycle
 public class CryptoCreateSuite {
     public static final String ACCOUNT = "account";
     public static final String ANOTHER_ACCOUNT = "anotherAccount";
@@ -103,11 +99,6 @@ public class CryptoCreateSuite {
     public static final String SHORT_KEY = "shortKey";
     public static final String EMPTY_KEY_STRING = "emptyKey";
     private static final String ED_KEY = "EDKEY";
-
-    @BeforeAll
-    public static void setup(final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("contracts.codeDelegations.enabled", "true"));
-    }
 
     @HapiTest
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
@@ -1048,12 +1039,13 @@ public class CryptoCreateSuite {
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> createAccountWithDelegationAddress() {
         final var longZeroAddress = ByteString.copyFrom(CommonUtils.unhex("0000000000000000000000000000000fffffffff"));
         final var emptyAddress = ByteString.empty();
         final var badAddress = ByteString.copyFrom(CommonUtils.unhex("0fffffffff"));
         return hapiTest(
+                overriding("contracts.codeDelegations.enabled", "true"),
                 cryptoCreate("withDelegationAddress").balance(ONE_HUNDRED_HBARS).delegationAddress(longZeroAddress),
                 getAccountInfo("withDelegationAddress").has(accountWith().delegationAddress(longZeroAddress)),
                 cryptoCreate("withEmptyAddress").balance(ONE_HUNDRED_HBARS).delegationAddress(emptyAddress),

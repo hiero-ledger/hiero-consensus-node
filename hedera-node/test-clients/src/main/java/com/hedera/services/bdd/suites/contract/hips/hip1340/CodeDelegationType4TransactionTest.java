@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -26,8 +27,8 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -35,7 +36,6 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
@@ -57,10 +57,9 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                 uploadInitCode(CODE_DELEGATION_CONTRACT),
                 contractCreate(CODE_DELEGATION_CONTRACT).exposingAddressTo(DELEGATION_TARGET::set),
                 cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS));
-        lifecycle.overrideInClass(Map.of("contracts.codeDelegations.enabled", "true"));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testCodeDelegationSetViaEthCall() {
 
         final var delegatedFunctionSelector = Hex.toHexString(
@@ -71,6 +70,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
             allRunFor(
                     spec,
+                    overriding("contracts.codeDelegations.enabled", "true"),
                     cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS).between(GENESIS, DELEGATING_ACCOUNT))
                             .via(CREATION),
                     getTxnRecord(CREATION).exposingCreationsTo(creations -> {
@@ -116,7 +116,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testMultipleCodeDelegationsSetViaEthCall() {
         final var delegationTargetAddress = DELEGATION_TARGET.get();
         return hapiTest(withOpContext((spec, _) -> {
@@ -125,6 +125,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                     spec, DELEGATING_ACCOUNT, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
             allRunFor(
                     spec,
+                    overriding("contracts.codeDelegations.enabled", "true"),
                     cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS)
                             .distributing(GENESIS, DELEGATING_ACCOUNT, DELEGATING_ACCOUNT_1)),
                     cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS)
@@ -168,7 +169,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegatingToKey() {
         return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, CONTRACT);
@@ -176,6 +177,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
             allRunFor(
                     spec,
+                    overriding("contracts.codeDelegations.enabled", "true"),
                     sourcing(() -> ethereumCall(CONTRACT, "create")
                             .signingWith(PAYER_KEY)
                             .payingWith(RELAYER)
@@ -210,13 +212,14 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationSetToHollowAccountWithRevertingCall() {
         return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT);
-            allRunFor(spec, sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"), sourcing(() -> ethereumCall(
+                            REVERTING_CONTRACT, "revertWithRevertReason")
                     .signingWith(PAYER_KEY)
                     .payingWith(RELAYER)
                     .type(EthTransactionType.EIP7702)
@@ -252,13 +255,14 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationSetToMultipleHollowAccountsWithRevertingCall() {
         return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
-            allRunFor(spec, sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"), sourcing(() -> ethereumCall(
+                            REVERTING_CONTRACT, "revertWithRevertReason")
                     .signingWith(PAYER_KEY)
                     .payingWith(RELAYER)
                     .type(EthTransactionType.EIP7702)
@@ -309,13 +313,14 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationSetToExistingAccountWithRevertingCall() {
         return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, REVERTING_CONTRACT);
             createPayerAccountWithAlias(spec);
             final var delegatingAccount = createEvmAccountWithKey(spec);
-            allRunFor(spec, sourcing(() -> ethereumCall(REVERTING_CONTRACT, "revertWithRevertReason")
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"), sourcing(() -> ethereumCall(
+                            REVERTING_CONTRACT, "revertWithRevertReason")
                     .signingWith(PAYER_KEY)
                     .payingWith(RELAYER)
                     .type(EthTransactionType.EIP7702)
@@ -340,13 +345,14 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationWithMultipleAccountsAndNotEnoughGasForLazyCreation() {
         return hapiTest(withOpContext((spec, _) -> {
             deployEvmContract(spec, CONTRACT);
             createPayerAccountWithAlias(spec);
             createSecp256k1Keys(spec, DELEGATING_ACCOUNT_1, DELEGATING_ACCOUNT_2, DELEGATING_ACCOUNT_3);
-            allRunFor(spec, sourcing(() -> ethereumCall(CONTRACT, "create")
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"), sourcing(() -> ethereumCall(
+                            CONTRACT, "create")
                     .signingWith(PAYER_KEY)
                     .payingWith(RELAYER)
                     .gasLimit(1_500_000L)
