@@ -76,7 +76,7 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "") String mainClassNameOverride,
         @ConfigProperty(defaultValue = "900") int saveStatePeriod,
         @ConfigProperty(defaultValue = "true") boolean saveStateAsync,
-        @ConfigProperty(defaultValue = "750") long asyncSnapshotTimeout,
+        @ConfigProperty(defaultValue = "10") long asyncSnapshotTimeout,
         @ConfigProperty(defaultValue = "5") int signedStateDisk,
         @ConfigProperty(defaultValue = "false") boolean haltOnAnyIss,
         @ConfigProperty(defaultValue = "false") boolean automatedSelfIssRecovery,

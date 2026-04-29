@@ -1467,6 +1467,15 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *         to the specified directory
      */
     public CompletableFuture<Void> createSnapshotAsync(final @NonNull Path outputDirectory) {
+        logger.info(
+                VIRTUAL_MERKLE_STATS.getMarker(),
+                "VirtualMap async snapshot requested, copyVersion={}, destroyed={}, immutable={}, hashed={}, target={}",
+                getFastCopyVersion(),
+                isDestroyed(),
+                isImmutable(),
+                isHashed(),
+                outputDirectory);
+
         assert snapshotFuture.get() == null : "Async snapshot already in progress for this copy";
         snapshotTargetPath.set(outputDirectory);
         final CompletableFuture<Void> future = new CompletableFuture<>();

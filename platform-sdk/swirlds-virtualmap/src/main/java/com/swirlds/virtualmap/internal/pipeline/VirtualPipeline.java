@@ -383,6 +383,16 @@ public class VirtualPipeline {
      * Check if this copy should be flushed.
      */
     private boolean shouldBeFlushed(final VirtualRoot copy) {
+        final boolean markedForFlush = copy.shouldBeFlushed();
+        final boolean destroyed = copy.isDestroyed();
+
+        if (markedForFlush && !destroyed) {
+            logger.info(
+                    VIRTUAL_MERKLE_STATS.getMarker(),
+                    "Copy {} is marked for flush but is not destroyed yet",
+                    copy.getFastCopyVersion());
+        }
+
         return copy.shouldBeFlushed() // either explicitly marked to flush or based on its size
                 && copy.isDestroyed();
     }
@@ -509,6 +519,13 @@ public class VirtualPipeline {
      * 		(and therefore any/all pending work will never be used).
      */
     private synchronized void shutdown(final boolean immediately) {
+        logger.info(
+                VIRTUAL_MERKLE_STATS.getMarker(),
+                "VirtualPipeline shutdown called, immediately={}, alive={}, mostRecentCopy={}",
+                immediately,
+                alive,
+                mostRecentCopy.get() == null ? "null" : mostRecentCopy.get().getFastCopyVersion());
+
         alive = false;
         if (!executorService.isShutdown()) {
             if (immediately) {
