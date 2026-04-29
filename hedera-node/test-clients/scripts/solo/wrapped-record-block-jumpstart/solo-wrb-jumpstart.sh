@@ -891,11 +891,11 @@ require_cmd awk
 require_cmd node
 require_cmd java
 validate_block_node_repo
-validate_local_build_path "${LOCAL_BUILD_PATH}"
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "log4j2 config not found: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 [[ -f "${DEPLOY_APP_PROPS_FILE}" ]] || { echo "Deploy application.properties not found: ${DEPLOY_APP_PROPS_FILE}" >&2; exit 1; }
 [[ -f "${BASE_074_APP_PROPS_FILE}" ]] || { echo "Base 0.74 application.properties not found: ${BASE_074_APP_PROPS_FILE}" >&2; exit 1; }
 if [[ -z "${UPGRADE_VERSION}" ]]; then
+  validate_local_build_path "${LOCAL_BUILD_PATH}"
   local_build_version="$(local_build_implementation_version)"
   [[ -n "${local_build_version}" ]] || {
     echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2

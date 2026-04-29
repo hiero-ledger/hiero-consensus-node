@@ -137,6 +137,7 @@ jobs:
           kubectl version --client=true
 
       - name: Build Consensus Node Local Artifacts
+        if: ${{ inputs.upgrade-tag == '' }}
         run: ${GRADLE_EXEC} assemble
 
       - name: Run WRB Solo Jumpstart Scenario
