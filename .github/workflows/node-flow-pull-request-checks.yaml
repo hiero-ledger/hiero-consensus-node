@@ -67,7 +67,7 @@ jobs:
       enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-misc-records-crypto-and-serial: "false"
       enable-hapi-tests-token-and-time-consuming: "false"
-      enable-hapi-tests-simple-fees-and-nd-reconnect: "false"
+      enable-hapi-tests-simple-fees-and-nd-reconnect: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests-atomic-batch: "false"
       enable-hapi-tests-smart-contract-and-iss: "false"
       enable-hapi-tests-state-throttling: "false"
