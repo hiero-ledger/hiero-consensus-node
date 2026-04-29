@@ -300,7 +300,7 @@ jobs:
               BLOCK_NODE_RELEASE_TAG="${{ inputs.block-node-release-tag || inputs.starting-tag }}" \
               BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION}" \
               KEEP_NETWORK="false" \
-            "${SCRIPT_PATH}" --nodes 3 2>&1 | tee "${RUNNER_TEMP}/wrb-block-node-streaming-script.log"
+            "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-block-node-streaming-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}

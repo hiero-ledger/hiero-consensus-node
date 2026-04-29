@@ -370,7 +370,7 @@ wait_for_tcp_open() {
       (: <"/dev/tcp/${host}/${port}") >/dev/null 2>&1 && return 0
     fi
     sleep "${sleep_secs}"
-    ((attempt++))
+    ((++attempt))
   done
   return 1
 }
@@ -531,7 +531,7 @@ wait_for_block_node_to_persist_block() {
       fi
     fi
     sleep "${sleep_secs}"
-    ((attempt++))
+    ((++attempt))
   done
   echo "Timed out waiting for Block Node to persist streamed block data" >&2
   sed -n '1,80p' "${BLOCK_NODE_STATUS_LOG}" >&2 || true
@@ -590,8 +590,8 @@ assert_block_node_serves_wrb_record_file_block() {
       echo "Block ${block}: subscribe failed; see ${tmp}" >> "${BLOCK_NODE_WRB_SCAN_LOG}"
     fi
 
-    ((scanned++))
-    ((block++))
+    ((++scanned))
+    ((++block))
   done
 
   echo "ERROR: WRB streaming verification failed." >&2
