@@ -37,6 +37,8 @@ module com.swirlds.common {
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.stream.internal to
             com.fasterxml.jackson.databind;
+    opens com.swirlds.common to
+            com.fasterxml.jackson.databind;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
