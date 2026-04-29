@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.base;
 
-import com.swirlds.common.Reservable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntUnaryOperator;
-import org.hiero.base.Releasable;
 import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
- * An implementation of {@link Releasable Releasable}.
+ * An implementation of {@link Reservable}.
  */
 public abstract class AbstractReservable implements Reservable {
 

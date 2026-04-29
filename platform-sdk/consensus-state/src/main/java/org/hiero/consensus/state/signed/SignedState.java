@@ -15,9 +15,6 @@ import static org.hiero.consensus.state.signed.SignedStateHistory.SignedStateAct
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.ReferenceCounter;
-import com.swirlds.common.utility.RuntimeObjectRecord;
-import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,6 +28,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.constructable.RuntimeObjectRecord;
+import org.hiero.base.constructable.RuntimeObjectRegistry;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.base.utility.Threshold;

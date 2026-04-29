@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures.logging;
+package com.swirlds.logging.test.fixtures;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
