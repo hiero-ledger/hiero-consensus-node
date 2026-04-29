@@ -393,6 +393,13 @@ public class VirtualPipeline {
                     copy.getFastCopyVersion());
         }
 
+        if (markedForFlush && destroyed) {
+            logger.info(
+                    VIRTUAL_MERKLE_STATS.getMarker(),
+                    "Copy {} is marked for flush and is destroyed",
+                    copy.getFastCopyVersion());
+        }
+
         return copy.shouldBeFlushed() // either explicitly marked to flush or based on its size
                 && copy.isDestroyed();
     }
@@ -521,10 +528,11 @@ public class VirtualPipeline {
     private synchronized void shutdown(final boolean immediately) {
         logger.info(
                 VIRTUAL_MERKLE_STATS.getMarker(),
-                "VirtualPipeline shutdown called, immediately={}, alive={}, mostRecentCopy={}",
+                "VirtualPipeline shutdown called, immediately={}, alive={}, mostRecentCopy={}, remainingCopies={}",
                 immediately,
                 alive,
-                mostRecentCopy.get() == null ? "null" : mostRecentCopy.get().getFastCopyVersion());
+                mostRecentCopy.get() == null ? "null" : mostRecentCopy.get().getFastCopyVersion(),
+                undestroyedCopies.get());
 
         alive = false;
         if (!executorService.isShutdown()) {

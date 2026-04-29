@@ -128,15 +128,21 @@ public class DefaultSavedStateController implements SavedStateController {
             return FIRST_ROUND_AFTER_GENESIS;
         }
 
-//        final boolean periodicSnapshotsEnabled = stateConfig.periodicSnapshotsEnabled();
-//        if (periodicSnapshotsEnabled
-//                && (signedState.getConsensusTimestamp().getEpochSecond() / saveStatePeriod)
-//                        > (previousTimestamp.getEpochSecond() / saveStatePeriod)) {
+        final boolean periodicSnapshotsEnabled = stateConfig.periodicSnapshotsEnabled();
+        if (periodicSnapshotsEnabled && signedState.getRound() % 2 == 0) {
+            logger.info(
+                    STATE_TO_DISK.getMarker(),
+                    "PROOF: forcing signed state round {} to be written as PERIODIC_SNAPSHOT",
+                    signedState.getRound());
+            return PERIODIC_SNAPSHOT;
+        }
 
-        if (signedState.getRound() % 10 == 0) {
+        if (periodicSnapshotsEnabled
+                && (signedState.getConsensusTimestamp().getEpochSecond() / saveStatePeriod)
+                > (previousTimestamp.getEpochSecond() / saveStatePeriod)) {
             return PERIODIC_SNAPSHOT;
         } else {
-//             the period hasn't yet elapsed or periodic snapshots are disabled
+            // the period hasn't yet elapsed or periodic snapshots are disabled
             return null;
         }
     }

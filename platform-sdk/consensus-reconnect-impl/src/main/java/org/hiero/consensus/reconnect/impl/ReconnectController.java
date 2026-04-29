@@ -245,10 +245,10 @@ public class ReconnectController implements Runnable {
 
         logger.info(
                 RECONNECT.getMarker(),
-                "TEMP REPRO: reconnect is about to replace state with round {}, sleeping 2s",
+                "TEMP REPRO: reconnect is about to replace state with round {}, sleeping 15s",
                 signedState.getRound());
         try {
-            Thread.sleep(2_000L);
+            Thread.sleep(15_000L);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException("TEMP REPRO: interrupted while sleeping before initWithState", e);

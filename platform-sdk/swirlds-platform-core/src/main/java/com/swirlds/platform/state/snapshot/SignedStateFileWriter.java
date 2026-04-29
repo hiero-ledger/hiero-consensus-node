@@ -184,15 +184,15 @@ public final class SignedStateFileWriter {
 
                 snapshotFuture = stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
 
-                logger.info(
-                        STATE_TO_DISK.getMarker(),
-                        "TEMP REPRO: async snapshot future registered for round {}, sleeping 5s before releasing reservation",
-                        signedState.getRound());
-                Thread.sleep(5_000L);
-                logger.info(
-                        STATE_TO_DISK.getMarker(),
-                        "TEMP REPRO: finished sleeping before releasing reservation for round {}",
-                        signedState.getRound());
+//                logger.info(
+//                        STATE_TO_DISK.getMarker(),
+//                        "TEMP REPRO: async snapshot future registered for round {}, sleeping 5s before releasing reservation",
+//                        signedState.getRound());
+//                Thread.sleep(5_000L);
+//                logger.info(
+//                        STATE_TO_DISK.getMarker(),
+//                        "TEMP REPRO: finished sleeping before releasing reservation for round {}",
+//                        signedState.getRound());
 
                 logger.info(
                         STATE_TO_DISK.getMarker(),
@@ -205,7 +205,7 @@ public final class SignedStateFileWriter {
 
                 logger.info(
                         STATE_TO_DISK.getMarker(),
-                        "Waiting for async snapshot future for round {}",
+                        "Reservation closed for round {}, waiting for async snapshot future",
                         signedState.getRound());
 
                 // Block until the snapshot is created.

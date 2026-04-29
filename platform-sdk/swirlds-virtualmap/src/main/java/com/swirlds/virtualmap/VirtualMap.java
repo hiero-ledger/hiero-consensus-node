@@ -1014,6 +1014,11 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                             targetPath);
                 } else {
                     dataSourceBuilder.snapshot(targetPath, dataSource);
+                    logger.info(
+                            VIRTUAL_MERKLE_STATS.getMarker(),
+                            "Async snapshot future completed {} v{}",
+                            LABEL,
+                            cache.getFastCopyVersion());
                     future.complete(null);
                 }
             }
