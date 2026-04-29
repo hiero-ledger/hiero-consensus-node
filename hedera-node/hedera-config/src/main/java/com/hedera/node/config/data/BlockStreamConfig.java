@@ -74,7 +74,10 @@ public record BlockStreamConfig(
         int blockFileBufferGzipSizeKb,
 
         @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean enableCutover) {
+        boolean enableCutover,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean streamWrappedRecordBlocks) {
 
     /**
      * Whether to stream to block nodes.

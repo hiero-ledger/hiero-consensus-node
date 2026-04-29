@@ -25,8 +25,8 @@ import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManagerFactory;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
-import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.base.crypto.CryptoConstants;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.exceptions.PlatformConstructionException;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
@@ -66,10 +66,10 @@ public class TlsFactory implements SocketFactory {
             throws NoSuchAlgorithmException, UnrecoverableKeyException, KeyStoreException {
         this.selfId = requireNonNull(selfId);
         this.configuration = requireNonNull(configuration);
-        this.keyManagerFactory = ConsensusCryptoUtils.createKeyManagerFactory(agrCert, agrKey, configuration);
+        this.keyManagerFactory = CryptoUtils.createKeyManagerFactory(agrCert, agrKey, configuration);
         this.trustManagerFactory = TrustManagerFactory.getInstance(CryptoConstants.TRUST_MANAGER_FACTORY_TYPE);
         this.sslContext = SSLContext.getInstance(CryptoConstants.SSL_VERSION);
-        this.nonDetRandom = ConsensusCryptoUtils.getNonDetRandom();
+        this.nonDetRandom = CryptoUtils.getNonDetRandom();
 
         reload(peers);
     }

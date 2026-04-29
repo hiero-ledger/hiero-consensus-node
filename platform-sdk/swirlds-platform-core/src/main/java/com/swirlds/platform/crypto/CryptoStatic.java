@@ -31,9 +31,9 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
-import org.hiero.consensus.crypto.KeyGeneratingException;
+import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -58,13 +58,13 @@ public final class CryptoStatic {
      * @param file     the file to load from
      * @param password the encryption password
      * @return a KeyStore with all certificates and keys found in the file
-     * @throws KeyStoreException   if {@link ConsensusCryptoUtils#createEmptyTrustStore()} throws
+     * @throws KeyStoreException   if {@link CryptoUtils#createEmptyTrustStore()} throws
      * @throws KeyLoadingException if the file is empty or another issue occurs while reading it
      */
     @NonNull
     public static KeyStore loadKeys(@NonNull final Path file, @NonNull final char[] password)
             throws KeyStoreException, KeyLoadingException {
-        final KeyStore store = ConsensusCryptoUtils.createEmptyTrustStore();
+        final KeyStore store = CryptoUtils.createEmptyTrustStore();
         try (final FileInputStream fis = new FileInputStream(file.toFile())) {
             store.load(fis, password);
             if (store.size() == 0) {

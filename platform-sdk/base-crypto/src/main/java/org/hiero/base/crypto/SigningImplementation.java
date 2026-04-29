@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.crypto;
+package org.hiero.base.crypto;
 
-import static org.hiero.consensus.crypto.SigningSchema.RSA;
+import static org.hiero.base.crypto.SigningSchema.RSA;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
