@@ -24,9 +24,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Comparator;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
@@ -84,7 +84,7 @@ public final class SignedStateFileReader {
 
         final SignedState newSignedState = new SignedState(
                 conf,
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 virtualMapState,
                 "SignedStateFileReader.readState()",
                 false,

@@ -53,22 +53,6 @@ public class StatsSpeedometer implements StatsBuffered {
     private StatsBuffer recentHistory = null;
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public StatsBuffer getAllHistory() {
-        return allHistory;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public StatsBuffer getRecentHistory() {
-        return recentHistory;
-    }
-
-    /**
      * Instantiate a Speedometer with the given halfLife and start the measurements right now. This will
      * calculate exponentially weighted averages of the number of times update() is called per second. Where
      * the exponential weighting has a half life of halfLife seconds. This will record the history, so it is
