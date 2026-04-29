@@ -37,13 +37,13 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOp
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
-import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -692,37 +692,26 @@ public class ConversionUtils {
     /**
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
      * @param outcome the outcome
+     * @param handleContext the handle context
      * @param hederaOperations the Hedera operations
-     * @param streamBuilder the stream builder
      */
     public static void throwIfUnsuccessfulCall(
             @NonNull final CallOutcome outcome,
-            @NonNull final HederaOperations hederaOperations,
-            @NonNull final ContractCallStreamBuilder streamBuilder) {
+            @NonNull final HandleContext handleContext,
+            @NonNull final HederaOperations hederaOperations) {
         requireNonNull(outcome);
+        requireNonNull(handleContext);
         requireNonNull(hederaOperations);
-        requireNonNull(streamBuilder);
-        if (outcome.status() != SUCCESS) {
-            throw new HandleException(outcome.status(), (feeChargingContext, ignored) -> {
-                hederaOperations.replayGasChargingIn(feeChargingContext);
-                outcome.addCalledContractIfNotAborted(streamBuilder);
-            });
-        }
+        throwIfUnsuccessfulCall(
+                outcome,
+                new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents(), handleContext));
     }
 
-    /**
-     * Throws a {@link HandleException} if the given outcome did not succeed for a call.
-     * @param outcome the outcome
-     * @param hederaOperations the Hedera operations
-     */
-    public static void throwIfUnsuccessfulCreate(
-            @NonNull final CallOutcome outcome, @NonNull final HederaOperations hederaOperations) {
+    public static void throwIfUnsuccessfulCall(
+            @NonNull final CallOutcome outcome, @NonNull final EthereumTransactionRollbackHandler rollbackHandler) {
         requireNonNull(outcome);
-        requireNonNull(hederaOperations);
         if (outcome.status() != SUCCESS) {
-            throw new HandleException(
-                    outcome.status(),
-                    (feeChargingContext, ignored) -> hederaOperations.replayGasChargingIn(feeChargingContext));
+            throw new HandleException(outcome.status(), rollbackHandler);
         }
     }
 

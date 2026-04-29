@@ -127,7 +127,7 @@ public interface HandleContext {
          * @param type the metadata key
          * @param value the metadata value
          */
-        public void putMetadata(@NonNull final Type type, @NonNull final Object value) {
+        public <T> void putMetadata(@NonNull final Type type, @NonNull final T value) {
             metadata.put(type, value);
         }
 
@@ -183,10 +183,11 @@ public interface HandleContext {
              */
             INNER_TRANSACTION_BYTES,
             /**
-             * A callback to be invoked to increment the nonce of the payer account.
-             * This is used to ensure that the nonce is incremented when ethereum transaction fails inside a batch.
+             * A consumer of a callback to be invoked when a previously successful transaction is to be reverted because
+             * a following transaction failed inside a batch.
+             * This is used to ensure that all needed side effects (fees, nonce updates) are kept.
              */
-            ETHEREUM_NONCE_INCREMENT_CALLBACK,
+            BATCH_ROLLBACK_CALLBACK_CONSUMER,
             /**
              * An entity num to be created by transplant system transactions.
              */

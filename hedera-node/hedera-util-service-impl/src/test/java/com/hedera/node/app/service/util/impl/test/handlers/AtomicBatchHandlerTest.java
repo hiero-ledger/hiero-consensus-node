@@ -39,7 +39,6 @@ import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
-import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
@@ -57,7 +56,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -343,12 +341,10 @@ class AtomicBatchHandlerTest {
                 .build();
         final var bytes = transactionsToBytes(transaction);
         final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
-        final var tokenServiceMock = mock(TokenServiceApi.class);
         final var storeFactoryMock = mock(StoreFactory.class);
 
         given(handleContext.body()).willReturn(txnBody);
         given(handleContext.storeFactory()).willReturn(storeFactoryMock);
-        given(storeFactoryMock.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceMock);
         given(handleContext.body()).willReturn(txnBody);
         given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
@@ -434,8 +430,6 @@ class AtomicBatchHandlerTest {
         var firstFees = new Fees(1, 2, 3);
         var secondFees = new Fees(4, 5, 6);
         var thirdFees = new Fees(7, 8, 9);
-        var firstBuilder = mock(ReplayableFeeStreamBuilder.class);
-        var secondBuilder = mock(ReplayableFeeStreamBuilder.class);
 
         var rfc = new AtomicBatchHandler.RecordedFeeCharging(delegate);
         var firstCustomized = rfc.customized(ctx);
@@ -449,30 +443,15 @@ class AtomicBatchHandlerTest {
         assertNotSame(ctx, secondCustomized);
         assertSame(firstFees, firstCustomized.charge(payerId1, firstFees, null));
         assertSame(secondFees, secondCustomized.charge(payerId2, secondFees, payerId3, null));
-        rfc.finishRecordingTo(firstBuilder);
 
-        rfc.rollback();
         assertSame(thirdFees, firstCustomized.charge(payerId3, thirdFees, null));
-        rfc.finishRecordingTo(secondBuilder);
 
-        final var recordedBuilders = new ArrayList<ReplayableFeeStreamBuilder>();
-        final var recordedCharges = new ArrayList<List<AtomicBatchHandler.RecordedFeeCharging.Charge>>();
-        rfc.forEachRecorded((builder, charges) -> {
-            recordedBuilders.add(builder);
-            recordedCharges.add(charges);
-        });
-
-        assertEquals(List.of(firstBuilder, secondBuilder), recordedBuilders);
         assertEquals(
                 List.of(
-                        List.of(
-                                new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId1, firstFees, null),
-                                new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId2, secondFees, payerId3)),
-                        List.of(new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId3, thirdFees, null))),
-                recordedCharges);
-        assertThrows(UnsupportedOperationException.class, () -> recordedCharges
-                .getFirst()
-                .add(new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId1, firstFees, null)));
+                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId1, firstFees, null),
+                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId2, secondFees, payerId3),
+                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId3, thirdFees, null)),
+                rfc.charges());
     }
 
     @Test
@@ -484,7 +463,6 @@ class AtomicBatchHandlerTest {
         var outerFees = new Fees(1, 1, 1);
         var firstReplayFees = new Fees(2, 2, 2);
         var secondReplayFees = new Fees(3, 3, 3);
-        var streamBuilder = mock(ReplayableFeeStreamBuilder.class);
 
         when(ctx.charge(payerId1, firstReplayFees, null)).thenReturn(firstReplayFees);
         when(ctx.charge(payerId2, secondReplayFees, payerId3, null)).thenReturn(secondReplayFees);
@@ -498,23 +476,14 @@ class AtomicBatchHandlerTest {
 
         var rfc = new AtomicBatchHandler.RecordedFeeCharging(delegate);
         assertSame(outerFees, rfc.charge(payerId1, ctx, validation, outerFees));
-        rfc.finishRecordingTo(streamBuilder);
 
-        final var recordedBuilders = new ArrayList<ReplayableFeeStreamBuilder>();
-        final var recordedCharges = new ArrayList<List<AtomicBatchHandler.RecordedFeeCharging.Charge>>();
-        rfc.forEachRecorded((builder, charges) -> {
-            recordedBuilders.add(builder);
-            recordedCharges.add(charges);
-        });
-
-        assertEquals(List.of(streamBuilder), recordedBuilders);
         assertEquals(
-                List.of(List.of(
+                List.of(
                         new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId1, firstReplayFees, null),
-                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId2, secondReplayFees, payerId3))),
-                recordedCharges);
+                        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId2, secondReplayFees, payerId3)),
+                rfc.charges());
 
-        recordedCharges.getFirst().forEach(charge -> charge.replay(replayCtx, (id, amount) -> {}));
+        rfc.charges().forEach(charge -> charge.replay(replayCtx, (id, amount) -> {}));
         verify(replayCtx).charge(eq(payerId1), eq(firstReplayFees), any());
         verify(replayCtx).charge(eq(payerId2), eq(secondReplayFees), eq(payerId3), any());
 
