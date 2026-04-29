@@ -322,12 +322,14 @@ public class ServicesMain {
                 new OrderedServiceMigrator(),
                 InstantSource.system(),
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> new HintsServiceImpl(
+                (appContext, bootstrapConfig, rsaContext, rsaSignings) -> new HintsServiceImpl(
                         metrics,
                         ForkJoinPool.commonPool(),
                         appContext,
                         new HintsLibraryImpl(),
-                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
+                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                        rsaContext,
+                        rsaSignings),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
                 DualBlockHashSigner::new,

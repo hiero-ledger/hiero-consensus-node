@@ -156,6 +156,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
@@ -273,6 +274,16 @@ public final class Hedera
      * (once in constructor to register schemas, again inside Dagger component).
      */
     private final HistoryService historyService;
+
+    /**
+     * The RSA signing context shared by the block hash signer and the hinTS partial signature handler.
+     */
+    private final RsaContext rsaContext;
+
+    /**
+     * The in-progress RSA block hash signing attempts shared by the block hash signer and handler.
+     */
+    private final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings = new ConcurrentHashMap<>();
 
     /**
      * The util service singleton, kept as a field here to avoid constructing twice
@@ -423,7 +434,11 @@ public final class Hedera
     @FunctionalInterface
     public interface HintsServiceFactory {
         @NonNull
-        HintsService apply(@NonNull AppContext appContext, @NonNull Configuration bootstrapConfig);
+        HintsService apply(
+                @NonNull AppContext appContext,
+                @NonNull Configuration bootstrapConfig,
+                @NonNull RsaContext rsaContext,
+                @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings);
     }
 
     @FunctionalInterface
@@ -534,7 +549,8 @@ public final class Hedera
                 () -> daggerApp.appFeeCharging(),
                 new AppEntityIdFactory(bootstrapConfig));
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
-        hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig);
+        rsaContext = new RsaContext(configSupplier);
+        hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
         utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> daggerApp
                 .transactionChecker()
@@ -1279,6 +1295,10 @@ public final class Hedera
         final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
         final var currentRoster =
                 trigger == GENESIS ? genesisRosterOrThrow() : requireNonNull(rosterStore.getActiveRoster());
+        rsaContext.initialize(currentRoster, nodeId -> {
+            final var entry = RosterUtils.getRosterEntryOrNull(currentRoster, nodeId);
+            return entry == null ? 0L : entry.weight();
+        });
         final var networkInfo = new StateNetworkInfo(
                 platform.getSelfId().id(),
                 trigger == GENESIS ? null : state,
@@ -1288,10 +1308,7 @@ public final class Hedera
         final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);
         final var succinctSignatureDelegate = new TssBlockHashSigner(hintsService, historyService, configProvider);
         final var blockHashSigner = blockHashSignerFactory.apply(
-                hintsService.rsaSigningContext(),
-                hintsService.rsaSignings(),
-                hintsService.submissions(),
-                succinctSignatureDelegate);
+                rsaContext, rsaSignings, hintsService.submissions(), succinctSignatureDelegate);
         // Fully qualified so as to not confuse javadoc
         daggerApp = DaggerHederaInjectionComponent.builder()
                 .configProviderImpl(configProvider)

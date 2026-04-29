@@ -280,7 +280,8 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 new FakeServiceMigrator(),
                 this::now,
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> this.hintsService = new FakeHintsService(appContext, bootstrapConfig),
+                (appContext, bootstrapConfig, rsaContext, rsaSignings) ->
+                        this.hintsService = new FakeHintsService(appContext, bootstrapConfig, rsaContext, rsaSignings),
                 (appContext, bootstrapConfig) -> this.historyService = new FakeHistoryService(appContext),
                 (rsaContext, rsaSignings, submissions, delegate) -> this.blockHashSigner = new LapsingBlockHashSigner(
                         new DualBlockHashSigner(rsaContext, rsaSignings, submissions, delegate)),

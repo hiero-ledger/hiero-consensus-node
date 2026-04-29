@@ -32,13 +32,19 @@ public class FakeHintsService implements HintsService {
     private final HintsService delegate;
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
-    public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
+    public FakeHintsService(
+            @NonNull final AppContext appContext,
+            @NonNull final Configuration bootstrapConfig,
+            @NonNull final RsaContext rsaContext,
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings) {
         delegate = new HintsServiceImpl(
                 new NoOpMetrics(),
                 pendingHintsSubmissions::offer,
                 appContext,
                 new HintsLibraryImpl(),
-                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                rsaContext,
+                rsaSignings);
     }
 
     @Override
@@ -59,16 +65,6 @@ public class FakeHintsService implements HintsService {
     @Override
     public @NonNull BlockHashSigning sign(@NonNull final Bytes blockHash) {
         return delegate.sign(blockHash);
-    }
-
-    @Override
-    public @NonNull RsaContext rsaSigningContext() {
-        return delegate.rsaSigningContext();
-    }
-
-    @Override
-    public @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings() {
-        return delegate.rsaSignings();
     }
 
     @Override

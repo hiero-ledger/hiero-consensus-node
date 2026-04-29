@@ -52,13 +52,6 @@ public interface HintsModule {
 
     @Provides
     @Singleton
-    @Named(RSA_SIGNINGS)
-    static ConcurrentMap<Bytes, BlockHashSigning> providePendingRsaSignatures() {
-        return new ConcurrentHashMap<>();
-    }
-
-    @Provides
-    @Singleton
     static HintsHandlers provideHintsHandlers(
             @NonNull final HintsKeyPublicationHandler keyPublicationHandler,
             @NonNull final HintsPreprocessingVoteHandler preprocessingVoteHandler,

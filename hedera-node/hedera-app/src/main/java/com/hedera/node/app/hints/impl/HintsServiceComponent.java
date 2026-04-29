@@ -27,7 +27,9 @@ public interface HintsServiceComponent {
                 @BindsInstance Executor executor,
                 @BindsInstance Metrics metrics,
                 @BindsInstance Duration blockPeriod,
-                @BindsInstance OnHintsFinished onHintsFinished);
+                @BindsInstance OnHintsFinished onHintsFinished,
+                @BindsInstance RsaContext rsaContext,
+                @BindsInstance @Named(HintsModule.RSA_SIGNINGS) ConcurrentMap<Bytes, BlockHashSigning> rsaSignings);
     }
 
     HintsHandlers handlers();
@@ -36,15 +38,10 @@ public interface HintsServiceComponent {
 
     HintsContext signingContext();
 
-    RsaContext rsaSigningContext();
-
     HintsControllers controllers();
 
     @Named(HintsModule.HINTS_SIGNINGS)
     ConcurrentMap<Bytes, BlockHashSigning> signings();
-
-    @Named(HintsModule.RSA_SIGNINGS)
-    ConcurrentMap<Bytes, BlockHashSigning> rsaSignings();
 
     @Deprecated
     Supplier<Configuration> configSupplier();

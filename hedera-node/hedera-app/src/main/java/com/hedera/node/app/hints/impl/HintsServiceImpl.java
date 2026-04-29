@@ -57,11 +57,13 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final Executor executor,
             @NonNull final AppContext appContext,
             @NonNull final HintsLibrary library,
-            @NonNull final Duration blockPeriod) {
+            @NonNull final Duration blockPeriod,
+            @NonNull final RsaContext rsaContext,
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings) {
         this.library = requireNonNull(library);
         // Fully qualified for benefit of javadoc
         this.component = com.hedera.node.app.hints.impl.DaggerHintsServiceComponent.factory()
-                .create(library, appContext, executor, metrics, blockPeriod, this);
+                .create(library, appContext, executor, metrics, blockPeriod, this, rsaContext, rsaSignings);
     }
 
     @VisibleForTesting
@@ -111,16 +113,6 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             return null;
         });
         return signing;
-    }
-
-    @Override
-    public @NonNull RsaContext rsaSigningContext() {
-        return component.rsaSigningContext();
-    }
-
-    @Override
-    public @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings() {
-        return component.rsaSignings();
     }
 
     @Override
