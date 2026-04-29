@@ -78,6 +78,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
     }
 
     private void validateWrappedRecordBlock(@NonNull final List<BlockItem> items, final int blocksRemaining) {
+        final long blockNumber = items.getFirst().blockHeaderOrThrow().number();
         boolean foundRecordFile = false;
         boolean foundFooter = false;
         boolean foundProof = false;
@@ -87,6 +88,10 @@ public class BlockContentsValidator implements BlockStreamValidator {
             final var kind = item.item().kind();
             switch (kind) {
                 case STATE_CHANGES -> {
+                    if (blockNumber != 0) {
+                        Assertions.fail(
+                                "WRB for non-genesis block " + blockNumber + " contains StateChanges at index " + i);
+                    }
                     if (foundRecordFile) {
                         Assertions.fail("WRB StateChanges found after RecordFileItem at index " + i);
                     }

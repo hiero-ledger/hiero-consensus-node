@@ -892,36 +892,53 @@ public class StateChangesValidator implements BlockStreamValidator {
                 version);
     }
 
+    private long cachedTotalWeight = -1;
+    private long cachedTotalNodes = -1;
+
     private void validateWrbSignatureThreshold(
             final long blockNumber, @NonNull final List<com.hedera.hapi.block.stream.RecordFileSignature> signatures) {
         final ReadableKVState<EntityNumber, Node> nodesState =
-                state.getWritableStates(AddressBookService.NAME).get(V053AddressBookSchema.NODES_STATE_ID);
-        final long totalNodes = requireNonNull(state.getWritableStates(EntityIdService.NAME)
-                        .<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID)
-                        .get())
-                .numNodes();
-        if (totalNodes == 0) {
+                state.getReadableStates(AddressBookService.NAME).get(V053AddressBookSchema.NODES_STATE_ID);
+        if (cachedTotalWeight < 0) {
+            cachedTotalNodes = requireNonNull(state.getReadableStates(EntityIdService.NAME)
+                            .<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID)
+                            .get())
+                    .numNodes();
+            cachedTotalWeight = 0;
+            for (long nodeId = 0; nodeId < cachedTotalNodes; nodeId++) {
+                final var node = nodesState.get(new EntityNumber(nodeId));
+                if (node != null && !node.deleted()) {
+                    cachedTotalWeight += node.weight();
+                }
+            }
+        }
+        if (cachedTotalNodes == 0) {
             logger.warn("WRB block #{}: no nodes in address book state, skipping threshold check", blockNumber);
             return;
         }
+        long signingWeight = 0;
         for (final var sig : signatures) {
             final var node = nodesState.get(new EntityNumber(sig.nodeId()));
             assertTrue(
                     node != null && !node.deleted(),
                     "WRB block #" + blockNumber + " signature references unknown or deleted node " + sig.nodeId());
+            signingWeight += node.weight();
         }
-        final long nodeThreshold = totalNodes / 3 + 1;
+        final long weightThreshold = cachedTotalWeight / 3;
         assertTrue(
-                signatures.size() >= nodeThreshold,
-                "WRB block #" + blockNumber + " has " + signatures.size()
-                        + " signatures, below threshold " + nodeThreshold
-                        + " (1/3+1 of " + totalNodes + " nodes)");
+                signingWeight >= weightThreshold,
+                "WRB block #" + blockNumber + " signing weight " + signingWeight
+                        + " is below threshold " + weightThreshold + " (1/3 of total weight "
+                        + cachedTotalWeight + ", " + signatures.size() + " of " + cachedTotalNodes
+                        + " nodes signed)");
         logger.info(
-                "WRB block #{}: {}/{} node signatures meets threshold {}",
+                "WRB block #{}: signing weight {}/{} meets threshold {} ({}/{} nodes)",
                 blockNumber,
+                signingWeight,
+                cachedTotalWeight,
+                weightThreshold,
                 signatures.size(),
-                totalNodes,
-                nodeThreshold);
+                cachedTotalNodes);
     }
 
     static boolean hasCompressedWrapsProof(@NonNull final Bytes tssSignature) {

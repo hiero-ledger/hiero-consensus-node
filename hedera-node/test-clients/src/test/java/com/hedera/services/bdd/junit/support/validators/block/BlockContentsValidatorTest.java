@@ -147,10 +147,12 @@ class BlockContentsValidatorTest {
     }
 
     @Test
-    void wrbWithStateChangesOnAnyBlock() {
+    void wrbNonGenesisWithStateChanges() {
         final var block = new Block(
                 List.of(headerItem(5), stateChangesItem(), recordFileItem(), footerItem(), wrbProofItem(5, 6)));
-        assertDoesNotThrow(() -> new BlockContentsValidator().validateBlocks(List.of(block)));
+        final var err =
+                assertThrows(AssertionError.class, () -> new BlockContentsValidator().validateBlocks(List.of(block)));
+        assertTrue(err.getMessage().contains("non-genesis block"));
     }
 
     @Test
