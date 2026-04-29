@@ -53,7 +53,7 @@ jobs:
       - name: Install Wget
         run: apt install -y wget
 
-        name: Download MC
+      - name: Download MC
         run: wget -q -O /tmp/mc https://dl.min.io/client/mc/release/linux-amd64/mc
 
       - name: Call clean Dal
