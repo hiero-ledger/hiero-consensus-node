@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.constructable.constructables;
+package org.hiero.base.constructable.constructables;
 
 import org.hiero.base.constructable.RuntimeConstructable;
 
