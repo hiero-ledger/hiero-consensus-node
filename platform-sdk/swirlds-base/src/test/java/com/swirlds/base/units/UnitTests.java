@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.units;
+package com.swirlds.base.units;
 
-import static com.swirlds.common.test.fixtures.AssertionUtils.assertApproximatelyEquals;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.base.units.DataUnit;
-import com.swirlds.base.units.FrequencyUnit;
-import com.swirlds.base.units.TimeUnit;
-import com.swirlds.base.units.Unit;
 import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,6 +15,8 @@ import org.junit.jupiter.api.Test;
  */
 @DisplayName("Unit Tests")
 class UnitTests {
+
+    private static final double EPSILON = 1e-6;
 
     @Test
     @DisplayName("Time Conversion Test")
@@ -39,7 +36,7 @@ class UnitTests {
                 }
                 // There will be a slight difference due to imprecise floating point math, but it should be close.
                 final double reDerivedQuantity = b.convertTo(newQuantity, a);
-                assertApproximatelyEquals(quantity, reDerivedQuantity);
+                assertEquals(quantity, reDerivedQuantity, EPSILON);
             }
         }
 
@@ -134,7 +131,7 @@ class UnitTests {
                 // All large values should be simplified to use a smaller unit
                 assertNotEquals(unit, simplification.unit());
                 assertTrue(simplification.quantity() > value);
-                assertApproximatelyEquals(value, simplification.unit().convertTo(simplification.quantity(), unit));
+                assertEquals(value, simplification.unit().convertTo(simplification.quantity(), unit), EPSILON);
             }
         }
 
@@ -160,7 +157,7 @@ class UnitTests {
             } else {
                 assertNotEquals(unit, simplification.unit());
                 assertTrue(simplification.quantity() < value);
-                assertApproximatelyEquals(value, simplification.unit().convertTo(simplification.quantity(), unit));
+                assertEquals(value, simplification.unit().convertTo(simplification.quantity(), unit), EPSILON);
             }
         }
 
@@ -170,7 +167,7 @@ class UnitTests {
 
         simplification = TimeUnit.UNIT_NANOSECONDS.simplify(1234412312343123L);
         assertEquals(TimeUnit.UNIT_DAYS, simplification.unit());
-        assertApproximatelyEquals(14.287179, simplification.quantity());
+        assertEquals(14.287179, simplification.quantity(), EPSILON);
 
         simplification = TimeUnit.UNIT_MILLISECONDS.simplify(6120000);
         assertEquals(TimeUnit.UNIT_HOURS, simplification.unit());
@@ -199,7 +196,7 @@ class UnitTests {
                 }
                 // There will be a slight difference due to imprecise floating point math, but it should be close.
                 final double reDerivedQuantity = b.convertTo(newQuantity, a);
-                assertApproximatelyEquals(quantity, reDerivedQuantity);
+                assertEquals(quantity, reDerivedQuantity, EPSILON);
             }
         }
 
@@ -296,7 +293,7 @@ class UnitTests {
                 // All large values should be simplified to use a smaller unit
                 assertNotEquals(unit, simplification.unit());
                 assertTrue(simplification.quantity() > value);
-                assertApproximatelyEquals(value, simplification.unit().convertTo(simplification.quantity(), unit));
+                assertEquals(value, simplification.unit().convertTo(simplification.quantity(), unit), EPSILON);
             }
         }
 
@@ -320,7 +317,7 @@ class UnitTests {
             } else {
                 assertNotEquals(unit, simplification.unit());
                 assertTrue(simplification.quantity() < value);
-                assertApproximatelyEquals(value, simplification.unit().convertTo(simplification.quantity(), unit));
+                assertEquals(value, simplification.unit().convertTo(simplification.quantity(), unit), EPSILON);
             }
         }
 
@@ -351,7 +348,7 @@ class UnitTests {
                 }
                 // There will be a slight difference due to imprecise floating point math, but it should be close.
                 final double reDerivedQuantity = b.convertTo(newQuantity, a);
-                assertApproximatelyEquals(quantity, reDerivedQuantity);
+                assertEquals(quantity, reDerivedQuantity, EPSILON);
             }
         }
 
@@ -431,7 +428,7 @@ class UnitTests {
                 // All large values should be simplified to use a smaller unit
                 assertNotEquals(unit, simplification.unit());
                 assertTrue(simplification.quantity() > value);
-                assertApproximatelyEquals(value, simplification.unit().convertTo(simplification.quantity(), unit));
+                assertEquals(value, simplification.unit().convertTo(simplification.quantity(), unit), EPSILON);
             }
         }
 
@@ -460,7 +457,7 @@ class UnitTests {
             } else {
                 assertNotEquals(unit, simplification.unit());
                 assertTrue(simplification.quantity() < value);
-                assertApproximatelyEquals(value, simplification.unit().convertTo(simplification.quantity(), unit));
+                assertEquals(value, simplification.unit().convertTo(simplification.quantity(), unit), EPSILON);
             }
         }
 

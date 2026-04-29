@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.units;
+package com.swirlds.base.units;
 
 import static com.swirlds.base.units.UnitConstants.MICROSECONDS_TO_MILLISECONDS;
 import static com.swirlds.base.units.UnitConstants.MICROSECONDS_TO_NANOSECONDS;
