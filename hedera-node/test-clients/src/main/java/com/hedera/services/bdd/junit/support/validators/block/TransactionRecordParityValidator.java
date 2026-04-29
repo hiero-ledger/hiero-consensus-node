@@ -17,6 +17,7 @@ import com.hedera.node.app.hapi.utils.forensics.DifferingEntries;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.hapi.utils.forensics.TransactionParts;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
@@ -340,6 +341,9 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
             if (diskRecordFile == null) {
                 continue;
             }
+            final var wrbContents = wrbRecordFile.recordFileContentsOrThrow();
+            validateRunningHashes(wrbInstant, wrbContents, diskRecordFile);
+
             final int wrbItemCount = wrbItems.size();
             final int diskItemCount = diskRecordFile.getRecordStreamItemsCount();
             Assertions.assertEquals(
@@ -351,8 +355,10 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 final var wrbEntry = wrbItems.get(i);
                 final var diskEntry = diskRecordFile.getRecordStreamItems(i);
                 if (wrbEntry.hasRecord() && diskEntry.hasRecord()) {
-                    final var wrbConsensus = wrbEntry.recordOrThrow().consensusTimestampOrThrow();
-                    final var diskConsensus = diskEntry.getRecord().getConsensusTimestamp();
+                    final var wrbRecord = wrbEntry.recordOrThrow();
+                    final var diskRecord = diskEntry.getRecord();
+                    final var wrbConsensus = wrbRecord.consensusTimestampOrThrow();
+                    final var diskConsensus = diskRecord.getConsensusTimestamp();
                     Assertions.assertEquals(
                             diskConsensus.getSeconds(),
                             wrbConsensus.seconds(),
@@ -361,11 +367,44 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                             diskConsensus.getNanos(),
                             wrbConsensus.nanos(),
                             "WRB record item " + i + " consensus timestamp nanos mismatch");
+                    if (!wrbRecord.transactionHash().equals(Bytes.EMPTY)
+                            && !diskRecord.getTransactionHash().isEmpty()) {
+                        Assertions.assertEquals(
+                                diskRecord.getTransactionHash().size(),
+                                wrbRecord.transactionHash().length(),
+                                "WRB record item " + i + " transaction hash length mismatch");
+                        Assertions.assertEquals(
+                                Bytes.wrap(diskRecord.getTransactionHash().toByteArray()),
+                                wrbRecord.transactionHash(),
+                                "WRB record item " + i + " transaction hash mismatch");
+                    }
                 }
             }
             matched++;
         }
         logger.info("Cross-validated {} WRBs against on-disk record files", matched);
+    }
+
+    private static void validateRunningHashes(
+            @NonNull final Instant wrbInstant,
+            @NonNull final com.hedera.hapi.streams.RecordStreamFile wrbContents,
+            @NonNull final com.hedera.services.stream.proto.RecordStreamFile diskRecordFile) {
+        if (wrbContents.hasStartObjectRunningHash()
+                && diskRecordFile.hasStartObjectRunningHash()
+                && diskRecordFile.getStartObjectRunningHash().getHash().size() > 0) {
+            final var wrbHash = wrbContents.startObjectRunningHashOrThrow().hash();
+            final var diskHash = Bytes.wrap(
+                    diskRecordFile.getStartObjectRunningHash().getHash().toByteArray());
+            Assertions.assertEquals(diskHash, wrbHash, "WRB at " + wrbInstant + " start running hash mismatch");
+        }
+        if (wrbContents.hasEndObjectRunningHash()
+                && diskRecordFile.hasEndObjectRunningHash()
+                && diskRecordFile.getEndObjectRunningHash().getHash().size() > 0) {
+            final var wrbHash = wrbContents.endObjectRunningHashOrThrow().hash();
+            final var diskHash = Bytes.wrap(
+                    diskRecordFile.getEndObjectRunningHash().getHash().toByteArray());
+            Assertions.assertEquals(diskHash, wrbHash, "WRB at " + wrbInstant + " end running hash mismatch");
+        }
     }
 
     private record SummaryBuilder(

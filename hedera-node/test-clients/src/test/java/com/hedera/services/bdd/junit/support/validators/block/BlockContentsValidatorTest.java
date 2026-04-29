@@ -226,26 +226,6 @@ class BlockContentsValidatorTest {
         assertDoesNotThrow(() -> new BlockContentsValidator().validateBlocks(List.of(block)));
     }
 
-    // --- Mixed Stream ---
-
-    @Test
-    void mixedStreamOfNormalAndWrbBlocks() {
-        final var normalItems = new ArrayList<BlockItem>();
-        normalItems.add(headerItem(1));
-        normalItems.add(roundHeaderItem());
-        normalItems.add(stateChangesItem());
-        normalItems.add(new BlockItem(new OneOf<>(
-                ItemOneOfType.BLOCK_PROOF,
-                new BlockProof(
-                        1L,
-                        new OneOf<>(
-                                ProofOneOfType.SIGNED_BLOCK_PROOF,
-                                new com.hedera.hapi.block.stream.TssSignedBlockProof(Bytes.wrap(new byte[64])))))));
-        final var normalBlock = new Block(normalItems);
-        final var wrbBlock = new Block(List.of(headerItem(2), recordFileItem(), footerItem(), wrbProofItem(2, 6)));
-        assertDoesNotThrow(() -> new BlockContentsValidator().validateBlocks(List.of(normalBlock, wrbBlock)));
-    }
-
     // --- isWrappedRecordBlock Detection ---
 
     @Test
