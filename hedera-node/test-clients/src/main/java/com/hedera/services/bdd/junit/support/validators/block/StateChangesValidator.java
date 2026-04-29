@@ -892,12 +892,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                 version);
     }
 
-    @SuppressWarnings("deprecation")
     private void validateWrbSignatureThreshold(
             final long blockNumber, @NonNull final List<com.hedera.hapi.block.stream.RecordFileSignature> signatures) {
         final ReadableKVState<EntityNumber, Node> nodesState =
                 state.getWritableStates(AddressBookService.NAME).get(V053AddressBookSchema.NODES_STATE_ID);
-        final long totalNodes = nodesState.size();
+        final long totalNodes = requireNonNull(state.getWritableStates(EntityIdService.NAME)
+                        .<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID)
+                        .get())
+                .numNodes();
         if (totalNodes == 0) {
             logger.warn("WRB block #{}: no nodes in address book state, skipping threshold check", blockNumber);
             return;

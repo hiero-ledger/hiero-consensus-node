@@ -165,8 +165,12 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final var normalBlocks = blocks.stream()
                 .filter(block -> !BlockStreamValidator.isWrappedRecordBlock(block.items()))
                 .toList();
-        if (normalBlocks.size() < blocks.size()) {
-            logger.info("Skipping {} WRBs in transaction parity validation", blocks.size() - normalBlocks.size());
+        final var wrbBlocks = blocks.stream()
+                .filter(block -> BlockStreamValidator.isWrappedRecordBlock(block.items()))
+                .toList();
+        if (!wrbBlocks.isEmpty()) {
+            logger.info("Found {} WRBs — will cross-validate against record stream", wrbBlocks.size());
+            validateWrbRecordFileContents(wrbBlocks, data);
         }
         final var numStateChanges = new AtomicInteger();
         final var roleFreeSplit = new RoleFreeBlockUnitSplit();
@@ -293,6 +297,75 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                         TransactionRecord.class,
                         com.hederahashgraph.api.proto.java.TransactionRecord.class),
                 Instant.ofEpochSecond(consensusTimestamp.seconds(), consensusTimestamp.nanos()));
+    }
+
+    private void validateWrbRecordFileContents(
+            @NonNull final List<Block> wrbBlocks, @NonNull final StreamFileAccess.RecordStreamData data) {
+        final var recordsByTimestamp =
+                new java.util.HashMap<Instant, com.hedera.services.stream.proto.RecordStreamFile>();
+        for (final var rws : data.records()) {
+            final var rf = rws.recordFile();
+            if (rf.getRecordStreamItemsCount() > 0) {
+                final var firstItem = rf.getRecordStreamItems(0);
+                if (firstItem.hasRecord()) {
+                    final var ts = firstItem.getRecord().getConsensusTimestamp();
+                    recordsByTimestamp.put(Instant.ofEpochSecond(ts.getSeconds(), ts.getNanos()), rf);
+                }
+            }
+        }
+        int matched = 0;
+        for (final var block : wrbBlocks) {
+            final var recordFileItem = block.items().stream()
+                    .filter(item -> item.hasRecordFile())
+                    .findFirst()
+                    .orElse(null);
+            if (recordFileItem == null) {
+                continue;
+            }
+            final var wrbRecordFile = recordFileItem.recordFileOrThrow();
+            if (!wrbRecordFile.hasRecordFileContents()) {
+                continue;
+            }
+            final var wrbItems = wrbRecordFile.recordFileContentsOrThrow().recordStreamItems();
+            if (wrbItems.isEmpty()) {
+                continue;
+            }
+            final var firstWrbItem = wrbItems.getFirst();
+            if (!firstWrbItem.hasRecord()) {
+                continue;
+            }
+            final var wrbTs = firstWrbItem.recordOrThrow().consensusTimestampOrThrow();
+            final var wrbInstant = Instant.ofEpochSecond(wrbTs.seconds(), wrbTs.nanos());
+            final var diskRecordFile = recordsByTimestamp.get(wrbInstant);
+            if (diskRecordFile == null) {
+                continue;
+            }
+            final int wrbItemCount = wrbItems.size();
+            final int diskItemCount = diskRecordFile.getRecordStreamItemsCount();
+            Assertions.assertEquals(
+                    diskItemCount,
+                    wrbItemCount,
+                    "WRB at timestamp " + wrbInstant + " has " + wrbItemCount + " record stream items but disk has "
+                            + diskItemCount);
+            for (int i = 0; i < wrbItemCount; i++) {
+                final var wrbEntry = wrbItems.get(i);
+                final var diskEntry = diskRecordFile.getRecordStreamItems(i);
+                if (wrbEntry.hasRecord() && diskEntry.hasRecord()) {
+                    final var wrbConsensus = wrbEntry.recordOrThrow().consensusTimestampOrThrow();
+                    final var diskConsensus = diskEntry.getRecord().getConsensusTimestamp();
+                    Assertions.assertEquals(
+                            diskConsensus.getSeconds(),
+                            wrbConsensus.seconds(),
+                            "WRB record item " + i + " consensus timestamp seconds mismatch");
+                    Assertions.assertEquals(
+                            diskConsensus.getNanos(),
+                            wrbConsensus.nanos(),
+                            "WRB record item " + i + " consensus timestamp nanos mismatch");
+                }
+            }
+            matched++;
+        }
+        logger.info("Cross-validated {} WRBs against on-disk record files", matched);
     }
 
     private record SummaryBuilder(
