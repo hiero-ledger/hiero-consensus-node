@@ -19,10 +19,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Supplier;
+import javax.inject.Named;
 import javax.inject.Singleton;
 
 @Module
 public interface HintsModule {
+    String HINTS_SIGNINGS = "hinTS signings";
+    String RSA_SIGNINGS = "RSA signings";
+
     @Provides
     @Singleton
     static Supplier<NodeInfo> provideSelfNodeInfoSupplier(@NonNull final AppContext appContext) {
@@ -41,7 +45,15 @@ public interface HintsModule {
 
     @Provides
     @Singleton
-    static ConcurrentMap<Bytes, HintsContext.Signing> providePendingSignatures() {
+    @Named(HINTS_SIGNINGS)
+    static ConcurrentMap<Bytes, BlockHashSigning> providePendingSignatures() {
+        return new ConcurrentHashMap<>();
+    }
+
+    @Provides
+    @Singleton
+    @Named(RSA_SIGNINGS)
+    static ConcurrentMap<Bytes, BlockHashSigning> providePendingRsaSignatures() {
         return new ConcurrentHashMap<>();
     }
 

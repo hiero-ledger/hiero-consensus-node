@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -101,7 +102,9 @@ public class TssBlockHashSigner implements BlockHashSigner {
         if (tssConfig.forceMockSignatures() || hintsService == null) {
             return new Attempt(null, null, CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash)));
         } else {
-            final var signing = hintsService.sign(blockHash);
+            if (!(hintsService.sign(blockHash) instanceof HintsContext.Signing signing)) {
+                throw new IllegalStateException("hinTS signing required for TSS block hash " + blockHash);
+            }
             if (historyService == null) {
                 return new Attempt(signing.verificationKey(), null, signing.future());
             } else {

@@ -8,7 +8,7 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
-import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -86,7 +86,8 @@ public interface HintsService extends Service {
     /**
      * Signs the given block hash.
      */
-    HintsContext.Signing sign(@NonNull Bytes blockHash);
+    @NonNull
+    BlockHashSigning sign(@NonNull Bytes blockHash);
 
     /**
      * Sets the callback for when a hinTS construction is finished. Only one callback is active at a time.
