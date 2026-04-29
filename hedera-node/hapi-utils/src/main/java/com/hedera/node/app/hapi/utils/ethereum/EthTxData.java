@@ -101,7 +101,7 @@ public record EthTxData(
                 s);
     }
 
-    public EthTxData replaceGasLimit(long newGasLimit) {
+    public EthTxData replaceGasLimit(final long newGasLimit) {
         return new EthTxData(
                 null,
                 type,
