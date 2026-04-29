@@ -228,7 +228,11 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
     )
-val prCheckPlatformOverrides = mapOf("hapiTestRestart" to "platformStatus.observingStatusDelay=10s")
+val prCheckPlatformOverrides =
+    mapOf(
+        "hapiTestRestart" to "platformStatus.observingStatusDelay=10s,state.saveStateAsync=false",
+        "hapiTestNDReconnect" to "state.saveStateAsync=false",
+    )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
 // (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be for each task in CI; set it here
