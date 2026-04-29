@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.concurrent.utility.throttle;
+package org.hiero.consensus.concurrent.throttle;
 
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.concurrent.utility.throttle;
+package org.hiero.consensus.concurrent.throttle;
 
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
