@@ -25,8 +25,11 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
@@ -37,6 +40,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * A helper class for reconstructing events from the block stream.
  */
 public class BlockStreamEventBuilder {
+
+    private static final Logger logger = LogManager.getLogger(BlockStreamEventBuilder.class);
 
     /** The blocks to read events from. */
     private final List<Block> blocks;
@@ -232,6 +237,19 @@ public class BlockStreamEventBuilder {
         eventIndexToEvent.put(eventIndexWithinBlock, platformEvent);
         eventHashToEvent.put(platformEvent.getHash(), platformEvent);
         events.add(platformEvent);
+        // Diagnostics: every reconstructed event with the hash the validator computed for it.
+        // When a cross-block parent reference fails to resolve, grep this output for the
+        // (creator, birthRound) pair to see what hash we actually rebuilt for the event in
+        // that slot — the answer distinguishes a hasher-divergence bug from a missing-event bug.
+        logger.info(
+                "Reconstructed event: block={}, idx={}, creator={}, birthRound={}, parents={}, txCount={}, hash={}",
+                currentBlockIndex,
+                eventIndexWithinBlock,
+                platformEvent.getEventCore().creatorNodeId(),
+                platformEvent.getBirthRound(),
+                currentEventHeader.parents().size(),
+                currentTransactions.size(),
+                hexPrefix(platformEvent.getHash(), 16));
         currentEventHeader = null;
     }
 
@@ -322,6 +340,19 @@ public class BlockStreamEventBuilder {
                             childEventCore.creatorNodeId(),
                             childEventCore.birthRound(),
                             currentBlockIndex));
+                    // Diagnostics: every cross-block parent reference enqueued for later
+                    // verification. On failure, the unresolved hash listed by the validator
+                    // should match exactly one of these entries — the matched line tells us
+                    // which child's reference triggered the failure.
+                    logger.info(
+                            "CrossBlockParent enqueued: parentHash={}, parentCreator={}, parentBirthRound={}"
+                                    + " <- childCreator={}, childBirthRound={}, childBlock={}",
+                            hexPrefix(parentDescriptor.hash(), 16),
+                            parentDescriptor.creatorNodeId(),
+                            parentDescriptor.birthRound(),
+                            childEventCore.creatorNodeId(),
+                            childEventCore.birthRound(),
+                            currentBlockIndex);
                     break;
 
                 default:
@@ -395,5 +426,20 @@ public class BlockStreamEventBuilder {
         public static TransactionWrapper ofTransactionHash(@NonNull final Bytes transactionHash) {
             return new TransactionWrapper(null, transactionHash);
         }
+    }
+
+    private static String hexPrefix(final Hash h, final int maxBytes) {
+        if (h == null) {
+            return "<null>";
+        }
+        return hexPrefix(h.getBytes(), maxBytes);
+    }
+
+    private static String hexPrefix(final Bytes b, final int maxBytes) {
+        if (b == null || b.length() == 0) {
+            return "<empty>";
+        }
+        final int n = (int) Math.min(b.length(), maxBytes);
+        return HexFormat.of().formatHex(b.toByteArray(), 0, n);
     }
 }

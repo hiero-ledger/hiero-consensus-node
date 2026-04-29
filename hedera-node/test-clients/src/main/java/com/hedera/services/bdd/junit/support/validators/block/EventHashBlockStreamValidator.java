@@ -240,6 +240,20 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                 sb.append(String.format(
                         "%n    Other creators with events at birthRound %d in block stream: %s",
                         missingBirthRound, creatorsAtRound.isEmpty() ? "(none)" : creatorsAtRound));
+
+                // Diagnostics: list every rebuilt-event hash the validator computed for the
+                // (creator, missingBirthRound) slot. If the slot is occupied by a different
+                // hash, the bug is in event-hash reconstruction (RedactedEventHasher). If the
+                // slot is empty, the parent event was never sealed into any block.
+                final var slotHashes = new ArrayList<String>();
+                for (final var event : events) {
+                    if (event.getEventCore().creatorNodeId() == creator && event.getBirthRound() == missingBirthRound) {
+                        slotHashes.add(event.getHash().toString());
+                    }
+                }
+                sb.append(String.format(
+                        "%n    Rebuilt block-stream events at (creator=%d, birthRound=%d): %s",
+                        creator, missingBirthRound, slotHashes.isEmpty() ? "(none)" : slotHashes));
             }
             fail(
                     "%d of %d cross-block parent hashes not found in block stream or PCES:%s",
@@ -324,7 +338,12 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                                     }
                                 }
                             } catch (final NumberFormatException | IOException e) {
-                                // Skip directories that don't match node pattern
+                                // Diagnostics: surface every non-active directory that is being
+                                // intentionally skipped. The `node*-run-N` archives produced by
+                                // `WorkingDirUtils.recreateWorkingDir` come from previous test-retry
+                                // attempts and *must* be ignored here, but logging the skip lets us
+                                // confirm in CI artifacts that we're skipping what we expect to skip.
+                                logger.info("Skipping non-active node-pattern directory: {}", dirName);
                             }
                         });
             } catch (final IOException e) {
