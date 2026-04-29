@@ -36,6 +36,8 @@ import com.hedera.hapi.block.stream.output.BlockFooter;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
@@ -52,6 +54,8 @@ import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -65,6 +69,7 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -879,11 +884,42 @@ public class StateChangesValidator implements BlockStreamValidator {
                     !signatures.get(j).signaturesBytes().equals(Bytes.EMPTY),
                     "WRB block #" + blockNumber + " signature at index " + j + " has empty bytes");
         }
+        validateWrbSignatureThreshold(blockNumber, signatures);
         logger.info(
                 "Verified WRB block #{} proof: {} RSA signatures (v{}), block hash matches",
                 blockNumber,
                 signatures.size(),
                 version);
+    }
+
+    @SuppressWarnings("deprecation")
+    private void validateWrbSignatureThreshold(
+            final long blockNumber, @NonNull final List<com.hedera.hapi.block.stream.RecordFileSignature> signatures) {
+        final ReadableKVState<EntityNumber, Node> nodesState =
+                state.getWritableStates(AddressBookService.NAME).get(V053AddressBookSchema.NODES_STATE_ID);
+        final long totalNodes = nodesState.size();
+        if (totalNodes == 0) {
+            logger.warn("WRB block #{}: no nodes in address book state, skipping threshold check", blockNumber);
+            return;
+        }
+        for (final var sig : signatures) {
+            final var node = nodesState.get(new EntityNumber(sig.nodeId()));
+            assertTrue(
+                    node != null && !node.deleted(),
+                    "WRB block #" + blockNumber + " signature references unknown or deleted node " + sig.nodeId());
+        }
+        final long nodeThreshold = totalNodes / 3 + 1;
+        assertTrue(
+                signatures.size() >= nodeThreshold,
+                "WRB block #" + blockNumber + " has " + signatures.size()
+                        + " signatures, below threshold " + nodeThreshold
+                        + " (1/3+1 of " + totalNodes + " nodes)");
+        logger.info(
+                "WRB block #{}: {}/{} node signatures meets threshold {}",
+                blockNumber,
+                signatures.size(),
+                totalNodes,
+                nodeThreshold);
     }
 
     static boolean hasCompressedWrapsProof(@NonNull final Bytes tssSignature) {
