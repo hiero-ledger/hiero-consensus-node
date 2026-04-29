@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fra
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeNoFallback;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeWithFallback;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -351,6 +352,59 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
+        }
+
+        @HapiTest
+        @DisplayName(("TokenFeeScheduleUpdate - don't bypass the custom fee creation charge"))
+        final Stream<DynamicTest> tokenFeeScheduleUpdateBypassesCustomFeeCreationCharge() {
+            return hapiTest(
+                    newKeyNamed("feeScheduleKey"),
+                    cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("feeCollector").balance(0L),
+
+                    // PATH A: Create token with 1 custom fee directly
+                    tokenCreate("tokenA")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(1_000L)
+                            .treasury("payer")
+                            .feeScheduleKey("feeScheduleKey")
+                            .withCustom(fixedHbarFee(1L, "feeCollector"))
+                            .payingWith("payer")
+                            .via("createWithFees"),
+
+                    // PATH B.1: Create the same token WITHOUT custom fees
+                    tokenCreate("tokenB")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(1_000L)
+                            .treasury("payer")
+                            .feeScheduleKey("feeScheduleKey")
+                            .payingWith("payer")
+                            .via("createWithoutFees"),
+
+                    // PATH B.2: add the same custom fee via TokenFeeScheduleUpdate
+                    tokenFeeScheduleUpdate("tokenB")
+                            .withCustom(fixedHbarFee(1L, "feeCollector"))
+                            .payingWith("payer")
+                            .signedBy("payer", "feeScheduleKey")
+                            .via("feeScheduleUpdate"),
+                    assertionsHold((spec, log) -> {
+                        final var recA = getTxnRecord("createWithFees");
+                        final var recB = getTxnRecord("createWithoutFees");
+                        final var recBUpd = getTxnRecord("feeScheduleUpdate");
+                        allRunFor(spec, recA, recB, recBUpd);
+
+                        final long feeA = recA.getResponseRecord().getTransactionFee();
+                        final long feeB = recB.getResponseRecord().getTransactionFee();
+                        final long feeBUpd = recBUpd.getResponseRecord().getTransactionFee();
+                        final long feeBTotal = feeB + feeBUpd;
+                        final double ratio = (double) feeA / feeBTotal;
+
+                        assertTrue(
+                                (ratio > 0.999) && (ratio < 1.001),
+                                "BUG: Path A cost: " + feeA + "!= Path B cost: " + feeBTotal + " ratio (A/B): "
+                                        + String.format("%.2fx", ratio) + " —> Path B is "
+                                        + String.format("%.2fx", ratio) + " cheaper");
+                    }));
         }
 
         @HapiTest

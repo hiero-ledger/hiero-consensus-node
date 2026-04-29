@@ -7,7 +7,7 @@ import java.security.PublicKey;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
-import org.hiero.consensus.crypto.SignatureVerifier;
+import org.hiero.base.crypto.SignatureVerifier;
 
 /**
  * Utility methods for testing signature verification.

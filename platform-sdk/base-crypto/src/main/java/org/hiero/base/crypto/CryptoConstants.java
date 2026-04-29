@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.crypto;
+package org.hiero.base.crypto;
 
 import java.security.Security;
 import java.time.Instant;
