@@ -249,7 +249,7 @@ public class BlockStreamEventBuilder {
                 platformEvent.getBirthRound(),
                 currentEventHeader.parents().size(),
                 currentTransactions.size(),
-                hexPrefix(platformEvent.getHash(), 16));
+                hexPrefix(platformEvent.getHash(), 24));
         currentEventHeader = null;
     }
 
