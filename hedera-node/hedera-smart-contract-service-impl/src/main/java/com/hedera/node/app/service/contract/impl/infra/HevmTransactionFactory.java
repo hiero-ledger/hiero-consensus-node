@@ -406,7 +406,7 @@ public class HevmTransactionFactory {
                 HederaFunctionality.CONTRACT_CREATE);
     }
 
-    private void assertValidGasAndAmount(HederaEvmTransaction hederaEvmTxn) {
+    private void assertValidGasAndAmount(@NonNull final HederaEvmTransaction hederaEvmTxn) {
         final var minGasLimit = Math.max(
                 ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
                 gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
