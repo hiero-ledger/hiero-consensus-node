@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.base;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntUnaryOperator;
-import org.hiero.base.Reservable;
 import org.hiero.base.exceptions.ReferenceCountException;
 
 /**

@@ -4,6 +4,7 @@ package com.swirlds.common.utility;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import org.hiero.base.AbstractReservable;
 import org.hiero.base.Reservable;
 
 /**
