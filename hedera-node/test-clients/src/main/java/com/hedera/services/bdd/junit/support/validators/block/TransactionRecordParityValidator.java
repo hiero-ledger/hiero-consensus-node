@@ -162,9 +162,15 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .flatMap(recordWithSidecars -> recordWithSidecars.recordFile().getRecordStreamItemsList().stream())
                 .map(RecordStreamEntry::from)
                 .toList();
+        final var normalBlocks = blocks.stream()
+                .filter(block -> !BlockStreamValidator.isWrappedRecordBlock(block.items()))
+                .toList();
+        if (normalBlocks.size() < blocks.size()) {
+            logger.info("Skipping {} WRBs in transaction parity validation", blocks.size() - normalBlocks.size());
+        }
         final var numStateChanges = new AtomicInteger();
         final var roleFreeSplit = new RoleFreeBlockUnitSplit();
-        final var roleFreeRecords = blocks.stream()
+        final var roleFreeRecords = normalBlocks.stream()
                 .flatMap(block ->
                         roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
                 .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
@@ -177,7 +183,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final var rfValidatorSummary = new SummaryBuilder(
                         MAX_DIFFS_TO_REPORT,
                         DIFF_INTERVAL_SECONDS,
-                        blocks.size(),
+                        normalBlocks.size(),
                         expectedEntries.size(),
                         actualEntries.size(),
                         numStateChanges.get(),

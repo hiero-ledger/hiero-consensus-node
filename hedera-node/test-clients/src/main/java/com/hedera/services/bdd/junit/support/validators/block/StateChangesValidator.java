@@ -346,6 +346,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         boolean hashChainBroken = false;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
+            final boolean isWrb = BlockStreamValidator.isWrappedRecordBlock(block.items());
             var shouldVerifyProof = i == 0
                     || i == lastVerifiableIndex
                     || indirectProofSeq != null
@@ -467,14 +468,18 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
 
                 if (shouldVerifyProof) {
-                    final var lastStateChange = lastStateChanges.stateChanges().getLast();
-                    assertTrue(
-                            lastStateChange.hasSingletonUpdate(),
-                            "Final state change " + lastStateChange + " does not match expected singleton update type");
-                    assertTrue(
-                            lastStateChange.singletonUpdateOrThrow().hasBlockStreamInfoValue(),
-                            "Final state change " + lastStateChange
-                                    + " does not match final block BlockStreamInfo update type");
+                    if (!isWrb) {
+                        final var lastStateChange =
+                                lastStateChanges.stateChanges().getLast();
+                        assertTrue(
+                                lastStateChange.hasSingletonUpdate(),
+                                "Final state change " + lastStateChange
+                                        + " does not match expected singleton update type");
+                        assertTrue(
+                                lastStateChange.singletonUpdateOrThrow().hasBlockStreamInfoValue(),
+                                "Final state change " + lastStateChange
+                                        + " does not match final block BlockStreamInfo update type");
+                    }
 
                     // The state changes hasher already incorporated the last state change, so compute its root hash
                     final var finalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
@@ -493,16 +498,20 @@ public class StateChangesValidator implements BlockStreamValidator {
                     blockNumbers.put(
                             expectedBlockHash,
                             block.items().getFirst().blockHeaderOrThrow().number());
-                    validateBlockProof(
-                            i,
-                            firstBlockRound,
-                            footer.blockFooterOrThrow(),
-                            blockProof,
-                            expectedBlockHash,
-                            startOfStateHash,
-                            previousBlockHash,
-                            firstConsensusTimestamp,
-                            expectedRootAndSiblings.siblingHashes());
+                    if (isWrb) {
+                        validateWrbBlockProof(blockNumber, blockProof, expectedBlockHash);
+                    } else {
+                        validateBlockProof(
+                                i,
+                                firstBlockRound,
+                                footer.blockFooterOrThrow(),
+                                blockProof,
+                                expectedBlockHash,
+                                startOfStateHash,
+                                previousBlockHash,
+                                firstConsensusTimestamp,
+                                expectedRootAndSiblings.siblingHashes());
+                    }
                     previousBlockHash = expectedBlockHash;
                 } else if (i + 1 < n) {
                     // Guard against the last block landing here: the hashChainBroken branch above
@@ -633,7 +642,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         switch (item.item().kind()) {
             case EVENT_HEADER, ROUND_HEADER -> consensusHeaderHasher.addLeaf(serialized);
             case SIGNED_TRANSACTION -> inputTreeHasher.addLeaf(serialized);
-            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
+            case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER, RECORD_FILE ->
+                outputTreeHasher.addLeaf(serialized);
             case STATE_CHANGES -> stateChangesHasher.addLeaf(serialized);
             case TRACE_DATA -> traceDataHasher.addLeaf(serialized);
             default -> {
@@ -842,6 +852,38 @@ public class StateChangesValidator implements BlockStreamValidator {
                 expectedMockSignature,
                 proof.signedBlockProofOrThrow().blockSignature(),
                 "Signature mismatch for " + proof);
+    }
+
+    private void validateWrbBlockProof(
+            final long blockNumber, @NonNull final BlockProof proof, @NonNull final Bytes expectedBlockHash) {
+        assertEquals(blockNumber, proof.block());
+        assertTrue(
+                proof.hasSignedRecordFileProof(),
+                "WRB block #" + blockNumber + " proof must be SignedRecordFileProof, found: "
+                        + proof.proof().kind());
+        final var signedProof = proof.signedRecordFileProofOrThrow();
+        final int version = signedProof.version();
+        assertTrue(
+                version == 2 || version == 5 || version == 6,
+                "WRB block #" + blockNumber + " has invalid record file version " + version);
+        final var signatures = signedProof.recordFileSignatures();
+        assertTrue(!signatures.isEmpty(), "WRB block #" + blockNumber + " has no RSA signatures");
+        final var uniqueNodeIds =
+                signatures.stream().map(sig -> sig.nodeId()).distinct().count();
+        assertEquals(
+                signatures.size(),
+                uniqueNodeIds,
+                "WRB block #" + blockNumber + " has duplicate node IDs in signatures");
+        for (int j = 0; j < signatures.size(); j++) {
+            assertTrue(
+                    !signatures.get(j).signaturesBytes().equals(Bytes.EMPTY),
+                    "WRB block #" + blockNumber + " signature at index " + j + " has empty bytes");
+        }
+        logger.info(
+                "Verified WRB block #{} proof: {} RSA signatures (v{}), block hash matches",
+                blockNumber,
+                signatures.size(),
+                version);
     }
 
     static boolean hasCompressedWrapsProof(@NonNull final Bytes tssSignature) {

@@ -22,6 +22,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.streams.RecordStreamFile;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -249,12 +250,12 @@ class BlockContentsValidatorTest {
 
     @Test
     void detectsWrappedRecordBlock() {
-        assertTrue(BlockContentsValidator.isWrappedRecordBlock(List.of(headerItem(1), recordFileItem(), footerItem())));
+        assertTrue(BlockStreamValidator.isWrappedRecordBlock(List.of(headerItem(1), recordFileItem(), footerItem())));
     }
 
     @Test
     void detectsNormalBlock() {
-        assertTrue(!BlockContentsValidator.isWrappedRecordBlock(
+        assertTrue(!BlockStreamValidator.isWrappedRecordBlock(
                 List.of(headerItem(1), roundHeaderItem(), stateChangesItem())));
     }
 }

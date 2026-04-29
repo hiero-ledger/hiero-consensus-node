@@ -37,19 +37,6 @@ public class BlockContentsValidator implements BlockStreamValidator {
 
     public static final Factory FACTORY = spec -> new BlockContentsValidator();
 
-    /**
-     * Returns {@code true} if the given block items represent a Wrapped Record Block.
-     * Detection is based on the presence of a {@code RECORD_FILE} item.
-     */
-    public static boolean isWrappedRecordBlock(@NonNull final List<BlockItem> items) {
-        for (final var item : items) {
-            if (item.hasRecordFile()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
         for (int i = 0, n = blocks.size(); i < n; i++) {
@@ -74,7 +61,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
 
         validateBlockHeader(items.getFirst());
 
-        if (isWrappedRecordBlock(items)) {
+        if (BlockStreamValidator.isWrappedRecordBlock(items)) {
             validateWrappedRecordBlock(items, blocksRemaining);
         } else {
             validateNormalBlock(items, blocksRemaining);

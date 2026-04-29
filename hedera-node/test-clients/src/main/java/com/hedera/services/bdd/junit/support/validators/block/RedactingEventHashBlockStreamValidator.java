@@ -86,12 +86,18 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
-        logger.info("Processing {} blocks for transaction redaction", blocks.size());
+        final var normalBlocks = blocks.stream()
+                .filter(b -> !BlockStreamValidator.isWrappedRecordBlock(b.items()))
+                .toList();
+        logger.info(
+                "Processing {} blocks for transaction redaction ({} WRBs skipped)",
+                normalBlocks.size(),
+                blocks.size() - normalBlocks.size());
 
         try {
 
             // Step 1: Redact transactions in all blocks
-            final List<Block> redactedBlocks = redactBlocks(blocks);
+            final List<Block> redactedBlocks = redactBlocks(normalBlocks);
 
             // Step 2: Write redacted blocks to disk
             final List<Path> writtenFiles = writeBlocksToDisk(redactedBlocks);
@@ -100,7 +106,7 @@ public class RedactingEventHashBlockStreamValidator implements BlockStreamValida
             final List<Block> reloadedBlocks = readBlocksFromDisk(writtenFiles);
 
             // Step 4: Verify that the redacted blocks maintain structural integrity
-            verifyRedactedBlocks(reloadedBlocks, blocks.size());
+            verifyRedactedBlocks(reloadedBlocks, normalBlocks.size());
 
             logger.info("Successfully processed and verified {} redacted blocks", redactedBlocks.size());
 
