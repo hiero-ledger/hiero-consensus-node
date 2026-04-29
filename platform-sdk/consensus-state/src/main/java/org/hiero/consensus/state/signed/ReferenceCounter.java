@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.consensus.state.signed;
 
-import com.swirlds.common.Reservable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
+import org.hiero.base.AbstractReservable;
+import org.hiero.base.Reservable;
 
 /**
  * A thread safe object that holds a reference count for an object, and then calls a lambda when it is time to destroy

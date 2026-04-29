@@ -7,7 +7,6 @@ import static org.hiero.otter.fixtures.util.EnvironmentUtils.prepareOutputDirect
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.utility.RuntimeObjectRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -19,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.constructable.RuntimeObjectRegistry;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;

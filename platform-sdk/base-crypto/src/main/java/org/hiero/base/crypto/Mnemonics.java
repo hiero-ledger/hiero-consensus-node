@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.base.crypto;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static org.hiero.base.utility.ByteUtils.byteArrayToShort;
@@ -10,9 +10,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.CryptographyProvider;
-import org.hiero.base.crypto.Hash;
 
 /**
  * A utility class for creating mnemonic words.

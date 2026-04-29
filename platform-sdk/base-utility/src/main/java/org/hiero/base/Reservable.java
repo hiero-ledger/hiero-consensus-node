@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common;
+package org.hiero.base;
 
-import org.hiero.base.Releasable;
 import org.hiero.base.exceptions.ReferenceCountException;
 
 /**
