@@ -42,9 +42,9 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -364,7 +364,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             handlerMetrics.setPhase(CREATING_SIGNED_STATE);
             final SignedState signedState = new SignedState(
                     platformContext.getConfiguration(),
-                    ConsensusCryptoUtils::verifySignature,
+                    CryptoUtils::verifySignature,
                     immutableState,
                     "TransactionHandler.createSignedState()",
                     freezeRoundReceived,
