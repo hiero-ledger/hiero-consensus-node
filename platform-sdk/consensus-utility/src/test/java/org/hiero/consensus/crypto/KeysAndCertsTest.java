@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.crypto;
+package org.hiero.consensus.crypto;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,11 +11,10 @@ import java.security.PublicKey;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.KeyType;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.test.fixtures.PreGeneratedPublicKeys;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
-import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -32,10 +31,10 @@ class KeysAndCertsTest {
         final Signature signature = signer.sign(DATA_ARRAY);
 
         assertTrue(
-                ConsensusCryptoUtils.verifySignature(DATA_BYTES, signature.getBytes(), publicKey),
+                CryptoUtils.verifySignature(DATA_BYTES, signature.getBytes(), publicKey),
                 "verify should be true when using the correct public key");
         assertFalse(
-                ConsensusCryptoUtils.verifySignature(DATA_BYTES, signature.getBytes(), WRONG_KEY),
+                CryptoUtils.verifySignature(DATA_BYTES, signature.getBytes(), WRONG_KEY),
                 "verify should be false when using the incorrect public key");
     }
 

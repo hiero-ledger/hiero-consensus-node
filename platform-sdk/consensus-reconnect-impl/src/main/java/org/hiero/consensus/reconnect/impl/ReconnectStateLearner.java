@@ -31,8 +31,8 @@ import java.net.SocketException;
 import java.time.Duration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -232,7 +232,7 @@ public class ReconnectStateLearner {
         final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(vmapLearner.getVirtualMap());
         final SignedState newSignedState = new SignedState(
                 configuration,
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 receivedState,
                 "ReconnectLearner.reconnect()",
                 false,
