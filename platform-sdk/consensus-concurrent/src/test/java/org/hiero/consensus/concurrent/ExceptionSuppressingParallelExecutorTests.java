@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading;
+package org.hiero.consensus.concurrent;
 
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
-import com.swirlds.common.test.fixtures.threading.ExceptionSuppressingParallelExecutor;
 import java.util.concurrent.Callable;
+import org.hiero.consensus.concurrent.test.fixtures.threading.ExceptionSuppressingParallelExecutor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

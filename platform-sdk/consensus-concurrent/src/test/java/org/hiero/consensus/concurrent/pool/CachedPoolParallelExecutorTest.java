@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading;
+package org.hiero.consensus.concurrent.pool;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
@@ -11,9 +11,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
-import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
-import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

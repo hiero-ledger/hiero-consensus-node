@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading;
+package org.hiero.consensus.concurrent;
 
 import static java.lang.String.format;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.test.fixtures.threading.ReplaceSyncPhaseParallelExecutor;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
+import org.hiero.consensus.concurrent.test.fixtures.threading.ReplaceSyncPhaseParallelExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;

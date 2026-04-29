@@ -6,7 +6,6 @@ open module com.swirlds.common.test.fixtures {
     exports com.swirlds.common.test.fixtures.map;
     exports com.swirlds.common.test.fixtures.merkle.dummy;
     exports com.swirlds.common.test.fixtures.merkle.util;
-    exports com.swirlds.common.test.fixtures.threading;
     exports com.swirlds.common.test.fixtures.set;
     exports com.swirlds.common.test.fixtures.stream;
     exports com.swirlds.common.test.fixtures.platform;

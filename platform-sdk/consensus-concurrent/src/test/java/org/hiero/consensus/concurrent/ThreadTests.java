@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading;
+package org.hiero.consensus.concurrent;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static org.hiero.consensus.concurrent.framework.config.ThreadConfiguration.captureThreadConfiguration;

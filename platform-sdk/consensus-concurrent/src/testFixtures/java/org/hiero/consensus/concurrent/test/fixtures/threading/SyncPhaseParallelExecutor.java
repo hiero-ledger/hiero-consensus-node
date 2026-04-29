@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures.threading;
+package org.hiero.consensus.concurrent.test.fixtures.threading;
 
 import java.time.Duration;
 import java.util.Arrays;

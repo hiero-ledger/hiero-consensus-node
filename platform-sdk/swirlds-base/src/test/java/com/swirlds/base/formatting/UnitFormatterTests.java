@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.formatting;
+package com.swirlds.base.formatting;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.base.formatting.UnitFormat;
 import com.swirlds.base.units.DataUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
