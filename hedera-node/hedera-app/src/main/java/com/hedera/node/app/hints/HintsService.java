@@ -11,10 +11,12 @@ import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
+import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
+import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -24,6 +26,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Orchestrates the hinTS algorithms for,
@@ -88,6 +91,24 @@ public interface HintsService extends Service {
      */
     @NonNull
     BlockHashSigning sign(@NonNull Bytes blockHash);
+
+    /**
+     * Returns the context used to orchestrate RSA block hash signing attempts.
+     */
+    @NonNull
+    RsaContext rsaSigningContext();
+
+    /**
+     * Returns the in-progress RSA block hash signing attempts.
+     */
+    @NonNull
+    ConcurrentMap<Bytes, BlockHashSigning> rsaSignings();
+
+    /**
+     * Returns the TSS node-transaction submission helper.
+     */
+    @NonNull
+    TssSubmissions submissions();
 
     /**
      * Sets the callback for when a hinTS construction is finished. Only one callback is active at a time.

@@ -10,9 +10,11 @@ import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
+import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -23,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentMap;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 public class FakeHintsService implements HintsService {
@@ -56,6 +59,21 @@ public class FakeHintsService implements HintsService {
     @Override
     public @NonNull BlockHashSigning sign(@NonNull final Bytes blockHash) {
         return delegate.sign(blockHash);
+    }
+
+    @Override
+    public @NonNull RsaContext rsaSigningContext() {
+        return delegate.rsaSigningContext();
+    }
+
+    @Override
+    public @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings() {
+        return delegate.rsaSignings();
+    }
+
+    @Override
+    public @NonNull TssSubmissions submissions() {
+        return delegate.submissions();
     }
 
     @Override

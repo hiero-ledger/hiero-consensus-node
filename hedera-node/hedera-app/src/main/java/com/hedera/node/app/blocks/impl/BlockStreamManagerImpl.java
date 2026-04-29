@@ -5,6 +5,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
@@ -605,7 +606,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     block.writer().flushPendingBlock(pendingProof);
                 });
             } else {
-                final var attempt = blockHashSigner.sign(finalBlockRootHash);
+                final var attempt = blockHashSigner.sign(finalBlockRootHash, SUCCINCT_SIGNATURE);
                 attempt.signatureFuture()
                         .thenAcceptAsync(signature -> {
                             if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {

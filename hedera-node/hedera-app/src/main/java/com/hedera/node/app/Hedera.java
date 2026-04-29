@@ -57,7 +57,9 @@ import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
+import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.HttpWrapsProvingKeyDownloader;
@@ -99,6 +101,8 @@ import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.tss.TssBlockHashSigner;
+import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -152,6 +156,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -431,9 +436,10 @@ public final class Hedera
     public interface BlockHashSignerFactory {
         @NonNull
         BlockHashSigner apply(
-                @NonNull HintsService hintsService,
-                @NonNull HistoryService historyService,
-                @NonNull ConfigProvider configProvider);
+                @NonNull RsaContext rsaContext,
+                @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+                @NonNull TssSubmissions submissions,
+                @NonNull BlockHashSigner succinctSignatureDelegate);
     }
 
     /*==================================================================================================================
@@ -1280,7 +1286,12 @@ public final class Hedera
                 configProvider,
                 () -> requireNonNull(genesisNetworkSupplier).get());
         final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);
-        final var blockHashSigner = blockHashSignerFactory.apply(hintsService, historyService, configProvider);
+        final var succinctSignatureDelegate = new TssBlockHashSigner(hintsService, historyService, configProvider);
+        final var blockHashSigner = blockHashSignerFactory.apply(
+                hintsService.rsaSigningContext(),
+                hintsService.rsaSignings(),
+                hintsService.submissions(),
+                succinctSignatureDelegate);
         // Fully qualified so as to not confuse javadoc
         daggerApp = DaggerHederaInjectionComponent.builder()
                 .configProviderImpl(configProvider)

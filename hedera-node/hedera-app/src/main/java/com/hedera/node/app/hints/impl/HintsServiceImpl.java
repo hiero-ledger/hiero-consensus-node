@@ -23,6 +23,7 @@ import com.hedera.node.app.hints.schemas.V073HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -33,6 +34,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -97,6 +99,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
 
     @Override
     public @NonNull BlockHashSigning sign(@NonNull final Bytes blockHash) {
+        requireNonNull(blockHash);
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
@@ -108,6 +111,21 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             return null;
         });
         return signing;
+    }
+
+    @Override
+    public @NonNull RsaContext rsaSigningContext() {
+        return component.rsaSigningContext();
+    }
+
+    @Override
+    public @NonNull ConcurrentMap<Bytes, BlockHashSigning> rsaSignings() {
+        return component.rsaSignings();
+    }
+
+    @Override
+    public @NonNull TssSubmissions submissions() {
+        return component.submissions();
     }
 
     @Override

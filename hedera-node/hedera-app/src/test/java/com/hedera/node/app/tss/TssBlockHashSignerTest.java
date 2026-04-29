@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.tss;
 
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.LIST_OF_PARTIAL_SIGNATURES;
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -68,7 +70,9 @@ class TssBlockHashSignerTest {
 
         assertTrue(subject.isReady());
 
-        final var signature = subject.sign(FAKE_BLOCK_HASH).signatureFuture().join();
+        final var signature = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE)
+                .signatureFuture()
+                .join();
 
         assertEquals(FAKE_HINTS_SIGNATURE, signature);
     }
@@ -79,14 +83,14 @@ class TssBlockHashSignerTest {
         final var verificationKey = Bytes.wrap("verification-key");
 
         assertFalse(subject.isReady());
-        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH));
+        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE));
         given(hintsService.isReady()).willReturn(true);
         assertTrue(subject.isReady());
         given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
         given(signing.verificationKey()).willReturn(verificationKey);
         given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(signing);
 
-        final var attempt = subject.sign(FAKE_BLOCK_HASH);
+        final var attempt = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE);
         final var signature = attempt.signatureFuture().join();
 
         assertSame(FAKE_HINTS_SIGNATURE, signature);
@@ -99,11 +103,13 @@ class TssBlockHashSignerTest {
         givenSubjectWith(HintsEnabled.NO, HistoryEnabled.YES);
 
         assertFalse(subject.isReady());
-        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH));
+        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE));
         given(historyService.isReady()).willReturn(true);
         assertTrue(subject.isReady());
 
-        final var signature = subject.sign(FAKE_BLOCK_HASH).signatureFuture().join();
+        final var signature = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE)
+                .signatureFuture()
+                .join();
 
         assertEquals(FAKE_HINTS_SIGNATURE, signature);
     }
@@ -117,10 +123,10 @@ class TssBlockHashSignerTest {
                 .build();
 
         assertFalse(subject.isReady());
-        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH));
+        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE));
         given(historyService.isReady()).willReturn(true);
         assertFalse(subject.isReady());
-        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH));
+        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE));
         given(hintsService.isReady()).willReturn(true);
         assertTrue(subject.isReady());
         given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
@@ -128,7 +134,7 @@ class TssBlockHashSignerTest {
         given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(signing);
         given(historyService.getCurrentChainOfTrustProof(verificationKey)).willReturn(chainOfTrustProof);
 
-        final var attempt = subject.sign(FAKE_BLOCK_HASH);
+        final var attempt = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE);
         final var signature = attempt.signatureFuture().join();
 
         assertEquals(FAKE_HINTS_SIGNATURE, signature);
@@ -143,7 +149,7 @@ class TssBlockHashSignerTest {
         assertTrue(subject.isReady());
         assertTrue(subject.isReady());
 
-        final var attempt = subject.sign(FAKE_BLOCK_HASH);
+        final var attempt = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE);
 
         assertNull(attempt.verificationKey());
         assertNull(attempt.chainOfTrustProof());
@@ -157,7 +163,7 @@ class TssBlockHashSignerTest {
 
         assertTrue(subject.isReady());
 
-        final var attempt = subject.sign(FAKE_BLOCK_HASH);
+        final var attempt = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE);
 
         assertNull(attempt.verificationKey());
         assertNull(attempt.chainOfTrustProof());
@@ -166,10 +172,18 @@ class TssBlockHashSignerTest {
     }
 
     @Test
+    void rejectsListOfPartialSignatureRequests() {
+        givenSubjectWith(HintsEnabled.NO, HistoryEnabled.NO);
+
+        assertThrows(IllegalArgumentException.class, () -> subject.sign(FAKE_BLOCK_HASH, LIST_OF_PARTIAL_SIGNATURES));
+    }
+
+    @Test
     void rejectsNullBlockHash() {
         givenSubjectWith(HintsEnabled.NO, HistoryEnabled.NO);
 
-        assertThrows(NullPointerException.class, () -> subject.sign(null));
+        assertThrows(NullPointerException.class, () -> subject.sign(null, SUCCINCT_SIGNATURE));
+        assertThrows(NullPointerException.class, () -> subject.sign(FAKE_BLOCK_HASH, null));
     }
 
     private void givenSubjectWith(

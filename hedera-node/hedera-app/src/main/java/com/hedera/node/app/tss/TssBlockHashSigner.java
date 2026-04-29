@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.tss;
 
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
@@ -93,8 +94,12 @@ public class TssBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
-    public Attempt sign(@NonNull final Bytes blockHash) {
+    public Attempt sign(@NonNull final Bytes blockHash, @NonNull final Request request) {
         requireNonNull(blockHash);
+        requireNonNull(request);
+        if (request != SUCCINCT_SIGNATURE) {
+            throw new IllegalArgumentException("TSS signer only supports succinct block hash signatures");
+        }
         if (!isReady()) {
             throw new IllegalStateException("TSS protocol not ready to sign block hash " + blockHash);
         }
