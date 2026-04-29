@@ -42,8 +42,10 @@ Environment:
   BLOCK_NODE_ID                 Expected Solo Block Node id to verify (default: 1)
   BLOCK_NODE_CHART_DIR          Optional local block-node chart dir. If unset, Solo uses its
                                 release/chart configuration.
-  BLOCK_NODE_CHART_VERSION      Optional chart version passed to Solo block node add
-  BLOCK_NODE_RELEASE_TAG        Optional release tag passed to Solo block node add
+  BLOCK_NODE_CHART_VERSION      Block Node chart version passed to Solo block node add
+                                (default: v0.32.0)
+  BLOCK_NODE_RELEASE_TAG        Optional consensus release tag passed to Solo block node add
+                                (default: RELEASE_TAG)
   BLOCK_NODE_IMAGE_TAG          Optional image tag override passed to Solo block node add
   BLOCK_NODE_VALUES_FILE        Optional values file passed to Solo block node add
   BLOCK_NODE_PRIORITY_MAPPING   Optional priority mapping. Defaults to all script nodes
@@ -54,6 +56,9 @@ Environment:
                                 (default: <repo>/hapi/hedera-protobuf-java-api/src/main/proto)
   WRB_SEARCH_MAX_BLOCKS         Maximum number of persisted Block Node blocks to inspect for
                                 RecordFileItem content (default: 25)
+  BLOCK_NODE_PERSIST_MAX_ATTEMPTS
+                                Number of Block Node status polling attempts (default: 90)
+  BLOCK_NODE_PERSIST_SLEEP_SECS Seconds between Block Node status polling attempts (default: 5)
   KEEP_NETWORK                  true|false (default: true)
   GENERATED_DIR                 Base directory for generated artifacts
                                 (default: wrapped-record-block-jumpstart/generated)
@@ -126,8 +131,8 @@ else
   BLOCK_NODE_CHART_DIR="${BLOCK_NODE_CHART_DIR:-}"
   BLOCK_NODE_PROTO_PATH="${BLOCK_NODE_PROTO_PATH:-}"
 fi
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-}"
-BLOCK_NODE_RELEASE_TAG="${BLOCK_NODE_RELEASE_TAG:-}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.32.0}"
+BLOCK_NODE_RELEASE_TAG="${BLOCK_NODE_RELEASE_TAG:-${RELEASE_TAG}}"
 BLOCK_NODE_IMAGE_TAG="${BLOCK_NODE_IMAGE_TAG:-}"
 BLOCK_NODE_VALUES_FILE="${BLOCK_NODE_VALUES_FILE:-}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
@@ -151,6 +156,8 @@ BLOCK_NODE_WRB_SCAN_LOG="${WORK_DIR}/block-node-wrb-scan.log"
 BLOCK_NODE_K8S_LOG="${WORK_DIR}/block-node-k8s.log"
 CONSENSUS_BLOCK_NODE_LOG_CHECK="${WORK_DIR}/consensus-block-node-log-check.log"
 WRB_SEARCH_MAX_BLOCKS="${WRB_SEARCH_MAX_BLOCKS:-25}"
+BLOCK_NODE_PERSIST_MAX_ATTEMPTS="${BLOCK_NODE_PERSIST_MAX_ATTEMPTS:-90}"
+BLOCK_NODE_PERSIST_SLEEP_SECS="${BLOCK_NODE_PERSIST_SLEEP_SECS:-5}"
 
 CN_PORT_FORWARD_PID=""
 BLOCK_NODE_PORT_FORWARD_PID=""
@@ -504,8 +511,8 @@ block_node_server_status_json() {
 }
 
 wait_for_block_node_to_persist_block() {
-  local max_attempts="${1:-90}"
-  local sleep_secs="${2:-5}"
+  local max_attempts="${BLOCK_NODE_PERSIST_MAX_ATTEMPTS}"
+  local sleep_secs="${BLOCK_NODE_PERSIST_SLEEP_SECS}"
   local attempt=1 status first last
   : > "${BLOCK_NODE_STATUS_LOG}"
   while (( attempt <= max_attempts )); do
@@ -651,6 +658,14 @@ require_cmd unzip
 }
 [[ "${WRB_SEARCH_MAX_BLOCKS}" =~ ^[1-9][0-9]*$ ]] || {
   echo "WRB_SEARCH_MAX_BLOCKS must be a positive integer, found '${WRB_SEARCH_MAX_BLOCKS}'" >&2
+  exit 1
+}
+[[ "${BLOCK_NODE_PERSIST_MAX_ATTEMPTS}" =~ ^[1-9][0-9]*$ ]] || {
+  echo "BLOCK_NODE_PERSIST_MAX_ATTEMPTS must be a positive integer, found '${BLOCK_NODE_PERSIST_MAX_ATTEMPTS}'" >&2
+  exit 1
+}
+[[ "${BLOCK_NODE_PERSIST_SLEEP_SECS}" =~ ^[1-9][0-9]*$ ]] || {
+  echo "BLOCK_NODE_PERSIST_SLEEP_SECS must be a positive integer, found '${BLOCK_NODE_PERSIST_SLEEP_SECS}'" >&2
   exit 1
 }
 if [[ "${USE_LOCAL_BUILD}" == "true" ]]; then

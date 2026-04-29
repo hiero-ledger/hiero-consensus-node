@@ -33,12 +33,12 @@ on:
         type: string
         default: ""
       block-node-release-tag:
-        description: "Optional Block Node release tag for WRB streaming test. Leave blank to use Solo default."
+        description: "Optional consensus release tag passed to Solo block node add for WRB streaming. Defaults to starting-tag."
         required: false
         type: string
         default: ""
       block-node-chart-version:
-        description: "Optional Block Node chart version for WRB streaming test. Leave blank to use Solo default."
+        description: "Optional Block Node chart version for WRB streaming. Defaults to latest Block Node release."
         required: false
         type: string
         default: ""
@@ -268,6 +268,24 @@ jobs:
           grpcurl --version
           kubectl version --client=true
 
+      - name: Resolve Block Node Chart Version
+        run: |
+          set -eo pipefail
+          if [[ -n "${{ inputs.block-node-chart-version }}" ]]; then
+            echo "BLOCK_NODE_CHART_VERSION=${{ inputs.block-node-chart-version }}" >> "${GITHUB_ENV}"
+            exit 0
+          fi
+
+          bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
+          curl_response="$(curl -fsSL -H "Accept: application/vnd.github+json" "${bn_url}")"
+          latest_bn_tag="$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')"
+          if [[ -z "${latest_bn_tag}" ]]; then
+            echo "Unable to resolve latest Block Node release tag from ${bn_url}" >&2
+            exit 1
+          fi
+
+          echo "BLOCK_NODE_CHART_VERSION=${latest_bn_tag}" >> "${GITHUB_ENV}"
+
       - name: Build Consensus Node Local Artifacts
         run: ${GRADLE_EXEC} assemble
 
@@ -279,8 +297,8 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
               RELEASE_TAG="${{ inputs.starting-tag }}" \
-              BLOCK_NODE_RELEASE_TAG="${{ inputs.block-node-release-tag }}" \
-              BLOCK_NODE_CHART_VERSION="${{ inputs.block-node-chart-version }}" \
+              BLOCK_NODE_RELEASE_TAG="${{ inputs.block-node-release-tag || inputs.starting-tag }}" \
+              BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-block-node-streaming-script.log"
 
