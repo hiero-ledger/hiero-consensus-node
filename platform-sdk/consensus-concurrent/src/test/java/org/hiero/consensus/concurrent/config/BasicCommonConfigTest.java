@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.config;
+package org.hiero.consensus.concurrent.config;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import org.hiero.consensus.concurrent.config.BasicCommonConfig;
-import org.hiero.consensus.concurrent.config.BasicCommonConfig_;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
