@@ -17,6 +17,7 @@ module com.swirlds.state.impl {
     requires com.swirlds.common;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
+    requires org.hiero.base.utility;
     requires org.hiero.consensus.metrics;
     requires org.apache.logging.log4j;
     requires org.json;

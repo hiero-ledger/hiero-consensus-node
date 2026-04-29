@@ -2,7 +2,6 @@
 module com.swirlds.common {
 
     /* Exported packages. This list should remain alphabetized. */
-    exports com.swirlds.common;
     exports com.swirlds.common.config;
     exports com.swirlds.common.constructable;
     exports com.swirlds.common.context;
@@ -36,8 +35,6 @@ module com.swirlds.common {
     opens com.swirlds.common.io.utility to
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.stream.internal to
-            com.fasterxml.jackson.databind;
-    opens com.swirlds.common to
             com.fasterxml.jackson.databind;
 
     requires transitive com.swirlds.base;
