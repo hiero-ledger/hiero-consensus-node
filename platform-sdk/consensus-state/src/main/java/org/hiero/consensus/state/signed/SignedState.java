@@ -15,7 +15,6 @@ import static org.hiero.consensus.state.signed.SignedStateHistory.SignedStateAct
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.ReferenceCounter;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.config.api.Configuration;
