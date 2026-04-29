@@ -280,6 +280,6 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         validateTruePreCheck(type >= 0, NOT_SUPPORTED);
 
         // Type 4 transactions are only supported if the feature flag is disabled
-        validateTruePreCheck(contractsConfig.evmPectraEnabled() || type < 4, NOT_SUPPORTED);
+        validateTruePreCheck(contractsConfig.codeDelegationsEnabled() || type < 4, NOT_SUPPORTED);
     }
 }

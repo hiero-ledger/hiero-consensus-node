@@ -15,6 +15,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SEND_RECORD_THRESHOLD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
@@ -196,15 +197,23 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    @DisplayName("pureChecks fail when delegation address is not empty")
-    void whenDelegationAddressIsNonEmpty() {
+    void cryptoCreateWithDelegationAddressIsRejectedWithDefaultConfig() {
         txn = new CryptoCreateBuilder()
-                .withDelegationAddress(Bytes.fromHex("cafebabe"))
+                .withDelegationAddress(Bytes.fromHex("00000000000000000000000000000000000000AA"))
+                .withStakedAccountId(3)
+                .withShardId(0)
+                .withRealmId(0)
                 .build();
-        //        given(pureChecksContext.body()).willReturn(txn);
-        //        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        //        TOOD(Pectra): verify with feature flag off
-        //        assertThat(NOT_SUPPORTED).isEqualTo(msg.responseCode());
+        given(handleContext.body()).willReturn(txn);
+
+        given(handleContext.consensusNow()).willReturn(consensusInstant);
+        given(handleContext.payer()).willReturn(id);
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(NOT_SUPPORTED));
     }
 
     @Test
@@ -677,8 +686,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.consensusNow()).willReturn(consensusInstant);
         given(entityNumGenerator.newEntityNum()).willReturn(1000L);
 
-        setupConfig();
         setupExpiryValidator();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.codeDelegations.enabled", true)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
 
         subject.handle(handleContext);
 
@@ -700,8 +712,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         given(handleContext.consensusNow()).willReturn(consensusInstant);
         given(entityNumGenerator.newEntityNum()).willReturn(1000L);
 
-        setupConfig();
         setupExpiryValidator();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.codeDelegations.enabled", true)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
 
         subject.handle(handleContext);
 

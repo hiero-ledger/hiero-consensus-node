@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -38,40 +39,31 @@ import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HookCall;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ContractLoginfo;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.hederahashgraph.api.proto.java.TransferList;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.bouncycastle.util.encoders.Hex;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 @DisplayName("Code Delegation Tests")
-@HapiTestLifecycle
 public class CodeDelegationTests extends CodeDelegationTestBase {
 
-    @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
-    }
-
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testCodeDelegationFallbackMethod() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -116,9 +108,11 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testCodeDelegationStorage() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -181,9 +175,11 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testCodeDelegationInternalHtsTransfer() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -241,9 +237,11 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testCodeDelegationInnerCall() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -295,12 +293,14 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     /* This scenario is equivalent to chaining delegations (since token account delegates to the HTS
     System Contract), so we expect the second delegation code to be treated literally and fail
     due to trying to execute an invalid op code. */
     final Stream<DynamicTest> testDelegationToHtsTokenReverts() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -355,7 +355,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testDelegationToSystemContractsAndPrecompilesAllowsValueTransfer() {
         /*
          * For each test case we're going to:
@@ -385,6 +385,8 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
 
         return testCases.stream()
                 .flatMap(testCase -> hapiTest(withOpContext((spec, opLog) -> {
+                    allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
                     final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
                     final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -438,9 +440,14 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                 })));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled", "hooks.hooksEnabled"})
     final Stream<DynamicTest> testCodeDelegationDuringHookExecution() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(
+                    spec,
+                    overriding("hooks.hooksEnabled", "true"),
+                    overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -522,9 +529,14 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
     /// and a call is made to that EOA inside a hook.
     /// This should resolve the target address literally, and result in a no-op, because
     /// no entity actually has address 0x16d.
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled", "hooks.hooksEnabled"})
     final Stream<DynamicTest> testCodeDelegationToHookAddressDuringHookExecution() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(
+                    spec,
+                    overriding("hooks.hooksEnabled", "true"),
+                    overriding("contracts.codeDelegations.enabled", "true"));
+
             final var payer = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
             final var caller = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
 
@@ -590,9 +602,11 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testCrossAPIDelegationNativeToType4() {
         return hapiTest(withOpContext((spec, opLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             // Create delegation target and account
             final var delegationTargetContract = deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
@@ -616,9 +630,11 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
         }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
     final Stream<DynamicTest> testCrossAPIDelegationType4ToNative() {
         return hapiTest(withOpContext(((spec, assertLog) -> {
+            allRunFor(spec, overriding("contracts.codeDelegations.enabled", "true"));
+
             // Create delegation target and account
             final var delegationTargetContract = deployEvmContract(spec, CODE_DELEGATION_CONTRACT);
             final var delegatingEoa = createFundedEvmAccountWithKey(spec, ONE_HUNDRED_HBARS);
