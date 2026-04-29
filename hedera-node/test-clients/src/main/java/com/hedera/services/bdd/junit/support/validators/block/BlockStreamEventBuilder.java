@@ -242,7 +242,7 @@ public class BlockStreamEventBuilder {
         // (creator, birthRound) pair to see what hash we actually rebuilt for the event in
         // that slot — the answer distinguishes a hasher-divergence bug from a missing-event bug.
         logger.info(
-                "Reconstructed event: block={}, idx={}, creator={}, birthRound={}, parents={}, txCount={}, hash={}",
+                "Reconstructed event | block={}, idx={}, creator={}, birthRound={}, parents={}, txCount={}, hash={}",
                 currentBlockIndex,
                 eventIndexWithinBlock,
                 platformEvent.getEventCore().creatorNodeId(),
