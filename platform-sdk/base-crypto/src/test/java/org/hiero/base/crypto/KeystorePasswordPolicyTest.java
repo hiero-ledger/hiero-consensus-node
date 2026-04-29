@@ -3,7 +3,7 @@ package org.hiero.base.crypto;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.swirlds.common.test.fixtures.logging.MockAppender;
+import com.swirlds.logging.test.fixtures.MockAppender;
 import java.util.List;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
