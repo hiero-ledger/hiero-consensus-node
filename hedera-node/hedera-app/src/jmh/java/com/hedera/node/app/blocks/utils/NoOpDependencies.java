@@ -90,20 +90,6 @@ public final class NoOpDependencies {
         }
     }
 
-    /** No-op BlockHashSigner (deprecated - use createRealTssBlockHashSigner() for production realism) */
-    @Deprecated
-    public static class NoOpBlockHashSigner implements BlockHashSigner {
-        @Override
-        public boolean isReady() {
-            return true;
-        }
-
-        @Override
-        public Attempt sign(@NonNull Bytes blockHash) {
-            return new Attempt(null, null, CompletableFuture.completedFuture(Bytes.wrap(new byte[64])));
-        }
-    }
-
     /** No-op BlockItemWriter */
     public static class NoOpBlockItemWriter implements BlockItemWriter {
         @Override
