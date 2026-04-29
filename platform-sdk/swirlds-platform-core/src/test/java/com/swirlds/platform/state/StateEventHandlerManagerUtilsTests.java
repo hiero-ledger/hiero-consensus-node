@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapUtils.CONFIGURATION;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,7 +24,7 @@ public class StateEventHandlerManagerUtilsTests {
     @Test
     void testFastCopyIsMutable() {
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
+                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION, FILE_SYSTEM_MANAGER);
         final VirtualMapState state = stateLifecycleManager.getMutableState();
         TestingAppStateInitializer.initPlatformState(state);
 

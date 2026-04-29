@@ -18,7 +18,7 @@ open module com.swirlds.merkledb {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires com.swirlds.base;
-    requires com.swirlds.common;
+    requires transitive com.swirlds.common;
     requires com.swirlds.logging;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;

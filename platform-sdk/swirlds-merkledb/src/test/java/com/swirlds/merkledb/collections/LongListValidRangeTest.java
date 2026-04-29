@@ -3,6 +3,7 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextLong;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -98,10 +99,10 @@ class LongListValidRangeTest {
         new LongListHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
         new LongListSegment(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
         new LongListSegment(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
-        new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, CONFIGURATION)
+        new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, CONFIGURATION, FILE_SYSTEM_MANAGER)
                 .resetTransferBuffer()
                 .close();
-        new LongListDisk(4, AbstractLongList.MAX_NUM_CHUNKS * 4, 1, CONFIGURATION)
+        new LongListDisk(4, AbstractLongList.MAX_NUM_CHUNKS * 4, 1, CONFIGURATION, FILE_SYSTEM_MANAGER)
                 .resetTransferBuffer()
                 .close();
         // Illegal cases, too many chunks
@@ -116,10 +117,11 @@ class LongListValidRangeTest {
                 () -> new LongListHeap(16, AbstractLongList.MAX_NUM_CHUNKS * 16 + 1, 1));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1, CONFIGURATION));
+                () -> new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1, CONFIGURATION, FILE_SYSTEM_MANAGER));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new LongListDisk(32, AbstractLongList.MAX_NUM_CHUNKS * 32 + 1, 1, CONFIGURATION));
+                () -> new LongListDisk(
+                        32, AbstractLongList.MAX_NUM_CHUNKS * 32 + 1, 1, CONFIGURATION, FILE_SYSTEM_MANAGER));
         assertThrows(
                 IllegalArgumentException.class, () -> new LongListSegment(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
         assertThrows(
@@ -761,7 +763,8 @@ class LongListValidRangeTest {
         return Stream.of(
                 Arguments.of(new LongListOffHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
                 Arguments.of(new LongListHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
-                Arguments.of(new LongListDisk(longsPerChunk, MAX_LONGS, reservedBufferLength, CONFIGURATION)),
+                Arguments.of(new LongListDisk(
+                        longsPerChunk, MAX_LONGS, reservedBufferLength, CONFIGURATION, FILE_SYSTEM_MANAGER)),
                 Arguments.of(new LongListSegment(longsPerChunk, MAX_LONGS, reservedBufferLength)));
     }
 

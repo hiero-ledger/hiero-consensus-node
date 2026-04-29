@@ -7,6 +7,7 @@ import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
 import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
 import static com.swirlds.merkledb.MerkleDbDataSource.PATH_TO_KEY_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -74,7 +75,7 @@ class CompactionInterruptTest {
         final String tableName = "mergeThenInterrupt";
         final MerkleDbDataSource dataSource = TestType.variable_variable
                 .dataType()
-                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
+                .createDataSource(CONFIGURATION, FILE_SYSTEM_MANAGER, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         try {
@@ -120,7 +121,7 @@ class CompactionInterruptTest {
         final String tableName = "mergeWhileSnapshotting";
         final MerkleDbDataSource dataSource = TestType.variable_variable
                 .dataType()
-                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, false);
+                .createDataSource(CONFIGURATION, FILE_SYSTEM_MANAGER, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         final ExecutorService exec = Executors.newCachedThreadPool();

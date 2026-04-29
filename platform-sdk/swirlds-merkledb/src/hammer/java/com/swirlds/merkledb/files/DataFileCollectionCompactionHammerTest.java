@@ -2,14 +2,15 @@
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Random;
@@ -52,8 +53,8 @@ class DataFileCollectionCompactionHammerTest {
     @MethodSource("provideForBenchmark")
     @Tags({@Tag("Speed")})
     void benchmark(int numFiles, int maxEntriesPerFile) throws IOException {
-        final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
-                "DataFileCollectionCompactionHammerTest", CONFIGURATION);
+        final Path tempFileDir = FILE_SYSTEM_MANAGER.resolveNewTemp("DataFileCollectionCompactionHammerTest");
+        Files.createDirectories(tempFileDir);
         assertDoesNotThrow(() -> {
             final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
             String storeName = "benchmark";
@@ -117,8 +118,8 @@ class DataFileCollectionCompactionHammerTest {
 
     @Test
     void hammer() throws IOException, InterruptedException, ExecutionException {
-        final Path tempFileDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(
-                "DataFileCollectionCompactionHammerTest", CONFIGURATION);
+        final Path tempFileDir = FILE_SYSTEM_MANAGER.resolveNewTemp("DataFileCollectionCompactionHammerTest");
+        Files.createDirectories(tempFileDir);
         final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
         String storeName = "hammer";
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);

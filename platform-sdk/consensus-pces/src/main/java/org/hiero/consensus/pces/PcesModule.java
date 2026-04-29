@@ -2,6 +2,7 @@
 package org.hiero.consensus.pces;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -133,6 +134,7 @@ public interface PcesModule {
      *
      * @param configuration the configuration
      * @param selfId the ID of this node
+     * @param fileSystemManager the file system manager for managing file locations on disk
      * @param destinationDirectory the directory to copy files to
      * @param lowerBound the minimum birth round of events to copy, events with lower birth round are not copied
      * @param round the round of the state that is being written
@@ -140,6 +142,7 @@ public interface PcesModule {
     void copyPcesFilesRetryOnFailure(
             @NonNull Configuration configuration,
             @NonNull NodeId selfId,
+            @NonNull FileSystemManager fileSystemManager,
             @NonNull Path destinationDirectory,
             long lowerBound,
             long round);

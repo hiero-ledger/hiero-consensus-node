@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.app.services.iss;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
@@ -50,9 +51,10 @@ public class IssService implements OtterService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final VirtualMapState state) {
         this.selfId = selfId;
-        this.scratchPad = Scratchpad.create(configuration, selfId, IssServiceScratchpad.class, NAME);
+        this.scratchPad = Scratchpad.create(configuration, fileSystemManager, selfId, IssServiceScratchpad.class, NAME);
 
         log.info(STARTUP.getMarker(), "IssService initialized");
     }

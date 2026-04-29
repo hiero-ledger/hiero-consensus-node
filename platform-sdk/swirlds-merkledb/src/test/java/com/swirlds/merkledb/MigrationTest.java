@@ -2,6 +2,7 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -134,6 +135,6 @@ class MigrationTest {
      * Create a new virtual map data source builder.
      */
     private static MerkleDbDataSourceBuilder constructBuilder() {
-        return new MerkleDbDataSourceBuilder(CONFIGURATION, 1234);
+        return new MerkleDbDataSourceBuilder(CONFIGURATION, FILE_SYSTEM_MANAGER, 1234);
     }
 }

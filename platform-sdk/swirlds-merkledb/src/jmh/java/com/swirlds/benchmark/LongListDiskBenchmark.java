@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.config.FileSystemManagerConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -38,15 +38,17 @@ public class LongListDiskBenchmark {
 
     private Configuration configuration;
 
+    private FileSystemManager fileSystemManager;
+
     @Setup(Level.Trial)
     public void setup() throws IOException {
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(StateCommonConfig.class)
-                .withConfigDataType(TemporaryFileConfig.class)
+                .withConfigDataType(FileSystemManagerConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.longListChunkSize", "" + chunkSize));
         configuration = configurationBuilder.build();
+        fileSystemManager = FileSystemManager.create(configuration);
         try (final LongListHeap list = new LongListHeap(1024, fileSize, 0)) {
             list.updateValidRange(0, fileSize - 1);
             for (int i = 0; i < fileSize; i++) {
@@ -67,7 +69,7 @@ public class LongListDiskBenchmark {
 
     @Benchmark
     public void loadFromFile() throws IOException {
-        try (final LongListDisk list = new LongListDisk(srcFile, fileSize, configuration)) {
+        try (final LongListDisk list = new LongListDisk(srcFile, fileSize, configuration, fileSystemManager)) {
             if (list.size() != fileSize) {
                 throw new RuntimeException("Wrong file size: expected=" + fileSize + " actual=" + list.size());
             }

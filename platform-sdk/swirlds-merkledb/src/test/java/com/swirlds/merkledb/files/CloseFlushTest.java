@@ -2,9 +2,10 @@
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
@@ -19,6 +20,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -59,15 +61,18 @@ public class CloseFlushTest {
         final int count = 10000;
         final ExecutorService exec = Executors.newSingleThreadExecutor();
         final AtomicReference<Exception> exception = new AtomicReference<>();
-        final Path tmpFileDir = LegacyTemporaryFileBuilder.buildTemporaryFile(CONFIGURATION);
+        final Path tmpFileDir = FILE_SYSTEM_MANAGER.resolveNewTemp();
+        Files.createDirectories(tmpFileDir);
         for (int j = 0; j < 100; j++) {
             final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
             final VirtualDataSource dataSource = TestType.long_fixed
                     .dataType()
-                    .createDataSource(CONFIGURATION, storeDir, "closeFlushTest", count, false, true);
+                    .createDataSource(
+                            CONFIGURATION, FILE_SYSTEM_MANAGER, storeDir, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
-            final VirtualDataSourceBuilder builder = new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION);
+            final VirtualDataSourceBuilder builder =
+                    new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION, FILE_SYSTEM_MANAGER);
             VirtualMap map = new VirtualMap(builder, CONFIGURATION);
             for (int i = 0; i < count; i++) {
                 final Bytes key = ExampleLongKey.longToKey(i);
@@ -112,14 +117,15 @@ public class CloseFlushTest {
 
         // Provided for deserialization
         public CustomDataSourceBuilder() {
-            super(CONFIGURATION);
+            super(CONFIGURATION, FILE_SYSTEM_MANAGER);
         }
 
         public CustomDataSourceBuilder(
                 final VirtualDataSource delegate,
                 AtomicReference<Exception> sink,
-                final @NonNull Configuration configuration) {
-            super(configuration);
+                final @NonNull Configuration configuration,
+                final @NonNull FileSystemManager fileSystemManager) {
+            super(configuration, fileSystemManager);
             this.delegate = delegate;
             this.exceptionSink = sink;
         }

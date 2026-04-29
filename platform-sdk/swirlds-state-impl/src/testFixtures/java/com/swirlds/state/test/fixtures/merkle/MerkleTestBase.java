@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
@@ -15,6 +16,7 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -65,11 +67,11 @@ public class MerkleTestBase extends StateTestBase {
     protected final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
             .withConfigDataType(FileSystemManagerConfig.class)
             .withConfigDataType(CryptoConfig.class)
             .build();
+
+    protected final FileSystemManager FILE_SYSTEM_MANAGER = FileSystemManager.create(CONFIGURATION);
 
     private static final String SINGLETON_CLASS_ID_SUFFIX = "SingletonLeaf";
     private static final String QUEUE_NODE_CLASS_ID_SUFFIX = "QueueNode";
@@ -133,7 +135,7 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Creates a new arbitrary virtual map */
     protected VirtualMap createVirtualMap() {
-        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100);
+        final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, FILE_SYSTEM_MANAGER, 100);
         return new VirtualMap(builder, CONFIGURATION);
     }
 

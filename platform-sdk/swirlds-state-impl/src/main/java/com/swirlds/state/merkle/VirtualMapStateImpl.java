@@ -27,6 +27,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Reservable;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -122,12 +123,15 @@ public class VirtualMapStateImpl implements VirtualMapState {
      * @param configuration the platform configuration instance to use when creating the new instance of state
      * @param metrics       the platform metric instance to use when creating the new instance of state
      */
-    public VirtualMapStateImpl(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
+    public VirtualMapStateImpl(
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final Metrics metrics) {
         requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         final MerkleDbDataSourceBuilder dsBuilder;
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
-        dsBuilder = new MerkleDbDataSourceBuilder(configuration, merkleDbConfig.initialCapacity());
+        dsBuilder = new MerkleDbDataSourceBuilder(configuration, fileSystemManager, merkleDbConfig.initialCapacity());
 
         this.virtualMap = new VirtualMap(dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);

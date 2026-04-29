@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.scratchpad.internal;
 
-import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemporaryFile;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
@@ -68,6 +68,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
     private final Set<K> fields;
     private final String id;
     private final Configuration configuration;
+    private final FileSystemManager fileSystemManager;
 
     private final Map<K, SelfSerializable> data = new HashMap<>();
     private final AutoClosableLock lock = Locks.createAutoLock();
@@ -88,10 +89,12 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
      */
     public StandardScratchpad(
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final NodeId selfId,
             @NonNull final Class<K> clazz,
             @NonNull final String id) {
         this.configuration = configuration;
+        this.fileSystemManager = fileSystemManager;
         final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         scratchpadDirectory = stateConfig
                 .savedStateDirectory()
@@ -139,13 +142,9 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
             }
         }
 
-        logger.info(
-                STARTUP.getMarker(),
-                """
+        logger.info(STARTUP.getMarker(), """
                         Scratchpad {} contents:
-                        {}""",
-                id,
-                table.render());
+                        {}""", id, table.render());
     }
 
     /**
@@ -230,7 +229,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
                 Files.delete(files.get(index));
             }
 
-            final Path scratchpadFile = files.get(files.size() - 1);
+            final Path scratchpadFile = files.getLast();
             nextScratchpadIndex = getFileIndex(scratchpadFile) + 1;
 
             try (final SerializableDataInputStream in = new SerializableDataInputStream(
@@ -266,7 +265,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
      */
     @NonNull
     private Path flushToTemporaryFile() throws IOException {
-        final Path temporaryFile = buildTemporaryFile(configuration);
+        final Path temporaryFile = fileSystemManager.resolveNewTemp("scratchpad");
         try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
                 new BufferedOutputStream(new FileOutputStream(temporaryFile.toFile(), false)))) {
 

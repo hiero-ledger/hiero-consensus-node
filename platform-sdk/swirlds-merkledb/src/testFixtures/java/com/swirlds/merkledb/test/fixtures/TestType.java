@@ -2,12 +2,14 @@
 package com.swirlds.merkledb.test.fixtures;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.MerkleDbDataSource;
@@ -143,21 +145,22 @@ public enum TestType {
 
         public MerkleDbDataSource createDataSource(
                 final Configuration configuration,
+                final FileSystemManager fileSystemManager,
                 final Path dbPath,
                 final String name,
                 final int size,
                 final boolean enableMerging,
                 boolean preferDiskBasedIndexes)
                 throws IOException {
-            MerkleDbDataSource dataSource =
-                    new MerkleDbDataSource(dbPath, configuration, name, size, enableMerging, preferDiskBasedIndexes);
+            MerkleDbDataSource dataSource = new MerkleDbDataSource(
+                    dbPath, configuration, fileSystemManager, name, size, enableMerging, preferDiskBasedIndexes);
             dataSource.registerMetrics(getMetrics());
             return dataSource;
         }
 
         public MerkleDbDataSource getDataSource(final Path dbPath, final String name, final boolean enableMerging)
                 throws IOException {
-            return new MerkleDbDataSource(dbPath, CONFIGURATION, name, enableMerging, false);
+            return new MerkleDbDataSource(dbPath, CONFIGURATION, FILE_SYSTEM_MANAGER, name, enableMerging, false);
         }
 
         @SuppressWarnings("rawtypes")

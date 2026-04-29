@@ -30,6 +30,7 @@ jmhModuleInfo {
     requires("org.hiero.consensus.reconnect")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
+    requires("com.swirlds.config.extensions.test.fixtures")
     requiresStatic("com.github.spotbugs.annotations")
     runtimeOnly("com.swirlds.config.impl")
 }

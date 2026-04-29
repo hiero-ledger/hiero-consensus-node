@@ -60,6 +60,7 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Service;
@@ -307,7 +308,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
-        final var hedera = ServicesMain.newHedera(platformConfig, metrics, Time.getCurrent());
+        final var fileSystemManager = FileSystemManager.create(platformConfig);
+        final var hedera = ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, Time.getCurrent());
         this.stateLifecycleManager = hedera.getStateLifecycleManager();
         final var genesisState = hedera.getStateLifecycleManager().getMutableState();
         this.state = stateLifecycleManager.copyMutableState();

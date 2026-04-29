@@ -2,6 +2,7 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -11,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
@@ -41,11 +42,12 @@ class VirtualMapSerializationTests {
      * Create a new virtual map data source builder.
      */
     public static MerkleDbDataSourceBuilder constructBuilder() {
-        return constructBuilder(CONFIGURATION);
+        return constructBuilder(CONFIGURATION, FILE_SYSTEM_MANAGER);
     }
 
-    public static MerkleDbDataSourceBuilder constructBuilder(final Configuration configuration) {
-        return new MerkleDbDataSourceBuilder(configuration, 10_000);
+    public static MerkleDbDataSourceBuilder constructBuilder(
+            final Configuration configuration, final FileSystemManager fileSystemManager) {
+        return new MerkleDbDataSourceBuilder(configuration, fileSystemManager, 10_000);
     }
 
     /**
@@ -120,8 +122,8 @@ class VirtualMapSerializationTests {
     @SuppressWarnings("resource")
     private void testMapSerialization(final VirtualMap map) throws IOException {
 
-        final Path savedStateDirectory =
-                LegacyTemporaryFileBuilder.buildTemporaryDirectory("saved-state", CONFIGURATION);
+        final Path savedStateDirectory = FILE_SYSTEM_MANAGER.resolveNewTemp("saved-state");
+        Files.createDirectories(savedStateDirectory);
 
         // Make sure the map is hashed
         map.getHash();
@@ -134,8 +136,8 @@ class VirtualMapSerializationTests {
             assertFalse(list.isEmpty(), "there should be a non-zero number of files created");
         }
 
-        final VirtualMap deserializedMap =
-                VirtualMap.loadFromDirectory(savedStateDirectory, CONFIGURATION, () -> constructBuilder(CONFIGURATION));
+        final VirtualMap deserializedMap = VirtualMap.loadFromDirectory(
+                savedStateDirectory, CONFIGURATION, () -> constructBuilder(CONFIGURATION, FILE_SYSTEM_MANAGER));
 
         assertVmsAreEqual(map, deserializedMap);
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapUtils.CONFIGURATION;
 
 import com.swirlds.state.merkle.VirtualMapStateImpl;
@@ -27,7 +28,7 @@ public final class VirtualMapStateTestUtils {
      * @return the created virtual map state.
      */
     public static VirtualMapStateImpl createTestState() {
-        return new VirtualMapStateImpl(CONFIGURATION, new NoOpMetrics());
+        return new VirtualMapStateImpl(CONFIGURATION, FILE_SYSTEM_MANAGER, new NoOpMetrics());
     }
 
     private VirtualMapStateTestUtils() {}

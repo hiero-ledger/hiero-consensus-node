@@ -2,6 +2,7 @@
 package com.swirlds.merkledb.files.hashmap;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -43,7 +44,13 @@ class HalfDiskHashMapTest {
     private HalfDiskHashMap createNewTempMap(final String name, final long count) throws IOException {
         // create map
         HalfDiskHashMap map = new HalfDiskHashMap(
-                CONFIGURATION, count, tempDirPath.resolve(name), "HalfDiskHashMapTest", null, false);
+                CONFIGURATION,
+                FILE_SYSTEM_MANAGER,
+                count,
+                tempDirPath.resolve(name),
+                "HalfDiskHashMapTest",
+                null,
+                false);
         map.printStats();
         return map;
     }
@@ -114,8 +121,8 @@ class HalfDiskHashMapTest {
             // create snapshot
             map.snapshot(tempSnapshotDir);
             // open snapshot and check data
-            HalfDiskHashMap mapFromSnapshot =
-                    new HalfDiskHashMap(CONFIGURATION, count, tempSnapshotDir, "HalfDiskHashMapTest", null, false);
+            HalfDiskHashMap mapFromSnapshot = new HalfDiskHashMap(
+                    CONFIGURATION, FILE_SYSTEM_MANAGER, count, tempSnapshotDir, "HalfDiskHashMapTest", null, false);
             mapFromSnapshot.printStats();
             checkData(testType, mapFromSnapshot, 1, count, 1);
             // check deletion
@@ -596,7 +603,13 @@ class HalfDiskHashMapTest {
                 .withValue("merkleDb.maxNumOfKeys", "500")
                 .build();
         final HalfDiskHashMap hdhm = new HalfDiskHashMap(
-                config, 100, tempDirPath.resolve("test"), "testResizeRespectsBucketIndexCapacity", null, false);
+                config,
+                FILE_SYSTEM_MANAGER,
+                100,
+                tempDirPath.resolve("test"),
+                "testResizeRespectsBucketIndexCapacity",
+                null,
+                false);
         try {
             final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
             // 500 / 32 / 0.7, rounded up -> 32

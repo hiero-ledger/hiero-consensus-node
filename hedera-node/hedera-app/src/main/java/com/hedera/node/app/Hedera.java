@@ -117,6 +117,7 @@ import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -457,6 +458,7 @@ public final class Hedera
      * @param historyServiceFactory the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
      * @param configuration the configuration to use for the node
+     * @param fileSystemManager the file system manager to use for the node
      * @param metrics the metrics object to use for reporting
      * @param time the time source to use for measuring time
      */
@@ -470,6 +472,7 @@ public final class Hedera
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
             @NonNull final Time time) {
         requireNonNull(registryFactory);
@@ -578,7 +581,7 @@ public final class Hedera
                 .forEach(servicesRegistry::register);
         final var blockStreamsEnabled = isBlockStreamEnabled();
         onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration);
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
     }
 
     /**

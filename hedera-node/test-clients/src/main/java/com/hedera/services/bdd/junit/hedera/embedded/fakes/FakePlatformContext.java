@@ -34,6 +34,8 @@ public class FakePlatformContext implements PlatformContext {
             .withConfigDataType(StateCommonConfig.class)
             .build();
 
+    public static final FileSystemManager FILE_SYSTEM_MANAGER = FileSystemManager.create(PLATFORM_CONFIG);
+
     private final Metrics metrics;
 
     public FakePlatformContext(

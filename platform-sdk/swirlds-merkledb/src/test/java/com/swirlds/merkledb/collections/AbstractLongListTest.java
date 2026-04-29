@@ -5,6 +5,7 @@ import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE_V3;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
@@ -710,7 +711,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             LongListOffHeap.class.getSimpleName(), () -> new LongListOffHeap(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
     static LongListWriterFactory diskWriterFactory = new LongListWriterFactory(
             LongListDisk.class.getSimpleName(),
-            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION));
+            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION, FILE_SYSTEM_MANAGER));
     static LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
             LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
 
@@ -738,7 +739,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     static LongListReaderFactory diskReaderFactory =
             new LongListReaderFactory(LongListDisk.class.getSimpleName(), (file, a) -> {
                 try {
-                    return new LongListDisk(file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION);
+                    return new LongListDisk(
+                            file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION, FILE_SYSTEM_MANAGER);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

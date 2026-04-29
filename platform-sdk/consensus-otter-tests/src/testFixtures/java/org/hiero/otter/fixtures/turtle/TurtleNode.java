@@ -230,8 +230,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withRecycleBin(recycleBin)
                     .build();
 
-            final StateLifecycleManager stateLifecycleManager =
-                    new VirtualMapStateLifecycleManager(metrics, timeManager.time(), currentConfiguration);
+            final StateLifecycleManager stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                    metrics, timeManager.time(), currentConfiguration, fileSystemManager);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .deterministic()

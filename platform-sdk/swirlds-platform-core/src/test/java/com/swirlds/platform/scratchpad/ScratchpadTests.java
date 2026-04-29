@@ -9,8 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.common.config.StateCommonConfig_;
+import com.swirlds.common.io.config.FileSystemManagerConfig_;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -42,16 +43,19 @@ class ScratchpadTests {
 
     private Configuration configuration;
 
+    private FileSystemManager fileSystemManager;
+
     private final NodeId selfId = NodeId.of(0);
 
     @BeforeEach
     void beforeEach() throws IOException {
         FileUtils.deleteDirectory(testDirectory);
         Files.createDirectories(testDirectory);
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
         this.configuration = new TestConfigBuilder()
-                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, testDirectory.toString())
+                .withValue(FileSystemManagerConfig_.ROOT_PATH, testDirectory.toString())
+                .withValue(FileSystemManagerConfig_.TMP_DIR, "tmp")
                 .getOrCreateConfig();
+        this.fileSystemManager = FileSystemManager.create(configuration);
     }
 
     @AfterEach
@@ -73,7 +77,7 @@ class ScratchpadTests {
         final Random random = getRandomPrintSeed();
 
         final Scratchpad<TestScratchpadType> scratchpad =
-                Scratchpad.create(configuration, selfId, TestScratchpadType.class, "test");
+                Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, "test");
         scratchpad.logContents();
 
         final Path scratchpadDirectory =
@@ -167,7 +171,7 @@ class ScratchpadTests {
 
         // Simulate a restart
         final Scratchpad<TestScratchpadType> scratcphad2 =
-                Scratchpad.create(configuration, selfId, TestScratchpadType.class, "test");
+                Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, "test");
         scratchpad.logContents();
 
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
@@ -186,7 +190,7 @@ class ScratchpadTests {
         final Random random = getRandomPrintSeed();
 
         final Scratchpad<TestScratchpadType> scratchpad =
-                Scratchpad.create(configuration, selfId, TestScratchpadType.class, "test");
+                Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, "test");
         scratchpad.logContents();
 
         final Path scratchpadDirectory =
@@ -221,7 +225,8 @@ class ScratchpadTests {
         Files.copy(copyPath, scratchpadFile);
 
         // Simulate a restart
-        final Scratchpad scratchpad2 = Scratchpad.create(configuration, selfId, TestScratchpadType.class, "test");
+        final Scratchpad scratchpad2 =
+                Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, "test");
 
         assertEquals(hash2, scratchpad2.get(TestScratchpadType.FOO));
 
@@ -235,7 +240,7 @@ class ScratchpadTests {
         final Random random = getRandomPrintSeed();
 
         final Scratchpad<TestScratchpadType> scratchpad =
-                Scratchpad.create(configuration, selfId, TestScratchpadType.class, "test");
+                Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, "test");
         scratchpad.logContents();
 
         final Path scratchpadDirectory =
@@ -320,7 +325,7 @@ class ScratchpadTests {
 
         // Simulate a restart
         final Scratchpad<TestScratchpadType> scratcphad2 =
-                Scratchpad.create(configuration, selfId, TestScratchpadType.class, "test");
+                Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, "test");
         scratchpad.logContents();
 
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
@@ -341,7 +346,7 @@ class ScratchpadTests {
         final Random random = getRandomPrintSeed();
 
         final Scratchpad<TestScratchpadType> scratchpad =
-                Scratchpad.create(configuration, selfId, TestScratchpadType.class, "test");
+                Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, "test");
         scratchpad.logContents();
 
         final Path scratchpadDirectory =
@@ -445,13 +450,13 @@ class ScratchpadTests {
         assertEquals(nodeId3, scratchpad.get(TestScratchpadType.BAZ));
 
         // Simulate a restart
-        final Scratchpad<TestScratchpadType> scratcphad2 =
-                Scratchpad.create(configuration, selfId, TestScratchpadType.class, "test");
+        final Scratchpad<TestScratchpadType> scratchpad2 =
+                Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, "test");
         scratchpad.logContents();
 
         assertEquals(1, scratchpadDirectory.toFile().listFiles().length);
 
-        scratcphad2.atomicOperation(map -> {
+        scratchpad2.atomicOperation(map -> {
             assertEquals(hash3, map.get(TestScratchpadType.FOO));
             assertEquals(long3, map.get(TestScratchpadType.BAR));
             assertEquals(nodeId3, map.get(TestScratchpadType.BAZ));
@@ -462,16 +467,16 @@ class ScratchpadTests {
         // Should have no effect.
         scratchpad.atomicOperation(map -> false);
 
-        assertEquals(hash3, scratcphad2.get(TestScratchpadType.FOO));
-        assertEquals(long3, scratcphad2.get(TestScratchpadType.BAR));
-        assertEquals(nodeId3, scratcphad2.get(TestScratchpadType.BAZ));
+        assertEquals(hash3, scratchpad2.get(TestScratchpadType.FOO));
+        assertEquals(long3, scratchpad2.get(TestScratchpadType.BAR));
+        assertEquals(nodeId3, scratchpad2.get(TestScratchpadType.BAZ));
 
         // Should have no effect.
         scratchpad.atomicOperation(map -> false);
 
-        assertEquals(hash3, scratcphad2.get(TestScratchpadType.FOO));
-        assertEquals(long3, scratcphad2.get(TestScratchpadType.BAR));
-        assertEquals(nodeId3, scratcphad2.get(TestScratchpadType.BAZ));
+        assertEquals(hash3, scratchpad2.get(TestScratchpadType.FOO));
+        assertEquals(long3, scratchpad2.get(TestScratchpadType.BAR));
+        assertEquals(nodeId3, scratchpad2.get(TestScratchpadType.BAZ));
     }
 
     @Test
@@ -479,25 +484,29 @@ class ScratchpadTests {
     void illegalScratchpadIdTest() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> Scratchpad.create(configuration, selfId, TestScratchpadType.class, ""));
+                () -> Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, ""));
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> Scratchpad.create(configuration, selfId, TestScratchpadType.class, "foobar/baz"));
+                () -> Scratchpad.create(
+                        configuration, fileSystemManager, selfId, TestScratchpadType.class, "foobar/baz"));
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> Scratchpad.create(configuration, selfId, TestScratchpadType.class, "foobar\\baz"));
+                () -> Scratchpad.create(
+                        configuration, fileSystemManager, selfId, TestScratchpadType.class, "foobar\\baz"));
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> Scratchpad.create(configuration, selfId, TestScratchpadType.class, "foobar\"baz"));
+                () -> Scratchpad.create(
+                        configuration, fileSystemManager, selfId, TestScratchpadType.class, "foobar\"baz"));
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> Scratchpad.create(configuration, selfId, TestScratchpadType.class, "foobar*baz"));
+                () -> Scratchpad.create(
+                        configuration, fileSystemManager, selfId, TestScratchpadType.class, "foobar*baz"));
 
         // should not throw
-        Scratchpad.create(configuration, selfId, TestScratchpadType.class, "foo.bar_baz-1234");
+        Scratchpad.create(configuration, fileSystemManager, selfId, TestScratchpadType.class, "foo.bar_baz-1234");
     }
 }

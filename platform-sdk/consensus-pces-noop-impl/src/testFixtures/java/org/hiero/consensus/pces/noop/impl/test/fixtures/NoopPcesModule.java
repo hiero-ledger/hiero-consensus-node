@@ -4,6 +4,7 @@ package org.hiero.consensus.pces.noop.impl.test.fixtures;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
@@ -181,6 +182,7 @@ public class NoopPcesModule implements PcesModule {
     public void copyPcesFilesRetryOnFailure(
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
+            @NonNull FileSystemManager fileSystemManager,
             @NonNull final Path destinationDirectory,
             final long lowerBound,
             final long round) {

@@ -5,7 +5,6 @@ import static com.swirlds.platform.recovery.RecoveryTestUtils.generateRandomEven
 import static com.swirlds.platform.recovery.RecoveryTestUtils.getFirstEventStreamFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.truncateFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.writeRandomEventStream;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -16,11 +15,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamSingleFileIterator;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -31,9 +28,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("EventStreamSingleFileIterator Test")
 class EventStreamSingleFileIteratorTest {
+
+    @TempDir
+    private Path directory;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -46,9 +47,8 @@ class EventStreamSingleFileIteratorTest {
 
     @Test
     @DisplayName("Simple Stream Test")
-    void simpleStreamTest() throws IOException, NoSuchAlgorithmException {
+    void simpleStreamTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final List<CesEvent> events = generateRandomEvents(random, 0L, Duration.ofSeconds(4), 1, 20);
 
@@ -82,9 +82,8 @@ class EventStreamSingleFileIteratorTest {
     @Disabled("this test is flaky")
     @Test
     @DisplayName("Allowed Truncated File Test")
-    void allowedTruncatedFileTest() throws IOException, NoSuchAlgorithmException {
+    void allowedTruncatedFileTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final List<CesEvent> events = generateRandomEvents(random, 0L, Duration.ofSeconds(4), 1, 20);
 
@@ -119,9 +118,8 @@ class EventStreamSingleFileIteratorTest {
 
     @Test
     @DisplayName("Disallowed Truncated File Test")
-    void disallowedTruncatedFileTest() throws IOException, NoSuchAlgorithmException {
+    void disallowedTruncatedFileTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final List<CesEvent> events = generateRandomEvents(random, 0L, Duration.ofSeconds(4), 1, 20);
 
@@ -164,9 +162,8 @@ class EventStreamSingleFileIteratorTest {
 
     @Test
     @DisplayName("Disallowed Truncated File Test")
-    void disallowedTruncatedOnBoundaryTest() throws IOException, NoSuchAlgorithmException {
+    void disallowedTruncatedOnBoundaryTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final List<CesEvent> events = generateRandomEvents(random, 0L, Duration.ofSeconds(4), 1, 20);
 

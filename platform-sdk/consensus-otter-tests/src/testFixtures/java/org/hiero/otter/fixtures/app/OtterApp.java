@@ -9,6 +9,7 @@ import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
@@ -245,6 +246,7 @@ public class OtterApp implements ConsensusStateEventHandler {
         }
 
         final Configuration configuration = platform.getContext().getConfiguration();
+        final FileSystemManager fileSystemManager = platform.getContext().getFileSystemManager();
         if (!appServices.isEmpty()) {
             final boolean stateNotInitialized = appServices.stream()
                     .map(OtterService::name)
@@ -256,7 +258,8 @@ public class OtterApp implements ConsensusStateEventHandler {
         }
 
         for (final OtterService service : allServices) {
-            service.initialize(trigger, platform.getSelfId(), configuration, (VirtualMapStateImpl) state);
+            service.initialize(
+                    trigger, platform.getSelfId(), configuration, fileSystemManager, (VirtualMapStateImpl) state);
         }
     }
 

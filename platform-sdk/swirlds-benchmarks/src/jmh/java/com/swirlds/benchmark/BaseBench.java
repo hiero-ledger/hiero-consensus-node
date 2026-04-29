@@ -3,11 +3,13 @@ package com.swirlds.benchmark;
 
 import com.swirlds.benchmark.config.BenchmarkConfig;
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.io.config.FileSystemManagerConfig_;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.export.ConfigExport;
 import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import java.io.IOException;
@@ -96,6 +98,8 @@ public abstract class BaseBench {
 
     protected static Configuration configuration;
 
+    protected static FileSystemManager fileSystemManager;
+
     private static void loadConfig() throws IOException {
         ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
@@ -138,7 +142,11 @@ public abstract class BaseBench {
             benchDir = Files.createDirectories(Path.of(data).resolve(benchmarkName()));
         }
 
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(benchDir.resolve("tmp"));
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(FileSystemManagerConfig_.ROOT_PATH, benchDir.toString())
+                .withValue(FileSystemManagerConfig_.TMP_DIR, "tmp")
+                .getOrCreateConfig();
+        fileSystemManager = FileSystemManager.create(configuration);
 
         try {
             ConstructableRegistration.registerAllConstructables();

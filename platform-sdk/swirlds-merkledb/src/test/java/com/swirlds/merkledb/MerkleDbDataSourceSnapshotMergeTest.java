@@ -4,6 +4,7 @@ package com.swirlds.merkledb;
 import static com.swirlds.merkledb.MerkleDbDataSourceTest.assertLeaf;
 import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
@@ -80,7 +81,8 @@ class MerkleDbDataSourceSnapshotMergeTest {
         final Path storeDir = Files.createTempDirectory("createMergeSnapshotReadBackImpl");
         final String tableName = "mergeSnapshotReadBack";
         final MerkleDbDataSource dataSource = testType.dataType()
-                .createDataSource(CONFIGURATION, storeDir, tableName, COUNT, false, preferDiskBasedIndexes);
+                .createDataSource(
+                        CONFIGURATION, FILE_SYSTEM_MANAGER, storeDir, tableName, COUNT, false, preferDiskBasedIndexes);
         final ExecutorService exec = Executors.newCachedThreadPool();
         try {
             // create some internal and leaf nodes in batches

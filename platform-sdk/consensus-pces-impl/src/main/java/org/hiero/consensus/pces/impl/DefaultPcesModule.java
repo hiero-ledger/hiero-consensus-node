@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -224,10 +225,12 @@ public class DefaultPcesModule implements PcesModule {
     public void copyPcesFilesRetryOnFailure(
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Path destinationDirectory,
             final long lowerBound,
             final long round) {
+        requireNonNull(fileSystemManager, "Not initialized");
         BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure(
-                configuration, selfId, destinationDirectory, lowerBound, round);
+                configuration, selfId, destinationDirectory, fileSystemManager, lowerBound, round);
     }
 }

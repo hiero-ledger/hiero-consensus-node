@@ -5,7 +5,6 @@ import static com.swirlds.platform.recovery.RecoveryTestUtils.generateRandomEven
 import static com.swirlds.platform.recovery.RecoveryTestUtils.getFirstEventStreamFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.truncateFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.writeRandomEventStream;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -16,7 +15,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.platform.recovery.internal.ObjectStreamIterator;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -34,9 +32,13 @@ import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("ObjectStreamIterator Test")
 class ObjectStreamIteratorTest {
+
+    @TempDir
+    private Path directory;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -53,7 +55,6 @@ class ObjectStreamIteratorTest {
         // FUTURE WORK: once streaming code is simplified, rewrite this test to use simple object types
 
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final List<CesEvent> events = generateRandomEvents(random, 0L, Duration.ofSeconds(4), 1, 20);
 
@@ -114,7 +115,6 @@ class ObjectStreamIteratorTest {
         // FUTURE WORK: once streaming code is simplified, rewrite this test to use simple object types
 
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final List<CesEvent> events = generateRandomEvents(random, 0L, Duration.ofSeconds(4), 1, 20);
 
@@ -164,7 +164,6 @@ class ObjectStreamIteratorTest {
         // FUTURE WORK: once streaming code is simplified, rewrite this test to use simple object types
 
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final List<CesEvent> events = generateRandomEvents(random, 0L, Duration.ofSeconds(4), 1, 20);
 

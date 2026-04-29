@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.app.services.roster;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -33,6 +34,7 @@ public class RosterService implements OtterService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final VirtualMapState state) {
         log.info(STARTUP.getMarker(), "RosterService initialized");
     }

@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.app;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -44,12 +45,14 @@ public interface OtterService {
      * @param trigger the trigger that caused the initialization
      * @param selfId the ID of this node
      * @param configuration the configuration to use
+     * @param fileSystemManager the file system manager to use
      * @param state the current state at the time of initialization
      */
     default void initialize(
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final VirtualMapState state) {
         // Default implementation does nothing
     }

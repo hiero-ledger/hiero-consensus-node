@@ -3,14 +3,15 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Instant;
@@ -37,8 +38,8 @@ public class DataFileReaderHammerTest {
         final int readerThreads = 32;
         final int readIterations = 10_000;
 
-        final Path tempFile =
-                LegacyTemporaryFileBuilder.buildTemporaryFile("interruptedReadsHammerTest", CONFIGURATION);
+        final Path tempFile = FILE_SYSTEM_MANAGER.resolveNewTemp("interruptedReadsHammerTest");
+        Files.createFile(tempFile);
         final ByteBuffer writeBuf = ByteBuffer.allocate(itemSize);
         for (int i = 0; i < itemSize; i++) {
             writeBuf.put((byte) (i % 100));

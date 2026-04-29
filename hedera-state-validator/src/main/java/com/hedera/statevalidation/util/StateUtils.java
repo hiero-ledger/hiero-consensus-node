@@ -183,7 +183,8 @@ public final class StateUtils {
                     new VirtualMapStateLifecycleManager(
                             platformContext.getMetrics(),
                             platformContext.getTime(),
-                            platformContext.getConfiguration());
+                            platformContext.getConfiguration(),
+                            platformContext.getFileSystemManager());
 
             final DeserializedSignedState dss =
                     readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);

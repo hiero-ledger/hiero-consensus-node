@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -115,15 +116,17 @@ class ReconnectControllerTest {
 
         selfId = NodeId.of(0);
 
-        // Create platform context with reconnect enabled
+        // Create a configuration with reconnect enabled
         configuration = new TestConfigBuilder()
                 .withValue("reconnect.active", true)
                 .withValue("reconnect.maximumReconnectFailuresBeforeShutdown", 5)
                 .withValue("reconnect.minimumTimeBetweenReconnects", "100ms")
                 .withValue("reconnect.reconnectWindowSeconds", -1) // disabled
                 .getOrCreateConfig();
+        final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
 
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), configuration);
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                new NoOpMetrics(), new FakeTime(), configuration, fileSystemManager);
         // Create test states
         testSignedState = new RandomSignedStateGenerator(random)
                 .setRoster(roster)

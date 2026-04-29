@@ -7,7 +7,6 @@ import static com.swirlds.platform.recovery.RecoveryTestUtils.getMiddleEventStre
 import static com.swirlds.platform.recovery.RecoveryTestUtils.truncateFile;
 import static com.swirlds.platform.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static com.swirlds.platform.recovery.internal.EventStreamLowerBound.UNBOUNDED;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -15,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamMultiFileIterator;
 import com.swirlds.platform.recovery.internal.EventStreamRoundLowerBound;
@@ -24,7 +22,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
@@ -39,9 +36,13 @@ import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("EventStreamMultiFileIterator")
 class EventStreamMultiFileIteratorTest {
+
+    @TempDir
+    private Path directory;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -57,9 +58,8 @@ class EventStreamMultiFileIteratorTest {
 
     @Test
     @DisplayName("Read All Events Test")
-    void readAllEventsTest() throws IOException, NoSuchAlgorithmException {
+    void readAllEventsTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -90,9 +90,8 @@ class EventStreamMultiFileIteratorTest {
 
     @Test
     @DisplayName("Read Events Starting At Round Test")
-    void readEventsStartingAtRoundTest() throws NoSuchAlgorithmException, IOException {
+    void readEventsStartingAtRoundTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -127,10 +126,9 @@ class EventStreamMultiFileIteratorTest {
 
     @Test
     @DisplayName("Read Events Starting At Non-Existent Round Test")
-    void readEventsStartingAtNonExistentRoundTest() throws NoSuchAlgorithmException, IOException {
+    void readEventsStartingAtNonExistentRoundTest() throws IOException {
 
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -158,10 +156,9 @@ class EventStreamMultiFileIteratorTest {
 
     @Test
     @DisplayName("Read Events Starting At Non-Existent Round Test")
-    void missingEventStreamFileTest() throws IOException, NoSuchAlgorithmException {
+    void missingEventStreamFileTest() throws IOException {
 
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -198,9 +195,8 @@ class EventStreamMultiFileIteratorTest {
 
     @Test
     @DisplayName("Truncate Last File Test")
-    void truncatedLastFileTest() throws NoSuchAlgorithmException, IOException {
+    void truncatedLastFileTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -245,9 +241,8 @@ class EventStreamMultiFileIteratorTest {
 
     @Test
     @DisplayName("Truncate Middle File Test")
-    void truncatedMiddleFileTest() throws NoSuchAlgorithmException, IOException {
+    void truncatedMiddleFileTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -284,9 +279,8 @@ class EventStreamMultiFileIteratorTest {
 
     @Test
     @DisplayName("Extensive Bound Test")
-    void extensiveBoundTest() throws IOException, NoSuchAlgorithmException, ConstructableRegistryException {
+    void extensiveBoundTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int roundsPerSecond = 1;

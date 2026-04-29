@@ -178,6 +178,7 @@ public final class SignedStateFileWriter {
             pcesModule.copyPcesFilesRetryOnFailure(
                     configuration,
                     selfId,
+                    platformContext.getFileSystemManager(),
                     directory,
                     ancientThresholdOf(signedState.getState()),
                     signedState.getRound());
@@ -307,6 +308,7 @@ public final class SignedStateFileWriter {
                     savedStateDirectory);
 
             executeAndRename(
+                    platformContext.getFileSystemManager(),
                     savedStateDirectory,
                     directory -> writeSignedStateFilesToDirectory(
                             platformContext, selfId, directory, reservedSignedState, stateLifecycleManager),

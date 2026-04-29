@@ -10,6 +10,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.constructable.ConstructableRegistration;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -56,6 +57,7 @@ final class ReconnectTest {
     // This test uses a threading pattern that is incompatible with gzip compression.
     private final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
+    private final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
@@ -92,7 +94,8 @@ final class ReconnectTest {
 
         final VirtualMapState stateCopy;
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), configuration);
+                new VirtualMapStateLifecycleManager(
+                        new NoOpMetrics(), new FakeTime(), configuration, fileSystemManager);
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)

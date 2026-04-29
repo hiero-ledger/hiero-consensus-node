@@ -5,6 +5,7 @@ import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -56,6 +57,7 @@ public final class BestEffortPcesFileCopy {
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final Path destinationDirectory,
+            @NonNull final FileSystemManager fileSystemManager,
             final long lowerBound,
             final long round) {
 
@@ -74,6 +76,7 @@ public final class BestEffortPcesFileCopy {
             triesRemaining--;
             try {
                 executeAndRename(
+                        fileSystemManager,
                         pcesDestination,
                         temporaryDirectory -> copyPcesFiles(configuration, selfId, temporaryDirectory, lowerBound),
                         configuration);

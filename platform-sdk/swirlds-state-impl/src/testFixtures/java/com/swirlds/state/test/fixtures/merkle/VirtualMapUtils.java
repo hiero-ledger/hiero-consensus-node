@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
+
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -28,20 +31,24 @@ public final class VirtualMapUtils {
             .build();
 
     public static VirtualMap createVirtualMap() {
-        return createVirtualMap(CONFIGURATION);
+        return createVirtualMap(CONFIGURATION, FILE_SYSTEM_MANAGER);
     }
 
-    public static VirtualMap createVirtualMap(@NonNull Configuration configuration) {
+    public static VirtualMap createVirtualMap(
+            @NonNull final Configuration configuration, @NonNull final FileSystemManager fileSystemManager) {
         final long MAX_NUM_OF_KEYS = 1_000L; // fixed small number to avoid OOO
-        return createVirtualMap(configuration, MAX_NUM_OF_KEYS);
+        return createVirtualMap(configuration, fileSystemManager, MAX_NUM_OF_KEYS);
     }
 
     public static VirtualMap createVirtualMap(final long maxNumberOfKeys) {
-        return createVirtualMap(CONFIGURATION, maxNumberOfKeys);
+        return createVirtualMap(CONFIGURATION, FILE_SYSTEM_MANAGER, maxNumberOfKeys);
     }
 
-    public static VirtualMap createVirtualMap(@NonNull Configuration configuration, final long maxNumberOfKeys) {
-        final var dsBuilder = new MerkleDbDataSourceBuilder(configuration, maxNumberOfKeys);
+    public static VirtualMap createVirtualMap(
+            @NonNull Configuration configuration,
+            @NonNull FileSystemManager fileSystemManager,
+            final long maxNumberOfKeys) {
+        final var dsBuilder = new MerkleDbDataSourceBuilder(configuration, fileSystemManager, maxNumberOfKeys);
         return new VirtualMap(dsBuilder, configuration);
     }
 }

@@ -10,6 +10,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.config.api.Configuration;
@@ -179,11 +180,14 @@ public class ConsensusNoOpModules {
      *
      * @param model the wiring model
      * @param configuration the configuration
+     * @param fileSystemManager the file system manager
      * @return an initialized no-op instance of {@code GossipModule}
      */
     @NonNull
     public static GossipModule createNoOpGossipModule(
-            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -205,7 +209,7 @@ public class ConsensusNoOpModules {
                 new BlockingResourceProvider<>();
         final FallenBehindMonitor fallenBehindMonitor = new FallenBehindMonitor(roster, configuration, metrics);
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(metrics, time, configuration);
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
         final GossipModule gossipModule = createModule(GossipModule.class, configuration);
         gossipModule.initialize(
                 model,

@@ -4,8 +4,7 @@ package com.swirlds.virtualmap.test.fixtures;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualMap;
@@ -41,8 +40,7 @@ public final class VirtualMapTestUtils {
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
+            .withConfigDataType(FileSystemManagerConfig.class)
             .withConfigDataType(ReconnectConfig.class)
             .build();
 

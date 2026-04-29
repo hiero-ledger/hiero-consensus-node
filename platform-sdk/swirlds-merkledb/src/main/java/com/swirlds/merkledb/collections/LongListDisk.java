@@ -5,7 +5,7 @@ import static java.lang.Math.toIntExact;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -58,6 +58,8 @@ public class LongListDisk extends AbstractLongList<Long> {
      */
     private Path tempDir;
 
+    private final FileSystemManager fileSystemManager;
+
     /** A temp byte buffer for transferring data between file channels */
     private static final ThreadLocal<ByteBuffer> TRANSFER_BUFFER_THREAD_LOCAL;
 
@@ -106,9 +108,12 @@ public class LongListDisk extends AbstractLongList<Long> {
      *
      * @param capacity Maximum number of longs permissible for this long list
      * @param configuration Platform configuration
+     * @param fileSystemManager File system manager to use for resolving temp files
      */
-    public LongListDisk(final long capacity, final Configuration configuration) {
+    public LongListDisk(
+            final long capacity, final Configuration configuration, final FileSystemManager fileSystemManager) {
         super(capacity, configuration);
+        this.fileSystemManager = fileSystemManager;
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
     }
@@ -121,13 +126,16 @@ public class LongListDisk extends AbstractLongList<Long> {
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before
      *                           minimal index in the list
+     * @param fileSystemManager the file system manager to use for resolving temp files
      */
     public LongListDisk(
             final int longsPerChunk,
             final long capacity,
             final long reservedBufferSize,
-            final @NonNull Configuration configuration) {
+            final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager) {
         super(longsPerChunk, capacity, reservedBufferSize);
+        this.fileSystemManager = fileSystemManager;
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
     }
@@ -142,12 +150,18 @@ public class LongListDisk extends AbstractLongList<Long> {
      * @param file The file to load the long list from
      * @param capacity Maximum number of longs permissible for this long list
      * @param configuration Platform configuration
+     * @param fileSystemManager file system managers for resolving temporary file locations
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
-    public LongListDisk(@NonNull final Path file, final long capacity, @NonNull final Configuration configuration)
+    public LongListDisk(
+            @NonNull final Path file,
+            final long capacity,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager)
             throws IOException {
         super(file, capacity, configuration);
+        this.fileSystemManager = fileSystemManager;
         if (tempFile == null) {
             throw new IllegalStateException("The temp file is not initialized");
         }
@@ -165,6 +179,7 @@ public class LongListDisk extends AbstractLongList<Long> {
      * @param capacity Maximum number of longs permissible for this long list
      * @param reservedBufferSize Reserved buffer length that the list should have before minimal index in the list
      * @param configuration Platform configuration
+     * @param fileSystemManager file system managers for resolving temporary file locations
      *
      * @throws IOException If the file doesn't exist or there was a problem reading the file
      */
@@ -173,9 +188,11 @@ public class LongListDisk extends AbstractLongList<Long> {
             final int longsPerChunk,
             final long capacity,
             final long reservedBufferSize,
-            final @NonNull Configuration configuration)
+            final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager)
             throws IOException {
         super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
+        this.fileSystemManager = fileSystemManager;
         // IDE complains that the tempFile is not initialized, but it's initialized in readBodyFromFileChannelOnInit
         // which is called from the constructor of the parent class
         if (tempFile == null) {
@@ -188,7 +205,7 @@ public class LongListDisk extends AbstractLongList<Long> {
             throw new IllegalStateException("The temp file has been already initialized");
         }
         try {
-            tempFile = createTempFile(DEFAULT_FILE_NAME, configuration);
+            tempFile = createTempFile(DEFAULT_FILE_NAME, configuration, fileSystemManager);
             currentFileChannel = FileChannel.open(
                     tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
         } catch (IOException e) {
@@ -201,7 +218,7 @@ public class LongListDisk extends AbstractLongList<Long> {
     protected void readBodyFromFileChannelOnInit(
             final String sourceFileName, final FileChannel fileChannel, final Configuration configuration)
             throws IOException {
-        tempFile = createTempFile(sourceFileName, configuration);
+        tempFile = createTempFile(sourceFileName, configuration, fileSystemManager);
 
         currentFileChannel = FileChannel.open(
                 tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
@@ -255,12 +272,15 @@ public class LongListDisk extends AbstractLongList<Long> {
         return buffer;
     }
 
-    Path createTempFile(final String sourceFileName, final @NonNull Configuration configuration) throws IOException {
+    Path createTempFile(
+            final String sourceFileName,
+            final @NonNull Configuration configuration,
+            final @NonNull FileSystemManager fileSystemManager)
+            throws IOException {
         requireNonNull(configuration);
         // FileSystemManager.create() deletes the temp directory created previously. It means,
         // every new LongListDisk instance erases the folder used by the previous LongListDisk, if any!
-        // final Path directory = FileSystemManager.create(configuration).resolveNewTemp(STORE_POSTFIX);
-        tempDir = LegacyTemporaryFileBuilder.buildTemporaryDirectory(STORE_POSTFIX, configuration);
+        final Path tempDir = fileSystemManager.resolveNewTemp(STORE_POSTFIX);
         if (!exists(tempDir)) {
             Files.createDirectories(tempDir);
         }

@@ -3,6 +3,7 @@ package com.swirlds.platform;
 
 import static com.swirlds.base.test.fixtures.util.DataUtils.randomUtf8Bytes;
 import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
@@ -26,7 +27,6 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
@@ -42,6 +42,7 @@ import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Signature;
@@ -74,9 +75,10 @@ class SignedStateFileReadWriteTest {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION);
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
+        testDirectory = FILE_SYSTEM_MANAGER.resolveNewTemp("SignedStateFileReadWriteTest");
+        Files.createDirectories(testDirectory);
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION, FILE_SYSTEM_MANAGER);
+//        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
     }
 
     @AfterEach

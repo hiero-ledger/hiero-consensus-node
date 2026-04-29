@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -46,6 +46,7 @@ import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.LinkedList;
@@ -1199,8 +1200,8 @@ class VirtualMapTests extends VirtualTestBase {
         }
         // Take a snapshot of copy 5
         final VirtualMap copy5 = copies.get(5);
-        final Path snapshotPath =
-                LegacyTemporaryFileBuilder.buildTemporaryDirectory("snapshotAndRestore", CONFIGURATION);
+        final Path snapshotPath = FileSystemManager.create(CONFIGURATION).resolveNewTemp("snapshotAndRestore");
+        Files.createDirectories(snapshotPath);
         copy5.createSnapshot(snapshotPath);
         try {
             final VirtualMap restored = VirtualMap.loadFromDirectory(snapshotPath, CONFIGURATION, InMemoryBuilder::new);

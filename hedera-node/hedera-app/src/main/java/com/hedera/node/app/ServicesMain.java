@@ -148,6 +148,7 @@ public class ServicesMain {
             throw new ConfigurationException();
         }
         final var platformConfig = buildPlatformConfig();
+        final var fileSystemManager = FileSystemManager.create(platformConfig);
 
         final var selfId = commandLineArgs.localNodesToStart().stream()
                 .findFirst()
@@ -161,12 +162,11 @@ public class ServicesMain {
         setupGlobalMetrics(platformConfig);
         final var time = Time.getCurrent();
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        hedera = newHedera(platformConfig, metrics, time);
+        hedera = newHedera(platformConfig, fileSystemManager, metrics, time);
         final var version = hedera.getSemanticVersion();
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
-        final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
@@ -307,12 +307,16 @@ public class ServicesMain {
      * Creates a canonical {@link Hedera} instance for the given node id and metrics.
      *
      * @param configuration the platform configuration instance to use when creating the new instance of state
+     * @param fileSystemManager the file system manager instance to use when creating the new instance of state
      * @param metrics       the platform metric instance to use when creating the new instance of state
      * @param time          the time instance to use when creating the new instance of state
      * @return the {@link Hedera} instance
      */
     public static Hedera newHedera(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time) {
         requireNonNull(configuration);
         requireNonNull(metrics);
         requireNonNull(time);
@@ -332,6 +336,7 @@ public class ServicesMain {
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
                 TssBlockHashSigner::new,
                 configuration,
+                fileSystemManager,
                 metrics,
                 time);
     }

@@ -22,7 +22,8 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
+import com.swirlds.common.io.config.FileSystemManagerConfig_;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.components.DefaultSavedStateController;
@@ -76,6 +77,7 @@ class StateFileManagerTests {
     private PlatformContext context;
     private SignedStateFilePath signedStateFilePath;
 
+
     Path testDirectory;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
@@ -85,20 +87,19 @@ class StateFileManagerTests {
     }
 
     @BeforeEach
-    void beforeEach() throws IOException {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory);
+    void beforeEach() {
         final TestConfigBuilder configBuilder = new TestConfigBuilder()
                 .withValue(
-                        StateCommonConfig_.SAVED_STATE_DIRECTORY,
-                        testDirectory.toFile().toString());
+                        FileSystemManagerConfig_.TMP_DIR,
+                        "SignedStateFileReadWriteTest");
         context = TestPlatformContextBuilder.create()
                 .withConfiguration(configBuilder.getOrCreateConfig())
                 .build();
+        testDirectory = FileUtils.getAbsolutePath().resolve("SignedStateFileReadWriteTest");
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                context.getMetrics(), context.getTime(), context.getConfiguration());
+                context.getMetrics(), context.getTime(), context.getConfiguration(), context.getFileSystemManager());
     }
 
     @AfterEach
@@ -426,7 +427,7 @@ class StateFileManagerTests {
     void initLifecycleManagerAndMakeStateImmutable(final SignedState state) {
         destroyStateLifecycleManager(stateLifecycleManager);
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                context.getMetrics(), context.getTime(), context.getConfiguration());
+                context.getMetrics(), context.getTime(), context.getConfiguration(), context.getFileSystemManager());
 
         stateLifecycleManager.initWithState(state.getState());
         stateLifecycleManager.getLatestImmutableState().release();

@@ -16,8 +16,8 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.constructable.ConstructableRegistration;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.platform.recovery.internal.EventStreamPathIterator;
 import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.StreamedRound;
@@ -37,9 +37,13 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("EventStreamRoundIterator Test")
 class EventStreamRoundIteratorTest {
+
+    @TempDir
+    private Path directory;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -52,9 +56,8 @@ class EventStreamRoundIteratorTest {
 
     @Test
     @DisplayName("Read All Events Test")
-    void readAllEventsTest() throws IOException, NoSuchAlgorithmException {
+    void readAllEventsTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -92,9 +95,8 @@ class EventStreamRoundIteratorTest {
 
     @Test
     @DisplayName("Read All Events Starting From Round Test")
-    void readAllEventsStartingFromRoundTest() throws IOException, NoSuchAlgorithmException {
+    void readAllEventsStartingFromRoundTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -143,9 +145,8 @@ class EventStreamRoundIteratorTest {
 
     @Test
     @DisplayName("Missing Event File Test")
-    void missingEventFileTest() throws IOException, NoSuchAlgorithmException {
+    void missingEventFileTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -202,9 +203,8 @@ class EventStreamRoundIteratorTest {
 
     @Test
     @DisplayName("Early Rounds Not Present Test")
-    void earlyRoundsNotPresentTest() throws IOException, NoSuchAlgorithmException {
+    void earlyRoundsNotPresentTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -223,9 +223,8 @@ class EventStreamRoundIteratorTest {
 
     @Test
     @DisplayName("Read All Events Truncated File Test")
-    void readAllEventsTruncatedFileTest() throws IOException, NoSuchAlgorithmException {
+    void readAllEventsTruncatedFileTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
@@ -278,9 +277,8 @@ class EventStreamRoundIteratorTest {
     @Disabled("This test is disabled because it is flaky. Fails ~1/10 times, but only when run remotely.")
     @Test
     @DisplayName("Read Complete Rounds Truncated File Test")
-    void readCompleteRoundsTruncatedFileTest() throws IOException, NoSuchAlgorithmException {
+    void readCompleteRoundsTruncatedFileTest() throws IOException {
         final Random random = getRandomPrintSeed();
-        final Path directory = LegacyTemporaryFileBuilder.buildTemporaryDirectory(CONFIGURATION);
 
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;

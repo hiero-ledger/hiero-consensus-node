@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.common.test.fixtures.set.RandomAccessHashSet;
 import com.swirlds.common.test.fixtures.set.RandomAccessSet;
@@ -51,11 +52,13 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
     public static final String LETTERS = "abcdefghijklmnopqrstuvwxyz";
     public static final int ZZZZZ = 26 * 26 * 26 * 26 * 26; // key value corresponding to five Z's (plus 1)
 
+    private static final FileSystemManager FILE_SYSTEM_MANAGER = FileSystemManager.create(CONFIGURATION);
+
     @Override
     protected VirtualDataSourceBuilder createBuilder() {
         // Set initial capacity to a low value to reduce memory usage in tests. If needed,
         // the data source (HDHM bucket index) will be resized automatically
-        return new MerkleDbDataSourceBuilder(CONFIGURATION, 1_000_000);
+        return new MerkleDbDataSourceBuilder(CONFIGURATION, FILE_SYSTEM_MANAGER, 1_000_000);
     }
 
     public String randomWord(final Random random, final int maximumKeySize) {

@@ -2,6 +2,7 @@
 package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 
 import com.swirlds.config.api.Configuration;
 import java.io.IOException;
@@ -13,20 +14,21 @@ public class LongListDiskTest extends AbstractLongListTest<LongListDisk> {
 
     @Override
     protected LongListDisk createLongList(long capacity, Configuration config) {
-        return new LongListDisk(capacity, config);
+        return new LongListDisk(capacity, config, FILE_SYSTEM_MANAGER);
     }
 
     @Override
     protected LongListDisk createLongList(
             final int longsPerChunk, final long capacity, final long reservedBufferLength) {
-        return new LongListDisk(longsPerChunk, capacity, reservedBufferLength, CONFIGURATION);
+        return new LongListDisk(longsPerChunk, capacity, reservedBufferLength, CONFIGURATION, FILE_SYSTEM_MANAGER);
     }
 
     @Override
     protected LongListDisk createLongList(
             final Path file, final int longsPerChunk, final long capacity, final long reservedBufferLength)
             throws IOException {
-        return new LongListDisk(file, longsPerChunk, capacity, reservedBufferLength, CONFIGURATION);
+        return new LongListDisk(
+                file, longsPerChunk, capacity, reservedBufferLength, CONFIGURATION, FILE_SYSTEM_MANAGER);
     }
 
     /**

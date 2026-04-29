@@ -10,7 +10,7 @@ module com.swirlds.merkledb.test.fixtures {
     requires transitive org.hiero.base.crypto;
     requires com.swirlds.base;
     requires com.swirlds.common.test.fixtures;
-    requires com.swirlds.common;
+    requires transitive com.swirlds.common;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb;
     requires org.hiero.consensus.metrics;

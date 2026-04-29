@@ -52,7 +52,7 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.util;
     requires com.hedera.pbj.grpc.client.helidon;
-    requires com.swirlds.common;
+    requires transitive com.swirlds.common;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;

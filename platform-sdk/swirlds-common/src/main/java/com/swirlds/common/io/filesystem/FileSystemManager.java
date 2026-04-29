@@ -51,4 +51,17 @@ public interface FileSystemManager {
      */
     @NonNull
     Path resolveNewTemp(@Nullable String tag);
+
+    /**
+     * Creates a path relative to the root directory of the file system manager.
+     * Implementations can choose the convenient subfolder inside the root directory.
+     * There is no file or directory actually being created after the invocation of this method.
+     *
+     * @return the resolved path
+     * @throws IllegalArgumentException if the path is "above" the root directory (e.g. resolve("../foo")
+     */
+    @NonNull
+    default Path resolveNewTemp() {
+        return resolveNewTemp(null);
+    }
 }

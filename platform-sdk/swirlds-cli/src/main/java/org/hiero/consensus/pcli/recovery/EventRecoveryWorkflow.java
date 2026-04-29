@@ -18,6 +18,7 @@ import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.config.api.Configuration;
@@ -121,7 +122,10 @@ public final class EventRecoveryWorkflow {
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(
-                        platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
+                        platformContext.getConfiguration(),
+                        platformContext.getFileSystemManager());
 
         final DeserializedSignedState deserializedSignedState =
                 SignedStateFileReader.readState(signedStateDir, platformContext, stateLifecycleManager);
@@ -233,10 +237,11 @@ public final class EventRecoveryWorkflow {
         Objects.requireNonNull(selfId, "selfId must not be null");
 
         final Configuration configuration = platformContext.getConfiguration();
+        final FileSystemManager fileSystemManager = platformContext.getFileSystemManager();
 
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(
-                        platformContext.getMetrics(), platformContext.getTime(), configuration);
+                        platformContext.getMetrics(), platformContext.getTime(), configuration, fileSystemManager);
         stateLifecycleManager.initWithState(initialSignedState.get().getState());
 
         final ReservedSignedState workingSignedState =

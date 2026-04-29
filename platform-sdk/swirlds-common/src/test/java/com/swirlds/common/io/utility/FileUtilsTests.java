@@ -21,10 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -52,10 +52,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 @DisplayName("FileUtils Tests")
 class FileUtilsTests {
 
-    private static final Configuration CONFIGURATION = ConfigurationBuilder.create()
-            .withConfigDataType(TemporaryFileConfig.class)
-            .withConfigDataType(StateCommonConfig.class)
-            .build();
+    private Configuration configuration;
+    private FileSystemManager fileSystemManager;
 
     /**
      * Temporary directory provided by JUnit
@@ -65,7 +63,13 @@ class FileUtilsTests {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
+        final Path testTmpDir = testDirectory.resolve("tmp");
+        Files.createDirectories(testTmpDir);
+        configuration = new TestConfigBuilder()
+                .withValue("temporaryFiles.temporaryFilePath", testTmpDir.toString())
+                .withConfigDataType(TemporaryFileConfig.class)
+                .getOrCreateConfig();
+        fileSystemManager = FileSystemManager.create(configuration);
     }
 
     @AfterEach
@@ -495,6 +499,7 @@ class FileUtilsTests {
                 .setRunnable(() -> {
                     try {
                         executeAndRename(
+                                fileSystemManager,
                                 foo,
                                 (final Path directory) -> {
                                     final Path dataTmp = directory.resolve("data.txt");
@@ -510,7 +515,7 @@ class FileUtilsTests {
                                         out.writeNormalisedString("bar");
                                     });
                                 },
-                                CONFIGURATION);
+                                configuration);
                     } catch (final IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -544,7 +549,7 @@ class FileUtilsTests {
 
         assertThrows(
                 IOException.class,
-                () -> executeAndRename(foo, null, CONFIGURATION),
+                () -> executeAndRename(fileSystemManager, foo, null, configuration),
                 "existence of directory before hand should cause problems");
     }
 

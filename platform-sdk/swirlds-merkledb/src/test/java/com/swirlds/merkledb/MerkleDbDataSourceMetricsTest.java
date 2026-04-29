@@ -8,7 +8,6 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.TestType.long_fixed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -38,8 +37,8 @@ class MerkleDbDataSourceMetricsTest {
 
     @BeforeAll
     static void setup() throws Exception {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile(
-                "MerkleDbDataSourceMetricsTest", MerkleDbTestUtils.CONFIGURATION);
+        testDirectory = FILE_SYSTEM_MANAGER.resolveNewTemp("MerkleDbDataSourceMetricsTest");
+        Files.createDirectories(testDirectory);
     }
 
     @BeforeEach
@@ -183,6 +182,7 @@ class MerkleDbDataSourceMetricsTest {
 
     public static MerkleDbDataSource createDataSource(
             final Path testDirectory, final String name, final TestType testType, final int size) throws IOException {
-        return testType.dataType().createDataSource(CONFIGURATION, testDirectory, name, size, false, false);
+        return testType.dataType()
+                .createDataSource(CONFIGURATION, FILE_SYSTEM_MANAGER, testDirectory, name, size, false, false);
     }
 }

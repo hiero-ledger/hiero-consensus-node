@@ -3,6 +3,7 @@ package com.swirlds.merkledb;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
@@ -22,10 +23,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedConsumer;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -68,7 +68,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class MerkleDbDataSourceTest {
 
-    private static final int COUNT = 10_000;
     private static final Random RANDOM = new Random(1234);
 
     private Path testDirectory;
@@ -86,7 +85,8 @@ class MerkleDbDataSourceTest {
 
     @BeforeEach
     void setupDatabaseDir() throws IOException {
-        testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("MerkleDbDataSourceTest", CONFIGURATION);
+        testDirectory = FILE_SYSTEM_MANAGER.resolveNewTemp("MerkleDbDataSourceTest");
+        Files.createDirectories(testDirectory);
     }
 
     @AfterEach
@@ -167,6 +167,7 @@ class MerkleDbDataSourceTest {
                 .dataType()
                 .createDataSource(
                         CONFIGURATION,
+                        FILE_SYSTEM_MANAGER,
                         testDirectory.resolve("badInitialCapacityZero" + nextInt()),
                         "badInitialZero",
                         0,
@@ -177,6 +178,7 @@ class MerkleDbDataSourceTest {
                 .dataType()
                 .createDataSource(
                         CONFIGURATION,
+                        FILE_SYSTEM_MANAGER,
                         testDirectory.resolve("badInitialCapacityNegative" + nextInt()),
                         "badInitialNeg",
                         -1,
@@ -583,7 +585,8 @@ class MerkleDbDataSourceTest {
         assertDoesNotThrow(
                 () -> TestType.long_fixed
                         .dataType()
-                        .createDataSource(CONFIGURATION, testDirectory, "testDB", 1000, false, false)
+                        .createDataSource(
+                                CONFIGURATION, FILE_SYSTEM_MANAGER, testDirectory, "testDB", 1000, false, false)
                         .close(),
                 "Should be possible to instantiate data source with merging disabled");
         // check db count
@@ -779,8 +782,8 @@ class MerkleDbDataSourceTest {
             }
 
             // Restore
-            final MerkleDbDataSource snapshot =
-                    testType.dataType().createDataSource(CONFIGURATION, snapshotDbPath, dbName, size, false, false);
+            final MerkleDbDataSource snapshot = testType.dataType()
+                    .createDataSource(CONFIGURATION, FILE_SYSTEM_MANAGER, snapshotDbPath, dbName, size, false, false);
             // Check all hashes are migrated successfully
             try {
                 for (long i = firstLeafPath; i <= lastLeafPath; i++) {
@@ -833,11 +836,11 @@ class MerkleDbDataSourceTest {
                 .withConfigDataType(MerkleDbConfig.class)
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(TemporaryFileConfig.class)
-                .withConfigDataType(StateCommonConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", ""))
                 .build();
+        final FileSystemManager fileSystemManager = FileSystemManager.create(config1);
         final MerkleDbDataSource snapshotDataSource1 =
-                new MerkleDbDataSource(snapshotDbPath1, config1, label, false, false);
+                new MerkleDbDataSource(snapshotDbPath1, config1, fileSystemManager, label, false, false);
         IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource1, i, i, 2 * i, 3 * i));
         final Bytes staleKey = testType.dataType().createVirtualLongKey(8);
         assertEquals(8, snapshotDataSource1.findKey(staleKey));
@@ -847,12 +850,10 @@ class MerkleDbDataSourceTest {
         final Configuration config2 = ConfigurationBuilder.create()
                 .withConfigDataType(MerkleDbConfig.class)
                 .withConfigDataType(VirtualMapConfig.class)
-                .withConfigDataType(TemporaryFileConfig.class)
-                .withConfigDataType(StateCommonConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.tablesToRepairHdhm", label))
                 .build();
         final MerkleDbDataSource snapshotDataSource2 =
-                new MerkleDbDataSource(snapshotDbPath2, config2, label, false, false);
+                new MerkleDbDataSource(snapshotDbPath2, config2, fileSystemManager, label, false, false);
         IntStream.range(9, 19).forEach(i -> assertLeaf(testType, snapshotDataSource2, i, i, 2 * i, 3 * i));
         assertEquals(-1, snapshotDataSource2.findKey(staleKey));
         snapshotDataSource2.close();
@@ -886,7 +887,9 @@ class MerkleDbDataSourceTest {
             // Now save some dirty leaves
             dataSource.saveRecords(15, 30, Stream.empty(), dirtyLeaves.stream(), Stream.empty(), false);
             assertEquals(1L, sourceCounter.get());
-            final Path copyPath = LegacyTemporaryFileBuilder.buildTemporaryFile("copyStatisticsTest", CONFIGURATION);
+            final FileSystemManager fileSystemManager = FileSystemManager.create(CONFIGURATION);
+            final Path copyPath = fileSystemManager.resolveNewTemp("copyStatisticsTest");
+            Files.createFile(copyPath);
             dataSource.snapshot(copyPath);
             final MerkleDbDataSource copy =
                     testType.dataType().getDataSource(copyPath, dataSource.getTableName(), true);
@@ -911,8 +914,8 @@ class MerkleDbDataSourceTest {
     @EnumSource(TestType.class)
     void closeWhileFlushingTest(final TestType testType) throws IOException, InterruptedException {
         final Path dbPath = testDirectory.resolve("merkledb-closeWhileFlushingTest-" + testType);
-        final MerkleDbDataSource dataSource =
-                testType.dataType().createDataSource(CONFIGURATION, dbPath, "vm", 1000, false, false);
+        final MerkleDbDataSource dataSource = testType.dataType()
+                .createDataSource(CONFIGURATION, FILE_SYSTEM_MANAGER, dbPath, "vm", 1000, false, false);
 
         final int count = 20;
         final List<Bytes> keys = new ArrayList<>(count);
@@ -973,8 +976,8 @@ class MerkleDbDataSourceTest {
             final int size,
             CheckedConsumer<MerkleDbDataSource, Exception> dataSourceConsumer)
             throws IOException {
-        final MerkleDbDataSource dataSource =
-                testType.dataType().createDataSource(CONFIGURATION, testDirectory, name, size, false, false);
+        final MerkleDbDataSource dataSource = testType.dataType()
+                .createDataSource(CONFIGURATION, FILE_SYSTEM_MANAGER, testDirectory, name, size, false, false);
         try {
             dataSourceConsumer.accept(dataSource);
         } catch (Throwable e) {

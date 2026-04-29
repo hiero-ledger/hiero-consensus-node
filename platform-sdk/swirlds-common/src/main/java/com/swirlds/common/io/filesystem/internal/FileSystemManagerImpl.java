@@ -93,12 +93,12 @@ public class FileSystemManagerImpl implements FileSystemManager {
             rethrowIO(() -> Files.createDirectories(rootPath));
         }
 
-        this.tempPath = rootPath.resolve(tmpDirName);
         this.savedPath = rootPath.resolve(dataDirName);
-
         if (!exists(savedPath)) {
             rethrowIO(() -> Files.createDirectory(savedPath));
         }
+
+        this.tempPath = savedPath.resolve(tmpDirName);
         if (exists(tempPath)) {
             rethrowIO(() -> FileUtils.deleteDirectory(tempPath));
         }
@@ -132,7 +132,6 @@ public class FileSystemManagerImpl implements FileSystemManager {
     @Override
     public Path resolveNewTemp(@Nullable final String tag) {
         final StringBuilder nameBuilder = new StringBuilder();
-        nameBuilder.append(System.currentTimeMillis());
         nameBuilder.append(tmpFileNameIndex.getAndIncrement());
         if (tag != null) {
             nameBuilder.append("-");
