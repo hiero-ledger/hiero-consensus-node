@@ -30,7 +30,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.state.binary.QueueState;
@@ -48,6 +47,7 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 

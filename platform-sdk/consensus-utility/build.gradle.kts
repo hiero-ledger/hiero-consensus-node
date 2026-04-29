@@ -11,7 +11,6 @@ description = "Consensus Utility"
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
-    requires("com.swirlds.common")
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.base.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
