@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
+import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.concurrent.CompletableFuture;
@@ -44,6 +45,9 @@ class DualBlockHashSignerTest {
 
     @Mock
     private RsaContext.Signing rsaSigning;
+
+    @Mock
+    private HintsContext.Signing hintsSigning;
 
     private ConcurrentHashMap<Bytes, BlockHashSigning> rsaSignings;
     private DualBlockHashSigner subject;
@@ -122,6 +126,17 @@ class DualBlockHashSignerTest {
         assertSame(RSA_SIGNATURES, attempt.signatureFuture().join());
         verify(rsaContext, never()).newSigning(any(), any(Runnable.class));
         verify(submissions).submitRsaSignature(BLOCK_HASH);
+    }
+
+    @Test
+    void listOfPartialSignaturesRejectsNonRsaSigningInMap() {
+        rsaSignings.put(BLOCK_HASH, hintsSigning);
+        given(rsaContext.isReady()).willReturn(true);
+
+        assertThrows(IllegalStateException.class, () -> subject.sign(BLOCK_HASH, LIST_OF_PARTIAL_SIGNATURES));
+
+        verify(rsaContext, never()).newSigning(any(), any(Runnable.class));
+        verifyNoInteractions(submissions);
     }
 
     @Test

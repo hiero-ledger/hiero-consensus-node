@@ -236,6 +236,9 @@ class HintsSubmissionsTest {
         final var spec = captor.getValue();
         final var builder = TransactionBody.newBuilder();
         spec.accept(builder);
+        final ArgumentCaptor<byte[]> bytesCaptor = ArgumentCaptor.forClass(byte[].class);
+        verify(gossip).sign(bytesCaptor.capture());
+        assertArrayEquals(msg.toByteArray(), bytesCaptor.getValue());
         final var body = builder.build();
         assertTrue(body.hasHintsPartialSignature());
         final var expectedBody = HintsPartialSignatureTransactionBody.newBuilder()

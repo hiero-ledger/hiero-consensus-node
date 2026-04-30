@@ -16,6 +16,7 @@ import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -46,6 +47,9 @@ class TssBlockHashSignerTest {
 
     @Mock
     private HintsContext.Signing signing;
+
+    @Mock
+    private RsaContext.Signing rsaSigning;
 
     private TssBlockHashSigner subject;
 
@@ -176,6 +180,15 @@ class TssBlockHashSignerTest {
         givenSubjectWith(HintsEnabled.NO, HistoryEnabled.NO);
 
         assertThrows(IllegalArgumentException.class, () -> subject.sign(FAKE_BLOCK_HASH, LIST_OF_PARTIAL_SIGNATURES));
+    }
+
+    @Test
+    void rejectsNonHintsSigningReturnedByHintsService() {
+        givenSubjectWith(HintsEnabled.YES, HistoryEnabled.NO);
+        given(hintsService.isReady()).willReturn(true);
+        given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(rsaSigning);
+
+        assertThrows(IllegalStateException.class, () -> subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE));
     }
 
     @Test

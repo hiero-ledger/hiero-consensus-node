@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
@@ -380,7 +382,7 @@ class BlockStreamManagerImplTest {
         subject.writeItem(FAKE_RECORD_FILE_ITEM);
 
         // Immediately resolve to the expected ledger signature
-        given(blockHashSigner.sign(any(), any()))
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
                 .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         doAnswer(invocationOnMock -> {
                     final Consumer<Bytes> consumer = invocationOnMock.getArgument(0);
@@ -392,6 +394,7 @@ class BlockStreamManagerImplTest {
         // End the round
         subject.endRound(state, ROUND_NO);
 
+        verify(blockHashSigner).sign(any(), eq(SUCCINCT_SIGNATURE));
         verify(aWriter).openBlock(N_BLOCK_NO);
 
         // Assert the internal state of the subject has changed as expected and the writer has been closed

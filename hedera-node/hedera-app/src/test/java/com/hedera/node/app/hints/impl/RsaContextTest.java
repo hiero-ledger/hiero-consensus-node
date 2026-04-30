@@ -76,6 +76,26 @@ class RsaContextTest {
     }
 
     @Test
+    void ignoresRosterEntriesWithoutRsaCertificates() {
+        final var roster = new Roster(
+                List.of(RosterEntry.newBuilder().nodeId(1L).weight(10L).build()));
+
+        subject.initialize(roster, nodeId -> 10L);
+
+        assertFalse(subject.isReady());
+        assertFalse(subject.validate(1L, MESSAGE, Bytes.wrap("signature")));
+        assertThrows(IllegalStateException.class, () -> subject.newSigning(MESSAGE, () -> {}));
+    }
+
+    @Test
+    void rejectsNegativeWeights() throws Exception {
+        final var keys = KeysAndCertsGenerator.generate(NodeId.of(1L));
+        final var roster = new Roster(List.of(entryFor(1L, 10L, keys)));
+
+        assertThrows(IllegalArgumentException.class, () -> subject.initialize(roster, nodeId -> -1L));
+    }
+
+    @Test
     void signingUsesWeightSnapshotAndSerializesRosterSignatures() throws Exception {
         final var keys1 = KeysAndCertsGenerator.generate(NodeId.of(1L));
         final var keys2 = KeysAndCertsGenerator.generate(NodeId.of(2L));
@@ -126,6 +146,27 @@ class RsaContextTest {
                 RosterSignatures.PROTOBUF.parse(signing.future().join());
         assertEquals(1L, rosterSignatures.nodeSignatures().get(0).nodeId());
         assertEquals(2L, rosterSignatures.nodeSignatures().get(1).nodeId());
+    }
+
+    @Test
+    void zeroAndUnknownWeightSignaturesDoNotContribute() throws Exception {
+        final var keys1 = KeysAndCertsGenerator.generate(NodeId.of(1L));
+        final var keys2 = KeysAndCertsGenerator.generate(NodeId.of(2L));
+        final var roster = new Roster(List.of(entryFor(1L, 0L, keys1), entryFor(2L, 4L, keys2)));
+        final var sig1 = new PlatformSigner(keys1).sign(MESSAGE.toByteArray()).getBytes();
+        final var sig2 = new PlatformSigner(keys2).sign(MESSAGE.toByteArray()).getBytes();
+
+        subject.initialize(roster, nodeId -> nodeId == 1L ? 0L : 4L);
+        final var signing = (RsaContext.Signing) subject.newSigning(MESSAGE, () -> {});
+
+        signing.incorporateValid(Bytes.EMPTY, 1L, sig1);
+        signing.incorporateValid(Bytes.EMPTY, 3L, Bytes.wrap("unknown"));
+
+        assertFalse(signing.future().isDone());
+
+        signing.incorporateValid(Bytes.EMPTY, 2L, sig2);
+
+        assertTrue(signing.future().isDone());
     }
 
     private static RosterEntry entryFor(final long nodeId, final long weight, final KeysAndCerts keysAndCerts)

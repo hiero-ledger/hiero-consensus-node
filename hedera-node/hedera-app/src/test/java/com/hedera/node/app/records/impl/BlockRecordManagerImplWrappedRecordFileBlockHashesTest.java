@@ -1876,6 +1876,64 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     }
 
     @Test
+    void leavesWrappedRecordBlockPendingWhenRsaProofCannotBeParsed() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.streamWrappedRecordBlocks", true)
+                .build();
+
+        seedRequiredState(app);
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        final var blockHashSigner = mock(BlockHashSigner.class);
+        final var signatureListFuture = new CompletableFuture<Bytes>();
+        when(blockHashSigner.sign(any(), eq(LIST_OF_PARTIAL_SIGNATURES)))
+                .thenReturn(new BlockHashSigner.Attempt(null, null, signatureListFuture));
+
+        final List<BlockItemWriter> handedOutWriters = new ArrayList<>();
+        final Supplier<BlockItemWriter> capturingSupplier = () -> {
+            final var w = mock(BlockItemWriter.class);
+            handedOutWriters.add(w);
+            return w;
+        };
+
+        final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                capturingSupplier,
+                blockHashSigner,
+                InitTrigger.RECONNECT);
+
+        final var t0 = InstantUtils.instant(10, 1);
+        mgr.startUserTransaction(t0, state);
+        mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+        final var t1 = InstantUtils.instant(13, 1);
+        mgr.startUserTransaction(t1, state);
+
+        final var writer = handedOutWriters.getFirst();
+        signatureListFuture.complete(Bytes.wrap(new byte[] {(byte) 0xff}));
+
+        verify(writer, timeout(1_000).times(3)).writePbjItem(any());
+        verify(writer, never()).closeCompleteBlock();
+
+        mgr.close();
+
+        verify(writer).flushPendingBlock(PendingProof.DEFAULT);
+    }
+
+    @Test
     void closeFlushesPendingWrbWritersWhenFlagEnabled() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
