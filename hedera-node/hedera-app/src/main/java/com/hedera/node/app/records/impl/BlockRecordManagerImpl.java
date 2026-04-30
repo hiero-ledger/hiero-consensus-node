@@ -45,7 +45,6 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
@@ -65,6 +64,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.event.stream.LinkedObjectStreamUtilities;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.WritablePlatformStateStore;
@@ -297,7 +297,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
         final var currentBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
         final var blockCreationTime = lastBlockInfo.firstConsTimeOfCurrentBlock();
-        // Only write to the wrapped hashes file if live writing isn't enabled
         appendWrappedRecordFileBlockHashesToDisk(
                 currentBlockNumber, blockCreationTime, streamFileProducer.getRunningHash());
     }

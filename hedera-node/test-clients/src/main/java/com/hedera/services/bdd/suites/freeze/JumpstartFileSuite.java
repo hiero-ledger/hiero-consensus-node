@@ -9,6 +9,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -79,6 +80,7 @@ class JumpstartFileSuite implements LifecycleTest {
             })
     final Stream<DynamicTest> executesAllCutoverPhases() {
         final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
+        final AtomicReference<List<WrappedRecordFileBlockHashes>> postLiveWrappedHashes = new AtomicReference<>();
         final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
@@ -139,12 +141,14 @@ class JumpstartFileSuite implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
                         Map.of(
+                                "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true",
                                 "hedera.recordStream.computeHashesFromWrappedRecordBlocks", "false",
                                 "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true"),
                         assertHgcaaLogContainsPattern(
                                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                                         "Persisted live wrapped record block root hash \\(as of block (\\d+)\\): (\\S+)",
                                         Duration.ofSeconds(1))
+                                .matchingLast()
                                 .exposingMatchGroupTo(1, liveBlockNum)
                                 .exposingMatchGroupTo(2, liveWrappedHash)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
@@ -205,6 +209,47 @@ class JumpstartFileSuite implements LifecycleTest {
                         Duration.ofSeconds(1)),
                 // Verify blocks are still produced after idempotent restart
                 cryptoCreate("postIdempotentRestart").payingWith(GENESIS));
+    }
+
+    @LeakyHapiTest(
+            overrides = {
+                    "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
+                    "blockStream.jumpstart.blockNum",
+                    "blockStream.jumpstart.previousWrappedRecordBlockHash",
+                    "blockStream.jumpstart.streamingHasherLeafCount",
+                    "blockStream.jumpstart.streamingHasherHashCount",
+                    "blockStream.jumpstart.streamingHasherSubtreeHashes",
+                    "blockStream.jumpstart.currentBlockConsensusTimestampHash",
+                    "blockStream.jumpstart.currentBlockOutputItemsTreeRootHash",
+            })
+    final Stream<DynamicTest> skipsMigrationWhenJumpstartConsensusTimestampHashMismatches() {
+        final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig = new AtomicReference<>();
+
+        final var envOverrides =
+                new HashMap<>(Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"));
+        // A 48-byte hash that will not match any real entry computed by buildDynamicJumpstartConfig
+        final var corruptedHash = "aa".repeat(48);
+
+        return hapiTest(
+                logIt("Phase 1: Writing wrapped record hashes to disk"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(envOverrides),
+                MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
+                logIt("Phase 2: Restart with corrupted consensus-timestamp jumpstart hash"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(
+                        envOverrides,
+                        buildDynamicJumpstartConfig(jumpstartConfig, envOverrides),
+                        // Overwrite the consensus-timestamp hash so it no longer matches the
+                        // corresponding entry in the wrapped record hashes file on disk.
+                        doAdhoc(() -> envOverrides.put(
+                                "blockStream.jumpstart.currentBlockConsensusTimestampHash", corruptedHash))),
+                waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                logIt("Phase 3: Verify migration was skipped due to hash mismatch"),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.exceptNodeIds(LATER_NODE_IDS),
+                        "Jumpstart currentBlockConsensusTimestampHash for block \\d+ does not match wrapped record hashes file entry",
+                        Duration.ofSeconds(30)));
     }
 
     private static void capturePreCutoverLogged(
