@@ -5,11 +5,11 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Consensus-node branch, tag, or SHA to checkout for local build."
+        description: "[Both] Consensus-node branch, tag, or SHA to checkout for local build."
         required: true
         type: string
       solo-version:
-        description: "Solo version to install (defaults to latest)."
+        description: "[Both] Solo version to install (defaults to latest)."
         required: false
         type: string
         default: "latest"
@@ -17,28 +17,22 @@ on:
         description: "Which Solo test scenario to run."
         required: false
         type: choice
-        default: "both"
+        default: "jumpstart"
         options:
-          - "both"
           - "jumpstart"
           - "wrb-streaming"
       starting-tag:
-        description: "Consensus-node release tag used for the initial network deployment."
+        description: "[Both] Consensus-node release tag used for the initial network deployment."
         required: false
         type: string
         default: "v0.73.0"
       upgrade-tag:
-        description: "Optional solo upgrade-version override. Leave blank to use the local build with placeholder tag."
-        required: false
-        type: string
-        default: ""
-      block-node-release-tag:
-        description: "Optional consensus release tag passed to Solo block node add for WRB streaming. Defaults to starting-tag."
+        description: "[Jumpstart] Optional solo upgrade-version override. Leave blank to use the local build with placeholder tag."
         required: false
         type: string
         default: ""
       block-node-chart-version:
-        description: "Optional Block Node chart version for WRB streaming. Defaults to latest Block Node release."
+        description: "[Streaming] Optional Block Node chart version for WRB streaming. Defaults to latest Block Node release."
         required: false
         type: string
         default: ""
@@ -61,7 +55,7 @@ env:
 jobs:
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
-    if: ${{ inputs.scenario == 'both' || inputs.scenario == 'jumpstart' }}
+    if: ${{ inputs.scenario == 'jumpstart' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
     steps:
@@ -196,7 +190,7 @@ jobs:
 
   solo-wrb-block-node-streaming:
     name: "Solo WRB Streaming to Block Node"
-    if: ${{ inputs.scenario == 'both' || inputs.scenario == 'wrb-streaming' }}
+    if: ${{ inputs.scenario == 'wrb-streaming' }}
     runs-on: hl-cn-rpc-relay-lin-lg
     timeout-minutes: 120
     steps:
@@ -298,7 +292,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
               RELEASE_TAG="${{ inputs.starting-tag }}" \
-              BLOCK_NODE_RELEASE_TAG="${{ inputs.block-node-release-tag || inputs.starting-tag }}" \
+              BLOCK_NODE_RELEASE_TAG="${{ inputs.starting-tag }}" \
               BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-block-node-streaming-script.log"
