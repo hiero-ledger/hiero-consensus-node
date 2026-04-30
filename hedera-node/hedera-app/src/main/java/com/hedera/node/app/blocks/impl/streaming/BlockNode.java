@@ -32,6 +32,14 @@ public class BlockNode {
     private static final Logger logger = LogManager.getLogger(BlockNode.class);
 
     /**
+     * Marker for logging that indicates a value is missing
+     */
+    private static final String NIL = "-";
+    /**
+     * Marker for logging that indicates a value is inflight because the connection is still active.
+     */
+    private static final String IN_PROGRESS = "*";
+    /**
      * Maximum number of connection history events to keep track of.
      */
     private static final int MAX_HISTORY_ENTRIES = 5;
@@ -81,6 +89,18 @@ public class BlockNode {
      * Reference to the clock used any time-based operations. This is used for testing for better time control.
      */
     private final Clock clock;
+    /**
+     * Reference that holds the most recent wanted block based on block node server status API calls.
+     */
+    private final AtomicReference<WantedBlock> wantedBlockRef = new AtomicReference<>();
+
+    /**
+     * Simple data holder for a wanted block.
+     *
+     * @param blockNumber the block wanted
+     * @param timestamp the timestamp when the wanted block was recorded
+     */
+    record WantedBlock(long blockNumber, Instant timestamp) {}
 
     /**
      * Creates a new block node instance.
@@ -132,7 +152,7 @@ public class BlockNode {
         sb.append(", port: ").append(streamingEndpoint.port());
         sb.append(", priority: ").append(configuration.priority());
         sb.append(", isStreamingCandidate: ").append(isStreamingCandidate());
-        sb.append(", coolDownTimestamp: ").append(nodeCoolDownTimestamp == null ? "-" : nodeCoolDownTimestamp);
+        sb.append(", coolDownTimestamp: ").append(nodeCoolDownTimestamp == null ? NIL : nodeCoolDownTimestamp);
         sb.append(", activeConnections: ").append(localActiveStreamingConnectionCount);
         sb.append(")\n  Connection History");
 
@@ -146,12 +166,23 @@ public class BlockNode {
             for (final ConnectionHistory history : sortedHistory) {
                 sb.append("\n    ").append(history.connectionId).append(" => ");
                 sb.append("created: ").append(history.createTimestamp);
-                sb.append(", activated: ").append(history.activeTimestamp == null ? "-" : history.activeTimestamp);
-                sb.append(", closed: ").append(history.closeTimestamp == null ? "-" : history.closeTimestamp);
-                final Duration duration = history.duration();
-                sb.append(", duration: ").append(duration == null ? "-" : duration);
-                sb.append(", closeReason: ").append(history.closeReason == null ? "-" : history.closeReason);
-                sb.append(", blocksSent: ").append(history.numBlocksSent == null ? "-" : history.numBlocksSent);
+                sb.append(", activated: ").append(history.activeTimestamp == null ? NIL : history.activeTimestamp);
+
+                final boolean isClosed = history.closeTimestamp != null;
+                final StreamingConnectionStatistics connStats = history.connectionStatistics;
+
+                // spotless:off
+                sb.append(", closed: ").append(isClosed ? history.closeTimestamp : IN_PROGRESS);
+                sb.append(", duration: ").append(isClosed ? history.duration() : IN_PROGRESS);
+                sb.append(", closeReason: ").append(isClosed ? history.closeReason : IN_PROGRESS);
+                sb.append(", numBlocksSent: ").append(connStats.numBlocksSent()).append(isClosed ? "" : IN_PROGRESS);
+                sb.append(", lastBlockSent: ").append(connStats.lastBlockSent()).append(isClosed ? "" : IN_PROGRESS);
+                sb.append(", numBlocksAcked: ").append(connStats.numBlocksAcked()).append(isClosed ? "" : IN_PROGRESS);
+                sb.append(", lastBlockAcked: ").append(connStats.lastBlockAcked()).append(isClosed ? "" : IN_PROGRESS);
+                sb.append(", reqSendAttempts: ").append(connStats.numRequestSendAttempts()).append(isClosed ? "" : IN_PROGRESS);
+                sb.append(", reqSendSuccesses: ").append(connStats.numRequestSendSuccesses()).append(isClosed ? "" : IN_PROGRESS);
+                sb.append(", lastHeartbeat: ").append(connStats.lastHeartbeatMillis()).append(isClosed ? "" : IN_PROGRESS);
+                // spotless:on
             }
         }
     }
@@ -344,6 +375,52 @@ public class BlockNode {
     }
 
     /**
+     * Notifies that this block node has had a server status call made to it. If the block node was reachable, then the
+     * wanted block is recorded. If the block node was not reachable, then the block node is put into a cool down.
+     *
+     * @param status the server status from the block node
+     */
+    void onServerStatusCheck(@NonNull final BlockNodeStatus status) {
+        if (status.wasReachable()) {
+            wantedBlockRef.set(new WantedBlock(status.latestBlockAvailable() + 1, Instant.now(clock)));
+        } else {
+            applyCoolDown(new ServiceConnectionFailure());
+        }
+    }
+
+    /**
+     * Retrieve the wanted block based on the most recent server status check. If there is no status check, or if the
+     * latest server status check was longer than 2 seconds old then -1 will be returned. In this case, the block node
+     * should have the latest block produced by this consensus node streamed first. If there is an in-range status check
+     * result, then the wanted block based on that check will be returned.
+     *
+     * @return the block number to initially stream with, else -1 if the latest block produced should be streamed
+     */
+    long wantedBlock() {
+        final WantedBlock wantedBlock = wantedBlockRef.get();
+        if (wantedBlock == null) {
+            return -1L;
+        }
+
+        final long millis =
+                Duration.between(wantedBlock.timestamp(), Instant.now(clock)).toMillis();
+        final long wantedBlockExpirationMillis = bncConfig().wantedBlockExpirationMillis();
+
+        if (millis > wantedBlockExpirationMillis) {
+            return -1L;
+        }
+
+        return wantedBlock.blockNumber();
+    }
+
+    /**
+     * @return the latest {@link BlockNodeConnectionConfig} configuration object
+     */
+    private BlockNodeConnectionConfig bncConfig() {
+        return configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+    }
+
+    /**
      * Reason for why a cool down is being applied.
      */
     sealed interface CoolDownReason permits ServiceConnectionFailure, DeviantConnectionClose {}
@@ -373,12 +450,11 @@ public class BlockNode {
                     case ServiceConnectionFailure() -> CoolDownType.BASIC;
                     case DeviantConnectionClose(final CloseReason closeReason) -> closeReason.coolDownType();
                 };
-        final BlockNodeConnectionConfig bncConfig =
-                configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+
         final int coolDownSeconds =
                 switch (coolDownType) {
-                    case BASIC -> bncConfig.basicNodeCoolDownSeconds();
-                    case EXTENDED -> bncConfig.extendedNodeCoolDownSeconds();
+                    case BASIC -> bncConfig().basicNodeCoolDownSeconds();
+                    case EXTENDED -> bncConfig().extendedNodeCoolDownSeconds();
                     default -> 0;
                 };
 
@@ -422,14 +498,15 @@ public class BlockNode {
     static class ConnectionHistory {
         final ConnectionId connectionId;
         final Instant createTimestamp;
+        final StreamingConnectionStatistics connectionStatistics;
         volatile Instant activeTimestamp;
         volatile Instant closeTimestamp;
         volatile CloseReason closeReason;
-        volatile Integer numBlocksSent;
 
         ConnectionHistory(@NonNull final BlockNodeStreamingConnection connection) {
             connectionId = connection.connectionId();
             createTimestamp = connection.createTimestamp();
+            connectionStatistics = connection.connectionStatistics();
         }
 
         ConnectionHistory(
@@ -438,13 +515,13 @@ public class BlockNode {
                 final Instant activeTimestamp,
                 final Instant closeTimestamp,
                 final CloseReason closeReason,
-                final Integer numBlocksSent) {
+                final StreamingConnectionStatistics connectionStatistics) {
             this.connectionId = connectionId;
             this.createTimestamp = createTimestamp;
             this.activeTimestamp = activeTimestamp;
             this.closeTimestamp = closeTimestamp;
             this.closeReason = closeReason;
-            this.numBlocksSent = numBlocksSent;
+            this.connectionStatistics = connectionStatistics;
         }
 
         @NonNull
@@ -479,7 +556,6 @@ public class BlockNode {
                         connection.connectionId());
                 closeReason = CloseReason.UNKNOWN;
             }
-            numBlocksSent = connection.numberOfBlocksSent();
         }
 
         /**

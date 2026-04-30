@@ -462,7 +462,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordRequestExceedsHardLimit();
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
         verify(metrics).recordRequestLatency(anyLong());
-        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
         verify(requestPipeline).onComplete();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
@@ -742,7 +742,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics).recordConnectionOpened();
         verify(metrics).recordRequestLatency(anyLong());
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
-        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordConnectionClosed(CloseReason.SHUTDOWN);
         verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(metrics);
@@ -869,7 +869,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, atLeastOnce()).recordBlockItemsSent(anyInt());
         verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
-        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordConnectionClosed(CloseReason.SHUTDOWN);
         verify(metrics, atLeastOnce()).recordActiveConnectionIp(anyLong());
 
         verifyNoMoreInteractions(metrics);
@@ -975,7 +975,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         // Verify interruption was handled gracefully
         verify(mockFuture, times(2)).get(anyLong(), any(TimeUnit.class));
-        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_ERROR);
 
         // Connection should still be CLOSED despite interruption
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);

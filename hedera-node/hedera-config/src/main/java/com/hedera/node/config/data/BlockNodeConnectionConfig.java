@@ -33,6 +33,8 @@ import java.time.Duration;
  * @param globalCoolDownSeconds the minimum amount of time (in seconds) between switching block node connections
  * @param basicNodeCoolDownSeconds the minimum amount of time (in seconds) to permit reconnecting to a block node for basic scenarios
  * @param extendedNodeCoolDownSeconds the minimum amount of time (in seconds) to permit reconnecting to a block node for extended scenarios
+ * @param wantedBlockExpirationMillis the maximum amount of time (in milliseconds) allowed to elapse between when a block node's
+ *                                    wanted block is determined versus when the streaming connection is created and uses the wanted block
  */
 // spotless:off
 @ConfigData("blockNode")
@@ -40,7 +42,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "data/config") @NodeProperty String blockNodeConnectionFileDir,
         @ConfigProperty(defaultValue = "5") @NodeProperty int maxEndOfStreamsAllowed,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration endOfStreamTimeFrame,
-        @ConfigProperty(defaultValue = "1") @NodeProperty int maxBehindPublishersAllowed,
+        @ConfigProperty(defaultValue = "3") @NodeProperty int maxBehindPublishersAllowed,
         @ConfigProperty(defaultValue = "30s") @NodeProperty Duration behindPublisherTimeFrame,
         @ConfigProperty(defaultValue = "5s") @NodeProperty Duration behindPublisherIgnorePeriod,
         @ConfigProperty(defaultValue = "24h") @NodeProperty Duration streamResetPeriod,
@@ -59,6 +61,7 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "250") @Min(10) @NetworkProperty int connectionStallThresholdMillis,
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int globalCoolDownSeconds,
         @ConfigProperty(defaultValue = "15") @Min(0) @NetworkProperty int basicNodeCoolDownSeconds,
-        @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int extendedNodeCoolDownSeconds) {
+        @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int extendedNodeCoolDownSeconds,
+        @ConfigProperty(defaultValue = "2000") @Min(10) @NetworkProperty long wantedBlockExpirationMillis) {
 }
 // spotless:on
