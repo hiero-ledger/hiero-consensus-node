@@ -302,7 +302,7 @@ public class VirtualPipeline {
             throw new IllegalStateException("copies destroyed too many times");
         } else if (remainingCopies == 0) {
             // Let pipeline shutdown gracefully, e.g. complete any flushes in progress
-            shutdown(false);
+            shutdownAfterFinalWork();
         } else {
             scheduleWork();
         }
@@ -489,19 +489,19 @@ public class VirtualPipeline {
                 break;
             }
             if ((next == copies.getFirst()) && shouldBeFlushed(copy)) {
-                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
+                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
                 flush(copy);
                 copies.remove(next);
             } else if (canBeMerged(next)) {
                 assert !copy.isMerged();
-                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
+                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
                 merge(next);
                 copies.remove(next);
             }
             statistics.setPipelineSize(copies.getSize());
-            logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Pipeline size {}", copies.getSize());
+            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Pipeline size {}", copies.getSize());
             final long totalSize = currentTotalSize();
-            logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Total size {}", totalSize);
+            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Total size {}", totalSize);
             statistics.setNodeCacheSize(totalSize);
             next = next.getNext();
         }
@@ -526,14 +526,6 @@ public class VirtualPipeline {
      * 		(and therefore any/all pending work will never be used).
      */
     private synchronized void shutdown(final boolean immediately) {
-        logger.info(
-                VIRTUAL_MERKLE_STATS.getMarker(),
-                "VirtualPipeline shutdown called, immediately={}, alive={}, mostRecentCopy={}, remainingCopies={}",
-                immediately,
-                alive,
-                mostRecentCopy.get() == null ? "null" : mostRecentCopy.get().getFastCopyVersion(),
-                undestroyedCopies.get());
-
         alive = false;
         if (!executorService.isShutdown()) {
             if (immediately) {
@@ -543,6 +535,44 @@ public class VirtualPipeline {
                 executorService.submit(() -> fireOnShutdown(false));
                 executorService.shutdown();
             }
+        }
+    }
+
+    /**
+     * Run one final lifecycle pass and then gracefully shut down the pipeline.
+     *
+     * <p>This is needed when the final copy is destroyed. Destroying the final copy can make older
+     * copies eligible for flush or merge, so shutting down immediately may abandon work that has just
+     * become possible.
+     */
+    private synchronized void shutdownAfterFinalWork() {
+        alive = false;
+        if (!executorService.isShutdown()) {
+            executorService.submit(() -> {
+                logger.info(
+                        VIRTUAL_MERKLE_STATS.getMarker(),
+                        "VirtualPipeline shutdown after final work called (before hashFlushMerge), alive={}, mostRecentCopy={}, remainingCopies={}",
+                        alive,
+                        mostRecentCopy.get() == null ? "null" : mostRecentCopy.get().getFastCopyVersion(),
+                        undestroyedCopies.get());
+                try {
+                    hashFlushMerge();
+                } catch (final Throwable e) { // NOSONAR: Must log since this is on the lifecycle thread.
+                    logger.error(EXCEPTION.getMarker(), "exception during final virtual pipeline work", e);
+                } finally {
+                    logger.info(
+                            VIRTUAL_MERKLE_STATS.getMarker(),
+                            "VirtualPipeline shutdown after final work called (after hashFlushMerge), alive={}, mostRecentCopy={}, remainingCopies={}",
+                            alive,
+                            mostRecentCopy.get() == null ? "null" : mostRecentCopy.get().getFastCopyVersion(),
+                            undestroyedCopies.get());
+
+                    logCopiesAtShutdown();
+
+                    fireOnShutdown(false);
+                }
+            });
+            executorService.shutdown();
         }
     }
 
@@ -612,6 +642,43 @@ public class VirtualPipeline {
     private static String uppercaseBoolean(final boolean value) {
         return value ? "TRUE" : "FALSE";
     }
+
+    private void logCopiesAtShutdown() {
+        final StringBuilder sb = new StringBuilder();
+        sb.append("VirtualPipeline copies at shutdown, size=")
+                .append(copies.getSize())
+                .append(", copies oldest-to-newest:");
+
+        PipelineListNode<VirtualRoot> next = copies.getFirst();
+        int index = 0;
+        while (next != null) {
+            final VirtualRoot copy = next.getValue();
+            sb.append("\n  [")
+                    .append(index)
+                    .append("] version=")
+                    .append(copy.getFastCopyVersion())
+                    .append(", immutable=")
+                    .append(copy.isImmutable())
+                    .append(", destroyed=")
+                    .append(copy.isDestroyed())
+                    .append(", hashed=")
+                    .append(copy.isHashed())
+                    .append(", flushed=")
+                    .append(copy.isFlushed())
+                    .append(", merged=")
+                    .append(copy.isMerged())
+                    .append(", shouldBeFlushed=")
+                    .append(copy.shouldBeFlushed())
+                    .append(", estimatedSize=")
+                    .append(copy.estimatedSize());
+
+            next = next.getNext();
+            index++;
+        }
+
+        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "{}", sb);
+    }
+// ... exist
 
     /**
      * This method dumps data about the current state of the pipeline to the log. Useful in emergencies
