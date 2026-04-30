@@ -464,6 +464,9 @@ public class CryptoBench extends VirtualMapBench {
     }
 
     static void main() throws Exception {
+        // This entry point is intended for local IDE profiling.
+        // Run in-process so the IntelliJ profiler attaches to the benchmark workload instead of a JMH fork.
+        // If a larger heap is needed, set it in the IDE run configuration VM options.
         new Runner(new OptionsBuilder()
                         .include(CryptoBench.class.getSimpleName() + ".transferPrefetch")
                         .forks(0)
