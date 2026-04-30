@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
@@ -32,6 +33,7 @@ public class FakePlatformContext implements PlatformContext {
             .withConfigDataType(MerkleDbConfig.class)
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
+            .withConfigDataType(FileSystemManagerConfig.class)
             .build();
 
     public static final FileSystemManager FILE_SYSTEM_MANAGER = FileSystemManager.create(PLATFORM_CONFIG);

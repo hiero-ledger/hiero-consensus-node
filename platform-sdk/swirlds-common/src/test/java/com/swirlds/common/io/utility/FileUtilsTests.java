@@ -63,14 +63,11 @@ class FileUtilsTests {
     Path testDirectory;
 
     @BeforeEach
-    void beforeEach() throws IOException {
-        final Path testTmpDir = testDirectory.resolve("tmp");
-        Files.createDirectories(testTmpDir);
+    void beforeEach() {
         configuration = new TestConfigBuilder()
-                .withValue("temporaryFiles.temporaryFilePath", testTmpDir.toString())
                 .withConfigDataType(TemporaryFileConfig.class)
                 .getOrCreateConfig();
-        fileSystemManager = new TestFileSystemManager(testDirectory.resolve("fsm"));
+        fileSystemManager = new TestFileSystemManager(testDirectory);
     }
 
     @AfterEach

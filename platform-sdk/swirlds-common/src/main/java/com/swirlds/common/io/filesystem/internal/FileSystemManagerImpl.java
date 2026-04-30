@@ -56,7 +56,7 @@ public class FileSystemManagerImpl implements FileSystemManager {
      */
     public FileSystemManagerImpl(
             @NonNull final String rootLocation, @NonNull final String dataDirName, @NonNull final String tmpDirName) {
-        this.rootPath = FileUtils.getAbsolutePath(Path.of(rootLocation).normalize());
+        this.rootPath = Path.of(rootLocation).normalize();
         if (!exists(rootPath)) {
             rethrowIO(() -> Files.createDirectories(rootPath));
         }

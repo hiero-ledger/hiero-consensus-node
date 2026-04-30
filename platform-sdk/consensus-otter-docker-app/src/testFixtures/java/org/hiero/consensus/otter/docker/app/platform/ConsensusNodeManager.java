@@ -110,8 +110,8 @@ public class ConsensusNodeManager {
 
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
-        final StateLifecycleManager stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                metrics, time, platformConfig, platformContext.getFileSystemManager());
+        final StateLifecycleManager stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, platformConfig, fileSystemManager);
 
         otterApp = new OtterApp(platformConfig, version);
 
