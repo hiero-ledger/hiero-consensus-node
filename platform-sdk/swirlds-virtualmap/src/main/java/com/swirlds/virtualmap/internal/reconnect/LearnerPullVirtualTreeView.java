@@ -206,7 +206,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                     : "Root node must be the first node received from the teacher";
             traversalOrder.start(
                     originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
-            vmapLearner.init(firstLeafPath, lastLeafPath, rootResponseReceived::countDown);
+            vmapLearner.init(firstLeafPath, lastLeafPath);
+            rootResponseReceived.countDown();
         }
         if ((responsePath == 0) || !isLeaf(responsePath)) {
             handleResponse(response);
