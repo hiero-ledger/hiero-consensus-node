@@ -11,9 +11,9 @@ public sealed interface BlockHashSigning permits HintsContext.Signing, RsaContex
     /**
      * Incorporates a node's pre-validated signature contribution into this signing attempt.
      *
-     * @param crs the final CRS used by the network
+     * @param context any additional signing context required to incorporate the signature
      * @param nodeId the node ID
      * @param signature the pre-validated signature contribution
      */
-    void incorporateValid(@NonNull Bytes crs, long nodeId, @NonNull Bytes signature);
+    void incorporateValid(@NonNull Bytes context, long nodeId, @NonNull Bytes signature);
 }

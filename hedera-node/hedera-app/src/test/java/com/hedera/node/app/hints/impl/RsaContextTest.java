@@ -96,16 +96,14 @@ class RsaContextTest {
     }
 
     @Test
-    void signingUsesWeightSnapshotAndSerializesRosterSignatures() throws Exception {
+    void signingUsesInitializedWeightsAndSerializesRosterSignatures() throws Exception {
         final var keys1 = KeysAndCertsGenerator.generate(NodeId.of(1L));
         final var keys2 = KeysAndCertsGenerator.generate(NodeId.of(2L));
         final var roster = new Roster(List.of(entryFor(1L, 6L, keys1), entryFor(2L, 4L, keys2)));
         final var sig1 = new PlatformSigner(keys1).sign(MESSAGE.toByteArray()).getBytes();
-        final var sig2 = new PlatformSigner(keys2).sign(MESSAGE.toByteArray()).getBytes();
 
         subject.initialize(roster, nodeId -> nodeId == 1L ? 6L : 4L);
         final var signing = (RsaContext.Signing) subject.newSigning(MESSAGE, () -> {});
-        subject.reassignWeights(nodeId -> nodeId == 1L ? 0L : 10L);
 
         signing.incorporateValid(Bytes.EMPTY, 1L, sig1);
 
@@ -116,13 +114,6 @@ class RsaContextTest {
         assertEquals(1, rosterSignatures.nodeSignatures().size());
         assertEquals(1L, rosterSignatures.nodeSignatures().getFirst().nodeId());
         assertEquals(sig1, rosterSignatures.nodeSignatures().getFirst().nodeSignature());
-
-        final var signingAfterReassign = (RsaContext.Signing) subject.newSigning(MESSAGE, () -> {});
-        signingAfterReassign.incorporateValid(Bytes.EMPTY, 1L, sig1);
-        assertFalse(signingAfterReassign.future().isDone());
-
-        signingAfterReassign.incorporateValid(Bytes.EMPTY, 2L, sig2);
-        assertTrue(signingAfterReassign.future().isDone());
     }
 
     @Test

@@ -81,18 +81,8 @@ public class RsaContext {
         }
         rosterHash = RosterUtils.hash(roster).getBytes();
         publicKeys = Map.copyOf(keys);
-        verifiers.remove();
-        reassignWeights(weightFn);
-    }
-
-    /**
-     * Updates the signing weights used by new RSA signing attempts.
-     *
-     * @param weightFn the function assigning signing weights by node id
-     */
-    public void reassignWeights(@NonNull final LongUnaryOperator weightFn) {
-        requireNonNull(weightFn);
         weights = publicKeys.keySet().stream().collect(toMap(identity(), nodeId -> weightFor(weightFn, nodeId)));
+        verifiers.remove();
     }
 
     /**
@@ -229,13 +219,13 @@ public class RsaContext {
          * required threshold, completes the future returned from {@link #future()} with the serialized
          * {@link RosterSignatures}.
          *
-         * @param crs ignored for RSA signing
+         * @param ignored ignored for RSA signing
          * @param nodeId the node ID
          * @param signature the pre-validated RSA signature
          */
         @Override
-        public void incorporateValid(@NonNull final Bytes crs, final long nodeId, @NonNull final Bytes signature) {
-            requireNonNull(crs);
+        public void incorporateValid(@NonNull final Bytes ignored, final long nodeId, @NonNull final Bytes signature) {
+            requireNonNull(ignored);
             requireNonNull(signature);
             if (completed.get()) {
                 return;
