@@ -262,7 +262,7 @@ public final class SignedStateFileWriter {
     /**
      * Write the consensus snapshot file. This is a JSON file that contains a human-readable summary of the state of
      * consensus at the time the signed state was created. It is useful for debugging and replaying PCES files on top of
-     * for debugging.
+     * the state snapshot.
      *
      * @param directory   the directory to write to
      * @param signedState the signed state being written
