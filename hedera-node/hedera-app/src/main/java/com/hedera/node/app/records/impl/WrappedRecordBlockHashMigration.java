@@ -125,6 +125,10 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
+        if (!validateJumpstartBlockHashesMatch(jumpstartConfig, allRecentWrappedRecordHashes)) {
+            return;
+        }
+
         if (!validateBlockNumberRange(jumpstartConfig.blockNum(), allRecentWrappedRecordHashes)) {
             return;
         }
@@ -198,6 +202,51 @@ public class WrappedRecordBlockHashMigration {
                 allRecentWrappedRecordHashes.entries().getFirst().blockNumber(),
                 allRecentWrappedRecordHashes.entries().getLast().blockNumber());
         return allRecentWrappedRecordHashes;
+    }
+
+    private boolean validateJumpstartBlockHashesMatch(
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
+            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes) {
+        // Either hash might be empty; only execute this check when both are populated
+        final var jumpstartTimestampHash = jumpstartConfig.currentBlockConsensusTimestampHash();
+        final var jumpstartOutputHash = jumpstartConfig.currentBlockOutputItemsTreeRootHash();
+        if (jumpstartTimestampHash.length() == 0 || jumpstartOutputHash.length() == 0) {
+            log.info(
+                    "Jumpstart currentBlockConsensusTimestampHash and/or currentBlockOutputItemsTreeRootHash not populated; skipping jumpstart hash match check");
+            return true;
+        }
+
+        final var jumpstartBlockNum = jumpstartConfig.blockNum();
+        final var matchingEntry = allRecentWrappedRecordHashes.entries().stream()
+                .filter(e -> e.blockNumber() == jumpstartBlockNum)
+                .findFirst()
+                .orElse(null);
+        if (matchingEntry == null) {
+            log.warn(
+                    "No wrapped record hashes file entry found for jumpstart block {}. {}",
+                    jumpstartBlockNum,
+                    RESUME_MESSAGE);
+            return false;
+        }
+        if (!matchingEntry.consensusTimestampHash().equals(jumpstartTimestampHash)) {
+            log.warn(
+                    "Jumpstart currentBlockConsensusTimestampHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
+                    jumpstartBlockNum,
+                    jumpstartTimestampHash,
+                    matchingEntry.consensusTimestampHash(),
+                    RESUME_MESSAGE);
+            return false;
+        }
+        if (!matchingEntry.outputItemsTreeRootHash().equals(jumpstartOutputHash)) {
+            log.warn(
+                    "Jumpstart currentBlockOutputItemsTreeRootHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
+                    jumpstartBlockNum,
+                    jumpstartOutputHash,
+                    matchingEntry.outputItemsTreeRootHash(),
+                    RESUME_MESSAGE);
+            return false;
+        }
+        return true;
     }
 
     private boolean validateBlockNumberRange(
@@ -281,6 +330,25 @@ public class WrappedRecordBlockHashMigration {
                         RESUME_MESSAGE);
                 foundError = true;
             }
+        }
+        // currentBlock*Hash properties may not be present; only validate length when populated
+        final var timestampHash = jumpstartConfig.currentBlockConsensusTimestampHash();
+        if (timestampHash.length() != 0 && timestampHash.length() != HASH_SIZE) {
+            log.error(
+                    "Jumpstart currentBlockConsensusTimestampHash has invalid length {} (expected {}). {}",
+                    timestampHash.length(),
+                    HASH_SIZE,
+                    RESUME_MESSAGE);
+            foundError = true;
+        }
+        final var outputHash = jumpstartConfig.currentBlockOutputItemsTreeRootHash();
+        if (outputHash.length() != 0 && outputHash.length() != HASH_SIZE) {
+            log.error(
+                    "Jumpstart currentBlockOutputItemsTreeRootHash has invalid length {} (expected {}). {}",
+                    outputHash.length(),
+                    HASH_SIZE,
+                    RESUME_MESSAGE);
+            foundError = true;
         }
         return !foundError;
     }

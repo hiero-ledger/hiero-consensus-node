@@ -29,6 +29,7 @@ module org.hiero.base.crypto {
     requires com.swirlds.base;
     requires com.sun.jna;
     requires org.apache.logging.log4j;
+    requires org.bouncycastle.pkix;
     requires org.bouncycastle.provider;
     requires org.hyperledger.besu.nativelib.secp256k1;
     requires static transitive com.github.spotbugs.annotations;

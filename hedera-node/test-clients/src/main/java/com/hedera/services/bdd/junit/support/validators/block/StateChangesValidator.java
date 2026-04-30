@@ -60,7 +60,6 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -92,6 +91,7 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 
@@ -288,9 +288,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         this.hintsThresholdDenominator = hintsThresholdDenominator;
         this.assertAtLeastOneWraps = assertAtLeastOneWraps;
 
-        System.setProperty(
-                "hedera.app.properties.path",
-                pathToOverrideProperties.toAbsolutePath().toString());
         System.setProperty(
                 "networkAdmin.upgradeSysFilesLoc",
                 pathToUpgradeSysFilesLoc.toAbsolutePath().toString());
