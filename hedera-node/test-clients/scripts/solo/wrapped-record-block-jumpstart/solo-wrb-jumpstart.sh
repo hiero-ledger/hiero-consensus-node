@@ -532,14 +532,17 @@ load_jumpstart_env_from_bin() {
     echo "Failed to parse jumpstart.bin (${jumpstart_file}):" >&2
     echo "${parser_out}" >&2
     echo "jumpstart.bin size: $(wc -c <"${jumpstart_file}" 2>/dev/null || echo unknown) bytes" >&2
-    echo "jumpstart.bin head (hex, first 96 bytes):" >&2
-    od -An -tx1 -N 96 "${jumpstart_file}" 2>/dev/null >&2 || true
+    echo "jumpstart.bin head (hex, first 200 bytes):" >&2
+    # Order matters: send od stdout to fd 2 first, THEN drop od's own stderr.
+    od -An -tx1 -N 200 "${jumpstart_file}" >&2 2>/dev/null || true
     return 1
   fi
   while IFS='=' read -r k v; do
     case "${k}" in
       JUMPSTART_BLOCK_NUMBER) JUMPSTART_BLOCK_NUMBER="${v}" ;;
       JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH) JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH="${v}" ;;
+      JUMPSTART_CONSENSUS_TIMESTAMP_HASH) JUMPSTART_CONSENSUS_TIMESTAMP_HASH="${v}" ;;
+      JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH) JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH="${v}" ;;
       JUMPSTART_STREAMING_HASHER_LEAF_COUNT) JUMPSTART_STREAMING_HASHER_LEAF_COUNT="${v}" ;;
       JUMPSTART_STREAMING_HASHER_HASH_COUNT) JUMPSTART_STREAMING_HASHER_HASH_COUNT="${v}" ;;
       JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES) JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES="${v}" ;;
@@ -547,6 +550,8 @@ load_jumpstart_env_from_bin() {
   done <<< "${parser_out}"
   export JUMPSTART_BLOCK_NUMBER
   export JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH
+  export JUMPSTART_CONSENSUS_TIMESTAMP_HASH
+  export JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH
   export JUMPSTART_STREAMING_HASHER_LEAF_COUNT
   export JUMPSTART_STREAMING_HASHER_HASH_COUNT
   export JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES
@@ -669,6 +674,8 @@ create_temp_upgrade_properties() {
     echo "# Added by solo-wrb-jumpstart.sh"
     echo "blockStream.jumpstart.blockNum=${JUMPSTART_BLOCK_NUMBER}"
     echo "blockStream.jumpstart.previousWrappedRecordBlockHash=${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH}"
+    echo "blockStream.jumpstart.consensusTimestampHash=${JUMPSTART_CONSENSUS_TIMESTAMP_HASH}"
+    echo "blockStream.jumpstart.outputItemsTreeRootHash=${JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH}"
     echo "blockStream.jumpstart.streamingHasherLeafCount=${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}"
     echo "blockStream.jumpstart.streamingHasherHashCount=${JUMPSTART_STREAMING_HASHER_HASH_COUNT}"
     echo "blockStream.jumpstart.streamingHasherSubtreeHashes=${JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES}"

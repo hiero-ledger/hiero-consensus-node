@@ -126,7 +126,13 @@ class WrappedRecordBlockHashMigrationTest {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
         // hashCount=5 but only 1 subtree hash provided
         final var badConfig = new BlockStreamJumpstartConfig(
-                100, Bytes.wrap(new byte[HASH_SIZE]), 4, 5, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+                100,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                5,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.EMPTY,
+                Bytes.EMPTY);
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -264,7 +270,13 @@ class WrappedRecordBlockHashMigrationTest {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
         // previousWrappedRecordBlockHash is 32 bytes instead of HASH_SIZE (48)
         final var badConfig = new BlockStreamJumpstartConfig(
-                100, Bytes.wrap(new byte[32]), 4, 1, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+                100,
+                Bytes.wrap(new byte[32]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.EMPTY,
+                Bytes.EMPTY);
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -278,7 +290,9 @@ class WrappedRecordBlockHashMigrationTest {
                 Bytes.wrap(new byte[HASH_SIZE]),
                 4,
                 2,
-                List.of(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[32])));
+                List.of(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[32])),
+                Bytes.EMPTY,
+                Bytes.EMPTY);
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -286,8 +300,14 @@ class WrappedRecordBlockHashMigrationTest {
     @Test
     void returnsEarlyWhenPreviousBlockHashIsEmpty() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
-        final var badConfig =
-                new BlockStreamJumpstartConfig(100, Bytes.EMPTY, 4, 1, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+        final var badConfig = new BlockStreamJumpstartConfig(
+                100,
+                Bytes.EMPTY,
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.EMPTY,
+                Bytes.EMPTY);
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -331,7 +351,8 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     private static BlockStreamJumpstartConfig defaultJumpstartConfig() {
-        return new BlockStreamJumpstartConfig(-1, Bytes.wrap(new byte[HASH_SIZE]), 0, 0, List.of());
+        return new BlockStreamJumpstartConfig(
+                -1, Bytes.wrap(new byte[HASH_SIZE]), 0, 0, List.of(), Bytes.EMPTY, Bytes.EMPTY);
     }
 
     private static BlockStreamJumpstartConfig jumpstartConfig(long blockNumber, long leafCount, int numHashes) {
@@ -340,6 +361,12 @@ class WrappedRecordBlockHashMigrationTest {
             subtreeHashes.add(Bytes.wrap(new byte[HASH_SIZE]));
         }
         return new BlockStreamJumpstartConfig(
-                blockNumber, Bytes.wrap(new byte[HASH_SIZE]), leafCount, numHashes, subtreeHashes);
+                blockNumber,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                leafCount,
+                numHashes,
+                subtreeHashes,
+                Bytes.EMPTY,
+                Bytes.EMPTY);
     }
 }

@@ -101,7 +101,13 @@ public class WrappedRecordBlockHashMigrationBenchmark {
         }
         final var subtreeHashes = hasher.intermediateHashingState();
         jumpstartConfig = new BlockStreamJumpstartConfig(
-                0L, Bytes.wrap(prevHash), hasher.leafCount(), subtreeHashes.size(), subtreeHashes);
+                0L,
+                Bytes.wrap(prevHash),
+                hasher.leafCount(),
+                subtreeHashes.size(),
+                subtreeHashes,
+                Bytes.EMPTY,
+                Bytes.EMPTY);
 
         config = new BlockRecordStreamConfig(
                 "/tmp/logDir",

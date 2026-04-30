@@ -119,7 +119,9 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
                 prevWrappedBlockHash,
                 hasher.leafCount(),
                 intermediateHashes.size(),
-                intermediateHashes));
+                intermediateHashes,
+                Bytes.EMPTY,
+                Bytes.EMPTY));
         return false;
     }
 }

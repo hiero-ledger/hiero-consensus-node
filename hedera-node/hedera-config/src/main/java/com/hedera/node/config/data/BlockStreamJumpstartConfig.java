@@ -14,6 +14,10 @@ import java.util.List;
  * @param streamingHasherLeafCount the number of leaves in the streaming hasher state
  * @param streamingHasherHashCount the number of hashes in the streaming hasher state
  * @param streamingHasherSubtreeHashes the list of subtree hashes in the streaming hasher state
+ * @param consensusTimestampHash SHA-384 leaf hash of the block's first consensus timestamp
+ *        (added by hiero-block-node #2612 for CN verification; empty when not provided)
+ * @param outputItemsTreeRootHash streaming merkle root of all output items in the block
+ *        (added by hiero-block-node #2612 for CN verification; empty when not provided)
  */
 @ConfigData("blockStream.jumpstart")
 public record BlockStreamJumpstartConfig(
@@ -28,4 +32,8 @@ public record BlockStreamJumpstartConfig(
         @ConfigProperty(defaultValue = "-1") @NetworkProperty
         int streamingHasherHashCount,
 
-        @ConfigProperty(defaultValue = "") @NetworkProperty List<Bytes> streamingHasherSubtreeHashes) {}
+        @ConfigProperty(defaultValue = "") @NetworkProperty List<Bytes> streamingHasherSubtreeHashes,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty Bytes consensusTimestampHash,
+
+        @ConfigProperty(defaultValue = "") @NetworkProperty Bytes outputItemsTreeRootHash) {}
