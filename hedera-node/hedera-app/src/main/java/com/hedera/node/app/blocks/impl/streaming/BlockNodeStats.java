@@ -73,7 +73,7 @@ public class BlockNodeStats {
      * @return true if the number of EndOfStream responses exceeds the maximum, otherwise false
      */
     public boolean addEndOfStreamAndCheckLimit(
-            @NonNull Instant timestamp, int maxAllowed, @NonNull Duration timeFrame) {
+            @NonNull final Instant timestamp, final int maxAllowed, @NonNull final Duration timeFrame) {
         requireNonNull(timestamp, "timestamp must not be null");
         requireNonNull(timeFrame, "timeFrame must not be null");
 
@@ -106,7 +106,7 @@ public class BlockNodeStats {
      * @return true if the number of BehindPublisher responses exceeds the maximum, otherwise false
      */
     public boolean addBehindPublisherAndCheckLimit(
-            @NonNull Instant timestamp, int maxAllowed, @NonNull Duration timeFrame) {
+            @NonNull final Instant timestamp, final int maxAllowed, @NonNull final Duration timeFrame) {
         requireNonNull(timestamp, "timestamp must not be null");
         requireNonNull(timeFrame, "timeFrame must not be null");
 
@@ -214,7 +214,7 @@ public class BlockNodeStats {
 
         final long latencyMs = Duration.between(sendTime, acknowledgedTime).toMillis();
         final boolean isHighLatency = latencyMs > highLatencyThreshold.toMillis();
-        int consecutiveCount;
+        final int consecutiveCount;
         boolean shouldSwitch = false;
 
         synchronized (consecutiveHighLatencyEvents) {

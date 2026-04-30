@@ -13,7 +13,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.base.formatting.TextTable;
-import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,6 +21,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.model.hashgraph.Round;
 
 /**

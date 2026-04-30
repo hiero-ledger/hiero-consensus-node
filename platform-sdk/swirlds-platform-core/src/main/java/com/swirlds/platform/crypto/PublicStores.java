@@ -10,9 +10,9 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.CryptoConstants;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
-import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -26,7 +26,7 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
     public PublicStores() throws KeyStoreException {
-        this(ConsensusCryptoUtils.createEmptyTrustStore(), ConsensusCryptoUtils.createEmptyTrustStore());
+        this(CryptoUtils.createEmptyTrustStore(), CryptoUtils.createEmptyTrustStore());
     }
 
     /**
@@ -44,8 +44,8 @@ public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
      */
     public static PublicStores fromAllPublic(final KeyStore allPublic, final Iterable<NodeId> nodeIds)
             throws KeyStoreException, KeyLoadingException {
-        final KeyStore sigTrustStore = ConsensusCryptoUtils.createEmptyTrustStore();
-        final KeyStore agrTrustStore = ConsensusCryptoUtils.createEmptyTrustStore();
+        final KeyStore sigTrustStore = CryptoUtils.createEmptyTrustStore();
+        final KeyStore agrTrustStore = CryptoUtils.createEmptyTrustStore();
 
         for (NodeId nodeId : nodeIds) {
             Certificate sigCert = allPublic.getCertificate(SIGNING.storeName(nodeId));

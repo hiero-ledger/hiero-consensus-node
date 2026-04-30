@@ -8,8 +8,11 @@ plugins {
 description = "Base Utility"
 
 testModuleInfo {
+    requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
+    requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }

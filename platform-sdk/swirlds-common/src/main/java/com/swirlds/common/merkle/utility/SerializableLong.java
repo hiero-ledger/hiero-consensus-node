@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.utility;
 
-import com.swirlds.common.FastCopyable;
 import java.io.IOException;
 import java.util.Objects;
+import org.hiero.base.FastCopyable;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;

@@ -48,8 +48,8 @@ import java.util.stream.LongStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
@@ -296,7 +296,7 @@ public final class EventRecoveryWorkflow {
         final SignedState signedState = initialSignedState.get();
         final SignedState mutableSignedState = new SignedState(
                 configuration,
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 stateLifecycleManager.getMutableState(),
                 "EventRecoveryWorkflow.ensureMutableState()",
                 signedState.isFreezeState(),
@@ -349,7 +349,7 @@ public final class EventRecoveryWorkflow {
 
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 newState,
                 "EventRecoveryWorkflow.handleNextRound()",
                 isFreezeState,
