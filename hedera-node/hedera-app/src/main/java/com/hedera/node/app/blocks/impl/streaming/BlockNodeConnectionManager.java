@@ -4,7 +4,6 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
-import com.hedera.node.app.blocks.impl.streaming.BlockNode.ServiceConnectionFailure;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -455,12 +454,13 @@ public class BlockNodeConnectionManager {
                         }
                     };
 
+            node.onServerStatusCheck(status);
+
             if (!status.wasReachable()) {
                 logger.info(
                         "[{}:{}] Block node is not a candidate for streaming (reason: unreachable/timeout)",
                         serviceEndpoint.host(),
                         serviceEndpoint.port());
-                node.applyCoolDown(new ServiceConnectionFailure());
                 continue;
             }
 
@@ -872,7 +872,8 @@ public class BlockNodeConnectionManager {
         }
 
         final long stalledConnectionThresholdMillis = bncConfig().connectionStallThresholdMillis();
-        final long lastHeartbeatTimestamp = activeConnection.heartbeatTimestamp();
+        final long lastHeartbeatTimestamp =
+                activeConnection.connectionStatistics().lastHeartbeatMillis();
 
         if (lastHeartbeatTimestamp != -1) {
             final long deltaMillis = now.toEpochMilli() - lastHeartbeatTimestamp;
@@ -999,7 +1000,12 @@ public class BlockNodeConnectionManager {
         }
 
         final BlockNodeEndpoint endpoint = selectedNode.configuration().streamingEndpoint();
-        logger.info("Selected new block node for streaming: {}:{}", endpoint.host(), endpoint.port());
+        final long wantedBlock = selectedNode.wantedBlock();
+        logger.info(
+                "Selected new block node for streaming: {}:{} (wantedBlock: {})",
+                endpoint.host(),
+                endpoint.port(),
+                wantedBlock);
         final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(
                 configProvider,
                 selectedNode,
@@ -1007,7 +1013,7 @@ public class BlockNodeConnectionManager {
                 blockBufferService,
                 blockStreamMetrics,
                 blockingIoExecutorSupplier.get(),
-                null,
+                wantedBlock,
                 clientFactory,
                 selfNodeId);
 

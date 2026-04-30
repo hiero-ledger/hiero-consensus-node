@@ -2,7 +2,7 @@
 package com.swirlds.virtualmap.internal;
 
 import com.swirlds.base.state.Mutable;
-import com.swirlds.common.utility.AbstractReservable;
+import org.hiero.base.AbstractReservable;
 import org.hiero.base.crypto.Hash;
 
 /**
