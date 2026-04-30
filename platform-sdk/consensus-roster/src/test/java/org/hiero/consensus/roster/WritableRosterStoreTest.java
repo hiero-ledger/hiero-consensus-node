@@ -18,6 +18,8 @@ import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RosterState.Builder;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.state.merkle.vm.VirtualMapWritableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -25,13 +27,16 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import java.lang.reflect.Field;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 /**
@@ -39,13 +44,23 @@ import org.mockito.Mockito;
  */
 class WritableRosterStoreTest {
 
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
+
     private final WritableStates writableStates = Mockito.mock(WritableStates.class);
     private WritableRosterStore writableRosterStore;
     private ReadableRosterStore readableRosterStore;
 
     @BeforeEach
     void setUp() {
-        final var virtualMap = VirtualMapUtils.createVirtualMap(1);
+        final var virtualMap = VirtualMapUtils.createVirtualMap(fileSystemManager, 1);
 
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         RosterStateId.ROSTERS_STATE_ID, RosterStateId.ROSTERS_STATE_LABEL)

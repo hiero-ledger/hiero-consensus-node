@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
@@ -12,11 +11,10 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -31,6 +29,7 @@ import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.TestArgumentUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
@@ -38,6 +37,8 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.provider.Arguments;
 
 /**
@@ -61,9 +62,6 @@ import org.junit.jupiter.params.provider.Arguments;
  */
 public class MerkleTestBase extends StateTestBase {
 
-    public static final SemanticVersion TEST_VERSION =
-            SemanticVersion.newBuilder().major(1).build();
-
     protected final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(MerkleDbConfig.class)
@@ -71,10 +69,15 @@ public class MerkleTestBase extends StateTestBase {
             .withConfigDataType(CryptoConfig.class)
             .build();
 
-    protected final FileSystemManager FILE_SYSTEM_MANAGER = FileSystemManager.create(CONFIGURATION);
+    @TempDir
+    Path fileSystemManagerTempDir;
 
-    private static final String SINGLETON_CLASS_ID_SUFFIX = "SingletonLeaf";
-    private static final String QUEUE_NODE_CLASS_ID_SUFFIX = "QueueNode";
+    protected FileSystemManager FILE_SYSTEM_MANAGER;
+
+    @BeforeEach
+    void setupFileSystemManager() {
+        FILE_SYSTEM_MANAGER = new TestFileSystemManager(fileSystemManagerTempDir);
+    }
 
     /**
      * This {@link ConstructableRegistry} is required for serialization tests. It is expensive to

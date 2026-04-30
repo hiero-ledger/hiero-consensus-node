@@ -2,7 +2,6 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -10,23 +9,38 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 // This test requires more memory than others, decide what to do with it
 @Disabled("This test needs to be investigated")
 class MigrationTest {
+
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setup() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
 
     @Test
     @DisplayName("extractVirtualMapData() Test")
@@ -135,6 +149,6 @@ class MigrationTest {
      * Create a new virtual map data source builder.
      */
     private static MerkleDbDataSourceBuilder constructBuilder() {
-        return new MerkleDbDataSourceBuilder(CONFIGURATION, FILE_SYSTEM_MANAGER, 1234);
+        return new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, 1234);
     }
 }

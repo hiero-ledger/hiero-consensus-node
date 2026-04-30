@@ -4,7 +4,6 @@ package com.swirlds.merkledb;
 import static com.swirlds.merkledb.MerkleDbDataSourceTest.assertLeaf;
 import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
@@ -19,6 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.units.UnitConstants;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.metrics.api.Metric;
@@ -37,7 +38,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -46,6 +50,16 @@ class MerkleDbDataSourceSnapshotMergeTest {
 
     private static final int COUNT = 20_000;
     private static final int COUNT2 = 30_000;
+
+    private static FileSystemManager fileSystemManager;
+
+    @TempDir
+    static Path tempDir;
+
+    @BeforeAll
+    static void setup() throws ConstructableRegistryException {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
 
     /*
      * RUN THE TEST IN A BACKGROUND THREAD. We do this so that we can kill the thread at the end of the test which will
@@ -82,7 +96,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
         final String tableName = "mergeSnapshotReadBack";
         final MerkleDbDataSource dataSource = testType.dataType()
                 .createDataSource(
-                        CONFIGURATION, FILE_SYSTEM_MANAGER, storeDir, tableName, COUNT, false, preferDiskBasedIndexes);
+                        CONFIGURATION, fileSystemManager, storeDir, tableName, COUNT, false, preferDiskBasedIndexes);
         final ExecutorService exec = Executors.newCachedThreadPool();
         try {
             // create some internal and leaf nodes in batches
@@ -143,7 +157,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
             checkData(COUNT2, testType, dataSource);
             // load snapshot and check data
             final MerkleDbDataSource snapshotDataSource =
-                    testType.dataType().getDataSource(snapshotDir, tableName, false);
+                    testType.dataType().getDataSource(fileSystemManager, snapshotDir, tableName, false);
             checkData(COUNT, testType, snapshotDataSource);
             // validate all data in the snapshot
             final DataSourceValidator dataSourceValidator = new DataSourceValidator(snapshotDataSource);

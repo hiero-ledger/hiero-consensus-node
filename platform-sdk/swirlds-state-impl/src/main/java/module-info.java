@@ -9,12 +9,12 @@ module com.swirlds.state.impl {
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
+    requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
-    requires transitive com.swirlds.common;
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires org.hiero.consensus.metrics;

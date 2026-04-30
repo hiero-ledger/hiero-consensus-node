@@ -12,13 +12,13 @@ open module com.swirlds.merkledb {
     exports com.swirlds.merkledb.utilities;
 
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires com.swirlds.base;
-    requires transitive com.swirlds.common;
     requires com.swirlds.logging;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;

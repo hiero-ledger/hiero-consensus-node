@@ -13,6 +13,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.state.merkle.StateUtils;
 import com.swirlds.state.merkle.StateValue;
@@ -21,18 +23,31 @@ import com.swirlds.state.merkle.vm.VirtualMapWritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import com.swirlds.virtualmap.VirtualMap;
+import java.nio.file.Path;
 import java.time.Instant;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WritablePlatformStateStoreTest {
+
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
 
     @Mock
     private WritableStates writableStates;
@@ -46,7 +61,7 @@ class WritablePlatformStateStoreTest {
     void setUp() {
         randotron = Randotron.create();
 
-        virtualMap = VirtualMapUtils.createVirtualMap(1);
+        virtualMap = VirtualMapUtils.createVirtualMap(fileSystemManager, 1);
 
         final Bytes key = StateUtils.getStateKeyForSingleton(PLATFORM_STATE_STATE_ID);
         final StateValue<PlatformState> value = StateUtils.getStateValueForSingleton(

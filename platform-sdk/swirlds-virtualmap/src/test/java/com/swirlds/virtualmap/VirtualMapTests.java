@@ -23,7 +23,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -1200,7 +1200,7 @@ class VirtualMapTests extends VirtualTestBase {
         }
         // Take a snapshot of copy 5
         final VirtualMap copy5 = copies.get(5);
-        final Path snapshotPath = FileSystemManager.create(CONFIGURATION).resolveNewTemp("snapshotAndRestore");
+        final Path snapshotPath = new TestFileSystemManager(testDirectory).resolveNewTemp("snapshotAndRestore");
         Files.createDirectories(snapshotPath);
         copy5.createSnapshot(snapshotPath);
         try {

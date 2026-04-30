@@ -8,11 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.config.StateCommonConfig_;
-import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.utility.SerializableLong;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.File;
@@ -51,11 +50,8 @@ class ScratchpadTests {
     void beforeEach() throws IOException {
         FileUtils.deleteDirectory(testDirectory);
         Files.createDirectories(testDirectory);
-        this.configuration = new TestConfigBuilder()
-                .withValue(FileSystemManagerConfig_.ROOT_PATH, testDirectory.toString())
-                .withValue(FileSystemManagerConfig_.TMP_DIR, "tmp")
-                .getOrCreateConfig();
-        this.fileSystemManager = FileSystemManager.create(configuration);
+        this.configuration = new TestConfigBuilder().getOrCreateConfig();
+        this.fileSystemManager = new TestFileSystemManager(testDirectory);
     }
 
     @AfterEach

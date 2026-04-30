@@ -27,6 +27,7 @@ open module com.hedera.node.app.test.fixtures {
     requires com.hedera.node.app.service.token;
     requires com.hedera.node.config.test.fixtures;
     requires com.swirlds.base;
+    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.state.impl.test.fixtures;

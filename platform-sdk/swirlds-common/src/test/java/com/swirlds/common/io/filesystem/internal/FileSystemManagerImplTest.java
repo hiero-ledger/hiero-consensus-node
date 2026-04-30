@@ -16,20 +16,15 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.consensus.io.RecycleBin;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 @WithTestExecutor
 public class FileSystemManagerImplTest {
-
-    @Mock
-    private RecycleBin mockRecycleBin;
 
     @TempDir
     private Path rootPathParent;
@@ -38,8 +33,7 @@ public class FileSystemManagerImplTest {
         return new FileSystemManagerImpl(
                 getTestRootPath(),
                 FileSystemManagerConfig.DEFAULT_DATA_DIR_NAME,
-                FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME,
-                mockRecycleBin);
+                FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME);
     }
 
     private String getTestRootPath() {
@@ -65,8 +59,7 @@ public class FileSystemManagerImplTest {
         new FileSystemManagerImpl(
                 largeRootLocation,
                 FileSystemManagerConfig.DEFAULT_DATA_DIR_NAME,
-                FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME,
-                mockRecycleBin);
+                FileSystemManagerConfig.DEFAULT_TMP_DIR_NAME);
         // then
         assertThat(Path.of(largeRootLocation)).isDirectory().isNotEmptyDirectory();
     }

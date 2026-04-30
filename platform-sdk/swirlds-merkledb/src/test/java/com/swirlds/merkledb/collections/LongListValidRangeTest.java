@@ -3,7 +3,6 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextLong;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -11,16 +10,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.parallel.ExecutionMode.SAME_THREAD;
 
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ManagementFactory;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -29,6 +33,17 @@ import org.junit.jupiter.params.provider.MethodSource;
 class LongListValidRangeTest {
 
     public static final int MAX_LONGS = 1000;
+
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
+
     private AbstractLongList<?> list;
 
     @Tag(TestComponentTags.VMAP)
@@ -99,10 +114,10 @@ class LongListValidRangeTest {
         new LongListHeap(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
         new LongListSegment(1, AbstractLongList.MAX_NUM_CHUNKS, 1).close();
         new LongListSegment(2, AbstractLongList.MAX_NUM_CHUNKS * 2, 1).close();
-        new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, CONFIGURATION, FILE_SYSTEM_MANAGER)
+        new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS, 1, CONFIGURATION, fileSystemManager)
                 .resetTransferBuffer()
                 .close();
-        new LongListDisk(4, AbstractLongList.MAX_NUM_CHUNKS * 4, 1, CONFIGURATION, FILE_SYSTEM_MANAGER)
+        new LongListDisk(4, AbstractLongList.MAX_NUM_CHUNKS * 4, 1, CONFIGURATION, fileSystemManager)
                 .resetTransferBuffer()
                 .close();
         // Illegal cases, too many chunks
@@ -117,11 +132,11 @@ class LongListValidRangeTest {
                 () -> new LongListHeap(16, AbstractLongList.MAX_NUM_CHUNKS * 16 + 1, 1));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1, CONFIGURATION, FILE_SYSTEM_MANAGER));
+                () -> new LongListDisk(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1, CONFIGURATION, fileSystemManager));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> new LongListDisk(
-                        32, AbstractLongList.MAX_NUM_CHUNKS * 32 + 1, 1, CONFIGURATION, FILE_SYSTEM_MANAGER));
+                        32, AbstractLongList.MAX_NUM_CHUNKS * 32 + 1, 1, CONFIGURATION, fileSystemManager));
         assertThrows(
                 IllegalArgumentException.class, () -> new LongListSegment(1, AbstractLongList.MAX_NUM_CHUNKS + 1, 1));
         assertThrows(
@@ -764,7 +779,7 @@ class LongListValidRangeTest {
                 Arguments.of(new LongListOffHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
                 Arguments.of(new LongListHeap(longsPerChunk, MAX_LONGS, reservedBufferLength)),
                 Arguments.of(new LongListDisk(
-                        longsPerChunk, MAX_LONGS, reservedBufferLength, CONFIGURATION, FILE_SYSTEM_MANAGER)),
+                        longsPerChunk, MAX_LONGS, reservedBufferLength, CONFIGURATION, fileSystemManager)),
                 Arguments.of(new LongListSegment(longsPerChunk, MAX_LONGS, reservedBufferLength)));
     }
 

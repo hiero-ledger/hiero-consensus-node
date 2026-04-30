@@ -7,13 +7,14 @@ import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
 import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
 import static com.swirlds.merkledb.MerkleDbDataSource.PATH_TO_KEY_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -72,10 +73,11 @@ class CompactionInterruptTest {
      */
     boolean startMergeThenInterruptImpl() throws IOException, InterruptedException {
         final Path storeDir = tmpFileDir.resolve("startMergeThenInterruptImpl");
+        final FileSystemManager fileSystemManager = new TestFileSystemManager(tmpFileDir);
         final String tableName = "mergeThenInterrupt";
         final MerkleDbDataSource dataSource = TestType.variable_variable
                 .dataType()
-                .createDataSource(CONFIGURATION, FILE_SYSTEM_MANAGER, storeDir, tableName, COUNT, false, false);
+                .createDataSource(CONFIGURATION, fileSystemManager, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         try {
@@ -121,7 +123,7 @@ class CompactionInterruptTest {
         final String tableName = "mergeWhileSnapshotting";
         final MerkleDbDataSource dataSource = TestType.variable_variable
                 .dataType()
-                .createDataSource(CONFIGURATION, FILE_SYSTEM_MANAGER, storeDir, tableName, COUNT, false, false);
+                .createDataSource(CONFIGURATION, null, storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         final ExecutorService exec = Executors.newCachedThreadPool();

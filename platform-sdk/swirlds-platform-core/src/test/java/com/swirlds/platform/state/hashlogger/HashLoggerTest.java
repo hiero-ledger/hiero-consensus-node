@@ -15,6 +15,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -24,6 +26,7 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import com.swirlds.virtualmap.VirtualMap;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -36,10 +39,23 @@ import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class HashLoggerTest {
+
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
+
     private Logger mockLogger;
     private HashLogger hashLogger;
     private List<String> logged;
@@ -140,7 +156,7 @@ public class HashLoggerTest {
     private ReservedSignedState createSignedState(final long round) {
         final SignedState signedState = mock(SignedState.class);
         final VirtualMapState state = mock(VirtualMapState.class);
-        final VirtualMap stateRoot = VirtualMapUtils.createVirtualMap();
+        final VirtualMap stateRoot = VirtualMapUtils.createVirtualMap(fileSystemManager);
         stateRoot.getHash();
         stateRoots.add(stateRoot);
         final ReadableStates readableStates = mock(ReadableStates.class);

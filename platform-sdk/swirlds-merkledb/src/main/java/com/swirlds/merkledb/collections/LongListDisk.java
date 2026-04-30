@@ -112,8 +112,8 @@ public class LongListDisk extends AbstractLongList<Long> {
      */
     public LongListDisk(
             final long capacity, final Configuration configuration, final FileSystemManager fileSystemManager) {
-        super(capacity, configuration);
         this.fileSystemManager = fileSystemManager;
+        super(capacity, configuration);
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
     }
@@ -134,8 +134,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             final long reservedBufferSize,
             final @NonNull Configuration configuration,
             final @NonNull FileSystemManager fileSystemManager) {
-        super(longsPerChunk, capacity, reservedBufferSize);
         this.fileSystemManager = fileSystemManager;
+        super(longsPerChunk, capacity, reservedBufferSize);
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
     }
@@ -160,8 +160,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager)
             throws IOException {
-        super(file, capacity, configuration);
         this.fileSystemManager = fileSystemManager;
+        super(file, capacity, configuration);
         if (tempFile == null) {
             throw new IllegalStateException("The temp file is not initialized");
         }
@@ -191,8 +191,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             final @NonNull Configuration configuration,
             final @NonNull FileSystemManager fileSystemManager)
             throws IOException {
-        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
         this.fileSystemManager = fileSystemManager;
+        super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
         // IDE complains that the tempFile is not initialized, but it's initialized in readBodyFromFileChannelOnInit
         // which is called from the constructor of the parent class
         if (tempFile == null) {
@@ -513,7 +513,9 @@ public class LongListDisk extends AbstractLongList<Long> {
             freeChunks.clear();
             Files.delete(tempFile);
             // The directory must be empty at this point
-            Files.delete(tempDir);
+            if (tempDir != null && Files.exists(tempDir)) {
+                Files.delete(tempDir);
+            }
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         } finally {

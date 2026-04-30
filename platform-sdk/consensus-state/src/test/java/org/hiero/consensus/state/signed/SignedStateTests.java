@@ -15,12 +15,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import com.swirlds.virtualmap.VirtualMap;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,12 +36,24 @@ import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("SignedState Tests")
 class SignedStateTests {
+
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
 
     /**
      * Generate a signed state.
@@ -60,7 +75,7 @@ class SignedStateTests {
      */
     private VirtualMapState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
-        final var real = VirtualMapStateTestUtils.createTestState();
+        final var real = VirtualMapStateTestUtils.createTestState(fileSystemManager);
         TestingAppStateInitializer.initConsensusModuleStates(real);
         RosterStateUtils.setActiveRoster(
                 real, RandomRosterBuilder.create(random).build(), 0L);
@@ -211,7 +226,7 @@ class SignedStateTests {
     @Test
     @DisplayName("Alternate Constructor Reservations Test")
     void alternateConstructorReservationsTest() {
-        final var virtualMap = VirtualMapUtils.createVirtualMap();
+        final var virtualMap = VirtualMapUtils.createVirtualMap(fileSystemManager);
 
         final VirtualMapState state = spy(createTestStateWithVM(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
@@ -235,7 +250,7 @@ class SignedStateTests {
     @DisplayName("Test Try Reserve")
     void tryReserveTest() {
         final Random random = new Random();
-        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
+        final VirtualMapState state = VirtualMapStateTestUtils.createTestState(fileSystemManager);
         generateSignedState(random, state);
 
         assertEquals(

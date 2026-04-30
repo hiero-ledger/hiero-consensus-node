@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
@@ -25,6 +24,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBinImpl;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
@@ -70,6 +70,11 @@ public class StartupStateUtilsTests {
     @TempDir
     Path testDirectory;
 
+    @TempDir
+    Path fileSystemManagerTempDir;
+
+    private FileSystemManager fileSystemManager;
+
     private SignedStateFilePath signedStateFilePath;
 
     private final NodeId selfId = NodeId.of(0);
@@ -85,6 +90,7 @@ public class StartupStateUtilsTests {
                 .getOrCreateConfig()
                 .getConfigData(StateCommonConfig.class));
         currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
+        fileSystemManager = new TestFileSystemManager(fileSystemManagerTempDir);
     }
 
     @AfterEach
@@ -156,8 +162,8 @@ public class StartupStateUtilsTests {
         return signedState;
     }
 
-    private static StateLifecycleManager<VirtualMapState, VirtualMap> createLifecycleManager() {
-        return new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION, FILE_SYSTEM_MANAGER);
+    private StateLifecycleManager<VirtualMapState, VirtualMap> createLifecycleManager() {
+        return new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION, fileSystemManager);
     }
 
     @Test
@@ -329,7 +335,6 @@ public class StartupStateUtilsTests {
     private RecycleBin initializeRecycleBin(PlatformContext platformContext, NodeId selfId) {
         final var metrics = new NoOpMetrics();
         final var configuration = platformContext.getConfiguration();
-        final var fileSystemManager = FileSystemManager.create(configuration);
         final var time = Time.getCurrent();
         return RecycleBinImpl.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, selfId);
     }

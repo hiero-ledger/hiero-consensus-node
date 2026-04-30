@@ -3,7 +3,6 @@ package com.swirlds.platform;
 
 import static com.swirlds.base.test.fixtures.util.DataUtils.randomUtf8Bytes;
 import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
@@ -27,6 +26,9 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.utility.FileUtils;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
@@ -58,13 +60,17 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("SignedState Read/Write Test")
 class SignedStateFileReadWriteTest {
+
+    @TempDir
     Path testDirectory;
 
     private static SemanticVersion platformVersion;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
+    private FileSystemManager fileSystemManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -75,10 +81,14 @@ class SignedStateFileReadWriteTest {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        testDirectory = FILE_SYSTEM_MANAGER.resolveNewTemp("SignedStateFileReadWriteTest");
+        testDirectory = testDirectory.resolve("SignedStateFileReadWriteTest");
+        if (Files.exists(testDirectory)) {
+            FileUtils.delete(testDirectory);
+        }
         Files.createDirectories(testDirectory);
-        stateLifecycleManager = new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), CONFIGURATION, FILE_SYSTEM_MANAGER);
-//        LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
+        fileSystemManager = new TestFileSystemManager(testDirectory);
+        stateLifecycleManager = new VirtualMapStateLifecycleManager(
+                new NoOpMetrics(), new FakeTime(), CONFIGURATION, fileSystemManager);
     }
 
     @AfterEach

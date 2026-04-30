@@ -11,6 +11,7 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -22,6 +23,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -40,6 +42,7 @@ import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Originally this class used {@link java.io.PipedInputStream} and {@link java.io.PipedOutputStream}, but the reconnect
@@ -57,7 +60,16 @@ final class ReconnectTest {
     // This test uses a threading pattern that is incompatible with gzip compression.
     private final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
-    private final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
+
+    @TempDir
+    Path tempDir;
+
+    private FileSystemManager fileSystemManager;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {

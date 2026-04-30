@@ -62,13 +62,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     }
 
     private Path newDataSourceDir(final String label) {
-        try {
-            final Path tmpPath = fileSystemManager.resolveNewTemp("merkledb-" + label);
-            Files.createDirectories(tmpPath);
-            return tmpPath;
-        } catch (final IOException z) {
-            throw new UncheckedIOException("Failed to create a new temp MerkleDb folder", z);
-        }
+        return fileSystemManager.resolveNewTemp("merkledb-" + label);
     }
 
     private Path snapshotDataDir(final Path snapshotDir, final String label) {

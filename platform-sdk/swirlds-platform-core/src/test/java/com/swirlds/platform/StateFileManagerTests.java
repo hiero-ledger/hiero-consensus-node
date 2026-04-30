@@ -3,7 +3,6 @@ package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
-import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -77,7 +76,6 @@ class StateFileManagerTests {
     private PlatformContext context;
     private SignedStateFilePath signedStateFilePath;
 
-
     Path testDirectory;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
@@ -88,10 +86,8 @@ class StateFileManagerTests {
 
     @BeforeEach
     void beforeEach() {
-        final TestConfigBuilder configBuilder = new TestConfigBuilder()
-                .withValue(
-                        FileSystemManagerConfig_.TMP_DIR,
-                        "SignedStateFileReadWriteTest");
+        final TestConfigBuilder configBuilder =
+                new TestConfigBuilder().withValue(FileSystemManagerConfig_.TMP_DIR, "SignedStateFileReadWriteTest");
         context = TestPlatformContextBuilder.create()
                 .withConfiguration(configBuilder.getOrCreateConfig())
                 .build();

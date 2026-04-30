@@ -52,7 +52,10 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
-                platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration(), platformContext.getFileSystemManager());
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                platformContext.getConfiguration(),
+                platformContext.getFileSystemManager());
         // copy just to init immutableLastState
         initialState = stateLifecycleManager.copyMutableState();
         TestingAppStateInitializer.initPlatformState(initialState);

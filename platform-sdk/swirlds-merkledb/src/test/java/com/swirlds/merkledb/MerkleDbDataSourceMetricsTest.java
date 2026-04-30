@@ -2,12 +2,15 @@
 package com.swirlds.merkledb;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createMetrics;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getMetric;
 import static com.swirlds.merkledb.test.fixtures.TestType.long_fixed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
@@ -25,20 +28,26 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class MerkleDbDataSourceMetricsTest {
 
     public static final String TABLE_NAME = "test";
     // default number of longs per chunk
     private static final int COUNT = 1_048_576;
+
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
     private static Path testDirectory;
     private MerkleDbDataSource dataSource;
     private Metrics metrics;
 
     @BeforeAll
     static void setup() throws Exception {
-        testDirectory = FILE_SYSTEM_MANAGER.resolveNewTemp("MerkleDbDataSourceMetricsTest");
-        Files.createDirectories(testDirectory);
+        fileSystemManager = new TestFileSystemManager(tempDir);
+        testDirectory = fileSystemManager.resolveNewTemp("MerkleDbDataSourceMetricsTest");
     }
 
     @BeforeEach
@@ -46,7 +55,7 @@ class MerkleDbDataSourceMetricsTest {
         // check db count
         MerkleDbTestUtils.assertAllDatabasesClosed();
         // create db
-        dataSource = createDataSource(testDirectory, TABLE_NAME, long_fixed, COUNT * 10);
+        dataSource = createDataSource(fileSystemManager, testDirectory, TABLE_NAME, long_fixed, COUNT * 10);
 
         metrics = createMetrics();
         dataSource.registerMetrics(metrics);
@@ -181,8 +190,13 @@ class MerkleDbDataSourceMetricsTest {
     }
 
     public static MerkleDbDataSource createDataSource(
-            final Path testDirectory, final String name, final TestType testType, final int size) throws IOException {
+            final FileSystemManager fileSystemManager,
+            final Path testDirectory,
+            final String name,
+            final TestType testType,
+            final int size)
+            throws IOException {
         return testType.dataType()
-                .createDataSource(CONFIGURATION, FILE_SYSTEM_MANAGER, testDirectory, name, size, false, false);
+                .createDataSource(CONFIGURATION, fileSystemManager, testDirectory, name, size, false, false);
     }
 }

@@ -50,7 +50,6 @@ class EventStreamPathIteratorTest {
     void startingFromFirstEventTest() throws IOException {
         final Random random = getRandomPrintSeed();
 
-
         final int durationInSeconds = 100;
         final int secondsPerFile = 2;
         final int expectedFileCount = durationInSeconds / secondsPerFile;
@@ -88,7 +87,6 @@ class EventStreamPathIteratorTest {
     @DisplayName("Starting From Specified Event Test")
     void startingFromSpecifiedEventTest() throws IOException {
         final Random random = getRandomPrintSeed();
-
 
         final int durationInSeconds = 100;
         final int roundsPerSecond = 1;
@@ -134,7 +132,6 @@ class EventStreamPathIteratorTest {
     void requestNonExistentRoundsTest() throws IOException {
         final Random random = getRandomPrintSeed();
 
-
         final int durationInSeconds = 100;
         final int roundsPerSecond = 1;
         final int secondsPerFile = 2;
@@ -159,7 +156,6 @@ class EventStreamPathIteratorTest {
     @DisplayName("Extensive Bound Test")
     void extensiveBoundTest() throws IOException {
         final Random random = getRandomPrintSeed();
-
 
         final int durationInSeconds = 100;
         final int roundsPerSecond = 1;

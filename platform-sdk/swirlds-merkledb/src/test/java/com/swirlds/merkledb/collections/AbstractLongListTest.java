@@ -5,7 +5,6 @@ import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE_V3;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
@@ -23,6 +22,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -42,6 +43,7 @@ import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -71,6 +73,16 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
     // Variables used in ordered tests
 
     private static AbstractLongList<?> longList;
+
+    @TempDir
+    static Path fsmTempDir;
+
+    protected static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(fsmTempDir);
+    }
 
     /**
      * Keep track of initial direct memory used already, so we can check if we leek over and above what we started with
@@ -711,7 +723,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             LongListOffHeap.class.getSimpleName(), () -> new LongListOffHeap(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
     static LongListWriterFactory diskWriterFactory = new LongListWriterFactory(
             LongListDisk.class.getSimpleName(),
-            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION, FILE_SYSTEM_MANAGER));
+            () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, CONFIGURATION, fileSystemManager));
     static LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
             LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
 
@@ -740,7 +752,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             new LongListReaderFactory(LongListDisk.class.getSimpleName(), (file, a) -> {
                 try {
                     return new LongListDisk(
-                            file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION, FILE_SYSTEM_MANAGER);
+                            file, (int) a.get(0).longValue(), a.get(1), a.get(2), CONFIGURATION, fileSystemManager);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

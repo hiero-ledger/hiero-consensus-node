@@ -43,38 +43,6 @@ public class FileSystemManagerImpl implements FileSystemManager {
     private final Path tempPath;
     private final Path savedPath;
     private final AtomicLong tmpFileNameIndex = new AtomicLong(0);
-    /**
-     * Creates a {@link FileSystemManager} and a {@link RecycleBin} by searching {@code root}
-     * path in the {@link Configuration} class using
-     * {@code FileSystemManagerConfig} record
-     *
-     * @param rootLocation      the location to be used as root path. It should not exist.
-     * @param dataDirName       the name of the user data file directory
-     * @param tmpDirName        the name of the tmp file directory
-     * @param recycleBin       for building the recycle bin.
-     * @throws UncheckedIOException if the dir structure to rootLocation cannot be created
-     */
-    FileSystemManagerImpl(
-            @NonNull final String rootLocation,
-            final String dataDirName,
-            final String tmpDirName,
-            @NonNull final RecycleBin recycleBin) {
-        this.rootPath = Path.of(rootLocation).normalize();
-        if (!exists(rootPath)) {
-            rethrowIO(() -> Files.createDirectories(rootPath));
-        }
-
-        this.tempPath = rootPath.resolve(tmpDirName);
-        this.savedPath = rootPath.resolve(dataDirName);
-
-        if (!exists(savedPath)) {
-            rethrowIO(() -> Files.createDirectory(savedPath));
-        }
-        if (exists(tempPath)) {
-            rethrowIO(() -> FileUtils.deleteDirectory(tempPath));
-        }
-        rethrowIO(() -> Files.createDirectory(tempPath));
-    }
 
     /**
      * Creates a {@link FileSystemManager} and a {@link RecycleBin} by searching {@code root}
@@ -88,7 +56,7 @@ public class FileSystemManagerImpl implements FileSystemManager {
      */
     public FileSystemManagerImpl(
             @NonNull final String rootLocation, @NonNull final String dataDirName, @NonNull final String tmpDirName) {
-        this.rootPath = Path.of(rootLocation).normalize();
+        this.rootPath = FileUtils.getAbsolutePath(Path.of(rootLocation).normalize());
         if (!exists(rootPath)) {
             rethrowIO(() -> Files.createDirectories(rootPath));
         }

@@ -10,7 +10,6 @@ import com.hedera.node.app.spi.fixtures.TestSchema;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -56,8 +55,6 @@ class SerializationTest extends MerkleTestBase {
 
     private Configuration config;
 
-    private FileSystemManager fileSystemManager;
-
     @Mock
     private MigrationStateChanges migrationStateChanges;
 
@@ -75,7 +72,6 @@ class SerializationTest extends MerkleTestBase {
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(CryptoConfig.class)
                 .getOrCreateConfig();
-        this.fileSystemManager = FileSystemManager.create(config);
     }
 
     Schema createV1Schema() {
@@ -126,7 +122,7 @@ class SerializationTest extends MerkleTestBase {
         final Schema<SemanticVersion> schemaV1 = createV1Schema();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 createStateLifecycleManager(schemaV1);
-        final Path tempDir = fileSystemManager.resolveNewTemp();
+        final Path tempDir = FILE_SYSTEM_MANAGER.resolveNewTemp();
         Files.createDirectories(tempDir);
         stateLifecycleManager.copyMutableState().release();
         final VirtualMapState originalTree = stateLifecycleManager.getLatestImmutableState();
@@ -164,7 +160,7 @@ class SerializationTest extends MerkleTestBase {
         final SignedState randomState =
                 new RandomSignedStateGenerator().setRound(1).build();
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), config, fileSystemManager);
+                new VirtualMapStateLifecycleManager(new NoOpMetrics(), new FakeTime(), config, FILE_SYSTEM_MANAGER);
         stateLifecycleManager.initWithState(randomState.getState());
 
         final VirtualMapState immutableState = stateLifecycleManager.getLatestImmutableState();

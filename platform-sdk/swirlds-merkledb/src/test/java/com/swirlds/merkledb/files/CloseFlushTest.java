@@ -2,10 +2,10 @@
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
@@ -35,6 +35,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * This is a regression test for swirlds/swirlds-platform/issues/6151, but
@@ -46,9 +47,15 @@ import org.junit.jupiter.api.Test;
  */
 public class CloseFlushTest {
 
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
     @BeforeAll
     public static void setup() throws IOException {
         Configurator.setRootLevel(Level.WARN);
+        fileSystemManager = new TestFileSystemManager(tempDir);
     }
 
     @AfterAll
@@ -61,18 +68,17 @@ public class CloseFlushTest {
         final int count = 10000;
         final ExecutorService exec = Executors.newSingleThreadExecutor();
         final AtomicReference<Exception> exception = new AtomicReference<>();
-        final Path tmpFileDir = FILE_SYSTEM_MANAGER.resolveNewTemp();
+        final Path tmpFileDir = fileSystemManager.resolveNewTemp();
         Files.createDirectories(tmpFileDir);
         for (int j = 0; j < 100; j++) {
             final Path storeDir = tmpFileDir.resolve("closeFlushTest-" + j);
             final VirtualDataSource dataSource = TestType.long_fixed
                     .dataType()
-                    .createDataSource(
-                            CONFIGURATION, FILE_SYSTEM_MANAGER, storeDir, "closeFlushTest", count, false, true);
+                    .createDataSource(CONFIGURATION, fileSystemManager, storeDir, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
             final VirtualDataSourceBuilder builder =
-                    new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION, FILE_SYSTEM_MANAGER);
+                    new CustomDataSourceBuilder(dataSource, exception, CONFIGURATION, fileSystemManager);
             VirtualMap map = new VirtualMap(builder, CONFIGURATION);
             for (int i = 0; i < count; i++) {
                 final Bytes key = ExampleLongKey.longToKey(i);
@@ -117,7 +123,7 @@ public class CloseFlushTest {
 
         // Provided for deserialization
         public CustomDataSourceBuilder() {
-            super(CONFIGURATION, FILE_SYSTEM_MANAGER);
+            super(CONFIGURATION, fileSystemManager);
         }
 
         public CustomDataSourceBuilder(

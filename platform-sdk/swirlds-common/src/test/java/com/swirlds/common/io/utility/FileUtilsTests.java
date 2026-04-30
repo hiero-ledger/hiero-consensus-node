@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.File;
@@ -69,7 +70,7 @@ class FileUtilsTests {
                 .withValue("temporaryFiles.temporaryFilePath", testTmpDir.toString())
                 .withConfigDataType(TemporaryFileConfig.class)
                 .getOrCreateConfig();
-        fileSystemManager = FileSystemManager.create(configuration);
+        fileSystemManager = new TestFileSystemManager(testDirectory.resolve("fsm"));
     }
 
     @AfterEach

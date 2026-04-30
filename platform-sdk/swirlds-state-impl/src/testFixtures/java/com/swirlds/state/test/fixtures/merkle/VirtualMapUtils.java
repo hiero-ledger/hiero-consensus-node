@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.test.fixtures.merkle;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
-
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
@@ -30,8 +28,8 @@ public final class VirtualMapUtils {
             .withConfigDataType(ReconnectConfig.class)
             .build();
 
-    public static VirtualMap createVirtualMap() {
-        return createVirtualMap(CONFIGURATION, FILE_SYSTEM_MANAGER);
+    public static VirtualMap createVirtualMap(@NonNull final FileSystemManager fileSystemManager) {
+        return createVirtualMap(CONFIGURATION, fileSystemManager);
     }
 
     public static VirtualMap createVirtualMap(
@@ -40,8 +38,9 @@ public final class VirtualMapUtils {
         return createVirtualMap(configuration, fileSystemManager, MAX_NUM_OF_KEYS);
     }
 
-    public static VirtualMap createVirtualMap(final long maxNumberOfKeys) {
-        return createVirtualMap(CONFIGURATION, FILE_SYSTEM_MANAGER, maxNumberOfKeys);
+    public static VirtualMap createVirtualMap(
+            @NonNull final FileSystemManager fileSystemManager, final long maxNumberOfKeys) {
+        return createVirtualMap(CONFIGURATION, fileSystemManager, maxNumberOfKeys);
     }
 
     public static VirtualMap createVirtualMap(

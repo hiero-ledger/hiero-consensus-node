@@ -3,7 +3,6 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -25,9 +24,13 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @Disabled("This test needs to be updated to use protobuf data")
 public class DataFileReaderHammerTest {
+
+    @TempDir
+    private Path tempDir;
 
     @Test
     @DisplayName("Test DataFileReader with interrupts")
@@ -38,7 +41,7 @@ public class DataFileReaderHammerTest {
         final int readerThreads = 32;
         final int readIterations = 10_000;
 
-        final Path tempFile = FILE_SYSTEM_MANAGER.resolveNewTemp("interruptedReadsHammerTest");
+        final Path tempFile = tempDir.resolve("interruptedReadsHammerTest");
         Files.createFile(tempFile);
         final ByteBuffer writeBuf = ByteBuffer.allocate(itemSize);
         for (int i = 0; i < itemSize; i++) {

@@ -3,9 +3,10 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
@@ -23,14 +24,20 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class DataFileReaderCloseTest {
 
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
     private static DataFileCollection collection;
 
     @BeforeAll
     static void setup() throws IOException {
-        final Path dir = FILE_SYSTEM_MANAGER.resolveNewTemp("readerIsOpenTest");
+        fileSystemManager = new TestFileSystemManager(tempDir);
+        final Path dir = fileSystemManager.resolveNewTemp("readerIsOpenTest");
         Files.createDirectories(dir);
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         collection = new DataFileCollection(dbConfig, dir, "store", null);
@@ -101,7 +108,7 @@ class DataFileReaderCloseTest {
 
     @Test
     void readWhileFinishWritingTest() throws IOException {
-        final Path tmpDir = FILE_SYSTEM_MANAGER.resolveNewTemp("readWhileFinishWritingTest");
+        final Path tmpDir = fileSystemManager.resolveNewTemp("readWhileFinishWritingTest");
         Files.createDirectories(tmpDir);
         final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final int COUNT = 100;

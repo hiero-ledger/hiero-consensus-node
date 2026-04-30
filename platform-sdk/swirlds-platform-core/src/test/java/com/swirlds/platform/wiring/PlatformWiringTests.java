@@ -13,7 +13,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -86,7 +86,8 @@ class PlatformWiringTests {
     @ParameterizedTest
     @MethodSource("testContexts")
     @DisplayName("Assert that all input wires are bound to something")
-    void testBindings(final PlatformContext platformContext) {
+    void testBindings(
+            final PlatformContext platformContext, @org.junit.jupiter.api.io.TempDir final java.nio.file.Path tempDir) {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
@@ -95,7 +96,8 @@ class PlatformWiringTests {
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule = createNoOpGossipModule(model, configuration, FileSystemManager.create(configuration));
+        final GossipModule gossipModule =
+                createNoOpGossipModule(model, configuration, new TestFileSystemManager(tempDir));
 
         final PlatformComponents platformComponents = PlatformComponents.create(
                 platformContext,

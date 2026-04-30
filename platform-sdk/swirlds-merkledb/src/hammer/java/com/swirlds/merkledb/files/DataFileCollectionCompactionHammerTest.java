@@ -2,7 +2,6 @@
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,6 +28,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -38,6 +38,9 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 @Disabled("This test needs to be investigated")
 class DataFileCollectionCompactionHammerTest {
+
+    @TempDir
+    private Path tempDir;
 
     @BeforeAll
     public static void setup() {
@@ -53,7 +56,7 @@ class DataFileCollectionCompactionHammerTest {
     @MethodSource("provideForBenchmark")
     @Tags({@Tag("Speed")})
     void benchmark(int numFiles, int maxEntriesPerFile) throws IOException {
-        final Path tempFileDir = FILE_SYSTEM_MANAGER.resolveNewTemp("DataFileCollectionCompactionHammerTest");
+        final Path tempFileDir = tempDir.resolve("DataFileCollectionCompactionHammerTest");
         Files.createDirectories(tempFileDir);
         assertDoesNotThrow(() -> {
             final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
@@ -118,7 +121,7 @@ class DataFileCollectionCompactionHammerTest {
 
     @Test
     void hammer() throws IOException, InterruptedException, ExecutionException {
-        final Path tempFileDir = FILE_SYSTEM_MANAGER.resolveNewTemp("DataFileCollectionCompactionHammerTest");
+        final Path tempFileDir = tempDir.resolve("DataFileCollectionCompactionHammerTest");
         Files.createDirectories(tempFileDir);
         final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
         String storeName = "hammer";

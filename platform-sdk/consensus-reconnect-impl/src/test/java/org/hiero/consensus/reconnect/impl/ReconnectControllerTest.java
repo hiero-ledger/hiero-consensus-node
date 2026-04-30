@@ -23,6 +23,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -42,6 +43,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,6 +71,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.stubbing.Answer;
 
 /**
@@ -97,6 +100,9 @@ class ReconnectControllerTest {
     private VirtualMapState testWorkingState;
     private SignedStateValidator signedStateValidator;
 
+    @TempDir
+    Path tempDir;
+
     @AfterAll
     static void tearDownClass() {
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
@@ -123,7 +129,7 @@ class ReconnectControllerTest {
                 .withValue("reconnect.minimumTimeBetweenReconnects", "100ms")
                 .withValue("reconnect.reconnectWindowSeconds", -1) // disabled
                 .getOrCreateConfig();
-        final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
+        final FileSystemManager fileSystemManager = new TestFileSystemManager(tempDir);
 
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
                 new NoOpMetrics(), new FakeTime(), configuration, fileSystemManager);

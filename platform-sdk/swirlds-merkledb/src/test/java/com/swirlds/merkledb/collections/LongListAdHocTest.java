@@ -5,14 +5,18 @@ import static com.swirlds.merkledb.collections.AbstractLongListTest.SAMPLE_SIZE;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.checkData;
 import static com.swirlds.merkledb.collections.AbstractLongListTest.populateList;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -23,6 +27,16 @@ import org.junit.jupiter.params.provider.MethodSource;
  * concurrency concerns.
  */
 class LongListAdHocTest {
+
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setup() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
 
     @ParameterizedTest
     @MethodSource("provideLongLists")
@@ -60,8 +74,8 @@ class LongListAdHocTest {
     @Test
     void testReallocateThreadLocalBufferWhenMemoryChunkSizeChanges() throws IOException {
         // Create two long lists with different memory chunk sizes
-        var largeMemoryChunkList = new LongListDisk(100, SAMPLE_SIZE * 2, 0, CONFIGURATION, FILE_SYSTEM_MANAGER);
-        var smallMemoryChunkList = new LongListDisk(10, SAMPLE_SIZE * 2, 0, CONFIGURATION, FILE_SYSTEM_MANAGER);
+        var largeMemoryChunkList = new LongListDisk(100, SAMPLE_SIZE * 2, 0, CONFIGURATION, fileSystemManager);
+        var smallMemoryChunkList = new LongListDisk(10, SAMPLE_SIZE * 2, 0, CONFIGURATION, fileSystemManager);
 
         // Populate both long lists with sample data and validate
         populateList(largeMemoryChunkList);

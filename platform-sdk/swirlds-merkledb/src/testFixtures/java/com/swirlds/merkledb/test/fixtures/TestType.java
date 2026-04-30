@@ -2,7 +2,6 @@
 package com.swirlds.merkledb.test.fixtures;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -158,9 +157,13 @@ public enum TestType {
             return dataSource;
         }
 
-        public MerkleDbDataSource getDataSource(final Path dbPath, final String name, final boolean enableMerging)
+        public MerkleDbDataSource getDataSource(
+                final FileSystemManager fileSystemManager,
+                final Path dbPath,
+                final String name,
+                final boolean enableMerging)
                 throws IOException {
-            return new MerkleDbDataSource(dbPath, CONFIGURATION, FILE_SYSTEM_MANAGER, name, enableMerging, false);
+            return new MerkleDbDataSource(dbPath, CONFIGURATION, fileSystemManager, name, enableMerging, false);
         }
 
         @SuppressWarnings("rawtypes")

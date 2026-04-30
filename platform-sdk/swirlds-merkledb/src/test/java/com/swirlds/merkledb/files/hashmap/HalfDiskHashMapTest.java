@@ -2,7 +2,6 @@
 package com.swirlds.merkledb.files.hashmap;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.FILE_SYSTEM_MANAGER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -11,6 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.collections.LongList;
@@ -39,18 +40,19 @@ class HalfDiskHashMapTest {
     @TempDir
     Path tempDirPath;
 
+    private FileSystemManager fileSystemManager;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDirPath);
+    }
+
     // =================================================================================================================
     // Helper Methods
     private HalfDiskHashMap createNewTempMap(final String name, final long count) throws IOException {
         // create map
         HalfDiskHashMap map = new HalfDiskHashMap(
-                CONFIGURATION,
-                FILE_SYSTEM_MANAGER,
-                count,
-                tempDirPath.resolve(name),
-                "HalfDiskHashMapTest",
-                null,
-                false);
+                CONFIGURATION, fileSystemManager, count, tempDirPath.resolve(name), "HalfDiskHashMapTest", null, false);
         map.printStats();
         return map;
     }
@@ -122,7 +124,7 @@ class HalfDiskHashMapTest {
             map.snapshot(tempSnapshotDir);
             // open snapshot and check data
             HalfDiskHashMap mapFromSnapshot = new HalfDiskHashMap(
-                    CONFIGURATION, FILE_SYSTEM_MANAGER, count, tempSnapshotDir, "HalfDiskHashMapTest", null, false);
+                    CONFIGURATION, fileSystemManager, count, tempSnapshotDir, "HalfDiskHashMapTest", null, false);
             mapFromSnapshot.printStats();
             checkData(testType, mapFromSnapshot, 1, count, 1);
             // check deletion
@@ -604,7 +606,7 @@ class HalfDiskHashMapTest {
                 .build();
         final HalfDiskHashMap hdhm = new HalfDiskHashMap(
                 config,
-                FILE_SYSTEM_MANAGER,
+                fileSystemManager,
                 100,
                 tempDirPath.resolve("test"),
                 "testResizeRespectsBucketIndexCapacity",
