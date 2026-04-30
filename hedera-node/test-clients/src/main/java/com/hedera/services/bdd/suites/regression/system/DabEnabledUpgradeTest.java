@@ -368,13 +368,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     cryptoCreate("nodeAccountId").exposingCreatedIdTo(initialNodeAccount::set),
                     cryptoCreate("newNodeAccountId").exposingCreatedIdTo(newNodeAccount::set),
                     // create node txn
-                    sourcing(
-                            () -> nodeCreate("newNode", initialNodeAccount.get().getAccountNum())
-                                    .adminKey(DEFAULT_PAYER)
-                                    .description(CLASSIC_NODE_NAMES[4])
-                                    .withAvailableSubProcessPorts()
-                                    .gossipCaCertificate(VALID_CERT)
-                                    .exposingCreatedIdTo(nodeId::set)),
+                    nodeCreate("newNode", "nodeAccountId")
+                            .adminKey(DEFAULT_PAYER)
+                            .description(CLASSIC_NODE_NAMES[4])
+                            .withAvailableSubProcessPorts()
+                            .gossipCaCertificate(VALID_CERT)
+                            .exposingCreatedIdTo(nodeId::set),
                     doingContextual(spec -> {
                         allRunFor(
                                 spec,

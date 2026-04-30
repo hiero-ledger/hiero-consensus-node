@@ -29,7 +29,6 @@ import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -45,6 +44,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
@@ -183,21 +183,23 @@ class SignedStateFileReadWriteTest {
                 .withConfiguration(configuration)
                 .build();
 
-        stateLifecycleManager.getMutableState().release();
-        hashState(signedState);
+        // Async snapshot requires all references to the state being written to disk to be released
+        stateLifecycleManager.getLatestImmutableState().release();
 
         writeSignedStateToDisk(
                 platformContext,
                 NodeId.of(0),
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
-                signedState,
+                signedState.reserve("test"),
                 stateLifecycleManager);
 
         assertTrue(exists(hashInfoFile), "hash info file should exist");
         assertTrue(exists(settingsUsedFile), "settings used file should exist");
         assertTrue(exists(addressBookFile), "address book file should exist");
         assertTrue(exists(consensusSnapshotFile), "consensus snapshot file should exist");
+
+        stateLifecycleManager.getMutableState().release();
     }
 
     private Configuration changeConfigAndConfigHolder(String directory) {

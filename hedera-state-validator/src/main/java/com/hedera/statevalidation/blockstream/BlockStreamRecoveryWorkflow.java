@@ -25,7 +25,7 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -138,7 +138,7 @@ public class BlockStreamRecoveryWorkflow {
 
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                ConsensusCryptoUtils::verifySignature,
+                CryptoUtils::verifySignature,
                 state,
                 "BlockStreamWorkflow.applyBlocks()",
                 false,
@@ -150,7 +150,11 @@ public class BlockStreamRecoveryWorkflow {
                         platformContext.getMetrics(), platformContext.getTime(), platformContext.getConfiguration());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, outputPath, signedState, stateLifecycleManager);
+                    platformContext,
+                    selfId,
+                    outputPath,
+                    signedState.reserve("BlockStreamWorkflow.applyBlocks()"),
+                    stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
