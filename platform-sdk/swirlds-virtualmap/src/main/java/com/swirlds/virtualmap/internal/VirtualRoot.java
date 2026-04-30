@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal;
 
-import com.swirlds.common.FastCopyable;
-import com.swirlds.common.Reservable;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
+import org.hiero.base.FastCopyable;
+import org.hiero.base.Reservable;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.SerializableDet;
 

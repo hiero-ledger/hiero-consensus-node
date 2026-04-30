@@ -189,6 +189,26 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     private final VirtualDataSource dataSource;
 
     /**
+     * The target path for an asynchronous snapshot operation. Set to a non-null value when
+     * an async snapshot is requested via {@link #createSnapshotAsync(Path)}, and cleared
+     * back to {@code null} in {@link #flush()} after the snapshot completes, fails, or is cancelled.
+     * Always set and cleared together with {@link #snapshotFuture}.
+     * Set/read from multiple threads.
+     */
+    private final AtomicReference<Path> snapshotTargetPath = new AtomicReference<>();
+
+    /**
+     * A future that completes when an asynchronous snapshot operation finishes. Set to a non-null
+     * value when an async snapshot is requested via {@link #createSnapshotAsync(Path)}, and cleared
+     * back to {@code null} in {@link #flush()} after the snapshot completes, fails, or is cancelled.
+     * The future is completed normally on success, completed exceptionally on error,
+     * or may already be cancelled by the caller (e.g., on timeout) before {@link #flush()} runs.
+     * Always set and cleared together with {@link #snapshotTargetPath}.
+     * Set/read from multiple threads.
+     */
+    private final AtomicReference<CompletableFuture<Void>> snapshotFuture = new AtomicReference<>();
+
+    /**
      * A cache for virtual tree nodes. This cache is very specific for this use case. The elements
      * in the cache are those nodes that were modified by this root node, or any copy of this node, that have
      * not yet been written to disk. This cache is used for two purposes. First, we avoid writing to
@@ -978,6 +998,36 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         cache.release();
         final long end = System.currentTimeMillis();
         flushed.set(true);
+
+        try {
+            // If an async snapshot was requested via createSnapshotAsync(), write the snapshot
+            // to the target path and signal completion. This must happen after the cache flush
+            // completes, so the data source contains all relevant data.
+            final CompletableFuture<Void> future = snapshotFuture.get();
+            if (future != null) {
+                final Path targetPath = snapshotTargetPath.get();
+                assert targetPath != null : "snapshotTargetPath must not be null when snapshotFuture is set";
+                if (future.isCancelled()) {
+                    logger.warn(
+                            VIRTUAL_MERKLE_STATS.getMarker(),
+                            "Async snapshot to {} was cancelled, skipping snapshot write",
+                            targetPath);
+                } else {
+                    dataSourceBuilder.snapshot(targetPath, dataSource);
+                    future.complete(null);
+                }
+            }
+        } catch (final Exception e) {
+            logger.error(EXCEPTION.getMarker(), "Failed to write snapshot to target path", e);
+            final CompletableFuture<Void> future = snapshotFuture.get();
+            if (future != null) {
+                future.completeExceptionally(e);
+            }
+        } finally {
+            snapshotTargetPath.set(null);
+            snapshotFuture.set(null);
+        }
+
         flushLatch.countDown();
         statistics.recordFlush(end - start);
         logger.debug(
@@ -1403,6 +1453,26 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 dataSourceCopy.close();
             }
         }
+    }
+
+    /**
+     * Initiates an asynchronous snapshot creation for this virtual map. Unlike {@link #createSnapshot(Path)},
+     * this method does not block and instead returns a future that completes when the snapshot is written.
+     *
+     * <p>The snapshot will be created during the next flush operation. This method enables flushing
+     * via {@link #enableFlush()} to ensure the snapshot is written.
+     *
+     * @param outputDirectory the target directory where the snapshot will be written
+     * @return a {@link CompletableFuture} that completes when the snapshot has been successfully written
+     *         to the specified directory
+     */
+    public CompletableFuture<Void> createSnapshotAsync(final @NonNull Path outputDirectory) {
+        assert snapshotFuture.get() == null : "Async snapshot already in progress for this copy";
+        snapshotTargetPath.set(outputDirectory);
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        snapshotFuture.set(future);
+        enableFlush();
+        return future;
     }
 
     /**

@@ -14,73 +14,85 @@ on:
         type: boolean
         required: false
         default: false
-        description: "solo-sd*t-n1 (Daily SDPT/SDLT)"
+        description: "*solo-sdpt-n1 (Daily SDPT)"
 
       Dallas_n2:
         type: boolean
         required: false
         default: false
-        description: "solo-sd*t-n2 (Daily SDPT/SDLT)"
+        description: "*solo-sdlt-n2 (Daily SDLT)"
 
       Dallas_n3:
         type: boolean
         required: false
         default: false
-        description: "solo-sd*t-n3 (weekly runs)"
+        description: "*solo-mdlt-n3 (weekly runs)"
 
       Dallas_n4:
         type: boolean
         required: false
         default: false
-        description: "solo-sd*t-n4 (weekly runs)"
+        description: "*solo-mdlt-n4 (weekly runs)"
 
       Chicago_n5:
         type: boolean
         required: false
         default: false
-        description: "solo-sd*t-n5 (branch testing)"
+        description: "*solo-<sd*t|mqpt>-n5 (branch testing)"
 
       Chicago_n6:
         type: boolean
         required: false
         default: false
-        description: "solo-sd*t-n6 (branch testing)"
+        description: "*solo-<sd*t|mqpt>-n6 (branch testing)"
 
       Chicago_n7:
         type: boolean
         required: false
         default: false
-        description: "solo-sd*t-n7 (branch testing)"
+        description: "*solo-<sd*t|mqpt>-n7 (branch testing)"
 
       Chicago_n8:
         type: boolean
         required: false
         default: false
-        description: "*solo-sd*t-n8 (SDPT/SDLT)"
+        description: "*solo-<sd*t|mqpt>-n8 (SDPT/SDLT/MQPT)"
 
       Chicago_n9:
         type: boolean
         required: false
         default: false
-        description: "*solo-sd*t-n9 (SDPT/SDLT)"
+        description: "*solo-<sd*t|mqpt>-n9 (SDPT/SDLT/MQPT)"
 
       Dallas_n10:
         type: boolean
         required: false
         default: false
-        description: "mqpt-sd*t-n10 (Merge Queues PT/LT)"
+        description: "*solo-mqpt-n10 (Merge Queues PT/LT)"
 
       Dallas_n11:
         type: boolean
         required: false
         default: false
-        description: "mqpt-sd*t-n11 (Merge Queues PT/LT)"
+        description: "*solo-mqpt-n11 (Merge Queues PT/LT)"
 
       Dallas_n12:
         type: boolean
         required: false
         default: false
-        description: "mqpt-sd*t-n12 (Merge Queues PT/LT)"
+        description: "*solo-mqpt-n12 (Merge Queues PT/LT)"
+
+      Dallas_n13:
+        type: boolean
+        required: false
+        default: false
+        description: "*solo-sd*t-n13 (AdHoc Tests: Platform-CI)"
+
+      Chicago_n14:
+        type: boolean
+        required: false
+        default: false
+        description: "*solo-sd*t-n14 (AdHoc Tests)"
 
 jobs:
   delete-selected-namespaces:
@@ -98,6 +110,8 @@ jobs:
       Dallas_n10: ${{ github.event_inputs.Dallas_n10 }}
       Dallas_n11: ${{ github.event_inputs.Dallas_n11 }}
       Dallas_n12: ${{ github.event_inputs.Dallas_n12 }}
+      Dallas_n13: ${{ github.event_inputs.Dallas_n13 }}
+      Chicago_n14: ${{ github.event_inputs.Chicago_n14 }}
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -141,9 +155,9 @@ jobs:
           set +e
           set +x
           clusterZone="Dallas"
-          for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E '(solo|mqpt)-(sdpt|sdlt)-n([1-9]|1[0-2])$'`
+          for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E '(solo)-(sdpt|sdlt|mqpt|mdlt)-n([1-9]|1[0-2])$'`
           do
-            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /(?:solo|mqpt)-(?:sdpt|sdlt)-n(\d+)$/')"
+            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /(?:solo)-(?:sdpt|sdlt|mqpt|mdlt)-n(\d+)$/')"
             echo "Found {$namespace} with n=${n}"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
@@ -172,9 +186,9 @@ jobs:
           set +e
           set +x
           clusterZone="Chicago"
-          for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E '(solo|mqpt)-(sdpt|sdlt)-n([1-9]|1[0-2])$'`
+          for namespace in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get namespaces | awk '{print $1}' | grep -E '(solo)-(sdpt|sdlt|mqpt|mdlt)-n([1-9]|1[0-2])$'`
           do
-            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /(?:solo|mqpt)-(?:sdpt|sdlt)-n(\d+)$/')"
+            n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /(?:solo)-(?:sdpt|sdlt|mqpt|mdlt)-n(\d+)$/')"
             echo "Found {$namespace} with n=${n}"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')

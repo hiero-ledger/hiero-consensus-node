@@ -254,6 +254,12 @@ class MerkleDbCompactionCoordinator {
      *       remaining pool. Absorbed files are removed from the pool so no other group at the
      *       same level can claim them.</li>
      *   <li><b>Submit:</b> submit each group as a compaction task.</li>
+     *   <li><b>Consolidation:</b> after all garbage-based tasks are submitted, runs a second
+     *       pass via {@code submitConsolidationTasks()}. Files already assigned to garbage-based
+     *       tasks are excluded. Small files (below {@code consolidationMaxInputFileSizeMB}) at
+     *       each level are grouped by raw file size and submitted as independent consolidation
+     *       tasks. This addresses the accumulation of many small files with little garbage
+     *       (e.g. under update-heavy workloads).</li>
      * </ol>
      *
      * <p>For each level, new tasks are only submitted when ALL tasks from the previous
@@ -298,6 +304,8 @@ class MerkleDbCompactionCoordinator {
             }
         }
 
+        final Set<DataFileReader> alreadyAssigned = new HashSet<>();
+
         for (final var entry : eligibleByLevel.entrySet()) {
             final int level = entry.getKey();
             final String levelKey = compactionTaskKey(storeName, level);
@@ -335,6 +343,7 @@ class MerkleDbCompactionCoordinator {
             for (int i = 0; i < groups.size(); i++) {
                 final String taskKey = levelKey + "_" + i;
                 taskKeys.add(taskKey);
+                alreadyAssigned.addAll(groups.get(i));
                 executor.submit(new CompactionTask(taskKey, levelKey, level, groups.get(i), compactorFactory, config));
             }
 
@@ -348,6 +357,8 @@ class MerkleDbCompactionCoordinator {
                         eligible.size());
             }
         }
+        // Second pass: consolidation of small files regardless of garbage ratio
+        submitConsolidationTasks(storeName, fileStats, alreadyAssigned, compactorFactory, config, executor);
     }
 
     /**
@@ -359,9 +370,10 @@ class MerkleDbCompactionCoordinator {
      * @return {@code true} if any compaction for this store is submitted or running
      */
     synchronized boolean isCompactionRunning(final @NonNull String storeName) {
-        final String prefix = storeName + "_compact_";
+        final String compactPrefix = storeName + "_compact_";
+        final String consolidatePrefix = storeName + "_consolidate_";
         for (final String key : taskKeys) {
-            if (key.startsWith(prefix)) {
+            if (key.startsWith(compactPrefix) || key.startsWith(consolidatePrefix)) {
                 return true;
             }
         }
@@ -382,6 +394,10 @@ class MerkleDbCompactionCoordinator {
 
     private static String compactionTaskKey(final @NonNull String storeName, final int level) {
         return storeName + "_compact_" + level;
+    }
+
+    private static String consolidationTaskKey(final @NonNull String storeName, final int level) {
+        return storeName + "_consolidate_" + level;
     }
 
     // ========================================================================
@@ -462,6 +478,7 @@ class MerkleDbCompactionCoordinator {
         for (final DataFileReader reader : group) {
             final GarbageFileStats fs = stats.lookupStats(reader);
             totalLive += fs.aliveItems();
+
             totalDead += fs.deadItems();
             projectedSize += estimateAliveBytes(reader, fs);
         }
@@ -511,6 +528,89 @@ class MerkleDbCompactionCoordinator {
                     absorbed,
                     finalRatio,
                     formatSizeBytes(projectedSize));
+        }
+    }
+
+    /**
+     * Second pass: submits consolidation tasks for levels that have accumulated too many
+     * small files. Unlike garbage-based compaction, consolidation ignores the dead/alive ratio
+     * and selects files purely by size. This addresses the case where many small files with
+     * little garbage accumulate (e.g. in ObjectKeyToPath under update-heavy workloads).
+     *
+     * <p>The algorithm per level:
+     * <ol>
+     *   <li>Collect all files at this level whose size is below  {@code consolidationMaxInputFileSizeMB},
+     *   excluding files already assigned to a garbage-based compaction task in the current cycle.
+     *   </li>
+     *   <li>If the count is below {@code consolidationMinFileCount}, skip — not enough
+     *       small files to justify consolidation.</li>
+     *   <li>Submit the small files as a single consolidation task.</li>
+     * </ol>
+     *
+     * <p>This is self-limiting: the output file exceeds {@code consolidationMaxInputFileSizeMB},
+     * so it will never be re-selected for consolidation. Small files accumulate again from
+     * flushes and the cycle repeats.
+     *
+     * @param storeName        store name
+     * @param fileStats        all non-null file stats from the latest scan
+     * @param alreadyAssigned  files already assigned to garbage-based compaction tasks — excluded
+     *                         from consolidation candidates
+     * @param compactorFactory creates a fresh {@link DataFileCompactor} per task
+     * @param config           MerkleDb config
+     * @param executor         the compaction thread pool
+     */
+    private void submitConsolidationTasks(
+            final @NonNull String storeName,
+            final @NonNull List<GarbageFileStats> fileStats,
+            final @NonNull Set<DataFileReader> alreadyAssigned,
+            final @NonNull Supplier<DataFileCompactor> compactorFactory,
+            final @NonNull MerkleDbConfig config,
+            final @NonNull ExecutorService executor) {
+
+        final long consolidationMaxInputSizeBytes = config.consolidationMaxInputFileSizeMB() * MEBIBYTES_TO_BYTES;
+        if (consolidationMaxInputSizeBytes <= 0) {
+            return; // consolidation disabled
+        }
+        final int minFileCount = config.consolidationMinFileCount();
+
+        // Group small files by level, excluding files already assigned to garbage tasks
+        final Map<Integer, List<DataFileReader>> smallFilesByLevel = new HashMap<>();
+        for (final GarbageFileStats fs : fileStats) {
+            final DataFileReader reader = fs.fileReader;
+            if (alreadyAssigned.contains(reader)) {
+                continue;
+            }
+            if (reader.getSize() < consolidationMaxInputSizeBytes) {
+                smallFilesByLevel
+                        .computeIfAbsent(fs.compactionLevel(), _ -> new ArrayList<>())
+                        .add(reader);
+            }
+        }
+
+        for (final var entry : smallFilesByLevel.entrySet()) {
+            final int level = entry.getKey();
+            final List<DataFileReader> smallFiles = entry.getValue();
+
+            if (smallFiles.size() < minFileCount) {
+                continue;
+            }
+
+            final String taskKey = consolidationTaskKey(storeName, level);
+
+            // Same counter-based guard as garbage compaction
+            if (compactionTaskCounts.getOrDefault(taskKey, 0) > 0) {
+                continue;
+            }
+
+            compactionTaskCounts.put(taskKey, 1);
+            taskKeys.add(taskKey);
+            executor.submit(new CompactionTask(taskKey, taskKey, level, smallFiles, compactorFactory, config));
+            logger.info(
+                    MERKLE_DB.getMarker(),
+                    "[{}] Submitted consolidation task for level {} ({} small files)",
+                    storeName,
+                    level,
+                    smallFiles.size());
         }
     }
 
