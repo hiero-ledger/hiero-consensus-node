@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.event.stream {
-    exports com.swirlds.platform.event.stream;
-    exports com.swirlds.common.stream;
-    exports com.swirlds.common.stream.internal;
+    exports org.hiero.consensus.event.stream;
+    exports org.hiero.consensus.event.stream.internal to
+            org.hiero.consensus.event.stream.test.fixtures;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.component.framework;
@@ -20,8 +20,8 @@ module org.hiero.consensus.event.stream {
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 
-    opens com.swirlds.common.stream to
+    opens org.hiero.consensus.event.stream to
             com.fasterxml.jackson.databind;
-    opens com.swirlds.common.stream.internal to
+    opens org.hiero.consensus.event.stream.internal to
             com.fasterxml.jackson.databind;
 }

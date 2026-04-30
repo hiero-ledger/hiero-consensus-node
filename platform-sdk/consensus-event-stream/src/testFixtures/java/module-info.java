@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 open module org.hiero.consensus.event.stream.test.fixtures {
-    exports com.swirlds.common.test.fixtures.stream;
-    exports com.swirlds.platform.test.fixtures.stream;
+    exports org.hiero.consensus.event.stream.test.fixtures;
 
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
