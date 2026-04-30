@@ -149,7 +149,7 @@ public final class SignedStateFileWriter {
      * @throws IOException if the snapshot creation fails, times out, or is interrupted
      */
     public static void writeSignedStateFilesToDirectory(
-            @Nullable final PlatformContext platformContext,
+            @NonNull final PlatformContext platformContext,
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
             @NonNull final ReservedSignedState reservedSignedState,
@@ -175,91 +175,17 @@ public final class SignedStateFileWriter {
                 // the backpressure.
                 // This optimization applies only to PERIODIC_SNAPSHOT states. States saved for other reasons
                 // (e.g., freeze states) may retain additional references and won't be destroyed here, and thus flushed.
-
-                logger.info(
-                        STATE_TO_DISK.getMarker(),
-                        "Async snapshot requested for round {} to {}",
-                        signedState.getRound(),
-                        directory);
-
                 snapshotFuture = stateLifecycleManager.createSnapshotAsync(signedState.getState(), directory);
-
-                logger.info(
-                        STATE_TO_DISK.getMarker(),
-                        "TEMP REPRO: async snapshot future registered for round {}, sleeping 5s before releasing reservation",
-                        signedState.getRound());
-                Thread.sleep(5_000L);
-                logger.info(
-                        STATE_TO_DISK.getMarker(),
-                        "TEMP REPRO: finished sleeping before releasing reservation for round {}",
-                        signedState.getRound());
-
-                logger.info(
-                        STATE_TO_DISK.getMarker(),
-                        "Async snapshot future created for round {}, releasing reservation",
-                        signedState.getRound());
-
                 // Release the state reference so that current snapshot creation can be unblocked in `VirtualMap#flush`,
                 // because the copy becomes destroyed and thus can be flushed.
                 reservedSignedState.close();
-
-                logger.info(
-                        STATE_TO_DISK.getMarker(),
-                        "Reservation closed for round {}, waiting for async snapshot future",
-                        signedState.getRound());
-
                 // Block until the snapshot is created.
                 snapshotFuture.get(stateConfig.asyncSnapshotTimeout(), TimeUnit.SECONDS);
-
-                logger.info(
-                        STATE_TO_DISK.getMarker(),
-                        "Async snapshot future completed for round {}",
-                        signedState.getRound());
-
-                // FIXME: test and extract to a new method
-                writeSignatureSetFile(directory, signedState);
-                writeHashInfoFile(platformContext, directory, signedState.getState());
-                writeMetadataFile(selfId, directory, signedState);
-                final Roster currentRoster = signedState.getRoster();
-                writeRosterFile(directory, currentRoster);
-                writeSettingsUsed(directory, configuration);
-
-                if (selfId != null) {
-                    // This is a temporary measure that allows us to move this functionality into the consensus module
-                    // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
-                    final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
-                    pcesModule.copyPcesFilesRetryOnFailure(
-                            configuration,
-                            selfId,
-                            directory,
-                            ancientThresholdOf(signedState.getState()),
-                            signedState.getRound());
-                }
-
+                writeSnapshotSupplementalFiles(platformContext, selfId, directory, signedState, configuration);
             } else {
                 stateLifecycleManager.createSnapshot(signedState.getState(), directory);
                 reservedSignedState.close();
-
-                // FIXME: test and extract to a new method
-                writeSignatureSetFile(directory, signedState);
-                writeHashInfoFile(platformContext, directory, signedState.getState());
-                writeMetadataFile(selfId, directory, signedState);
-                final Roster currentRoster = signedState.getRoster();
-                writeRosterFile(directory, currentRoster);
-                writeSettingsUsed(directory, configuration);
-
-                if (selfId != null) {
-                    // This is a temporary measure that allows us to move this functionality into the consensus module
-                    // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
-                    final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
-                    pcesModule.copyPcesFilesRetryOnFailure(
-                            configuration,
-                            selfId,
-                            directory,
-                            ancientThresholdOf(signedState.getState()),
-                            signedState.getRound());
-                }
-
+                writeSnapshotSupplementalFiles(platformContext, selfId, directory, signedState, configuration);
             }
         } catch (final TimeoutException e) {
             logger.error(
@@ -310,6 +236,42 @@ public final class SignedStateFileWriter {
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
             }
+        }
+    }
+
+    /**
+     * Write supplemental files for a state snapshot.
+     *
+     * @param platformContext the platform context
+     * @param selfId          the id of the platform
+     * @param directory       the directory to write to
+     * @param signedState     the signed state being written
+     * @param configuration   the platform configuration
+     */
+    private static void writeSnapshotSupplementalFiles(
+            @NonNull final PlatformContext platformContext,
+            @Nullable final NodeId selfId,
+            @NonNull final Path directory,
+            @NonNull final SignedState signedState,
+            @NonNull final Configuration configuration)
+            throws IOException {
+        writeSignatureSetFile(directory, signedState);
+        writeHashInfoFile(platformContext, directory, signedState.getState());
+        writeMetadataFile(selfId, directory, signedState);
+        final Roster currentRoster = signedState.getRoster();
+        writeRosterFile(directory, currentRoster);
+        writeSettingsUsed(directory, configuration);
+
+        if (selfId != null) {
+            // This is a temporary measure that allows us to move this functionality into the consensus module
+            // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
+            final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
+            pcesModule.copyPcesFilesRetryOnFailure(
+                    configuration,
+                    selfId,
+                    directory,
+                    ancientThresholdOf(signedState.getState()),
+                    signedState.getRound());
         }
     }
 

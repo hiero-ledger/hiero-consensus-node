@@ -129,17 +129,9 @@ public class DefaultSavedStateController implements SavedStateController {
         }
 
         final boolean periodicSnapshotsEnabled = stateConfig.periodicSnapshotsEnabled();
-        if (periodicSnapshotsEnabled && signedState.getRound() % 2 == 0) {
-            logger.info(
-                    STATE_TO_DISK.getMarker(),
-                    "PROOF: forcing signed state round {} to be written as PERIODIC_SNAPSHOT",
-                    signedState.getRound());
-            return PERIODIC_SNAPSHOT;
-        }
-
         if (periodicSnapshotsEnabled
                 && (signedState.getConsensusTimestamp().getEpochSecond() / saveStatePeriod)
-                > (previousTimestamp.getEpochSecond() / saveStatePeriod)) {
+                        > (previousTimestamp.getEpochSecond() / saveStatePeriod)) {
             return PERIODIC_SNAPSHOT;
         } else {
             // the period hasn't yet elapsed or periodic snapshots are disabled

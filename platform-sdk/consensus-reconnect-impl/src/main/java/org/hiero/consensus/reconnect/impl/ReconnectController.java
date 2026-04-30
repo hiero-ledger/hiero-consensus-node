@@ -243,22 +243,6 @@ public class ReconnectController implements Runnable {
                     + Roster.JSON.toJSON(stateRoster) + ")");
         }
 
-        logger.info(
-                RECONNECT.getMarker(),
-                "TEMP REPRO: reconnect is about to replace state with round {}, sleeping 2s",
-                signedState.getRound());
-        try {
-            Thread.sleep(2_000L);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("TEMP REPRO: interrupted while sleeping before initWithState", e);
-        }
-        logger.info(
-                RECONNECT.getMarker(),
-                "TEMP REPRO: finished sleeping before initWithState for reconnect state round {}",
-                signedState.getRound());
-
-
         stateLifecycleManager.initWithState(state);
         // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
         // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
