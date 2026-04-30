@@ -27,7 +27,7 @@ on:
         type: string
         default: "v0.73.0"
       upgrade-tag:
-        description: "[Jumpstart] Optional solo upgrade-version override. Leave blank to use the local build with placeholder tag."
+        description: "[Jumpstart] Consensus-node release tag to upgrade the network to (e.g. v0.74.0). Leave blank to upgrade to the local build instead."
         required: false
         type: string
         default: ""
@@ -179,6 +179,7 @@ jobs:
           path: |
             ${{ runner.temp }}/wrb-script.log
             ${{ runner.temp }}/wrb-diagnostics/**
+            hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/generated/**
           if-no-files-found: warn
           retention-days: 7
 

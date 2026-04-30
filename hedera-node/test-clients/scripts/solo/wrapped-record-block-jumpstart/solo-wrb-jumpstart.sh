@@ -522,8 +522,20 @@ download_solo_minio_record_streams_range() {
 
 load_jumpstart_env_from_bin() {
   local jumpstart_file="$1"
-  local k v
+  local k v parser_out
   [[ -f "${jumpstart_file}" ]] || { echo "jumpstart.bin not found: ${jumpstart_file}" >&2; return 1; }
+  # Capture parser output and exit code explicitly; process substitution
+  # (`done < <(...)`) does NOT propagate the inner command's exit code, so a
+  # failing `node` would otherwise silently leave the JUMPSTART_* vars unset
+  # and the script would fail later with a misleading "unbound variable" error.
+  if ! parser_out="$(node "${JUMPSTART_PARSE_SCRIPT}" "${jumpstart_file}" 2>&1)"; then
+    echo "Failed to parse jumpstart.bin (${jumpstart_file}):" >&2
+    echo "${parser_out}" >&2
+    echo "jumpstart.bin size: $(wc -c <"${jumpstart_file}" 2>/dev/null || echo unknown) bytes" >&2
+    echo "jumpstart.bin head (hex, first 96 bytes):" >&2
+    od -An -tx1 -N 96 "${jumpstart_file}" 2>/dev/null >&2 || true
+    return 1
+  fi
   while IFS='=' read -r k v; do
     case "${k}" in
       JUMPSTART_BLOCK_NUMBER) JUMPSTART_BLOCK_NUMBER="${v}" ;;
@@ -532,7 +544,7 @@ load_jumpstart_env_from_bin() {
       JUMPSTART_STREAMING_HASHER_HASH_COUNT) JUMPSTART_STREAMING_HASHER_HASH_COUNT="${v}" ;;
       JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES) JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES="${v}" ;;
     esac
-  done < <(node "${JUMPSTART_PARSE_SCRIPT}" "${jumpstart_file}")
+  done <<< "${parser_out}"
   export JUMPSTART_BLOCK_NUMBER
   export JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH
   export JUMPSTART_STREAMING_HASHER_LEAF_COUNT
