@@ -136,10 +136,10 @@ public class BlockNodeSuite {
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(1)),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection will be closed at the next block boundary (reason: HIGHER_PRIORITY_FOUND)",
+                                "/localhost:%s/ACTIVE] Connection will be closed at the next block boundary (reason: HIGHER_PRIORITY_FOUND",
                                 portNumbers.get(3)),
                         String.format(
-                                "/localhost:%s/CLOSING] Closing connection (reason: HIGHER_PRIORITY_FOUND)",
+                                "/localhost:%s/CLOSING] Closing connection (reason: HIGHER_PRIORITY_FOUND",
                                 portNumbers.get(3)))),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 waitUntilNextBlocks(5),

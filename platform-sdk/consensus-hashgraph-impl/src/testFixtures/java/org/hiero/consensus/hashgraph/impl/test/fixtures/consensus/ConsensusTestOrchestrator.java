@@ -10,8 +10,6 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.Cons
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusOutputValidator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner.ListEventProvider;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.gui.runner.TestGuiSource;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -50,16 +48,6 @@ public class ConsensusTestOrchestrator {
         currentSequence += numEvents;
         nodes.forEach(node -> node.getEventEmitter().setCheckpoint(currentSequence));
         nodes.forEach(node -> node.addEvents(numEvents));
-    }
-
-    @SuppressWarnings("unused") // useful for debugging
-    public void runGui() {
-        final ConsensusTestNode node = nodes.stream().findAny().orElseThrow();
-        new TestGuiSource(
-                        platformContext,
-                        node.getEventEmitter().getGraphGenerator().getRoster(),
-                        new ListEventProvider(node.getOutput().getAddedEvents()))
-                .runGui();
     }
 
     /** Generates all events defined in the input */
@@ -200,5 +188,10 @@ public class ConsensusTestOrchestrator {
 
     public Roster getRoster() {
         return nodes.get(0).getEventEmitter().getGraphGenerator().getRoster();
+    }
+
+    @NonNull
+    public PlatformContext getPlatformContext() {
+        return platformContext;
     }
 }

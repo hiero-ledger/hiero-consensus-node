@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import com.swirlds.common.test.fixtures.io.SerializationUtils;
-import com.swirlds.common.utility.Mnemonics;
 import java.io.IOException;
 import java.util.Arrays;
 import org.hiero.base.constructable.ClassConstructorPair;
