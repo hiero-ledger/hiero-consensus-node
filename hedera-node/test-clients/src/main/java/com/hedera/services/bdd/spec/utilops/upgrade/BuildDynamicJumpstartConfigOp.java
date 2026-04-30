@@ -77,7 +77,8 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
         // >= firstDiskBlock so the migration has disk entries to process from
         // jumpstartBlockNum+1 onward.
         final int mid = entries.size() / 2;
-        final long jumpstartBlockNum = entries.get(mid - 1).blockNumber();
+        final var jumpstartEntry = entries.get(mid - 1);
+        final long jumpstartBlockNum = jumpstartEntry.blockNumber();
         log.info(
                 "Using jumpstart block {} (~midpoint of disk range [{}, {}])",
                 jumpstartBlockNum,
@@ -99,6 +100,11 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
 
         final var intermediateHashes = hasher.intermediateHashingState();
 
+        // CN verification hashes — taken straight from the on-disk entry at the jumpstart block
+        // so the migration's pre-flight check (validateCnVerificationHashes) finds an exact match.
+        final var consensusTimestampHash = jumpstartEntry.consensusTimestampHash();
+        final var outputItemsTreeRootHash = jumpstartEntry.outputItemsTreeRootHash();
+
         // Populate config properties for BlockStreamJumpstartConfig
         envOverrides.put("blockStream.jumpstart.blockNum", Long.toString(jumpstartBlockNum));
         envOverrides.put("blockStream.jumpstart.previousWrappedRecordBlockHash", prevWrappedBlockHash.toHex());
@@ -107,6 +113,8 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
         envOverrides.put(
                 "blockStream.jumpstart.streamingHasherSubtreeHashes",
                 intermediateHashes.stream().map(Bytes::toHex).collect(Collectors.joining(",")));
+        envOverrides.put("blockStream.jumpstart.consensusTimestampHash", consensusTimestampHash.toHex());
+        envOverrides.put("blockStream.jumpstart.outputItemsTreeRootHash", outputItemsTreeRootHash.toHex());
         log.info(
                 "Set jumpstart config properties: blockNum={}, leafCount={}, hashCount={}",
                 jumpstartBlockNum,
@@ -120,8 +128,8 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
                 hasher.leafCount(),
                 intermediateHashes.size(),
                 intermediateHashes,
-                Bytes.EMPTY,
-                Bytes.EMPTY));
+                consensusTimestampHash,
+                outputItemsTreeRootHash));
         return false;
     }
 }

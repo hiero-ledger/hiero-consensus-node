@@ -131,8 +131,8 @@ class WrappedRecordBlockHashMigrationTest {
                 4,
                 5,
                 List.of(Bytes.wrap(new byte[HASH_SIZE])),
-                Bytes.EMPTY,
-                Bytes.EMPTY);
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -275,8 +275,8 @@ class WrappedRecordBlockHashMigrationTest {
                 4,
                 1,
                 List.of(Bytes.wrap(new byte[HASH_SIZE])),
-                Bytes.EMPTY,
-                Bytes.EMPTY);
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -291,8 +291,8 @@ class WrappedRecordBlockHashMigrationTest {
                 4,
                 2,
                 List.of(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[32])),
-                Bytes.EMPTY,
-                Bytes.EMPTY);
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -300,8 +300,16 @@ class WrappedRecordBlockHashMigrationTest {
     @Test
     void returnsEarlyWhenPreviousBlockHashIsEmpty() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
+        // previousWrappedRecordBlockHash intentionally empty; new fields populated normally so they
+        // don't short-circuit the test before validateHashLengths runs.
         final var badConfig = new BlockStreamJumpstartConfig(
-                100, Bytes.EMPTY, 4, 1, List.of(Bytes.wrap(new byte[HASH_SIZE])), Bytes.EMPTY, Bytes.EMPTY);
+                100,
+                Bytes.EMPTY,
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -433,7 +441,13 @@ class WrappedRecordBlockHashMigrationTest {
 
     private static BlockStreamJumpstartConfig defaultJumpstartConfig() {
         return new BlockStreamJumpstartConfig(
-                -1, Bytes.wrap(new byte[HASH_SIZE]), 0, 0, List.of(), Bytes.EMPTY, Bytes.EMPTY);
+                -1,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                0,
+                0,
+                List.of(),
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
     }
 
     private static BlockStreamJumpstartConfig jumpstartConfig(long blockNumber, long leafCount, int numHashes) {
@@ -441,13 +455,16 @@ class WrappedRecordBlockHashMigrationTest {
         for (int i = 0; i < numHashes; i++) {
             subtreeHashes.add(Bytes.wrap(new byte[HASH_SIZE]));
         }
+        // Use 48-byte zero hashes for consensusTimestampHash / outputItemsTreeRootHash so they
+        // match what entry(blockNumber) produces; this exercises the strict validateCnVerificationHashes
+        // code path rather than the lenient empty-skip.
         return new BlockStreamJumpstartConfig(
                 blockNumber,
                 Bytes.wrap(new byte[HASH_SIZE]),
                 leafCount,
                 numHashes,
                 subtreeHashes,
-                Bytes.EMPTY,
-                Bytes.EMPTY);
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
     }
 }
