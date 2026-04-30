@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.stream;
+package org.hiero.consensus.model.stream;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Hash;

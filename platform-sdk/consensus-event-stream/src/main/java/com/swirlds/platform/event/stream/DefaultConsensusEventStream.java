@@ -8,15 +8,15 @@ import static com.swirlds.metrics.api.Metrics.INFO_CATEGORY;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.HashCalculatorForStream;
 import com.swirlds.common.stream.MultiStream;
 import com.swirlds.common.stream.QueueThreadObjectStream;
 import com.swirlds.common.stream.QueueThreadObjectStreamConfiguration;
-import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.common.stream.internal.TimestampStreamFileWriter;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,6 +35,7 @@ import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 
 /**
  * This class is used for generating event stream files when enableEventStreaming is true, and for calculating
@@ -78,27 +79,33 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
     private final RateLimitedLogger eventAfterFreezeLogger;
 
     /**
-     * @param platformContext          the platform context
+     * @param time                     provides wall clock time
+     * @param configuration            the platform configuration
+     * @param metrics                  the metrics object to register metrics on
      * @param selfId                   the id of this node
      * @param signer                   an object that can sign things
      * @param nodeName                 name of this node
      * @param isLastEventInFreezeCheck a predicate which checks whether this event is the last event before restart
      */
     public DefaultConsensusEventStream(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Time time,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
             @NonNull final NodeId selfId,
             @NonNull final Signer signer,
             @NonNull final String nodeName,
             @NonNull final Predicate<CesEvent> isLastEventInFreezeCheck) {
-        Objects.requireNonNull(platformContext);
+        Objects.requireNonNull(time);
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(metrics);
         Objects.requireNonNull(selfId);
         Objects.requireNonNull(signer);
         Objects.requireNonNull(nodeName);
         Objects.requireNonNull(isLastEventInFreezeCheck);
 
-        eventAfterFreezeLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
+        eventAfterFreezeLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
-        final EventConfig eventConfig = platformContext.getConfiguration().getConfigData(EventConfig.class);
+        final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
         final boolean enableEventStreaming = eventConfig.enableEventStreaming();
         final String eventsLogDir = eventConfig.eventsLogDir();
         final long eventsLogPeriod = eventConfig.eventsLogPeriod();
@@ -133,17 +140,13 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
             writeQueueThread.start();
         }
 
-        platformContext
-                .getMetrics()
-                .getOrCreate(new FunctionGauge.Config<>(
-                                INFO_CATEGORY, "eventStreamQueueSize", Integer.class, this::getEventStreamingQueueSize)
-                        .withDescription("size of the queue from which we take events and write to EventStream file")
-                        .withUnit("count"));
+        metrics.getOrCreate(new FunctionGauge.Config<>(
+                        INFO_CATEGORY, "eventStreamQueueSize", Integer.class, this::getEventStreamingQueueSize)
+                .withDescription("size of the queue from which we take events and write to EventStream file")
+                .withUnit("count"));
 
-        platformContext
-                .getMetrics()
-                .getOrCreate(new FunctionGauge.Config<>(
-                                INFO_CATEGORY, "hashQueueSize", Integer.class, this::getHashQueueSize)
+        metrics.getOrCreate(
+                new FunctionGauge.Config<>(INFO_CATEGORY, "hashQueueSize", Integer.class, this::getHashQueueSize)
                         .withDescription("size of the queue from which we take events, calculate Hash and RunningHash")
                         .withUnit("count"));
 

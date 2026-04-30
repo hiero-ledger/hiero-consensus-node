@@ -57,6 +57,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
+//import org.hiero.base.constructable.ClassConstructorPair;
+//import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.constructable.ClassConstructorPair;
+import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -99,6 +103,8 @@ class StreamUtilitiesTest {
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistration.registerAllConstructables();
+        ConstructableRegistry.getInstance()
+                .registerConstructable(new ClassConstructorPair(ObjectForTestStream.class, ObjectForTestStream::new));
     }
 
     private static File getResourceFile(final String path) {

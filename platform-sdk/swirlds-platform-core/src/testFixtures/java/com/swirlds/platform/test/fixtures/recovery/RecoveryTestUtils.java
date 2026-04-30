@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.recovery;
+package com.swirlds.platform.test.fixtures.recovery;
 
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
@@ -148,7 +148,13 @@ public final class RecoveryTestUtils {
                 .build();
 
         final DefaultConsensusEventStream eventStreamManager = new DefaultConsensusEventStream(
-                platformContext, NodeId.of(0L), x -> randomSignature(random), "test", x -> false);
+                platformContext.getTime(),
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                NodeId.of(0L),
+                x -> randomSignature(random),
+                "test",
+                x -> false);
 
         // The event stream writer has flaky asynchronous behavior,
         // so we need to be extra careful when waiting for it to finish.

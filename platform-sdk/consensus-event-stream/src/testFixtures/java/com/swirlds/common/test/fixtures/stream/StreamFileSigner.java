@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.base.crypto.DetRandomProvider.getDetRandom;
 import static org.hiero.base.utility.CommonUtils.hex;
 
-import com.swirlds.common.utility.CommonUtils;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -21,6 +20,7 @@ import org.apache.logging.log4j.Marker;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.Signer;
+import org.hiero.base.utility.CommonUtils;
 
 public class StreamFileSigner implements Signer {
     public static final String SIG_ALGORITHM = SignatureType.RSA.signingAlgorithm();

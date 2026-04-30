@@ -5,6 +5,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
@@ -198,8 +199,11 @@ public class PlatformComponentBuilder {
     @NonNull
     public ConsensusEventStream buildConsensusEventStream() {
         if (consensusEventStream == null) {
+            final PlatformContext platformContext = blocks.platformContext();
             consensusEventStream = new DefaultConsensusEventStream(
-                    blocks.platformContext(),
+                    platformContext.getTime(),
+                    platformContext.getConfiguration(),
+                    platformContext.getMetrics(),
                     blocks.selfId(),
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.consensusEventStreamName(),

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.stream;
 
-import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 
 /**
  * Generates event stream files when enableEventStreaming is true, and calculates runningHash for consensus Events.
