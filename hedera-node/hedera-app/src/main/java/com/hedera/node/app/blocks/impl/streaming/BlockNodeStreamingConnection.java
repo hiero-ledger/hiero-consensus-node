@@ -142,6 +142,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * The block node associated with this connection.
      */
     private final BlockNode blockNode;
+    private final AtomicLong connectionRequestNumberCounter = new AtomicLong(0);
 
     /**
      * Construct a new BlockNodeConnection.
@@ -642,6 +643,22 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
     }
 
+    private long calculateDurationMicros(final long startNanos, final long endNanos) {
+        final long totalNanos;
+
+        if (startNanos == -1 && endNanos == -1) {
+            // if both start and end are -1 it probably means the request never actually was attempted
+            return -1;
+        } else if (endNanos == -1) {
+            // if the endNanos is -1 it probably means the request failed so default to the current time as the end
+            totalNanos = System.nanoTime() - startNanos;
+        } else {
+            totalNanos = endNanos - startNanos;
+        }
+
+        return TimeUnit.NANOSECONDS.toMicros(totalNanos);
+    }
+
     /**
      * Sends the specified request over this connection, if active, to a block node. If the connection is not active,
      * then no operations are performed. If there was a timeout trying to send the request, then the connection will be
@@ -655,84 +672,103 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     private boolean sendRequest(@NonNull final StreamRequest request) {
         requireNonNull(request, "request must not be null");
 
+        final long connectionRequestNumber = connectionRequestNumberCounter.incrementAndGet();
+        final String correlationId;
+        if (request instanceof final BlockRequest blockRequest) {
+            correlationId = buildRequestCorrelationId(connectionRequestNumber, blockRequest.blockNumber(),
+                    blockRequest.requestNumber());
+        } else {
+            correlationId = buildRequestCorrelationId(connectionRequestNumber);
+        }
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("{} Sending request to block node (type={})", connectionContext(correlationId), request.streamRequestType());
+        }
+
         final Pipeline<? super PublishStreamRequest> pipeline = requestPipelineRef.get();
 
         if (!isActive() || pipeline == null) {
-            logger.debug(
-                    "{} Tried to send a request but the connection is not active or initialized; ignoring request",
-                    this);
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                        "{} Tried to send a request but the connection is not active or initialized; ignoring request",
+                        connectionContext(correlationId));
+            }
             return false;
         }
 
-        final String correlationId;
-        if (request instanceof final BlockRequest br) {
-            correlationId = blockRequestCorrelationId(br.blockNumber(), br.requestNumber());
-            logger.debug(
-                    "{} Sending request to block node (type={})",
-                    connectionContext(correlationId),
-                    br.streamRequestType());
-        } else {
-            correlationId = connectionId().toString();
-            logger.debug(
-                    "{} Sending ad hoc request to block node (type={})",
-                    connectionContext(correlationId),
-                    request.streamRequestType());
-        }
+        final AtomicLong startNanos = new AtomicLong(-1);
+        final AtomicLong endNanos = new AtomicLong(-1);
+        final AtomicLong sentTimestampMillis = new AtomicLong(-1);
+        Future<?> future = null;
 
-        final long startMs = System.currentTimeMillis();
-        long sentMs = 0;
+        /*
+        When handling failures, we need to be mindful of whether the connection is active at the time the exception is
+        received. Since this is a multithreaded system that may be influenced by external forces (e.g. network or block
+        node sending an EndOfStream response) while a request is being made, we want to avoid propagating errors when
+        the connection is in a terminal state. Instead, we want to propagate errors ONLY if the connection is active at
+        the time the error is received, otherwise log the event and suppress it.
+
+        Additionally, if there is any error encountered - regardless of connection state, we want to immediately exit
+        this method.
+         */
 
         try {
             connStats.recordRequestSendAttempt();
-            final Future<?> future = blockingIoExecutor.submit(() -> pipeline.onNext(request.streamRequest()));
-            try {
-                future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
-                sentMs = System.currentTimeMillis();
-                connStats.recordRequestSendSuccess();
-            } catch (final TimeoutException _) {
-                future.cancel(true); // Cancel the task if it times out
-                if (isActive()) {
-                    logger.warn(
-                            "{} Timed out sending request (timeout: {}ms) - closing connection",
-                            this,
-                            pipelineOperationTimeout.toMillis());
-                    blockStreamMetrics.recordPipelineOperationTimeout();
-                    close(CloseReason.CONNECTION_ERROR, true);
-                }
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt(); // Restore interrupt status
-                throw new RuntimeException("Interrupted while waiting for pipeline.onNext()", e);
-            } catch (final ExecutionException e) {
-                throw new RuntimeException("Error executing pipeline.onNext()", e.getCause());
-            }
-        } catch (final RuntimeException e) {
-            /*
-            There is a possible, and somewhat expected, race condition when one thread is attempting to close this
-            connection while a request is being sent on another thread. Because of this, an exception may get thrown
-            but depending on the state of the connection it may be expected. Thus, if we do get an exception we only
-            want to propagate it if the connection is still in an ACTIVE state. If we receive an error while the
-            connection is in another state (e.g. CLOSING) then we want to ignore the error.
-             */
+            future = blockingIoExecutor.submit(() -> {
+                startNanos.set(System.nanoTime());
+                pipeline.onNext(request.streamRequest());
+                endNanos.set(System.nanoTime());
+                sentTimestampMillis.set(System.currentTimeMillis());
+            });
+            future.get(pipelineOperationTimeout.toMillis(), TimeUnit.MILLISECONDS);
+            connStats.recordRequestSendSuccess();
+        } catch (final TimeoutException _) {
+            final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
+            future.cancel(true);
+            blockStreamMetrics.recordRequestSendFailure();
             if (isActive()) {
-                logger.warn("{} Error occurred while sending request", this, e);
-                blockStreamMetrics.recordRequestSendFailure();
-                throw e;
+                logger.warn("{} Timed out sending request to block node (timeout: {}ms, duration: {}μs) - closing connection",
+                        connectionContext(correlationId), pipelineOperationTimeout.toMillis(), durationMicros);
+                blockStreamMetrics.recordPipelineOperationTimeout();
+                close(CloseReason.CONNECTION_ERROR, true);
             } else {
-                logger.debug(
-                        "{} Error occurred while sending request, but the connection is no longer active; suppressing error",
-                        this,
-                        e);
+                logger.info("{} Timed out sending request to block node (timeout: {}ms, duration: {}μs) - suppressing because connection is no longer active",
+                        connectionContext(correlationId), pipelineOperationTimeout.toMillis(), durationMicros);
+                return false;
+            }
+        } catch (final InterruptedException _) {
+            final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
+            blockStreamMetrics.recordRequestSendFailure();
+            Thread.currentThread().interrupt();
+            if (isActive()) {
+                logger.warn("{} Interrupted while sending request to block node (duration: {}μs)", connectionContext(correlationId), durationMicros);
+                throw new RuntimeException("Interrupted while sending request to block node");
+            } else {
+                logger.info("{} Interrupted while sending request to block node (duration: {}μs) - suppressing because connection is no longer active",
+                        connectionContext(correlationId), durationMicros);
+                return false;
+            }
+        } catch (final Exception e) {
+            final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
+            blockStreamMetrics.recordRequestSendFailure();
+            final Throwable error = e instanceof ExecutionException ? e.getCause() : e;
+
+            if (isActive()) {
+                logger.warn("{} Error encountered while sending request to block node (duration: {}μs)",
+                        connectionContext(correlationId), durationMicros, error);
+                throw new RuntimeException("Error encountered while sending request to block node", error);
+            } else {
+                logger.info("{} Error encountered while sending request to block node (duration: {}μs) - suppressing because connection is no longer active",
+                        connectionContext(correlationId), durationMicros, error);
                 return false;
             }
         }
 
-        final long durationMs = sentMs - startMs;
-        blockStreamMetrics.recordRequestLatency(durationMs);
+        final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
+        blockStreamMetrics.recordRequestLatency(durationMicros);
 
-        if (request instanceof BlockRequest) {
-            logger.trace("{} Request took {}ms to send", connectionContext(correlationId), durationMs);
-        } else {
-            logger.trace("{} Ad hoc request took {}ms to send", connectionContext(correlationId), durationMs);
+        if (logger.isTraceEnabled() && request instanceof BlockRequest) {
+            logger.trace("{} Request took {}μs to send", connectionContext(correlationId), durationMicros);
         }
 
         switch (request) {
@@ -744,12 +780,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         blockStreamMetrics.recordRequestSent(r.streamRequestType());
                         blockStreamMetrics.recordBlockItemsSent(r.numItems());
                         if (r.hasBlockProof()) {
-                            blockNode.stats().recordBlockProofSent(r.blockNumber(), Instant.ofEpochMilli(sentMs));
+                            blockNode.stats().recordBlockProofSent(r.blockNumber(), Instant.ofEpochMilli(sentTimestampMillis.get()));
                         }
                         if (r.hasBlockHeader()) {
                             final BlockState blockState = blockBufferService.getBlockState(r.blockNumber());
                             if (blockState != null) {
-                                blockState.setHeaderSentMs(sentMs);
+                                blockState.setHeaderSentMs(sentTimestampMillis.get());
                             }
                         }
                         blockStreamMetrics.recordRequestBlockItemCount(r.numItems());
@@ -1124,7 +1160,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     // close the connection
                     try {
                         trySendPendingRequest();
-                    } catch (final Exception e) {
+                    } catch (final Exception _) {
                         // ignore exception... we are about to close the connection
                     }
                     blockStreamMetrics.recordRequestExceedsHardLimit();
@@ -1378,25 +1414,31 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     return true;
                 } else {
                     logger.warn(
-                            "{} Sending the request failed for a non-exceptional reason (block={}, request={})",
+                            "{} Sending the request failed for a non-exceptional reason (block={}, request={}, itemCount={}, bytes={})",
                             BlockNodeStreamingConnection.this,
                             block.blockNumber(),
-                            requestCtr.get());
+                            requestCtr.get(),
+                            pendingRequestItems.size(),
+                            reqBytes);
                 }
             } catch (final UncheckedIOException e) {
                 logger.warn(
-                        "{} UncheckedIOException caught in connection worker thread (block={}, request={})",
+                        "{} UncheckedIOException caught in connection worker thread (block={}, request={}, itemCount={}, bytes={})",
                         BlockNodeStreamingConnection.this,
                         block.blockNumber(),
                         requestCtr.get(),
+                        pendingRequestItems.size(),
+                        reqBytes,
                         e);
                 close(CloseReason.CONNECTION_ERROR, false);
             } catch (final Exception e) {
                 logger.warn(
-                        "{} Exception caught in connection worker thread (block={}, request={})",
+                        "{} Exception caught in connection worker thread (block={}, request={}, itemCount={}, bytes={})",
                         BlockNodeStreamingConnection.this,
                         block.blockNumber(),
                         requestCtr.get(),
+                        pendingRequestItems.size(),
+                        reqBytes,
                         e);
                 close(CloseReason.CONNECTION_ERROR, true);
             }
