@@ -41,7 +41,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class V0730BlockStreamSchemaTest {
+class V0740BlockStreamSchemaTest {
 
     private static final Bytes WRAPPED_HASH = Bytes.wrap(new byte[HASH_SIZE]);
     private static final Bytes HASH_A = Bytes.fromHex("aa".repeat(HASH_SIZE));
@@ -62,17 +62,17 @@ class V0730BlockStreamSchemaTest {
     Path tempDir;
 
     private final AtomicBoolean markerCalled = new AtomicBoolean(false);
-    private V0730BlockStreamSchema subject;
+    private V0740BlockStreamSchema subject;
 
     @BeforeEach
     void setUp() {
         markerCalled.set(false);
-        subject = new V0730BlockStreamSchema(() -> markerCalled.set(true));
+        subject = new V0740BlockStreamSchema(() -> markerCalled.set(true));
     }
 
     @Test
-    void versionIsV0730() {
-        assertEquals(new SemanticVersion(0, 73, 0, "", ""), subject.getVersion());
+    void versionIsV0740() {
+        assertEquals(new SemanticVersion(0, 74, 0, "", ""), subject.getVersion());
     }
 
     @Test

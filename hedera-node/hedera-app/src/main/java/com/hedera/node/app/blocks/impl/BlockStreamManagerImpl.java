@@ -258,18 +258,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final Bytes effectiveLastBlockHash;
         boolean previousBlockHashesUpdated = false;
 
-        // Cutover case
+        // Cutover case (Initialization only--cutover logic should have already executed in a block record schema)
         if (loadCutoverData(
                 configProvider
                         .getConfiguration()
                         .getConfigData(BlockStreamConfig.class)
                         .enableCutover(),
                 state)) {
-            log.info("Block streams cutover executed; loading block stream info from cutover");
+            log.info("Block streams cutover executed; loading block stream info from cutover data");
 
-            // Reshape hashes into the expected block stream format. Note BlockHashManager.startBlock() will append
-            // prevBlockHash to trailingBlockHashes, so include all hashes <b>except the final record hash</b> to avoid
-            // an off-by-one error
+            // Initialize with the data from the cutover (cutover has already been executed by {@code
+            // V0740BlockStreamSchema} at this point). Note BlockHashManager.startBlock() will append prevBlockHash to
+            // trailingBlockHashes, so include all hashes <b>except the final record hash</b> to avoid an off-by-one
+            // error
             final var lastBlockInfoEver = state.getReadableStates(BlockRecordService.NAME)
                     .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                     .get();
