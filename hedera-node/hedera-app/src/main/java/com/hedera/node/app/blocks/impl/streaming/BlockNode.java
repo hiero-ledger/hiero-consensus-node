@@ -424,7 +424,14 @@ public class BlockNode {
     /**
      * Reason for why a cool down is being applied.
      */
-    sealed interface CoolDownReason permits ServiceConnectionFailure, DeviantConnectionClose {}
+    sealed interface CoolDownReason permits ServiceConnectionFailure, DeviantConnectionClose, BlockNodeOutOfRange {}
+
+    /**
+     * Indicates a cool down may be required since the block node has indicated that it is behind the consensus node.
+     *
+     * @param numBlocksBehind the number of blocks behind
+     */
+    record BlockNodeOutOfRange(long numBlocksBehind) implements CoolDownReason {}
 
     /**
      * Indicates a cool down is required due to a failure with service connections to the block node - e.g. timed out
@@ -446,11 +453,19 @@ public class BlockNode {
      * @param reason the reason for the cool down
      */
     void applyCoolDown(@NonNull final CoolDownReason reason) {
+        final int behindLowThreshold = bncConfig().numBlocksBehindLowThreshold();
+        final int behindHighThreshold = bncConfig().numBlocksBehindHighThreshold();
+
+        // spotless:off
         final CoolDownType coolDownType =
                 switch (reason) {
+                    case BlockNodeOutOfRange(final long numBlocksBehind) when numBlocksBehind >= behindHighThreshold -> CoolDownType.EXTENDED;
+                    case BlockNodeOutOfRange(final long numBlocksBehind) when numBlocksBehind >= behindLowThreshold -> CoolDownType.BASIC;
                     case ServiceConnectionFailure() -> CoolDownType.BASIC;
                     case DeviantConnectionClose(final CloseReason closeReason) -> closeReason.coolDownType();
+                    default -> CoolDownType.NONE;
                 };
+        // spotless:on
 
         final int coolDownSeconds =
                 switch (coolDownType) {

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeOutOfRange;
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.ConnectionHistory;
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.DeviantConnectionClose;
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.ServiceConnectionFailure;
@@ -68,6 +69,8 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     private static final long NODE_ID = 0L;
     private static final int BASIC_COOL_DOWN_SECONDS = 15;
     private static final int EXTENDED_COOL_DOWN_SECONDS = 30;
+    private static final int NUM_BLOCKS_BEHIND_LOW_THRESHOLD = 25;
+    private static final int NUM_BLOCKS_BEHIND_HIGH_THRESHOLD = 50;
 
     private ConfigProvider configProvider;
     private BlockNodeConfiguration configuration;
@@ -89,6 +92,8 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         lenient().when(bncConfig.basicNodeCoolDownSeconds()).thenReturn(BASIC_COOL_DOWN_SECONDS);
         lenient().when(bncConfig.extendedNodeCoolDownSeconds()).thenReturn(EXTENDED_COOL_DOWN_SECONDS);
         lenient().when(bncConfig.wantedBlockExpirationMillis()).thenReturn(2_000L);
+        lenient().when(bncConfig.numBlocksBehindLowThreshold()).thenReturn(NUM_BLOCKS_BEHIND_LOW_THRESHOLD);
+        lenient().when(bncConfig.numBlocksBehindHighThreshold()).thenReturn(NUM_BLOCKS_BEHIND_HIGH_THRESHOLD);
 
         configuration = newBlockNodeConfig("localhost", 1234, 1);
         globalActiveStreamConnectionCount = new AtomicInteger();
@@ -559,6 +564,38 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         node.applyCoolDown(new DeviantConnectionClose(CloseReason.BUFFER_SATURATION));
 
         assertThat(nodeCoolDownTimestampRef()).hasValue(extendedCoolDownTimestamp);
+    }
+
+    @Test
+    void testApplyCoolDown_outOfRange_nonTriggering() {
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+
+        // while the block node is out of range, it isn't out of range enough to trigger a cool down
+        node.applyCoolDown(new BlockNodeOutOfRange(NUM_BLOCKS_BEHIND_LOW_THRESHOLD - 1));
+
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+    }
+
+    @Test
+    void testApplyCoolDown_outOfRange_basicCoolDown() {
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+
+        // the block node is just out of range to trigger the basic cool down
+        node.applyCoolDown(new BlockNodeOutOfRange(NUM_BLOCKS_BEHIND_LOW_THRESHOLD));
+
+        final Instant expectedCoolDownTimestamp = Instant.now(clock).plusSeconds(BASIC_COOL_DOWN_SECONDS);
+        assertThat(nodeCoolDownTimestampRef()).hasValue(expectedCoolDownTimestamp);
+    }
+
+    @Test
+    void testApplyCoolDown_outOfRange_extendedCoolDown() {
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+
+        // the block node is really out of range and should trigger the extended cool down
+        node.applyCoolDown(new BlockNodeOutOfRange(NUM_BLOCKS_BEHIND_HIGH_THRESHOLD));
+
+        final Instant expectedCoolDownTimestamp = Instant.now(clock).plusSeconds(EXTENDED_COOL_DOWN_SECONDS);
+        assertThat(nodeCoolDownTimestampRef()).hasValue(expectedCoolDownTimestamp);
     }
 
     @Test

@@ -74,7 +74,7 @@ These metrics relate to responses received from a block node. They are identifie
 These metrics relate to the requests sent from the consensus node to a block node. They are identified using the
 "connSend" prefix.
 
-|                  Metric Name                  |      Type       | Description                                                      |
+|                  Metric Name                  |      Type       |                           Description                            |
 |-----------------------------------------------|-----------------|------------------------------------------------------------------|
 | `blockStream_connSend_blockItemCount`         | Counter         | Number of individual block items sent to a block node            |
 | `blockStream_connSend_blockItems`             | Counter         | Number of BlockItems requests sent                               |

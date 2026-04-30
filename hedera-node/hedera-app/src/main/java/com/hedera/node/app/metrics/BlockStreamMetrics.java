@@ -683,7 +683,8 @@ public class BlockStreamMetrics {
 
         final RunningAverageMetric.Config publishStreamRequestLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN_SEND + "_requestSendLatency")
-                .withDescription("The average latency (microseconds) for a PublishStreamRequest to be sent to a block node")
+                .withDescription(
+                        "The average latency (microseconds) for a PublishStreamRequest to be sent to a block node")
                 .withFormat("%,.2f");
         this.connSend_publishStreamRequestLatency = metrics.getOrCreate(publishStreamRequestLatencyCfg);
 

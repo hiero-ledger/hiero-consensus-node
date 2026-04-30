@@ -189,7 +189,8 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @param blockRequestNumber the block-level request number
      * @return correlation ID in the format of N#-[STR|SVC]#-BLK#-REQ#-CRN#
      */
-    final @NonNull String buildRequestCorrelationId(final long connectionRequestNumber, final long blockNumber, final int blockRequestNumber) {
+    final @NonNull String buildRequestCorrelationId(
+            final long connectionRequestNumber, final long blockNumber, final int blockRequestNumber) {
         return connectionId + "-BLK" + blockNumber + "-REQ" + blockRequestNumber + "-CRN" + connectionRequestNumber;
     }
 
@@ -255,7 +256,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
             return false;
         }
 
-        logger.info("{} Connection state transitioned from {} to {}", this, latestState, newState);
+        logger.debug("{} Connection state transitioned from {} to {}", this, latestState, newState);
 
         final ConnectionState state = stateRef.get();
         if (state == ConnectionState.ACTIVE) {
