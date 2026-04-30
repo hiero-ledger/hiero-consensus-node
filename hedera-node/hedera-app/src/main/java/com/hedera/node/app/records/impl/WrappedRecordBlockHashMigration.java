@@ -129,8 +129,79 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
+        if (!validateCnVerificationHashes(jumpstartConfig, allRecentWrappedRecordHashes)) {
+            return;
+        }
+
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
         computeHashes(jumpstartConfig, hasher, allRecentWrappedRecordHashes, recordsConfig.numOfBlockHashesInState());
+    }
+
+    /**
+     * Verifies that the jumpstart config's CN verification hashes ({@code consensusTimestampHash}
+     * and {@code outputItemsTreeRootHash}) match the on-disk wrapped record hashes entry at the
+     * jumpstart block number.
+     *
+     * <p>The hashes are populated by hiero-block-node's {@code blocks wrap} tool when producing
+     * {@code jumpstart.bin} (added in hiero-ledger/hiero-block-node#2612). They give the consensus
+     * node a way to detect a stale or wrong-network jumpstart file before applying it.
+     *
+     * <p>Behavior:
+     * <ul>
+     *   <li>If both fields are empty (legacy wrap tool that predates the format change), the check
+     *       is skipped and the migration proceeds.</li>
+     *   <li>If either field is provided but no matching on-disk entry exists at the jumpstart
+     *       block number, the migration is skipped (we cannot verify).</li>
+     *   <li>If either provided value disagrees with the on-disk entry, the migration is skipped.</li>
+     * </ul>
+     *
+     * @return {@code true} to allow the migration to proceed, {@code false} to skip
+     */
+    private boolean validateCnVerificationHashes(
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
+            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes) {
+        final var jumpCth = jumpstartConfig.consensusTimestampHash();
+        final var jumpOir = jumpstartConfig.outputItemsTreeRootHash();
+        if (jumpCth.length() == 0 && jumpOir.length() == 0) {
+            log.info("Jumpstart config has no CN verification hashes (consensusTimestampHash and "
+                    + "outputItemsTreeRootHash both empty); skipping verification check");
+            return true;
+        }
+
+        final var jumpstartBlockNum = jumpstartConfig.blockNum();
+        final var matchingEntry = allRecentWrappedRecordHashes.entries().stream()
+                .filter(e -> e.blockNumber() == jumpstartBlockNum)
+                .findFirst()
+                .orElse(null);
+        if (matchingEntry == null) {
+            log.error(
+                    "Jumpstart config has CN verification hashes but no on-disk wrapped record hashes entry "
+                            + "exists at block {}; cannot verify. {}",
+                    jumpstartBlockNum,
+                    RESUME_MESSAGE);
+            return false;
+        }
+
+        if (jumpCth.length() != 0 && !matchingEntry.consensusTimestampHash().equals(jumpCth)) {
+            log.error(
+                    "Jumpstart consensusTimestampHash {} does not match on-disk entry value {} at block {}. {}",
+                    jumpCth,
+                    matchingEntry.consensusTimestampHash(),
+                    jumpstartBlockNum,
+                    RESUME_MESSAGE);
+            return false;
+        }
+        if (jumpOir.length() != 0 && !matchingEntry.outputItemsTreeRootHash().equals(jumpOir)) {
+            log.error(
+                    "Jumpstart outputItemsTreeRootHash {} does not match on-disk entry value {} at block {}. {}",
+                    jumpOir,
+                    matchingEntry.outputItemsTreeRootHash(),
+                    jumpstartBlockNum,
+                    RESUME_MESSAGE);
+            return false;
+        }
+        log.info("CN verification hashes match on-disk entry at block {}", jumpstartBlockNum);
+        return true;
     }
 
     private Path resolveRecentHashesPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
