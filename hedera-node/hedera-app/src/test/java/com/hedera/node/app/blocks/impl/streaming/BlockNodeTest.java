@@ -575,6 +575,19 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testOnServerStatusCheck_reachable_blockNotSpecified() {
+        final BlockNodeStatus nodeStatus = BlockNodeStatus.reachable(10, -1);
+
+        node.onServerStatusCheck(nodeStatus);
+
+        final AtomicReference<WantedBlock> wantedBlockRef = wantedBlockRef();
+        assertThat(wantedBlockRef).doesNotHaveNullValue();
+        final WantedBlock wantedBlock = wantedBlockRef.get();
+        // if the wanted block is -1, then it should be carried straight over without being incremented
+        assertThat(wantedBlock.blockNumber()).isEqualTo(-1);
+    }
+
+    @Test
     void testOnServerStatusCheck_notReachable() {
         final BlockNodeStatus nodeStatus = BlockNodeStatus.notReachable();
 

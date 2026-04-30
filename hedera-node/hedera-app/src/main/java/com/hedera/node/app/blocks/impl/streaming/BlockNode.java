@@ -382,7 +382,8 @@ public class BlockNode {
      */
     void onServerStatusCheck(@NonNull final BlockNodeStatus status) {
         if (status.wasReachable()) {
-            wantedBlockRef.set(new WantedBlock(status.latestBlockAvailable() + 1, Instant.now(clock)));
+            final long wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
+            wantedBlockRef.set(new WantedBlock(wantedBlock, Instant.now(clock)));
         } else {
             applyCoolDown(new ServiceConnectionFailure());
         }
