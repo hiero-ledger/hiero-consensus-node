@@ -36,10 +36,14 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+
 import java.io.File;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
@@ -118,12 +122,11 @@ public class ContractGetBytecodeSuite {
                 .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_CONTRACT_ID));
     }
 
-    private CustomSpecAssert getContractBytecodeCheck(String contract, String key, Bytes expectedCode) {
+    private CustomSpecAssert getContractBytecodeCheck(Supplier<String> contract, String key, Bytes expectedCode) {
         return withOpContext((spec, opLog) -> {
-            final var getBytecode = getContractBytecode(contract).saveResultTo(key);
+            final var getBytecode = getContractBytecode(contract.get()).saveResultTo(key);
             allRunFor(spec, getBytecode);
             final var actualBytecode = spec.registry().getBytes(key);
-            ContractID contractId = TxnUtils.asContractId(contract, spec);
             Assertions.assertArrayEquals(expectedCode.toArray(), actualBytecode);
         });
     }
@@ -134,15 +137,37 @@ public class ContractGetBytecodeSuite {
         final var key = "accountByteCode";
         return hapiTest(
                 cryptoCreate(account).balance(ONE_HUNDRED_HBARS).asCallableContract(),
-                getContractBytecodeCheck(account, key, Bytes.of()));
+                getContractBytecodeCheck(() -> account, key, Bytes.of()));
     }
+
+    @HapiTest
+    final Stream<DynamicTest> getByteCodeWorksForNonContractAccountEvmAddress() {
+        final var account = "nonContractAccount";
+        final var key = "accountByteCode";
+        final AtomicReference<String> evmAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate(account).balance(ONE_HUNDRED_HBARS).asCallableContract()
+                        .exposingEvmAddressTo(e -> evmAddress.set(e.toString())),
+                getContractBytecodeCheck(evmAddress::get, key, Bytes.of()));
+    }
+
 
     @HapiTest
     final Stream<DynamicTest> getByteCodeWorksForToken() {
         final var token = "fungibleToken";
         final var key = "tokenByteCode";
         return hapiTest(
-                tokenCreate(token).asCallableContract(), getContractBytecodeCheck(token, key, TokenEvmAccount.CODE));
+                tokenCreate(token).asCallableContract(), getContractBytecodeCheck(() -> token, key, TokenEvmAccount.CODE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> getByteCodeWorksForTokenEvmAddress() {
+        final var token = "fungibleToken";
+        final var key = "tokenByteCode";
+        final AtomicReference<String> evmAddress = new AtomicReference<>();
+        return hapiTest(
+                tokenCreate(token).asCallableContract()
+                        .exposingAddressTo(e -> evmAddress.set(e.toString())), getContractBytecodeCheck(evmAddress::get, key, TokenEvmAccount.CODE));
     }
 
     @HapiTest
@@ -153,6 +178,19 @@ public class ContractGetBytecodeSuite {
                 cryptoCreate("sender"),
                 scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo("sender", GENESIS, 1)))
                         .asCallableSchedule(),
-                getContractBytecodeCheck(schedule, key, ScheduleEvmAccount.CODE));
+                getContractBytecodeCheck(() -> schedule, key, ScheduleEvmAccount.CODE));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> getByteCodeWorksForScheduleEvmAddress() {
+        final var schedule = "callableSchedule";
+        final var key = "scheduleByteCode";
+        final AtomicReference<String> evmAddress = new AtomicReference<>();
+        return hapiTest(
+                cryptoCreate("sender"),
+                scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo("sender", GENESIS, 1)))
+                        .exposingAddressTo(e -> evmAddress.set(e.toString()))
+                        .asCallableSchedule(),
+                getContractBytecodeCheck(() -> schedule, key, ScheduleEvmAccount.CODE));
     }
 }

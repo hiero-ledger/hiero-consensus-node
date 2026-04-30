@@ -6,9 +6,11 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.bannerWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -18,6 +20,7 @@ import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
+import com.hedera.services.bdd.spec.transactions.token.HapiTokenCreate;
 import com.hedera.services.bdd.suites.schedule.ScheduleUtils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -73,6 +76,8 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
     private Optional<BiConsumer<String, byte[]>> successCb = Optional.empty();
     private Optional<Consumer<ScheduleID>> newScheduleIdObserver = Optional.empty();
     private AtomicReference<SchedulableTransactionBody> scheduledTxn = new AtomicReference<>();
+    @Nullable
+    private Consumer<Address> createdAddressObs;
 
     private final String scheduleEntity;
     private final HapiTxnOp<T> scheduled;
@@ -132,6 +137,11 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
 
     public HapiScheduleCreate<T> exposingCreatedIdTo(final Consumer<ScheduleID> newScheduleIdObserver) {
         this.newScheduleIdObserver = Optional.of(newScheduleIdObserver);
+        return this;
+    }
+
+    public HapiScheduleCreate<T> exposingAddressTo(final Consumer<Address> obs) {
+        createdAddressObs = obs;
         return this;
     }
 
@@ -306,6 +316,8 @@ public class HapiScheduleCreate<T extends HapiTxnOp<T>> extends HapiTxnOp<HapiSc
         }
         final var scheduleId = lastReceipt.getScheduleID();
         successCb.ifPresent(cb -> cb.accept(asScheduleString(scheduleId), bytesSigned.toByteArray()));
+        Optional.ofNullable(createdAddressObs).ifPresent(obs -> obs.accept(idAsHeadlongAddress(scheduleId)));
+
         if (skipRegistryUpdate) {
             return;
         }

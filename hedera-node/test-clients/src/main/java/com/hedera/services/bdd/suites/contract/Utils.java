@@ -27,7 +27,6 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.HookCall;
-import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -40,6 +39,7 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NftTransfer;
+import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.hederahashgraph.api.proto.java.SubType;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -531,6 +531,11 @@ public class Utils {
     public static Address idAsHeadlongAddress(final TokenID tokenId) {
         return asHeadlongAddress(
                 asSolidityAddress((int) tokenId.getShardNum(), tokenId.getRealmNum(), tokenId.getTokenNum()));
+    }
+
+    public static Address idAsHeadlongAddress(final ScheduleID scheduleId) {
+        return asHeadlongAddress(
+                asSolidityAddress((int) scheduleId.getShardNum(), scheduleId.getRealmNum(), scheduleId.getScheduleNum()));
     }
 
     public static byte[] asSolidityAddress(final AccountID accountId) {
