@@ -301,13 +301,7 @@ class WrappedRecordBlockHashMigrationTest {
     void returnsEarlyWhenPreviousBlockHashIsEmpty() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
         final var badConfig = new BlockStreamJumpstartConfig(
-                100,
-                Bytes.EMPTY,
-                4,
-                1,
-                List.of(Bytes.wrap(new byte[HASH_SIZE])),
-                Bytes.EMPTY,
-                Bytes.EMPTY);
+                100, Bytes.EMPTY, 4, 1, List.of(Bytes.wrap(new byte[HASH_SIZE])), Bytes.EMPTY, Bytes.EMPTY);
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }

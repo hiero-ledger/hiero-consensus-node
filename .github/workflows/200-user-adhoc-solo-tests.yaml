@@ -145,7 +145,7 @@ jobs:
               INITIAL_RELEASE_TAG="${{ inputs.starting-tag }}" \
               UPGRADE_VERSION="${{ inputs.upgrade-tag }}" \
               KEEP_NETWORK="false" \
-            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/wrb-script.log"
+            "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}
