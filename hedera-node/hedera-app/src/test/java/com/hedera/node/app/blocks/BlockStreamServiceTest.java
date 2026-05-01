@@ -34,7 +34,7 @@ final class BlockStreamServiceTest {
     }
 
     @Test
-    void cutoverExecutedIsFalseByDefault() {
-        assertThat(subject.isCutoverExecuted()).isFalse();
+    void isBsiSchemaOverwriteExecutedIsFalseByDefault() {
+        assertThat(subject.isBsiSchemaOverwriteExecuted()).isFalse();
     }
 }

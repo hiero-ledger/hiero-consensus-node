@@ -112,7 +112,7 @@ class V0740BlockStreamSchemaTest {
     void skipsWhenCutoverAlreadyExecuted() {
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(100)
-                .cutoverExecuted(true)
+                .previewStreamOverwritten(true)
                 .build();
 
         given(ctx.isGenesis()).willReturn(false);
@@ -137,7 +137,7 @@ class V0740BlockStreamSchemaTest {
                 .lastUsedConsTime(new Timestamp(1001, 0))
                 .consTimeOfLastHandledTxn(new Timestamp(1001, 0))
                 .lastIntervalProcessTime(new Timestamp(1000, 0))
-                .cutoverExecuted(false)
+                .previewStreamOverwritten(false)
                 .build();
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
@@ -356,7 +356,7 @@ class V0740BlockStreamSchemaTest {
                 .lastUsedConsTime(new Timestamp(501, 0))
                 .consTimeOfLastHandledTxn(new Timestamp(501, 0))
                 .lastIntervalProcessTime(new Timestamp(500, 0))
-                .cutoverExecuted(false)
+                .previewStreamOverwritten(false)
                 .build();
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
@@ -395,7 +395,7 @@ class V0740BlockStreamSchemaTest {
                 .lastUsedConsTime(new Timestamp(2001, 0))
                 .consTimeOfLastHandledTxn(new Timestamp(2001, 0))
                 .lastIntervalProcessTime(new Timestamp(2000, 0))
-                .cutoverExecuted(false)
+                .previewStreamOverwritten(false)
                 .build();
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
@@ -430,7 +430,7 @@ class V0740BlockStreamSchemaTest {
                 .lastUsedConsTime(new Timestamp(1001, 0))
                 .consTimeOfLastHandledTxn(new Timestamp(1001, 0))
                 .lastIntervalProcessTime(new Timestamp(1000, 0))
-                .cutoverExecuted(false)
+                .previewStreamOverwritten(false)
                 .build();
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
@@ -461,7 +461,7 @@ class V0740BlockStreamSchemaTest {
                 .lastUsedConsTime(new Timestamp(3001, 0))
                 .consTimeOfLastHandledTxn(new Timestamp(3001, 0))
                 .lastIntervalProcessTime(new Timestamp(3000, 0))
-                .cutoverExecuted(false)
+                .previewStreamOverwritten(false)
                 .build();
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
@@ -494,7 +494,7 @@ class V0740BlockStreamSchemaTest {
                 .lastUsedConsTime(new Timestamp(3001, 0))
                 .consTimeOfLastHandledTxn(new Timestamp(3001, 0))
                 .lastIntervalProcessTime(new Timestamp(3000, 0))
-                .cutoverExecuted(false)
+                .previewStreamOverwritten(false)
                 .build();
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
@@ -602,7 +602,7 @@ class V0740BlockStreamSchemaTest {
                 .lastUsedConsTime(new Timestamp(1001, 0))
                 .consTimeOfLastHandledTxn(new Timestamp(1001, 0))
                 .lastIntervalProcessTime(new Timestamp(1000, 0))
-                .cutoverExecuted(false)
+                .previewStreamOverwritten(false)
                 .build();
     }
 

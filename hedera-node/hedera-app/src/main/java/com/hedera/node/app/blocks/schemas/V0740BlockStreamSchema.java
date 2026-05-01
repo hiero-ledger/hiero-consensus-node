@@ -40,34 +40,37 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(74).patch(0).build();
 
-    private final Runnable cutoverExecutedMarker;
+    private final Runnable previewStreamOverwrittenMarker;
 
     /**
-     * @param cutoverExecutedMarker called when cutover is executed, so the caller can
-     *                              mark {@code BlockInfo.cutoverExecuted}
+     * @param previewStreamOverwrittenMarker called when the preview block stream info has been overwritten
+     *                                       with cutover data, with the express purpose of marking
+     *                                       {@code BlockInfo.previewStreamOverwritten} as true.
      */
-    public V0740BlockStreamSchema(@NonNull final Runnable cutoverExecutedMarker) {
+    public V0740BlockStreamSchema(@NonNull final Runnable previewStreamOverwrittenMarker) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
-        this.cutoverExecutedMarker = requireNonNull(cutoverExecutedMarker);
+        this.previewStreamOverwrittenMarker = requireNonNull(previewStreamOverwrittenMarker);
     }
 
     @Override
     public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
         requireNonNull(ctx);
         if (ctx.isGenesis()) {
+            log.info("Genesis state, skipping cutover logic");
             return;
         }
         final var config = ctx.appConfig().getConfigData(BlockStreamConfig.class);
         if (!config.enableCutover()) {
+            log.info("Cutover disabled by config, skipping cutover logic");
             return;
         }
         final var blockInfo = (BlockInfo) ctx.sharedValues().get(SHARED_BLOCK_RECORD_INFO);
-        if (blockInfo == null || blockInfo.cutoverExecuted()) {
-            log.info("Block streams cutover not applicable, skipping");
+        if (blockInfo == null || blockInfo.previewStreamOverwritten()) {
+            log.info("Preview block stream info already overwritten, skipping cutover logic");
             return;
         }
 
-        log.info("Block streams cutover is enabled, performing cutover in schema migration");
+        log.info("Performing preview stream overwrite for block streams cutover");
 
         // Step 1: Gather data from shared values and own state
         final var runningHashes =
@@ -201,6 +204,6 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
                 cutoverBlockStreamInfo.intermediateBlockRootsLeafCount());
 
         // Signal that cutover was executed
-        cutoverExecutedMarker.run();
+        previewStreamOverwrittenMarker.run();
     }
 }

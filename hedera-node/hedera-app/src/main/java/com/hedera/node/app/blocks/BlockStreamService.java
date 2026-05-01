@@ -37,7 +37,7 @@ public class BlockStreamService implements Service {
     @Nullable
     private Bytes migratedLastBlockHash;
 
-    private boolean cutoverExecuted;
+    private boolean bsiSchemaOverwriteExecuted;
 
     @NonNull
     @Override
@@ -49,7 +49,7 @@ public class BlockStreamService implements Service {
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
         registry.register(new V0560BlockStreamSchema(this::setMigratedLastBlockHash));
-        registry.register(new V0740BlockStreamSchema(this::markCutoverExecuted));
+        registry.register(new V0740BlockStreamSchema(this::markSchemaOverwriteExecuted));
     }
 
     @Override
@@ -78,10 +78,11 @@ public class BlockStreamService implements Service {
     }
 
     /**
-     * Returns whether the block stream cutover was executed during the most recent schema migration.
+     * Returns whether the schema overwrite of the {@code BlockStreamInfo} object, which happens as part
+     * of the block streams cutover release, was executed during the most recent schema migration.
      */
-    public boolean isCutoverExecuted() {
-        return cutoverExecuted;
+    public boolean isBsiSchemaOverwriteExecuted() {
+        return bsiSchemaOverwriteExecuted;
     }
 
     private void setMigratedLastBlockHash(@NonNull final Bytes migratedLastBlockHash) {
@@ -89,8 +90,8 @@ public class BlockStreamService implements Service {
         log.info("Migrated last block hash '{}'", migratedLastBlockHash);
     }
 
-    private void markCutoverExecuted() {
-        this.cutoverExecuted = true;
-        log.info("Block stream cutover executed during schema migration");
+    private void markSchemaOverwriteExecuted() {
+        this.bsiSchemaOverwriteExecuted = true;
+        log.info("Block stream cutover's schema overwrite executed during schema migration");
     }
 }

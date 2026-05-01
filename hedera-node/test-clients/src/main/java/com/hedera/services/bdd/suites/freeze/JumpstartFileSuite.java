@@ -203,7 +203,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
-                        "Block streams cutover executed; loading block stream info from cutover",
+                        "Preview block stream overwrite executed; loading block stream info from cutover data",
                         Duration.ofSeconds(1)),
                 // Verify logged BlockInfo fields match what we captured before the last restart
                 doingContextual(spec -> verifyCutoverLogFields(spec, capturedBlockInfo, capturedRunningHashes)),
@@ -230,7 +230,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
-                        "Block streams cutover not applicable, skipping",
+                        "Preview block stream info already overwritten, skipping cutover logic",
                         Duration.ofSeconds(1)),
                 // Verify blocks are still produced after idempotent restart
                 cryptoCreate("postIdempotentRestart").payingWith(GENESIS));

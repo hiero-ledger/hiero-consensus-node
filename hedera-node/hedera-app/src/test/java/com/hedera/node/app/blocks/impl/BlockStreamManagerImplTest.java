@@ -1452,11 +1452,12 @@ class BlockStreamManagerImplTest {
 
     @Test
     void cutoverSkippedWhenSchemaDidNotExecute() {
-        // Cutover is enabled, but cutoverExecuted=false means the schema did not run, and therefore init should not run
+        // Cutover is enabled, but previewStreamOverwritten=false means the schema did not run, and therefore init
+        // should not run
         // cutover scenario
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(100)
-                .cutoverExecuted(false)
+                .previewStreamOverwritten(false)
                 .build();
 
         final var config = HederaTestConfigBuilder.create()
@@ -1484,13 +1485,13 @@ class BlockStreamManagerImplTest {
                 .willReturn(new FunctionReadableSingletonState<>(BLOCKS_STATE_ID, BLOCKS_STATE_LABEL, () -> blockInfo));
         given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
 
-        // init with HASH_OF_ZERO — loadCutoverData should see cutoverExecuted=false and skip
+        // init with HASH_OF_ZERO — loadCutoverData should see previewStreamOverwritten=false and skip
         subject.init(state, HASH_OF_ZERO);
     }
 
     @Test
     void cutoverLoadsInMemoryStateWhenSchemaExecuted() {
-        // When enableCutover=true, cutoverExecuted=true, and BlockStreamInfo.blockNumber matches
+        // When enableCutover=true, previewStreamOverwritten=true, and BlockStreamInfo.blockNumber matches
         // BlockInfo.lastBlockNumber, init should load in-memory structures from BlockInfo
         final var wrappedHash = Bytes.wrap(new byte[HASH_SIZE]);
         final var twoHashes = new byte[HASH_SIZE * 2];
@@ -1504,7 +1505,7 @@ class BlockStreamManagerImplTest {
                 .lastUsedConsTime(new Timestamp(1001, 0))
                 .consTimeOfLastHandledTxn(new Timestamp(1001, 0))
                 .lastIntervalProcessTime(new Timestamp(1000, 0))
-                .cutoverExecuted(true)
+                .previewStreamOverwritten(true)
                 .build();
         // BlockStreamInfo.blockNumber must match BlockInfo.lastBlockNumber for cutover loading
         final var cutoverBsi = BlockStreamInfo.newBuilder().blockNumber(100).build();
@@ -1551,7 +1552,7 @@ class BlockStreamManagerImplTest {
         // BlockInfo.lastBlockNumber; subsequent restarts should use the normal init path
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(100)
-                .cutoverExecuted(true)
+                .previewStreamOverwritten(true)
                 .build();
         // BlockStreamInfo has advanced — real blocks were produced after cutover
         final var advancedBsi = BlockStreamInfo.newBuilder().blockNumber(137).build();

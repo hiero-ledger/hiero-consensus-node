@@ -169,10 +169,12 @@ message BlockInfo {
     repeated com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes migration_wrapped_hashes = 16;
 
     /**
-     * A flag indicating that the block stream cutover has been executed.
+     * A flag indicating that the preview `BlockStreamInfo` object has been
+     * overwritten with the real wrapped record block hashes data from `BlockInfo`,
+     * i.e. as part of the block streams cutover release.
      * <p>
-     * This SHALL be set to `true` after the cutover initialization logic
-     * has run, to prevent the cutover logic from repeating.
+     * This SHALL be set to `true` only after the schema overwrite logic
+     * has run, to prevent any block streams cutover logic from repeating.
      */
-    bool cutover_executed = 17;
+    bool preview_stream_overwritten = 17;
 }

@@ -258,17 +258,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final Bytes effectiveLastBlockHash;
         boolean previousBlockHashesUpdated = false;
 
-        // Cutover case (Initialization only--cutover logic should have already executed in a block record schema)
+        // Cutover case
         if (loadCutoverData(
                 configProvider
                         .getConfiguration()
                         .getConfigData(BlockStreamConfig.class)
                         .enableCutover(),
                 state)) {
-            log.info("Block streams cutover executed; loading block stream info from cutover data");
+            log.info("Preview block stream overwrite executed; loading block stream info from cutover data");
 
-            // Initialize with the data from the cutover (cutover has already been executed by {@code
-            // V0740BlockStreamSchema} at this point). Note BlockHashManager.startBlock() will append prevBlockHash to
+            // Initialize with the real cutover data. Note BlockHashManager.startBlock() will append prevBlockHash to
             // trailingBlockHashes, so include all hashes <b>except the final record hash</b> to avoid an off-by-one
             // error
             final var lastBlockInfoEver = state.getReadableStates(BlockRecordService.NAME)
@@ -1370,20 +1369,35 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     /**
-     * Returns true only on the first restart after the cutover schema migration—i.e. when
-     * {@code enableCutover} is on, the schema has marked {@code cutoverExecuted}, and no
-     * post-cutover blocks have been produced yet (BlockStreamInfo.blockNumber still equals
-     * BlockInfo.lastBlockNumber).
+     * Returns true iff the following conditions are met:
+     * <ul>
+     *     <li>The {@code enableCutover} flag is set to true</li>
+     *     <li>The preview {@code BlockStreamInfo} object has been overwritten with the real wrapped record
+     *     block hash (i.e. cutover) data from {@code BlockInfo}</li>
+     *     <li>{@code BlockInfo.previewStreamOverwritten} has been marked as true</li>
+     *     <li>No post-cutover blocks have been produced yet (i.e. {@code BlockStreamInfo.blockNumber}
+     *     is still equal to {@code BlockInfo.lastBlockNumber} following the schema overwrite)</li>
+     * </ul>
+     *
+     * If any of these conditions are not met this method returns false, indicating that cutover logic
+     * should not be executed and the block stream manager should proceed with normal initialization. If
+     * all of these conditions are met this method returns true, signaling that the block stream manager
+     * should initialize with the cutover data from state.
      */
     private static boolean loadCutoverData(final boolean cutoverEnabled, final @NonNull State state) {
         if (!cutoverEnabled) {
+            log.info("Cutover not enabled, skipping cutover init logic");
             return false;
         }
         final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
                 .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                 .get();
-        if (blockInfo == null || !blockInfo.cutoverExecuted()) {
-            log.info("Block streams cutover not applicable, skipping");
+        if (blockInfo == null || !blockInfo.previewStreamOverwritten()) {
+            // This case also applies _after_ cutover, since future restarts shouldn't ever overwrite a preview block
+            // stream
+            log.info(
+                    "Preview block stream info not overwritten, skipping cutover init logic (previewStreamOverwritten={})",
+                    blockInfo != null ? false : "null");
             return false;
         }
 
@@ -1392,7 +1406,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .get();
         if (blockStreamInfo == null || blockStreamInfo.blockNumber() != blockInfo.lastBlockNumber()) {
             log.info(
-                    "Block streams cutover already superseded (bsi#{} vs bi#{}), using normal init path",
+                    "Block streams cutover data already superseded (bsi#{} vs bi#{}), using normal init path",
                     blockStreamInfo != null ? blockStreamInfo.blockNumber() : "null",
                     blockInfo.lastBlockNumber());
             return false;

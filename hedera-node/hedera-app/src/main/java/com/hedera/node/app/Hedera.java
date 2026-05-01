@@ -866,8 +866,8 @@ public final class Hedera
             if (streamMode != BLOCKS) {
                 unmarkMigrationRecordsStreamed(state);
             }
-            if (streamMode != RECORDS && blockStreamService.isCutoverExecuted()) {
-                markCutoverExecuted(state);
+            if (streamMode != RECORDS && blockStreamService.isBsiSchemaOverwriteExecuted()) {
+                markBsiSchemaOverwriteExecuted(state);
             }
             migrationStateChanges.add(
                     StateChanges.newBuilder().stateChanges(boundaryStateChangeListener.allStateChanges()));
@@ -1358,15 +1358,15 @@ public final class Hedera
         ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
     }
 
-    private void markCutoverExecuted(@NonNull final State state) {
+    private void markBsiSchemaOverwriteExecuted(@NonNull final State state) {
         final var blockServiceState = state.getWritableStates(BlockRecordService.NAME);
         final var blockInfoState = blockServiceState.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
         final var currentBlockInfo = requireNonNull(blockInfoState.get());
         final var nextBlockInfo =
-                currentBlockInfo.copyBuilder().cutoverExecuted(true).build();
+                currentBlockInfo.copyBuilder().previewStreamOverwritten(true).build();
         blockInfoState.put(nextBlockInfo);
         ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
-        logger.info("Cutover execution noted in state");
+        logger.info("Preview block stream's info overwritten for cutover; state is notified");
     }
 
     private void assertEnvSanityChecks(@NonNull final NodeId nodeId) {

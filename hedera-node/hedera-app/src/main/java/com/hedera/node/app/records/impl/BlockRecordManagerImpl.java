@@ -582,17 +582,17 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
 
         final var blockInfoInState = requireNonNull(blockInfoState.get());
-        if (blockInfoInState.cutoverExecuted()) {
-            // If cutover has already executed, preserve the cutover-related fields from state rather than overwriting
-            // with in-memory values. This is necessary to preserve the integrity of the cutover process when stream
-            // mode is still set to both records and block streams.
+        if (blockInfoInState.previewStreamOverwritten()) {
+            // If the preview block stream has already been overwritten, preserve the cutover-related fields from state
+            // rather than overwriting with in-memory values. This is necessary to preserve the integrity of the cutover
+            // process when stream mode is still set to both records and block streams.
             lastBlockInfo = lastBlockInfo
                     .copyBuilder()
                     .previousWrappedRecordBlockRootHash(blockInfoInState.previousWrappedRecordBlockRootHash())
                     .wrappedIntermediatePreviousBlockRootHashes(
                             blockInfoInState.wrappedIntermediatePreviousBlockRootHashes())
                     .wrappedIntermediateBlockRootsLeafCount(blockInfoInState.wrappedIntermediateBlockRootsLeafCount())
-                    .cutoverExecuted(blockInfoInState.cutoverExecuted())
+                    .previewStreamOverwritten(blockInfoInState.previewStreamOverwritten())
                     .build();
         }
 
@@ -851,7 +851,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.votingCompletionDeadlineBlockNumber(),
                 lastBlockInfo.migrationRootHashVotes(),
                 lastBlockInfo.migrationWrappedHashes(),
-                lastBlockInfo.cutoverExecuted());
+                lastBlockInfo.previewStreamOverwritten());
         updateBlockInfo(newBlockInfo, state);
     }
 
@@ -968,7 +968,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.votingCompletionDeadlineBlockNumber(),
                 lastBlockInfo.migrationRootHashVotes(),
                 lastBlockInfo.migrationWrappedHashes(),
-                lastBlockInfo.cutoverExecuted());
+                lastBlockInfo.previewStreamOverwritten());
     }
 
     /**
