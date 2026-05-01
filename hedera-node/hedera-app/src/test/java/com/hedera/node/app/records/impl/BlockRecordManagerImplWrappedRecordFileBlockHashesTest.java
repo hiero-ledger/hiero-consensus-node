@@ -86,6 +86,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase {
+    private static final Bytes LEGACY_RECORD_FILE_HASH = Bytes.wrap("legacy-record-file-hash");
 
     @Test
     void doesNotAppendWhenFeatureFlagDisabled() {
@@ -1670,7 +1671,16 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
      * A minimal record-stream producer for tests. Keeps a constant running hash.
      */
     private static final class FakeStreamProducer implements BlockRecordStreamProducer {
+        private final CompletableFuture<Bytes> recordFileHashFuture;
         private Bytes runningHash = Bytes.wrap(new byte[48]);
+
+        private FakeStreamProducer() {
+            this(CompletableFuture.completedFuture(LEGACY_RECORD_FILE_HASH));
+        }
+
+        private FakeStreamProducer(final CompletableFuture<Bytes> recordFileHashFuture) {
+            this.recordFileHashFuture = requireNonNull(recordFileHashFuture);
+        }
 
         @Override
         public void initRunningHash(final com.hedera.hapi.node.state.blockrecords.RunningHashes runningHashes) {
@@ -1688,11 +1698,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         }
 
         @Override
-        public void switchBlocks(
+        public CompletableFuture<Bytes> switchBlocks(
                 final long lastBlockNumber,
                 final long newBlockNumber,
                 final java.time.Instant newBlockFirstTransactionConsensusTime) {
-            // no-op
+            return recordFileHashFuture;
         }
 
         @Override
@@ -1807,7 +1817,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         seedRequiredState(app);
 
         final var state = requireNonNullState(app.workingStateAccessor().getState());
-        final var producer = new FakeStreamProducer();
+        final var recordFileHashFuture = new CompletableFuture<Bytes>();
+        final var producer = new FakeStreamProducer(recordFileHashFuture);
         final var controller = new QuiescenceController(
                 new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
@@ -1843,7 +1854,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         mgr.startUserTransaction(t1, state);
 
         assertEquals(1, handedOutWriters.size(), "one writer should have been handed out");
-        verify(blockHashSigner).sign(any(), eq(LIST_OF_PARTIAL_SIGNATURES));
+        verify(blockHashSigner, never()).sign(any(), eq(LIST_OF_PARTIAL_SIGNATURES));
+        recordFileHashFuture.complete(LEGACY_RECORD_FILE_HASH);
+        verify(blockHashSigner, timeout(1_000)).sign(eq(LEGACY_RECORD_FILE_HASH), eq(LIST_OF_PARTIAL_SIGNATURES));
 
         final var signatureBytes = Bytes.wrap("node-3-signature");
         final var rosterSignatures =

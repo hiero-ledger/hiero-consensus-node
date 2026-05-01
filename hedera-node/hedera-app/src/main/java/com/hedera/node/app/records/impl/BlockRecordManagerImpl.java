@@ -65,6 +65,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -140,6 +141,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * and the block is closed.
      */
     private final Map<Long, BlockItemWriter> openWrbWriters = new ConcurrentHashMap<>();
+    /**
+     * Futures for the legacy record file hashes signed by {@code BlockRecordWriter} close. Keyed by block number.
+     * WRB RSA signing waits on these futures so its signature list covers exactly the legacy record file hash.
+     */
+    private final Map<Long, CompletableFuture<Bytes>> recordFileHashFutures = new ConcurrentHashMap<>();
 
     private Bytes currentBlockStartRunningHash;
     private final List<RecordStreamItem> currentBlockRecordStreamItems = new ArrayList<>();
@@ -283,6 +289,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             }
         }
         openWrbWriters.clear();
+        recordFileHashFutures.clear();
     }
 
     // =================================================================================================================
@@ -560,8 +567,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * @param consensusTime the consensus time at which to switch to the current block
      */
     public void switchBlocksAt(@NonNull final Instant consensusTime) {
-        final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
-        streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), blockNo, consensusTime);
+        final long closedBlockNo = lastBlockInfo.lastBlockNumber();
+        final long blockNo = closedBlockNo + 1;
+        final var recordFileHashFuture = streamFileProducer.switchBlocks(closedBlockNo, blockNo, consensusTime);
+        observeRecordFileHash(closedBlockNo, recordFileHashFuture);
         if (streamMode == RECORDS) {
             quiescenceController.finishHandlingInProgressBlock();
             // All no-ops below if quiescence is disabled
@@ -570,6 +579,29 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 quiescenceController.blockFullySigned(blockNo - 1);
             }
         }
+    }
+
+    private void observeRecordFileHash(
+            final long blockNumber, @NonNull final CompletableFuture<Bytes> recordFileHashFuture) {
+        requireNonNull(recordFileHashFuture);
+        if (!streamWrbEnabled) {
+            return;
+        }
+        final var pending = recordFileHashFutures.get(blockNumber);
+        if (pending == null) {
+            // For blocks that started WRB RSA signing, signAndCloseWrbAsync() creates this future before
+            // switchBlocksAt() observes the writer close result. A missing future means no WRB signing pipeline was
+            // started for this block (e.g. empty records, restart boundary, disabled/gated wrapping, or writer setup
+            // failure), so there is nothing to complete.
+            return;
+        }
+        recordFileHashFuture.whenComplete((recordFileHash, t) -> {
+            if (t != null) {
+                pending.completeExceptionally(t);
+            } else {
+                pending.complete(requireNonNull(recordFileHash));
+            }
+        });
     }
 
     /**
@@ -719,7 +751,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     /**
-     * Initiates signing process over the wrapped record block hash and, once enough signatures are gathered,
+     * Initiates signing process over the legacy record file hash and, once enough signatures are gathered,
      * closes the WRB block with a footer and {@link SignedRecordFileProof}.
      */
     private void signAndCloseWrbAsync(
@@ -730,29 +762,37 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         requireNonNull(blockRootHash);
         requireNonNull(previousBlockRootHash);
         requireNonNull(allPrevBlocksRootHash);
+        final var recordFileHashFuture =
+                recordFileHashFutures.computeIfAbsent(blockNumber, ignore -> new CompletableFuture<>());
+        recordFileHashFuture
+                .whenComplete((ignore, t) -> recordFileHashFutures.remove(blockNumber, recordFileHashFuture))
+                .thenCompose(recordFileHash -> requestRecordFileSignatureList(blockNumber, recordFileHash))
+                .thenAcceptAsync(serializedRosterSignatures -> finishWrappedRecordBlockWithSignatureList(
+                        blockNumber,
+                        blockRootHash,
+                        previousBlockRootHash,
+                        allPrevBlocksRootHash,
+                        serializedRosterSignatures))
+                .exceptionally(t -> {
+                    logger.warn(
+                            "Unhandled exception while signing WRB block #{} after record file close", blockNumber, t);
+                    return null;
+                });
+    }
+
+    private CompletableFuture<Bytes> requestRecordFileSignatureList(
+            final long blockNumber, @NonNull final Bytes recordFileHash) {
+        requireNonNull(recordFileHash);
         try {
-            final var attempt = blockHashSigner.sign(blockRootHash, LIST_OF_PARTIAL_SIGNATURES);
-            attempt.signatureFuture()
-                    .thenAcceptAsync(serializedRosterSignatures -> finishWrappedRecordBlockWithSignatureList(
-                            blockNumber,
-                            blockRootHash,
-                            previousBlockRootHash,
-                            allPrevBlocksRootHash,
-                            serializedRosterSignatures))
-                    .exceptionally(t -> {
-                        logger.warn(
-                                "Unhandled exception while signing WRB block #{} with hash {}",
-                                blockNumber,
-                                blockRootHash,
-                                t);
-                        return null;
-                    });
+            final var attempt = blockHashSigner.sign(recordFileHash, LIST_OF_PARTIAL_SIGNATURES);
+            return attempt.signatureFuture();
         } catch (final RuntimeException e) {
             logger.warn(
-                    "Failed to request RSA signature list for WRB block #{} with hash {}",
+                    "Failed to request RSA signature list for WRB block #{} with record file hash {}",
                     blockNumber,
-                    blockRootHash,
+                    recordFileHash,
                     e);
+            return CompletableFuture.failedFuture(e);
         }
     }
 
