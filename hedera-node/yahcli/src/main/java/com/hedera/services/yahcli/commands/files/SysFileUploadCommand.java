@@ -107,15 +107,47 @@ public class SysFileUploadCommand implements Callable<Integer> {
 
         final var finalSpecs = delegate.getFinalSpecs();
         if (!finalSpecs.isEmpty()) {
-            if (finalSpecs.getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
+            final var spec = finalSpecs.getFirst();
+            if (spec.getStatus() == HapiSpec.SpecStatus.PASSED) {
                 config.output().info("SUCCESS - Uploaded all requested system files");
             } else {
-                config.output().warn("FAILED Uploading requested system files");
+                final var reason = describeFailure(spec.getCause());
+                config.output().warn("FAILED Uploading requested system files" + reason);
                 return 1;
             }
         }
 
         return 0;
+    }
+
+    static String describeFailure(final HapiSpec.Failure cause) {
+        if (cause == null) {
+            return "";
+        }
+        final var summary = summarizeCauseChain(cause.cause());
+        return summary.isEmpty() ? "" : " - " + summary;
+    }
+
+    static String summarizeCauseChain(final Throwable t) {
+        if (t == null) {
+            return "";
+        }
+        Throwable best = t;
+        Throwable cur = t;
+        int depth = 0;
+        while (cur != null && depth < 8) {
+            final var msg = cur.getMessage();
+            if (msg != null && !msg.isBlank()) {
+                best = cur;
+            }
+            if (cur.getCause() == cur) {
+                break;
+            }
+            cur = cur.getCause();
+            depth++;
+        }
+        final var msg = best.getMessage();
+        return best.getClass().getSimpleName() + (msg == null || msg.isBlank() ? "" : ": " + msg);
     }
 
     private boolean isSpecialFile(ConfigManager config) {
