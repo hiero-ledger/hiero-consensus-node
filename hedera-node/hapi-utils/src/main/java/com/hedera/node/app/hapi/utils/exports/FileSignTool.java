@@ -15,9 +15,6 @@ import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.SignatureFile;
 import com.hedera.services.stream.proto.SignatureObject;
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.stream.EventStreamType;
-import com.swirlds.common.stream.StreamType;
-import com.swirlds.common.stream.internal.StreamTypeFromJson;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -56,6 +53,9 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.event.stream.EventStreamType;
+import org.hiero.consensus.event.stream.StreamType;
+import org.hiero.consensus.event.stream.StreamTypeFromJson;
 
 /**
  * This is a standalone utility tool to generate signature files for event/record stream, and

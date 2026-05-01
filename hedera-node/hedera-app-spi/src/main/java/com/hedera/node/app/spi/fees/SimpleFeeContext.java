@@ -34,7 +34,8 @@ public interface SimpleFeeContext extends FeeContext {
     int numTxnBytes();
 
     /**
-     * Returns the wrapped {@link FeeContext} or null if none is available while handling a query.
+     * Returns the wrapped {@link FeeContext} or null if none is available while handling a query or
+     * doing a computation in intrinsic mode (i.e., without access to state).
      *
      * @return the wrapped fee context, or null if none is available
      */

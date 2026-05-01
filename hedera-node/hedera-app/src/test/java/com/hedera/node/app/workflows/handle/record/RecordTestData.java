@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
-import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
+import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.getPeriod;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;

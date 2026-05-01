@@ -5,6 +5,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.latestFreezeRoundOf;
 
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
@@ -12,8 +13,6 @@ import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.stream.ConsensusEventStream;
-import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
@@ -40,6 +39,8 @@ import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.stream.ConsensusEventStream;
+import org.hiero.consensus.event.stream.DefaultConsensusEventStream;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;
@@ -198,8 +199,11 @@ public class PlatformComponentBuilder {
     @NonNull
     public ConsensusEventStream buildConsensusEventStream() {
         if (consensusEventStream == null) {
+            final PlatformContext platformContext = blocks.platformContext();
             consensusEventStream = new DefaultConsensusEventStream(
-                    blocks.platformContext(),
+                    platformContext.getTime(),
+                    platformContext.getConfiguration(),
+                    platformContext.getMetrics(),
                     blocks.selfId(),
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.consensusEventStreamName(),

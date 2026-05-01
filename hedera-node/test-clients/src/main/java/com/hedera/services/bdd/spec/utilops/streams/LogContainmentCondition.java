@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Assertions;
 
@@ -30,6 +31,7 @@ final class LogContainmentCondition {
     private final Pattern pattern;
 
     private final List<Map.Entry<Integer, AtomicReference<String>>> groupCaptures = new ArrayList<>();
+    private boolean matchLast = false;
 
     LogContainmentCondition(
             @NonNull final ExternalPath path, @Nullable final String text, @Nullable final Pattern pattern) {
@@ -48,6 +50,13 @@ final class LogContainmentCondition {
         }
         groupCaptures.add(new AbstractMap.SimpleEntry<>(group, requireNonNull(ref)));
         return this;
+    }
+
+    void matchLast() {
+        if (pattern == null) {
+            throw new IllegalStateException("matchLast requires a pattern, not a text match");
+        }
+        this.matchLast = true;
     }
 
     void assertContainment(
@@ -100,11 +109,21 @@ final class LogContainmentCondition {
         if (!matcher.find()) {
             return new MatchResult(false, null);
         }
+        String[] captures = capturesOf(matcher);
+        if (matchLast) {
+            while (matcher.find()) {
+                captures = capturesOf(matcher);
+            }
+        }
+        return new MatchResult(true, captures);
+    }
+
+    private String[] capturesOf(@NonNull final Matcher matcher) {
         final var captures = new String[groupCaptures.size()];
         for (int i = 0; i < groupCaptures.size(); i++) {
             captures[i] = matcher.group(groupCaptures.get(i).getKey());
         }
-        return new MatchResult(true, captures);
+        return captures;
     }
 
     private void validateAgreedCaptures(@NonNull final String[] agreedCaptures, @Nullable final String[] nodeCaptures) {

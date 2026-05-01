@@ -57,6 +57,18 @@ public class LogContainmentOp extends UtilOp {
         return this;
     }
 
+    /**
+     * When using a pattern match, selects the last match in the log rather than the first.
+     * Useful when the same log line can repeat across multiple network lifecycles and
+     * only the most recent occurrence's capture groups are of interest.
+     *
+     * @return {@code this}
+     */
+    public LogContainmentOp matchingLast() {
+        condition.matchLast();
+        return this;
+    }
+
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
         doIfNotInterrupted(() -> MILLISECONDS.sleep(delay.toMillis()));

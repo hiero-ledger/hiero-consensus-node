@@ -16,7 +16,9 @@ import com.swirlds.platform.state.StateSignatureCollectorTester;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
@@ -139,6 +141,12 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
         }
 
         int expectedCompletedStateCount = 0;
+        // Track states that are evicted incomplete when a newer complete state arrives.
+        // Completing a state for round R releases all incomplete states older than R.
+        // These evicted states fire the stateLacksSignatures callback.
+        int expectedLacksSignaturesCount = 0;
+        // Keep track of which rounds were evicted so we know to skip signing them later.
+        final Set<Long> evictedRounds = new HashSet<>();
 
         long lastExpectedCompletedRound = -1;
 
@@ -150,10 +158,27 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
 
             manager.addReservedState(signedState.reserve("test"));
 
-            // Add some signatures to one of the previous states, but only if that round need signatures.
+            // When an even round < futureSignatures arrives, it is complete on arrival
+            // (3 early signatures). Eviction behavior releases all older incomplete
+            // states. The only older incomplete state is the previous odd round (if it exists
+            // and is < futureSignatures), because every even round < futureSignatures completes
+            // on arrival and every odd round < futureSignatures stays incomplete.
+            final boolean currentRoundShouldBeComplete = round < futureSignatures && round % 2 == 0;
+            if (currentRoundShouldBeComplete && round > 0) {
+                // The previous round is odd and < futureSignatures, so it was incomplete
+                // and just got evicted by this complete state arriving.
+                final long evictedRound = round - 1;
+                if (evictedRound > 0) {
+                    expectedLacksSignaturesCount++;
+                    evictedRounds.add(evictedRound);
+                }
+            }
+
+            // Add some signatures to one of the previous states, but only if that round needs
+            // signatures and hasn't already been evicted.
             final long roundToSign = round - roundAgeToSign;
 
-            if (roundToSign > 0) {
+            if (roundToSign > 0 && !evictedRounds.contains(roundToSign)) {
                 if (roundToSign >= futureSignatures) {
                     addSignature(
                             manager,
@@ -181,12 +206,16 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
                 }
             }
 
-            final boolean currentRoundShouldBeComplete = round < futureSignatures && round % 2 == 0;
             if (currentRoundShouldBeComplete) {
                 expectedCompletedStateCount++;
                 lastExpectedCompletedRound = round;
             } else {
-                lastExpectedCompletedRound = Math.max(lastExpectedCompletedRound, roundToSign);
+                // Only update lastExpectedCompletedRound if the round actually completed
+                // (not if it was evicted). Evicted rounds go through the "lacks signatures"
+                // path and do NOT update the LatestCompleteStateNexus.
+                if (roundToSign > 0 && !evictedRounds.contains(roundToSign)) {
+                    lastExpectedCompletedRound = Math.max(lastExpectedCompletedRound, roundToSign);
+                }
             }
 
             try (final ReservedSignedState lastCompletedState =
@@ -197,7 +226,7 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
                         "unexpected last completed state");
             }
 
-            validateCallbackCounts(0, expectedCompletedStateCount);
+            validateCallbackCounts(expectedLacksSignaturesCount, expectedCompletedStateCount);
         }
 
         // Check reservation counts.
@@ -206,6 +235,8 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
         // We don't expect any further callbacks. But wait a little while longer in case there is something unexpected.
         SECONDS.sleep(1);
 
-        validateCallbackCounts(0, count - roundAgeToSign);
+        // The total completed count is (count - roundAgeToSign) minus the evicted rounds that
+        // never got a chance to complete via deferred signing.
+        validateCallbackCounts(expectedLacksSignaturesCount, count - roundAgeToSign - evictedRounds.size());
     }
 }
