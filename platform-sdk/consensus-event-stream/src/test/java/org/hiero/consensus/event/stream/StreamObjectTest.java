@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream;
 
-import static com.swirlds.common.io.utility.FileUtils.deleteDirectory;
-import static com.swirlds.common.stream.LinkedObjectStreamUtilities.generateStreamFileNameFromInstant;
-import static com.swirlds.common.stream.internal.StreamValidationResult.OK;
-import static com.swirlds.common.stream.internal.StreamValidationResult.SIG_FILE_COUNT_MISMATCH;
-import static com.swirlds.common.stream.internal.StreamValidationResult.START_HASH_NOT_MATCH;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static org.hiero.base.file.FileUtils.deleteDirectory;
 import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.generateStreamFileNameFromInstant;
