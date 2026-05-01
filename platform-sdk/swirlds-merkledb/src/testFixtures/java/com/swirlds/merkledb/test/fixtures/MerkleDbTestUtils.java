@@ -9,7 +9,7 @@ import static org.mockito.Mockito.mock;
 
 import com.sun.management.HotSpotDiagnosticMXBean;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
+import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -70,7 +70,7 @@ public class MerkleDbTestUtils {
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(MerkleDbConfig.class)
             .withConfigDataType(VirtualMapConfig.class)
-            .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(FileSystemConfig.class)
             .build();
 
     /**

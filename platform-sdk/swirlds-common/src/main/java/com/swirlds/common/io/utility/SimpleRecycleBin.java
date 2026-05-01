@@ -13,7 +13,7 @@ public class SimpleRecycleBin implements RecycleBin {
     @Override
     public void recycle(@NonNull final Path path) throws IOException {
         // deletes files as well, even though the name might be misleading
-        FileUtils.deleteDirectory(path);
+        org.hiero.base.file.FileUtils.deleteDirectory(path);
     }
 
     @Override

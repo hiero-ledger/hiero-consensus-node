@@ -340,32 +340,4 @@ public final class AssertionUtils {
         assertFalse(iteratorA.hasNext(), "iterator A is not depleted");
         assertFalse(iteratorB.hasNext(), "iterator B is not depleted");
     }
-
-    /**
-     * Validate that two double values are approximately equal. Useful for testing values that may have accumulated
-     * floating point errors.
-     *
-     * @param expected
-     * 		the expected value
-     * @param actual
-     * 		the actual value
-     * @param tolerance
-     * 		the permitted tolerance
-     */
-    public static void assertApproximatelyEquals(final double expected, final double actual, final double tolerance) {
-        assertTrue(Math.abs(expected - actual) <= tolerance, "expected: " + expected + ", actual: " + actual);
-    }
-
-    /**
-     * Validate that two double values are approximately equal. Useful for testing values that may have accumulated
-     * floating point errors.
-     *
-     * @param expected
-     * 		the expected value
-     * @param actual
-     * 		the actual value
-     */
-    public static void assertApproximatelyEquals(final double expected, final double actual) {
-        assertApproximatelyEquals(expected, actual, 0.000001);
-    }
 }

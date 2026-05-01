@@ -43,7 +43,7 @@ import org.mockito.MockedConstruction;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBase {
+class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBase {
 
     private static final VarHandle isConnectionManagerActiveHandle;
     private static final VarHandle blockNodesHandle;
@@ -183,7 +183,7 @@ public class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicatio
                     when(mock.configuration()).thenReturn(nodeConfig);
                     when(mock.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
                     when(mock.autoResetTimestamp()).thenReturn(Instant.now().plusSeconds(180));
-                    when(mock.heartbeatTimestamp()).thenReturn(System.currentTimeMillis());
+                    when(mock.connectionStatistics()).thenReturn(new StreamingConnectionStatistics());
                 })) {
             invoke_updateConnectionIfNeeded();
 
@@ -242,6 +242,7 @@ public class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicatio
         updateConnectionIfNeededHandle.invoke(connectionManager);
     }
 
+    @SuppressWarnings("unchecked")
     ConcurrentMap<BlockNodeEndpoint, BlockNode> blockNodes() {
         return (ConcurrentMap<BlockNodeEndpoint, BlockNode>) blockNodesHandle.get(connectionManager);
     }

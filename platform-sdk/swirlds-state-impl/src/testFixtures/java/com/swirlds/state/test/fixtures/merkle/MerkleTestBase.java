@@ -12,9 +12,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.test.fixtures.TestFileSystemManager;
+import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
@@ -36,6 +34,7 @@ import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.base.file.FileSystemManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;
@@ -65,7 +64,7 @@ public class MerkleTestBase extends StateTestBase {
     protected final Configuration CONFIGURATION = ConfigurationBuilder.create()
             .withConfigDataType(VirtualMapConfig.class)
             .withConfigDataType(MerkleDbConfig.class)
-            .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(FileSystemConfig.class)
             .withConfigDataType(CryptoConfig.class)
             .build();
 

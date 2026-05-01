@@ -74,6 +74,13 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * @param maxThreadsPerFileChannel
  *    Maximum number of threads per file channel.
  * @param useDiskIndices if true, use disk-based indices to reduce off-heap memory usage
+ * @param consolidationMaxInputFileSizeMB
+ *      Maximum file size (MB) for consolidation candidates. Files larger than this are never
+ *      consolidated — they are the output of previous consolidation runs. This prevents
+ *      endless re-consolidation. A value of 0 disables consolidation entirely.
+ * @param consolidationMinFileCount
+ *      Minimum number of small files at a level before consolidation triggers. Prevents
+ *      pointless runs when only a few small files exist.
  */
 // spotless:off
 @ConfigData("merkleDb")
@@ -102,7 +109,9 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel,
-        @ConfigProperty(defaultValue = "false") boolean useDiskIndices){
+        @ConfigProperty(defaultValue = "false") boolean useDiskIndices,
+        @Min(0) @ConfigProperty(defaultValue = "50") long consolidationMaxInputFileSizeMB,
+        @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount){
 
     // spotless:on
 

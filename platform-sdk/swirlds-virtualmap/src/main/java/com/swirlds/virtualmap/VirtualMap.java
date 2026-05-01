@@ -22,7 +22,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.utility.Labeled;
@@ -66,6 +65,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.utility;
 
-import static com.swirlds.common.io.utility.FileUtils.deleteDirectory;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.Files.exists;
+import static org.hiero.base.file.FileUtils.deleteDirectory;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 
 import com.swirlds.base.state.Stoppable;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.config.RecycleBinConfig;
+import org.hiero.base.file.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
@@ -117,17 +117,17 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
             @NonNull final Time time,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final NodeId nodeId) {
-        final FileSystemManagerConfig fsmConfig = configuration.getConfigData(FileSystemManagerConfig.class);
+        final RecycleBinConfig recycleBinConfig = configuration.getConfigData(RecycleBinConfig.class);
         final Path recycleBinPath =
-                fileSystemManager.resolve(Path.of(fsmConfig.recycleBinDir())).resolve(nodeId.toString());
+                fileSystemManager.resolve(Path.of(recycleBinConfig.dirName())).resolve(nodeId.toString());
 
         return new RecycleBinImpl(
                 metrics,
                 threadManager,
                 time,
                 recycleBinPath,
-                fsmConfig.recycleBinMaximumFileAge(),
-                fsmConfig.recycleBinCollectionPeriod());
+                recycleBinConfig.maximumFileAge(),
+                recycleBinConfig.collectionPeriod());
     }
 
     /**

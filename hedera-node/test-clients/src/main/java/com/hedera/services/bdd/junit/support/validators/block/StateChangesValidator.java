@@ -60,8 +60,7 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.utility.Mnemonics;
+import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -93,6 +92,8 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Mnemonics;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 
@@ -290,9 +291,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         this.assertAtLeastOneWraps = assertAtLeastOneWraps;
 
         System.setProperty(
-                "hedera.app.properties.path",
-                pathToOverrideProperties.toAbsolutePath().toString());
-        System.setProperty(
                 "networkAdmin.upgradeSysFilesLoc",
                 pathToUpgradeSysFilesLoc.toAbsolutePath().toString());
         System.setProperty("tss.hintsEnabled", "" + (hintsEnabled == HintsEnabled.YES));
@@ -308,7 +306,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var servicesVersion = versionConfig.servicesVersion();
         final var metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
-        final var fileSystemManager = FileSystemManager.create(platformConfig);
+        final var fileSystemConfig = platformConfig.getConfigData(FileSystemConfig.class);
+        final var fileSystemManager = new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir());
         final var hedera = ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, Time.getCurrent());
         this.stateLifecycleManager = hedera.getStateLifecycleManager();
         final var genesisState = hedera.getStateLifecycleManager().getMutableState();

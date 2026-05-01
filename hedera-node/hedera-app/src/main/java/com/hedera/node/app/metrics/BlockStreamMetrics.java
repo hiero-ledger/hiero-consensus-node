@@ -3,6 +3,7 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.blocks.impl.streaming.CloseReason;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
@@ -77,6 +78,7 @@ public class BlockStreamMetrics {
     private RunningAverageMetric conn_blockClosedToAckLatency;
     private RunningAverageMetric conn_headerSentToBlockEndSentLatency;
     private LongGauge conn_activeConnectionCount;
+    private final Map<CloseReason, Counter> conn_closeReasonCounters = new EnumMap<>(CloseReason.class);
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -386,6 +388,13 @@ public class BlockStreamMetrics {
                         CATEGORY, GROUP_CONN + "_activeConnectionCount")
                 .withDescription("Current number of active streaming connections to block nodes");
         conn_activeConnectionCount = metrics.getOrCreate(activeConnectionCountCfg);
+
+        for (final CloseReason closeReason : CloseReason.values()) {
+            final String metricName = "connClose_" + toCamelCase(closeReason.name());
+            final Counter.Config cfg = newCounter(GROUP_CONN, metricName)
+                    .withDescription("Number of connections closed with reason " + closeReason.name());
+            conn_closeReasonCounters.put(closeReason, metrics.getOrCreate(cfg));
+        }
     }
 
     /**
@@ -427,9 +436,13 @@ public class BlockStreamMetrics {
 
     /**
      * Record that a connection to a block node was closed.
+     *
+     * @param closeReason the reason why the connection was closed
      */
-    public void recordConnectionClosed() {
+    public void recordConnectionClosed(@NonNull final CloseReason closeReason) {
+        requireNonNull(closeReason, "Close reason is required");
         conn_closedCounter.increment();
+        conn_closeReasonCounters.get(closeReason).increment();
     }
 
     /**

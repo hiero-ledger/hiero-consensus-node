@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pces.impl.copy;
 
-import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -18,6 +17,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.impl.common.PcesFile;
@@ -75,7 +75,7 @@ public final class BestEffortPcesFileCopy {
         while (triesRemaining > 0) {
             triesRemaining--;
             try {
-                executeAndRename(
+                FileUtils.executeAndRename(
                         fileSystemManager,
                         pcesDestination,
                         temporaryDirectory -> copyPcesFiles(configuration, selfId, temporaryDirectory, lowerBound),

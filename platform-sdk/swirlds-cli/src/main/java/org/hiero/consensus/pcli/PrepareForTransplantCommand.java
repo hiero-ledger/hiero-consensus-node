@@ -3,7 +3,8 @@ package org.hiero.consensus.pcli;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.config.FileSystemConfig;
+import org.hiero.base.file.FileSystemManager;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -67,12 +68,13 @@ public class PrepareForTransplantCommand extends AbstractCommand {
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final FileSystemConfig fileSystemConfig = configuration.getConfigData(FileSystemConfig.class);
 
         final PlatformContext platformContext = PlatformContext.create(
                 configuration,
                 Time.getCurrent(),
                 new NoOpMetrics(),
-                FileSystemManager.create(configuration),
+                new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir()),
                 new SimpleRecycleBin());
 
         System.out.println("Transplanting state from: " + statePath);

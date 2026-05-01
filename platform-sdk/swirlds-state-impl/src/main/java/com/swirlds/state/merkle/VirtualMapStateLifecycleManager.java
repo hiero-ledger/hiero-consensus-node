@@ -8,7 +8,6 @@ import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -23,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileSystemManager;
 
 /**
  * This class is responsible for maintaining references to the mutable state and the latest immutable state.

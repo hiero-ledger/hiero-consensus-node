@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
@@ -17,6 +15,8 @@ import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -46,7 +46,8 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.config.FileSystemConfig;
+import org.hiero.base.file.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -148,7 +149,8 @@ public class ServicesMain {
             throw new ConfigurationException();
         }
         final var platformConfig = buildPlatformConfig();
-        final var fileSystemManager = FileSystemManager.create(platformConfig);
+        final var fileSystemConfig = platformConfig.getConfigData(FileSystemConfig.class);
+        final var fileSystemManager = new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir());
 
         final var selfId = commandLineArgs.localNodesToStart().stream()
                 .findFirst()

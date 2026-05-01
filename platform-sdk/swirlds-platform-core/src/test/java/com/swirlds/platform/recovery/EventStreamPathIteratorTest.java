@@ -1,16 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
-import static com.swirlds.platform.recovery.RecoveryTestUtils.generateRandomEvents;
-import static com.swirlds.platform.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static com.swirlds.platform.recovery.internal.EventStreamLowerBound.UNBOUNDED;
+import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.generateRandomEvents;
+import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static org.hiero.base.CompareTo.isLessThan;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.platform.recovery.internal.EventStreamLowerBound;
 import com.swirlds.platform.recovery.internal.EventStreamPathIterator;
 import com.swirlds.platform.recovery.internal.EventStreamRoundLowerBound;
@@ -28,6 +27,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Random;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

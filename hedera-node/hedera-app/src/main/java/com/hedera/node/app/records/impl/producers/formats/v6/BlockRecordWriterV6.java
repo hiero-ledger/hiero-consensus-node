@@ -14,8 +14,8 @@ import static com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordF
 import static com.hedera.node.app.records.impl.producers.formats.v6.SignatureWriterV6.writeSignatureFile;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
-import static com.swirlds.common.stream.LinkedObjectStreamUtilities.convertInstantToStringWithPadding;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.convertInstantToStringWithPadding;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;

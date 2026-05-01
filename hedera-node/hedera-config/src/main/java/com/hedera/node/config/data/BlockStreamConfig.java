@@ -74,12 +74,17 @@ public record BlockStreamConfig(
         int blockFileBufferGzipSizeKb,
 
         @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean enableCutover) {
+        boolean enableCutover,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean streamWrappedRecordBlocks) {
 
     /**
-     * Whether to stream to block nodes.
+     * Whether the node should maintain an active stream to block nodes — true when the main
+     * stream writes via gRPC <b>or</b> the WRB path is enabled (the WRB writer also publishes
+     * through {@code BlockBufferService}).
      */
     public boolean streamToBlockNodes() {
-        return writerMode != BlockStreamWriterMode.FILE;
+        return writerMode != BlockStreamWriterMode.FILE || streamWrappedRecordBlocks;
     }
 }

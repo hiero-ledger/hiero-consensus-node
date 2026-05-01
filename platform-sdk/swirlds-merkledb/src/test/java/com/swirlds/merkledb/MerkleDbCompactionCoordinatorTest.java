@@ -4,12 +4,14 @@ package com.swirlds.merkledb;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyDoesNotThrow;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
+import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -70,7 +72,9 @@ class MerkleDbCompactionCoordinatorTest {
                 defaultConfig.leafRecordCacheSize(),
                 defaultConfig.maxFileChannelsPerFileReader(),
                 defaultConfig.maxThreadsPerFileChannel(),
-                defaultConfig.useDiskIndices());
+                defaultConfig.useDiskIndices(),
+                defaultConfig.consolidationMaxInputFileSizeMB(),
+                defaultConfig.consolidationMinFileCount());
         coordinator = new MerkleDbCompactionCoordinator(config);
         coordinator.enableBackgroundCompaction();
     }
@@ -260,7 +264,7 @@ class MerkleDbCompactionCoordinatorTest {
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
             taskStarted.countDown();
-            releaseTask.await(5, TimeUnit.SECONDS);
+            releaseTask.await(2, TimeUnit.SECONDS);
             return true;
         });
         when(compactor.getDataFileCollection()).thenReturn(fileCollection);
@@ -285,13 +289,22 @@ class MerkleDbCompactionCoordinatorTest {
         publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
 
         final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
         final DataFileCompactor compactor = mock(DataFileCompactor.class);
         when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
             taskStarted.countDown();
-            Thread.sleep(10_000);
+            releaseTask.await(5, TimeUnit.SECONDS);
             return true;
         });
         when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        // Make interruptCompaction() release the latch
+        doAnswer(_ -> {
+                    releaseTask.countDown();
+                    return null;
+                })
+                .when(compactor)
+                .interruptCompaction();
 
         coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
         assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
@@ -303,85 +316,188 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     // ========================================================================
-    // splitIntoGroups tests
+    // Consolidation task submission tests
     // ========================================================================
 
     @Test
-    void testSplitIntoGroupsSingleGroup() {
-        // Three files, projected alive: 300, 200, 400 = 900 total
-        // Cap = 1000 → all fit in one group
-        final DataFileReader f1 = mockFileReader(1, 0, 100, 600);
-        final DataFileReader f2 = mockFileReader(2, 0, 100, 400);
-        final DataFileReader f3 = mockFileReader(3, 0, 100, 800);
+    void testConsolidationSubmitsTaskForSmallFiles() throws InterruptedException, IOException {
+        // 12 small clean files at level 0, each 5 MB, all alive (d/a = 0.0 → not garbage-eligible)
+        // consolidationMaxInputFileSizeMB = 50, consolidationMinFileCount = 10
+        final MerkleDbConfig consolidationConfig = configWithConsolidation(50, 10);
+        final List<DataFileReader> smallFiles = new ArrayList<>();
+        final List<StatsEntry> statsEntries = new ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            final DataFileReader f = mockFileReader(i, 0, 100, 5 * 1024 * 1024); // 5 MB
+            smallFiles.add(f);
+            statsEntries.add(new StatsEntry(f, 100)); // all alive → d/a = 0.0
+        }
 
-        final IndexedGarbageFileStats stats =
-                buildStats(new StatsEntry(f1, 50), new StatsEntry(f2, 50), new StatsEntry(f3, 50));
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(smallFiles);
 
-        final List<List<DataFileReader>> groups =
-                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(f1, f2, f3), 1000, stats);
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(statsEntries.toArray(StatsEntry[]::new)));
 
-        assertEquals(1, groups.size());
-        assertEquals(List.of(f1, f2, f3), groups.getFirst());
+        final CountDownLatch taskDone = new CountDownLatch(1);
+        final List<DataFileReader> compactedFiles = new ArrayList<>();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            compactedFiles.addAll(invocation.getArgument(0));
+            taskDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, consolidationConfig);
+
+        assertTrue(taskDone.await(2, TimeUnit.SECONDS), "Consolidation task should complete");
+
+        // All 12 files should be consolidated (no garbage tasks were submitted since d/a = 0)
+        assertEquals(12, compactedFiles.size(), "All small files should be consolidated");
     }
 
     @Test
-    void testSplitIntoGroupsMultipleGroups() {
-        // f1: 50% alive, size=600 → projected = 300
-        // f2: 50% alive, size=400 → projected = 200
-        // f3: 50% alive, size=800 → projected = 400
-        // Cap = 500 → f1+f2(500) fits; adding f3 = 900 → split
-        final DataFileReader f1 = mockFileReader(1, 0, 100, 600);
-        final DataFileReader f2 = mockFileReader(2, 0, 100, 400);
-        final DataFileReader f3 = mockFileReader(3, 0, 100, 800);
+    void testConsolidationSkipsWhenBelowMinFileCount() throws InterruptedException, IOException {
+        // 5 small files, but minFileCount = 10 → no consolidation
+        final MerkleDbConfig consolidationConfig = configWithConsolidation(50, 10);
+        final List<DataFileReader> smallFiles = new ArrayList<>();
+        final List<StatsEntry> statsEntries = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            final DataFileReader f = mockFileReader(i, 0, 100, 5 * 1024 * 1024);
+            smallFiles.add(f);
+            statsEntries.add(new StatsEntry(f, 100));
+        }
 
-        final IndexedGarbageFileStats stats =
-                buildStats(new StatsEntry(f1, 50), new StatsEntry(f2, 50), new StatsEntry(f3, 50));
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(statsEntries.toArray(StatsEntry[]::new)));
 
-        final List<List<DataFileReader>> groups =
-                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(f1, f2, f3), 500, stats);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, consolidationConfig);
 
-        assertEquals(2, groups.size());
-        assertEquals(List.of(f1, f2), groups.get(0));
-        assertEquals(List.of(f3), groups.get(1));
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
+        verify(compactor, never()).compactSingleLevel(anyList(), anyInt());
     }
 
     @Test
-    void testSplitIntoGroupsOversizedFileGetsOwnGroup() {
-        // Single file projected alive (500) exceeds cap (100)
-        // Must still be included — at least one file per group
-        final DataFileReader big = mockFileReader(1, 0, 100, 1000);
+    void testConsolidationSkipsFilesAboveSizeThreshold() throws InterruptedException, IOException {
+        // 12 files: 10 small (5 MB) + 2 large (100 MB)
+        // Only the 10 small files should be candidates
+        final MerkleDbConfig consolidationConfig = configWithConsolidation(50, 10);
+        final List<DataFileReader> files = new ArrayList<>();
+        final List<StatsEntry> statsEntries = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            final DataFileReader f = mockFileReader(i, 0, 100, 5 * 1024 * 1024); // 5 MB
+            files.add(f);
+            statsEntries.add(new StatsEntry(f, 100));
+        }
+        final DataFileReader large1 = mockFileReader(11, 0, 100, 100 * 1024 * 1024); // 100 MB
+        final DataFileReader large2 = mockFileReader(12, 0, 100, 100 * 1024 * 1024); // 100 MB
+        files.add(large1);
+        files.add(large2);
+        statsEntries.add(new StatsEntry(large1, 100));
+        statsEntries.add(new StatsEntry(large2, 100));
 
-        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(big, 50));
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(files);
 
-        final List<List<DataFileReader>> groups =
-                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(big), 100, stats);
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(statsEntries.toArray(StatsEntry[]::new)));
 
-        assertEquals(1, groups.size());
-        assertEquals(List.of(big), groups.getFirst());
+        final CountDownLatch taskDone = new CountDownLatch(1);
+        final List<DataFileReader> compactedFiles = new ArrayList<>();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            compactedFiles.addAll(invocation.getArgument(0));
+            taskDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, consolidationConfig);
+
+        assertTrue(taskDone.await(2, TimeUnit.SECONDS), "Consolidation task should complete");
+
+        // Only the 10 small files should be consolidated, not the 2 large ones
+        assertEquals(10, compactedFiles.size(), "Only small files should be consolidated");
+        assertFalse(compactedFiles.contains(large1), "Large file should not be consolidated");
+        assertFalse(compactedFiles.contains(large2), "Large file should not be consolidated");
     }
 
     @Test
-    void testSplitIntoGroupsDisabledWhenCapIsMaxValue() {
-        final DataFileReader f1 = mockFileReader(1, 0, 100, 1000);
-        final DataFileReader f2 = mockFileReader(2, 0, 100, 1000);
+    void testConsolidationSkipsFilesAlreadyAssignedToGarbageTasks() throws InterruptedException, IOException {
+        // 12 files at level 0: 2 dirty (garbage-eligible) + 10 small clean
+        // The 2 dirty files are also small. After garbage compaction absorbs some,
+        // consolidation should not re-include any file already assigned.
+        final MerkleDbConfig consolidationConfig = configWithConsolidation(50, 10);
+        final List<DataFileReader> files = new ArrayList<>();
+        final List<StatsEntry> statsEntries = new ArrayList<>();
 
-        final IndexedGarbageFileStats stats = buildStats(new StatsEntry(f1, 50), new StatsEntry(f2, 50));
+        // 2 dirty files at level 1 (d/a > 0.5)
+        final DataFileReader dirty1 = mockFileReader(1, 1, 100, 5 * 1024 * 1024);
+        final DataFileReader dirty2 = mockFileReader(2, 1, 100, 5 * 1024 * 1024);
+        files.add(dirty1);
+        files.add(dirty2);
+        statsEntries.add(new StatsEntry(dirty1, 20)); // d/a = 4.0
+        statsEntries.add(new StatsEntry(dirty2, 20)); // d/a = 4.0
 
-        // Long.MAX_VALUE → no splitting
-        final List<List<DataFileReader>> groups =
-                MerkleDbCompactionCoordinator.splitIntoGroups(List.of(f1, f2), Long.MAX_VALUE, stats);
+        // 10 clean files (d/a = 0.0)
+        for (int i = 3; i <= 12; i++) {
+            final DataFileReader f = mockFileReader(i, 0, 100, 5 * 1024 * 1024);
+            files.add(f);
+            statsEntries.add(new StatsEntry(f, 100));
+        }
 
-        assertEquals(1, groups.size());
-        assertEquals(2, groups.getFirst().size());
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(files);
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(statsEntries.toArray(StatsEntry[]::new)));
+
+        final List<List<DataFileReader>> allCompactedGroups = new ArrayList<>();
+        final CountDownLatch allTasksDone = new CountDownLatch(2); // garbage + consolidation
+        final AtomicInteger compactorCalls = new AtomicInteger();
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(invocation -> {
+            synchronized (allCompactedGroups) {
+                allCompactedGroups.add(new ArrayList<>(invocation.getArgument(0)));
+            }
+            allTasksDone.countDown();
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, consolidationConfig);
+
+        assertTrue(allTasksDone.await(2, TimeUnit.SECONDS), "Both tasks should complete");
+
+        // Verify no file appears in both a garbage group and a consolidation group
+        synchronized (allCompactedGroups) {
+            final Set<DataFileReader> allFiles = new HashSet<>();
+            for (final List<DataFileReader> group : allCompactedGroups) {
+                for (final DataFileReader f : group) {
+                    assertTrue(allFiles.add(f), "File " + f.getIndex() + " appears in multiple tasks");
+                }
+            }
+        }
     }
 
     @Test
-    void testSplitIntoGroupsEmptyCandidates() {
-        final IndexedGarbageFileStats stats = buildStats();
+    void testConsolidationDisabledWhenMaxInputSizeIsZero() throws InterruptedException, IOException {
+        // consolidationMaxInputFileSizeMB = 0 → disabled
+        final MerkleDbConfig consolidationConfig = configWithConsolidation(0, 2);
+        final List<DataFileReader> files = new ArrayList<>();
+        final List<StatsEntry> statsEntries = new ArrayList<>();
+        for (int i = 1; i <= 20; i++) {
+            final DataFileReader f = mockFileReader(i, 0, 100, 1024); // 1 KB — tiny
+            files.add(f);
+            statsEntries.add(new StatsEntry(f, 100)); // all alive
+        }
 
-        final List<List<DataFileReader>> groups = MerkleDbCompactionCoordinator.splitIntoGroups(List.of(), 1000, stats);
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(statsEntries.toArray(StatsEntry[]::new)));
 
-        assertTrue(groups.isEmpty());
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, consolidationConfig);
+
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
+        verify(compactor, never()).compactSingleLevel(anyList(), anyInt());
     }
 
     // ========================================================================
@@ -525,6 +641,122 @@ class MerkleDbCompactionCoordinatorTest {
         verify(file).resetCompactionInProgress();
     }
 
+    @Test
+    void testIsCompactionRunningDetectsGarbageCompactionTask() throws InterruptedException, IOException {
+        final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
+
+        final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            taskStarted.countDown();
+            releaseTask.await(2, TimeUnit.SECONDS);
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+        assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
+
+        assertTrue(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return true while a garbage compaction task is active");
+
+        releaseTask.countDown();
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
+        assertFalse(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return false after all tasks complete");
+    }
+
+    @Test
+    void testIsCompactionRunningDetectsConsolidationTask() throws InterruptedException, IOException {
+        // 12 small clean files → no garbage tasks, only consolidation
+        final MerkleDbConfig consolidationConfig = configWithConsolidation(50, 10);
+        final List<DataFileReader> smallFiles = new ArrayList<>();
+        final List<StatsEntry> statsEntries = new ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            final DataFileReader f = mockFileReader(i, 0, 100, 5 * 1024 * 1024);
+            smallFiles.add(f);
+            statsEntries.add(new StatsEntry(f, 100)); // all alive → d/a = 0.0
+        }
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(smallFiles);
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(statsEntries.toArray(StatsEntry[]::new)));
+
+        final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            taskStarted.countDown();
+            releaseTask.await(2, TimeUnit.SECONDS);
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, consolidationConfig);
+        assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Consolidation task didn't start");
+
+        assertTrue(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return true while a consolidation task is active");
+
+        releaseTask.countDown();
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
+        assertFalse(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return false after consolidation completes");
+    }
+
+    @Test
+    void testIsCompactionRunningReturnsFalseWhenNoTasksSubmitted() {
+        assertFalse(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should return false when no tasks have been submitted");
+    }
+
+    @Test
+    void testIsCompactionRunningDoesNotCrossStores() throws InterruptedException, IOException {
+        final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(level0File));
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(level0File, 20)));
+
+        final CountDownLatch taskStarted = new CountDownLatch(1);
+        final CountDownLatch releaseTask = new CountDownLatch(1);
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenAnswer(_ -> {
+            taskStarted.countDown();
+            releaseTask.await(2, TimeUnit.SECONDS);
+            return true;
+        });
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+        assertTrue(taskStarted.await(1, TimeUnit.SECONDS), "Compaction didn't start");
+
+        assertTrue(
+                coordinator.isCompactionRunning(ID_TO_HASH_CHUNK),
+                "isCompactionRunning should be true for the store with an active task");
+        assertFalse(
+                coordinator.isCompactionRunning(OBJECT_KEY_TO_PATH),
+                "isCompactionRunning should be false for a different store");
+
+        releaseTask.countDown();
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+    }
+
     // ========================================================================
     // Helper methods
     // ========================================================================
@@ -578,5 +810,35 @@ class MerkleDbCompactionCoordinatorTest {
         when(reader.getMetadata()).thenReturn(metadata);
         when(reader.getSize()).thenReturn(sizeBytes);
         return reader;
+    }
+
+    private MerkleDbConfig configWithConsolidation(int maxInputSizeMB, int minFileCount) {
+        final MerkleDbConfig d = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        return new MerkleDbConfig(
+                d.initialCapacity(),
+                d.maxNumOfKeys(),
+                d.hashesRamToDiskThreshold(),
+                d.hashStoreRamBufferSize(),
+                d.hashChunkCacheThreshold(),
+                d.hashStoreRamOffHeapBuffers(),
+                d.longListChunkSize(),
+                d.longListReservedBufferSize(),
+                d.compactionThreads(),
+                d.gcRateThreshold(),
+                d.maxCompactedFileSizeInMB(),
+                d.maxCompactionLevel(),
+                d.iteratorInputBufferBytes(),
+                d.reconnectKeyLeakMitigationEnabled(),
+                d.indexRebuildingEnforced(),
+                d.maxCompactionLevel(),
+                d.tablesToRepairHdhm(),
+                d.percentHalfDiskHashMapFlushThreads(),
+                d.numHalfDiskHashMapFlushThreads(),
+                d.leafRecordCacheSize(),
+                d.maxFileChannelsPerFileReader(),
+                d.maxThreadsPerFileChannel(),
+                d.useDiskIndices(),
+                maxInputSizeMB,
+                minFileCount);
     }
 }

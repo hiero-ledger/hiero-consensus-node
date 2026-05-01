@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import org.hiero.base.file.FileSystemManager;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
