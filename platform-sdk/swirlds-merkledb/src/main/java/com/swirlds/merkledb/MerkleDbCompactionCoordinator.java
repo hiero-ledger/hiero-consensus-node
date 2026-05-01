@@ -355,6 +355,13 @@ class MerkleDbCompactionCoordinator {
                         groups.size(),
                         level,
                         eligible.size());
+            } else {
+                logger.info(
+                        MERKLE_DB.getMarker(),
+                        "[{}] Submitted a compaction tasks for level {} ({} eligible files)",
+                        storeName,
+                        level,
+                        eligible.size());
             }
         }
         // Second pass: consolidation of small files regardless of garbage ratio
@@ -580,6 +587,13 @@ class MerkleDbCompactionCoordinator {
             if (alreadyAssigned.contains(reader)) {
                 continue;
             }
+            // If we include files at level 0, the consolidation gets too aggressive and does a lot of unnecessary work -
+            // level 0 files are naturally smaller, most likely will get stale soon and should be handled by either compaction or be absorbed.
+            // Without this limitation, consolidation would take care of these files as soon as the counter reaches minFileCount which
+            // oftentimes is unnecessary.
+            if(fs.compactionLevel() == 0) {
+                continue;
+            }
             if (reader.getSize() < consolidationMaxInputSizeBytes) {
                 smallFilesByLevel
                         .computeIfAbsent(fs.compactionLevel(), _ -> new ArrayList<>())
@@ -718,13 +732,16 @@ class MerkleDbCompactionCoordinator {
                 final Set<DataFileReader> currentFiles =
                         new HashSet<>(compactor.getDataFileCollection().getAllCompletedFiles());
                 final List<DataFileReader> validFiles =
-                        assignedFiles.stream().filter(currentFiles::contains).toList();
+                        assignedFiles.stream()
+                                .filter(currentFiles::contains)
+                                // Mark files as being compacted — scanner will skip them
+                                // If the file is already being compacted, skip it
+                                .filter(DataFileReader::setCompactionInProgress)
+                                .toList();
                 if (validFiles.isEmpty()) {
                     return false;
                 }
 
-                // Mark files as being compacted — scanner will skip them
-                validFiles.forEach(DataFileReader::setCompactionInProgress);
                 final int targetLevel = Math.min(sourceLevel + 1, config.maxCompactionLevel());
                 return compactor.compactSingleLevel(validFiles, targetLevel);
 

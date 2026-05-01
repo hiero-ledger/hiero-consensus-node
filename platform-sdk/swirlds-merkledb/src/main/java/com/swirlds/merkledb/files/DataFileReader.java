@@ -179,9 +179,10 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
 
     /**
      * Marks this file as being actively compacted.
+     * @return {@code true} if the compaction flag was set to {@code false} and the flag was set to
      */
-    public void setCompactionInProgress() {
-        compactionInProgress.set(true);
+    public boolean setCompactionInProgress() {
+        return compactionInProgress.compareAndSet(false, true);
     }
 
     /**
