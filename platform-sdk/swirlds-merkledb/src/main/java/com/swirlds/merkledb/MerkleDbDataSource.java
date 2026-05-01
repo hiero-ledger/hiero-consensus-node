@@ -839,9 +839,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         statisticsUpdater.countLeafReads();
         // Go ahead and lookup the value.
         final long leafChunkId = VirtualLeafChunk.pathToChunkId(path, leafChunkSize);
-        final VirtualLeafChunk leafChunk = VirtualLeafChunk.parseFrom(leafChunkStore.get(leafChunkId), leafChunkSize);
-        assert leafChunk != null && leafChunk.containsPath(path);
-        final VirtualLeafBytes<?> leafBytes = leafChunk.getLeaf(path);
+        final VirtualLeafBytes<?> leafBytes =
+                VirtualLeafChunk.parseLeafFrom(leafChunkStore.get(leafChunkId), path, leafChunkSize);
         assert leafBytes != null && leafBytes.keyBytes().equals(keyBytes);
 
         if (leafRecordCache != null) {

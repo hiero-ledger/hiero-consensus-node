@@ -10,6 +10,7 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
@@ -219,6 +220,54 @@ public class VirtualLeafBytes<V> {
                 }
                 final int len = in.readVarInt(false);
                 valueBytes = len == 0 ? Bytes.EMPTY : in.readBytes(len);
+            } else {
+                throw new IllegalArgumentException("Unknown field: " + field);
+            }
+        }
+
+        Objects.requireNonNull(keyBytes, "Missing key bytes in the input");
+
+        // Key hash code is not deserialized
+        return new VirtualLeafBytes<>(path, false, keyBytes, valueBytes);
+    }
+
+    /**
+     * This method is similar to {@link #parseFrom(ReadableSequentialData)}, but it assumes the
+     * input bytes will not be changed in the future. This allows skip copying some bytes back
+     * and forth and use array slices instead.
+     */
+    public static <V> VirtualLeafBytes<V> parseFromImmutableBytes(final byte[] bytes) {
+        if (bytes == null) {
+            return null;
+        }
+
+        long path = 0;
+        Bytes keyBytes = null;
+        Bytes valueBytes = null;
+
+        final BufferedData in = BufferedData.wrap(bytes);
+        while (in.hasRemaining()) {
+            final int field = in.readVarInt(false);
+            final int tag = field >> ProtoParserTools.TAG_FIELD_OFFSET;
+            if (tag == FIELD_LEAFRECORD_PATH.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                path = in.readLong();
+            } else if (tag == FIELD_LEAFRECORD_KEY.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                final int len = in.readVarInt(false);
+                keyBytes = Bytes.wrap(bytes, Math.toIntExact(in.position()), len);
+                in.skip(len);
+            } else if (tag == FIELD_LEAFRECORD_VALUE.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                final int len = in.readVarInt(false);
+                valueBytes = len == 0 ? Bytes.EMPTY : Bytes.wrap(bytes, Math.toIntExact(in.position()), len);
+                in.skip(len);
             } else {
                 throw new IllegalArgumentException("Unknown field: " + field);
             }

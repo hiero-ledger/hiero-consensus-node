@@ -7,14 +7,13 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public final class VirtualLeafChunk {
@@ -147,7 +146,9 @@ public final class VirtualLeafChunk {
                 }
                 final int leafLen = in.readVarInt(false);
                 // This creates a "clean" leaf
-                leaves.add(new EitherBytesOrLeaf(in.readBytes(leafLen)));
+                final byte[] leafBytes = new byte[leafLen];
+                in.readBytes(leafBytes);
+                leaves.add(new EitherBytesOrLeaf(leafBytes));
             } else {
                 throw new IllegalArgumentException("Unknown field: " + field);
             }
@@ -158,7 +159,7 @@ public final class VirtualLeafChunk {
         if ((firstNonNullLeafPath < firstChunkPath) || (firstNonNullLeafPath > lastChunkPath)) {
             throw new IllegalArgumentException("First non-null leaf path is out of range");
         }
-        if (leaves.size() == 0) {
+        if (leaves.isEmpty()) {
             throw new IllegalArgumentException("No leaves");
         }
 //        if (leaves.size() != size - (firstNonNullLeafPath - firstChunkPath)) {
@@ -172,6 +173,62 @@ public final class VirtualLeafChunk {
         }
 
         return chunk;
+    }
+
+    /// Parses a single leaf with a given path from the input.
+    ///
+    /// @throws IllegalArgumentException If the path is not in the leaf chunk
+    /// @throws IllegalArgumentException If the parsed leaf chunk size is different from the given size
+    public static VirtualLeafBytes<?> parseLeafFrom(final BufferedData in, final long path, final int size) {
+        // Leaf offsets (even) and lengths (odd) in the input
+        final int[] leafOffsetsAndLengths = new int[size * 2];
+        long firstNonNullLeafPath = 0;
+        int leafIndex = 0;
+        while (in.hasRemaining()) {
+            final int field = in.readVarInt(false);
+            final int tag = field >> ProtoParserTools.TAG_FIELD_OFFSET;
+            if (tag == FIELD_LEAFCHUNK_ID.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                in.readLong(); // skip chunk ID
+            } else if (tag == FIELD_LEAFCHUNK_SIZE.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_32_BIT.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                final int s = in.readInt();
+                if (size != s) {
+                    throw new IllegalArgumentException("Leaf chunk size mismatch: exp=" + size + ", act=" + s);
+                }
+            } else if (tag == FIELD_LEAFCHUNK_FIRSTPATH.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_64_BIT.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                firstNonNullLeafPath = in.readLong();
+            } else if (tag == FIELD_LEAFCHUNK_LEAF.number()) {
+                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
+                    throw new IllegalArgumentException("Wrong field type: " + field);
+                }
+                if (leafIndex >= size) {
+                    throw new IllegalArgumentException("Too many leafs in a leaf chunk");
+                }
+                final int leafLen = in.readVarInt(false);
+                leafOffsetsAndLengths[leafIndex * 2] = Math.toIntExact(in.position());
+                leafOffsetsAndLengths[leafIndex * 2 + 1] = leafLen;
+                leafIndex++;
+                in.skip(leafLen);
+            } else {
+                throw new IllegalArgumentException("Unknown field: " + field);
+            }
+        }
+
+        final int resultIndex = Math.toIntExact(path -  firstNonNullLeafPath);
+        if (resultIndex >= size) {
+            throw new IllegalArgumentException("Requested leaf is not in the chunk, path=" + path + ", first=" + firstNonNullLeafPath);
+        }
+        final int offset = leafOffsetsAndLengths[resultIndex * 2];
+        final int length = leafOffsetsAndLengths[resultIndex * 2 + 1];
+        return VirtualLeafBytes.parseFrom(in.slice(offset, length));
     }
 
     public int getSizeInBytes() {
@@ -263,39 +320,39 @@ public final class VirtualLeafChunk {
     private static class EitherBytesOrLeaf {
 
         // Null bytes indicate a dirty (updated) leaf
-        private final Bytes bytes;
+        private final byte[] bytes;
 
         private VirtualLeafBytes<?> leaf;
 
-        public EitherBytesOrLeaf(@NonNull final Bytes bytes) {
+        EitherBytesOrLeaf(@NonNull final byte[] bytes) {
             this.bytes = Objects.requireNonNull(bytes);
             this.leaf = null;
         }
 
-        public EitherBytesOrLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
+        EitherBytesOrLeaf(@NonNull final VirtualLeafBytes<?> leaf) {
             this.bytes = null;
             this.leaf = Objects.requireNonNull(leaf);
         }
 
-        public VirtualLeafBytes<?> leaf() {
+        VirtualLeafBytes<?> leaf() {
             if (leaf != null) {
                 return leaf;
             }
             assert bytes != null;
-            leaf = VirtualLeafBytes.parseFrom(bytes.toReadableSequentialData());
+            leaf = VirtualLeafBytes.parseFromImmutableBytes(bytes);
             return leaf;
         }
 
-        public int getSizeInBytes() {
+        int getSizeInBytes() {
             if (bytes != null) {
-                return Math.toIntExact(bytes.length());
+                return Math.toIntExact(bytes.length);
             } else {
                 assert leaf != null;
                 return leaf.getSizeInBytes();
             }
         }
 
-        public void writeTo(@NonNull final WritableSequentialData out) {
+        void writeTo(@NonNull final WritableSequentialData out) {
             if (bytes != null) {
                 out.writeBytes(bytes);
             } else {
