@@ -182,7 +182,7 @@ public class NoopPcesModule implements PcesModule {
     public void copyPcesFilesRetryOnFailure(
             @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
-            @NonNull FileSystemManager fileSystemManager,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Path destinationDirectory,
             final long lowerBound,
             final long round) {

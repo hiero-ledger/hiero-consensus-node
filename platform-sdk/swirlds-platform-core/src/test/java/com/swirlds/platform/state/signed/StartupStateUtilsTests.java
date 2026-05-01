@@ -65,11 +65,14 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class StartupStateUtilsTests {
 
     /**
-     * Temporary directory provided by JUnit
+     * Location to save states
      */
     @TempDir
-    Path testDirectory;
+    Path savedStateDir;
 
+    /**
+     * Temporary directory for the FileSystemManager
+     */
     @TempDir
     Path fileSystemManagerTempDir;
 
@@ -84,9 +87,9 @@ public class StartupStateUtilsTests {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        FileUtils.deleteDirectory(testDirectory);
+        FileUtils.deleteDirectory(savedStateDir);
         signedStateFilePath = new SignedStateFilePath(new TestConfigBuilder()
-                .withValue("state.savedStateDirectory", testDirectory.toString())
+                .withValue("state.savedStateDirectory", savedStateDir.toString())
                 .getOrCreateConfig()
                 .getConfigData(StateCommonConfig.class));
         currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
@@ -107,7 +110,7 @@ public class StartupStateUtilsTests {
     @NonNull
     private PlatformContext buildContext(final boolean deleteInvalidStateFiles, @NonNull final RecycleBin recycleBin) {
         final Configuration configuration = new TestConfigBuilder()
-                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, testDirectory.toString())
+                .withValue(StateCommonConfig_.SAVED_STATE_DIRECTORY, savedStateDir.toString())
                 .withValue(StateConfig_.DELETE_INVALID_STATE_FILES, deleteInvalidStateFiles)
                 .getOrCreateConfig();
 

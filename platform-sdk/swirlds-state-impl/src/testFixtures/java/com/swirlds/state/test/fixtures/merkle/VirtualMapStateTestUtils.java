@@ -22,6 +22,19 @@ public final class VirtualMapStateTestUtils {
 
     private static volatile FileSystemManager fallbackFileSystemManager;
 
+    /**
+     * Returns a process-wide singleton {@link FileSystemManager} for tests that don't need per-test
+     * file system isolation. The singleton is created lazily on first use.
+     *
+     * <p>A singleton is used rather than creating a new {@link TestFileSystemManager} on each call
+     * because each manager allocates a temp directory and registers a JVM shutdown hook to clean it
+     * up. Tests that call {@link #createTestState()} many times (e.g. via
+     * {@code RandomSignedStateGenerator}) would otherwise accumulate hundreds of temp directories
+     * and shutdown hooks in a single test run.
+     *
+     * <p>Prefer {@link #createTestState(FileSystemManager)} with a {@code @TempDir}-backed
+     * {@link TestFileSystemManager} when per-test isolation matters.
+     */
     private static FileSystemManager fallbackFileSystemManager() {
         FileSystemManager fsm = fallbackFileSystemManager;
         if (fsm == null) {

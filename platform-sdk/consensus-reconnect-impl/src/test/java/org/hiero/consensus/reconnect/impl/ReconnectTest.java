@@ -40,6 +40,7 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -66,7 +67,7 @@ final class ReconnectTest {
 
     private FileSystemManager fileSystemManager;
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setupFileSystemManager() {
         fileSystemManager = new TestFileSystemManager(tempDir);
     }

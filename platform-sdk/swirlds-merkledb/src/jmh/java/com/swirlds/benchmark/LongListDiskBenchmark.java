@@ -3,6 +3,7 @@ package com.swirlds.benchmark;
 
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
+import org.junit.jupiter.api.io.TempDir;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
@@ -34,6 +36,9 @@ public class LongListDiskBenchmark {
     @Param({"1000000"})
     public int chunkSize = 1_000_000;
 
+    @TempDir
+    Path tempDir;
+
     private Path srcFile;
 
     private Configuration configuration;
@@ -48,13 +53,13 @@ public class LongListDiskBenchmark {
                 .withConfigDataType(FileSystemManagerConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.longListChunkSize", "" + chunkSize));
         configuration = configurationBuilder.build();
-        fileSystemManager = FileSystemManager.create(configuration);
+        fileSystemManager = new TestFileSystemManager(tempDir);
         try (final LongListHeap list = new LongListHeap(1024, fileSize, 0)) {
             list.updateValidRange(0, fileSize - 1);
             for (int i = 0; i < fileSize; i++) {
                 list.put(i, i + 1);
             }
-            srcFile = Files.createTempFile("LongListDiskBenchmark", "input");
+            srcFile = fileSystemManager.resolveNewTemp("LongListDiskBenchmark.input");
             if (Files.exists(srcFile)) {
                 Files.delete(srcFile);
             }
