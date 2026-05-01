@@ -16,7 +16,6 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -244,10 +243,10 @@ public class RsaContext {
         }
 
         private RosterSignatures rosterSignatures() {
-            final var nodeSignatures = new ArrayList<>(signatures.entrySet().stream()
+            final var nodeSignatures = signatures.entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .map(entry -> new NodeSignature(entry.getKey(), entry.getValue()))
-                    .toList());
+                    .toList();
             return new RosterSignatures(rosterHash, nodeSignatures);
         }
     }
