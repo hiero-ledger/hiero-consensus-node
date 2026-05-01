@@ -20,6 +20,7 @@ module org.hiero.consensus.pces.impl {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.utility;
     requires com.hedera.pbj.runtime;
+    requires com.swirlds.common;
     requires com.swirlds.component.framework;
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;

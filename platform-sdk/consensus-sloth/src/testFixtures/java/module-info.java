@@ -26,6 +26,7 @@ module org.hiero.sloth.fixtures {
     requires transitive org.testcontainers;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.config.extensions;
+    requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.metrics;
