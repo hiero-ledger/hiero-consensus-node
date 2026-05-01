@@ -6,7 +6,7 @@ import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static java.math.RoundingMode.HALF_UP;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.statevalidation.report.Report;
+import com.hedera.statevalidation.report.StateReport;
 import com.hedera.statevalidation.report.StorageReport;
 import com.hedera.statevalidation.util.LongCountArray;
 import com.hedera.statevalidation.util.reflect.BucketIterator;
@@ -38,22 +38,22 @@ public final class StateAnalyzer {
     private StateAnalyzer() {}
 
     public static void analyzePathToKeyValueStorage(
-            @NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
+            @NonNull final StateReport report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
                 vds.getKeyValueStore().getFileCollection(),
                 vds.getPathToDiskLocationLeafNodes().size(),
-                Report::setPathToKeyValueReport,
+                StateReport::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
     }
 
     public static void analyzeKeyToPathValueStorage(
-            @NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
+            @NonNull final StateReport report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
                 vds.getKeyToPath().getFileCollection(),
                 vds.getKeyToPath().getBucketIndexToBucketLocation().size(),
-                Report::setKeyToPathReport,
+                StateReport::setKeyToPathReport,
                 obj -> {
                     final ParsedBucket bucket = new ParsedBucket();
                     bucket.readFrom(obj);
@@ -61,20 +61,21 @@ public final class StateAnalyzer {
                 });
     }
 
-    public static void analyzePathToHashStorage(@NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
+    public static void analyzePathToHashStorage(
+            @NonNull final StateReport report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
                 vds.getHashChunkStore().getFileCollection(),
                 vds.getIdToDiskLocationHashChunks().size(),
-                Report::setPathToHashReport,
+                StateReport::setPathToHashReport,
                 t -> VirtualHashChunk.parseFrom(t, vds.getHashChunkHeight()));
     }
 
     private static void updateReport(
-            @NonNull final Report report,
+            @NonNull final StateReport report,
             @NonNull final DataFileCollection dataFileCollection,
             long indexSize,
-            @NonNull final BiConsumer<Report, StorageReport> vmReportUpdater,
+            @NonNull final BiConsumer<StateReport, StorageReport> vmReportUpdater,
             @NonNull final Function<ReadableSequentialData, ?> deserializer) {
         final StorageReport storageReport = createStoreReport(dataFileCollection, indexSize, deserializer);
         final KeyRange validKeyRange = dataFileCollection.getValidKeyRange();
