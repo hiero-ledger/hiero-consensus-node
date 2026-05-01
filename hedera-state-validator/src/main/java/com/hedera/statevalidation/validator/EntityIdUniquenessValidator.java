@@ -214,6 +214,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
              Schedule = %s
             """, entityId, counter, token, account, contract, topic, file, schedule);
             log.error(errorMessage);
+            System.out.println(errorMessage);
             issuesFound.incrementAndGet();
         }
     }
