@@ -216,7 +216,7 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // saturation should fall back to low levels after switching to node 1
-                        "saturation=0.0%")));
+                        "saturation: 0.0%")));
     }
 
     @HapiTest
