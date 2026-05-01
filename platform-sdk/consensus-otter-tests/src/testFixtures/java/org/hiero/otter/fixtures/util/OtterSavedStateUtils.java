@@ -6,7 +6,6 @@ import static org.hiero.otter.fixtures.tools.GenerateStateTool.PCES_DIRECTORY;
 import static org.hiero.otter.fixtures.tools.GenerateStateTool.SAVE_STATE_DIRECTORY;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import org.hiero.base.file.FileUtils;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedReader;
@@ -15,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.app.OtterApp;
 

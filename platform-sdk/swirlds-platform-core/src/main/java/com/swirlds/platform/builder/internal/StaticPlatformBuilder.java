@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder.internal;
 
-import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.LOG4J_FILE_NAME;
 import static com.swirlds.platform.util.BootstrapUtils.startJVMPauseDetectorThread;
 import static com.swirlds.platform.util.BootstrapUtils.writeSettingsUsed;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.swirlds.common.startup.Log4jSetup;
 import com.swirlds.config.api.Configuration;

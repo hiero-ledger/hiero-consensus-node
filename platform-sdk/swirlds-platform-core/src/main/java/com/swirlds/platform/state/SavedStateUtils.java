@@ -2,7 +2,6 @@
 package com.swirlds.platform.state;
 
 import com.swirlds.common.context.PlatformContext;
-import org.hiero.base.file.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
-import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.tss.SequentialContentManager;

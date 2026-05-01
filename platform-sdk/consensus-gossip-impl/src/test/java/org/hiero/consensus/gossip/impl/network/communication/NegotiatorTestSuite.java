@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.network.communication;
 
-import org.hiero.base.io.IOConsumer;
 import java.io.IOException;
 import java.util.List;
+import org.hiero.base.io.IOConsumer;
 import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.ReadWriteFakeConnection;
 import org.hiero.consensus.gossip.impl.test.fixtures.communication.TestPeerProtocol;
