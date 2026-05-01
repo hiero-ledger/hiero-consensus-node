@@ -1176,6 +1176,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             BlockItem item;
 
             while ((item = block.blockItem(itemIndex)) != null) {
+                connStats.recordHeartbeat(System.currentTimeMillis());
+
                 if (itemIndex == 0) {
                     logger.trace(
                             "{} Starting to process items for block {}",
@@ -1379,6 +1381,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 return true;
             }
 
+            connStats.recordHeartbeat(System.currentTimeMillis());
             final BlockItemSet itemSet = BlockItemSet.newBuilder()
                     .blockItems(List.copyOf(pendingRequestItems))
                     .build();

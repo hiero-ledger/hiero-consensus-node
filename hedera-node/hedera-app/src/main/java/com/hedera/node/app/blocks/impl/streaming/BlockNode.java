@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -422,6 +423,13 @@ public class BlockNode {
     }
 
     /**
+     * @return the latest {@link BlockBufferConfig} configuration object
+     */
+    private BlockBufferConfig bufferConfig() {
+        return configProvider.getConfiguration().getConfigData(BlockBufferConfig.class);
+    }
+
+    /**
      * Reason for why a cool down is being applied.
      */
     sealed interface CoolDownReason permits ServiceConnectionFailure, DeviantConnectionClose, BlockNodeOutOfRange {}
@@ -453,8 +461,12 @@ public class BlockNode {
      * @param reason the reason for the cool down
      */
     void applyCoolDown(@NonNull final CoolDownReason reason) {
-        final int behindLowThreshold = bncConfig().numBlocksBehindLowThreshold();
-        final int behindHighThreshold = bncConfig().numBlocksBehindHighThreshold();
+        // convert the raw percentage values to fractions: 50.0 -> .500
+        final double behindLowThresholdPercent = bncConfig().numBlocksBehindLowThreshold() / 100.0D;
+        final double behindHighThresholdPercent = bncConfig().numBlocksBehindHighThreshold() / 100.0D;
+        final int maxBufferedBlocks = bufferConfig().maxBlocks();
+        final long behindHighThreshold = Math.round(maxBufferedBlocks * behindHighThresholdPercent);
+        final long behindLowThreshold = Math.round(maxBufferedBlocks * behindLowThresholdPercent);
 
         // spotless:off
         final CoolDownType coolDownType =
