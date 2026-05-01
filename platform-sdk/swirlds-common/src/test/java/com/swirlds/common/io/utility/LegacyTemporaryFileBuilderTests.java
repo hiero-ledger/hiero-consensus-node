@@ -22,7 +22,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

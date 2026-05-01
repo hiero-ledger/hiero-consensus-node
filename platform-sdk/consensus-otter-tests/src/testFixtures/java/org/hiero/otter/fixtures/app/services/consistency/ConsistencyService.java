@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;

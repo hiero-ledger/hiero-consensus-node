@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 
 /**
  * This class provides utility methods for constructing temporary files.

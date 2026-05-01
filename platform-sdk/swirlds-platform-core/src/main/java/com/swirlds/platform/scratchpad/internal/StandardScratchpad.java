@@ -37,7 +37,7 @@ import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

@@ -24,7 +24,7 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

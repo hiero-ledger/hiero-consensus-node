@@ -59,7 +59,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.hashgraph.EventWindow;

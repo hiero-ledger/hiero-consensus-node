@@ -17,7 +17,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.BasicConfig;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.model.node.NodeId;

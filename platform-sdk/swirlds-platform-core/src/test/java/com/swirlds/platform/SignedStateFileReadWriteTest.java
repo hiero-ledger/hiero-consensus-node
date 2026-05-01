@@ -46,7 +46,7 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.config.StateCommonConfig_;
+import com.swirlds.common.config.StateCommonConfig_;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.signed.SigSet;

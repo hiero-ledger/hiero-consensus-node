@@ -35,7 +35,7 @@ import java.util.LinkedList;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

@@ -22,7 +22,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

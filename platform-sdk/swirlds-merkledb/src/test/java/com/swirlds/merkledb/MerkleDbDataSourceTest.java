@@ -58,7 +58,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

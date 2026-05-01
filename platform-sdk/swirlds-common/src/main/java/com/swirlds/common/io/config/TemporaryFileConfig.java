@@ -3,7 +3,7 @@ package com.swirlds.common.io.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 
 /**
  * Settings for temporary files

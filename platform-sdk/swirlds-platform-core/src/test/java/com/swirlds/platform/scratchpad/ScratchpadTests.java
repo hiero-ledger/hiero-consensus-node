@@ -22,7 +22,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.config.StateCommonConfig_;
+import com.swirlds.common.config.StateCommonConfig_;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;

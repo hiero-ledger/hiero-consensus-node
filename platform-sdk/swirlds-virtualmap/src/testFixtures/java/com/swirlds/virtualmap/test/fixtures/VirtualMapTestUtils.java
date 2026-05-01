@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**

@@ -54,7 +54,7 @@ import javax.management.MBeanServer;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashBuilder;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;

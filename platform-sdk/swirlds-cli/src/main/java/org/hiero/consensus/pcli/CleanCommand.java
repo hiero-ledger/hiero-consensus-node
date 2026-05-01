@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import java.util.Objects;
 import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import picocli.CommandLine;
 
 @CommandLine.Command(

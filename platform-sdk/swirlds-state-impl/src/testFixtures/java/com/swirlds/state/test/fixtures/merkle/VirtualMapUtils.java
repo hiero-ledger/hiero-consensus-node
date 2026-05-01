@@ -12,7 +12,7 @@ import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 public final class VirtualMapUtils {
