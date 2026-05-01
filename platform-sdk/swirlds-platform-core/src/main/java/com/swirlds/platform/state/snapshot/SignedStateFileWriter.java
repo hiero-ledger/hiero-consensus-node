@@ -59,14 +59,10 @@ public final class SignedStateFileWriter {
      * human needs to decide what is contained within a signed state file. If the file already exists in the given
      * directory then it is overwritten.
      *
-     * @param platformContext the platform context
-     * @param state           the state that is being written
-     * @param directory       the directory where the state is being written
+     * @param directory the directory where the state is being written
+     * @param state     the state that is being written
      */
-    public static void writeHashInfoFile(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final Path directory,
-            @NonNull final VirtualMapState state)
+    public static void writeHashInfoFile(@NonNull final Path directory, @NonNull final VirtualMapState state)
             throws IOException {
         final String platformInfo = getInfoString(state);
 
@@ -165,9 +161,13 @@ public final class SignedStateFileWriter {
         final Configuration configuration = platformContext.getConfiguration();
         final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
         final SignedState signedState = reservedSignedState.get();
+        final long pcesLowerBound = ancientThresholdOf(signedState.getState());
+        final long round = signedState.getRound();
 
         Future<Void> snapshotFuture = null;
         try {
+            writeSnapshotSupplementalFiles(selfId, directory, signedState, configuration);
+
             if (stateConfig.saveStateAsync()
                     && StateToDiskReason.PERIODIC_SNAPSHOT.equals(signedState.getStateToDiskReason())) {
                 // Creating the snapshot asynchronously is the optimization which allows it to be created faster within
@@ -183,12 +183,12 @@ public final class SignedStateFileWriter {
                 reservedSignedState.close();
                 // Block until the snapshot is created.
                 snapshotFuture.get(stateConfig.asyncSnapshotTimeout(), TimeUnit.SECONDS);
-                writeSnapshotSupplementalFiles(platformContext, selfId, directory, signedState, configuration);
             } else {
                 stateLifecycleManager.createSnapshot(signedState.getState(), directory);
                 reservedSignedState.close();
-                writeSnapshotSupplementalFiles(platformContext, selfId, directory, signedState, configuration);
             }
+
+            copyPcesFiles(selfId, directory, configuration, pcesLowerBound, round);
         } catch (final TimeoutException e) {
             logger.error(
                     EXCEPTION.getMarker(),
@@ -244,38 +244,49 @@ public final class SignedStateFileWriter {
     /**
      * Write supplemental files for a state snapshot.
      *
-     * @param platformContext the platform context
-     * @param selfId          the id of the platform
-     * @param directory       the directory to write to
-     * @param signedState     the signed state being written
-     * @param configuration   the platform configuration
+     * @param selfId        the id of the platform
+     * @param directory     the directory to write to
+     * @param signedState   the signed state being written
+     * @param configuration the platform configuration
      */
     private static void writeSnapshotSupplementalFiles(
-            @NonNull final PlatformContext platformContext,
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
             @NonNull final SignedState signedState,
             @NonNull final Configuration configuration)
             throws IOException {
         writeSignatureSetFile(directory, signedState);
-        writeHashInfoFile(platformContext, directory, signedState.getState());
+        writeHashInfoFile(directory, signedState.getState());
         writeMetadataFile(selfId, directory, signedState);
         writeConsensusSnapshotFile(directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         writeRosterFile(directory, currentRoster);
         writeSettingsUsed(directory, configuration);
+    }
 
-        if (selfId != null) {
-            // This is a temporary measure that allows us to move this functionality into the consensus module
-            // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
-            final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
-            pcesModule.copyPcesFilesRetryOnFailure(
-                    configuration,
-                    selfId,
-                    directory,
-                    ancientThresholdOf(signedState.getState()),
-                    signedState.getRound());
+    /**
+     * Copy PCES files for a state snapshot.
+     *
+     * @param selfId        the id of the platform
+     * @param directory     the directory to write to
+     * @param configuration the platform configuration
+     * @param lowerBound    the lower bound of events that are non-ancient with respect to the saved state
+     * @param round         the round of the saved state
+     */
+    private static void copyPcesFiles(
+            @Nullable final NodeId selfId,
+            @NonNull final Path directory,
+            @NonNull final Configuration configuration,
+            final long lowerBound,
+            final long round) {
+        if (selfId == null) {
+            return;
         }
+
+        // This is a temporary measure that allows us to move this functionality into the consensus module
+        // with the minimal amount of refactoring. The whole approach has to be revisited (issue #23415).
+        final PcesModule pcesModule = ConsensusModuleBuilder.createModule(PcesModule.class, configuration);
+        pcesModule.copyPcesFilesRetryOnFailure(configuration, selfId, directory, lowerBound, round);
     }
 
     /**

@@ -95,7 +95,7 @@ class SignedStateFileReadWriteTest {
                 .setSoftwareVersion(platformVersion)
                 .build();
         final VirtualMapState state = signedState.getState();
-        writeHashInfoFile(platformContext, testDirectory, state);
+        writeHashInfoFile(testDirectory, state);
 
         final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");
