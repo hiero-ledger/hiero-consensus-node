@@ -139,9 +139,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
             }
         }
 
-        logger.info(STARTUP.getMarker(), """
-                        Scratchpad {} contents:
-                        {}""", id, table.render());
+        logger.info(STARTUP.getMarker(), "Scratchpad {} contents:\n{}", id, table.render());
     }
 
     /**
