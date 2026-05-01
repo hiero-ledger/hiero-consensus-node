@@ -18,7 +18,6 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.FileSystemConfig;
-import org.hiero.base.file.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
@@ -48,6 +47,7 @@ import java.util.Random;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.io.RecycleBin;

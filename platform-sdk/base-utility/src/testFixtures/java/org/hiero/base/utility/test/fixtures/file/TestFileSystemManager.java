@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures;
+package org.hiero.base.utility.test.fixtures.file;
 
 import static org.hiero.base.file.FileUtils.rethrowIO;
 
-import org.hiero.base.file.FileSystemManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 
 /**
@@ -14,10 +14,8 @@ import org.hiero.base.file.FileUtils;
  */
 public class TestFileSystemManager extends FileSystemManager {
 
-    private static final String TMP = "tmp";
-
     public TestFileSystemManager(@NonNull final Path rootLocation) {
-        super(rootLocation, TMP);
+        super(rootLocation);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> rethrowIO(() -> FileUtils.deleteDirectory(rootPath))));
     }
 }
