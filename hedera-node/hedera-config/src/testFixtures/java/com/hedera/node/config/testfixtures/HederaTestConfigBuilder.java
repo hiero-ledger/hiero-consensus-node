@@ -71,7 +71,7 @@ import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.config.validation.EmulatesMapValidator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
+import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -122,7 +122,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(StateCommonConfig.class)
                 .withConfigDataType(CryptoConfig.class)
                 .withConfigDataType(TemporaryFileConfig.class)
-                .withConfigDataType(FileSystemManagerConfig.class)
+                .withConfigDataType(FileSystemConfig.class)
                 .withConfigDataType(ReconnectConfig.class)
                 .withConfigDataType(MetricsConfig.class)
                 .withConfigDataType(PrometheusConfig.class)

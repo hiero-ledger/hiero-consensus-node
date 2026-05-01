@@ -12,6 +12,7 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.config.api.Configuration;
@@ -166,11 +167,13 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 .autoDiscoverExtensions()
                 .build();
 
+        final FileSystemConfig fileSystemConfig = configuration.getConfigData(FileSystemConfig.class);
+
         this.platformContext = PlatformContext.create(
                 configuration,
                 Time.getCurrent(),
                 new NoOpMetrics(),
-                FileSystemManager.create(configuration),
+                new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir()),
                 new SimpleRecycleBin());
 
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);

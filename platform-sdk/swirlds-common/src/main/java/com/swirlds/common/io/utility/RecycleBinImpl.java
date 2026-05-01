@@ -9,7 +9,7 @@ import static org.hiero.base.file.FileUtils.rethrowIO;
 
 import com.swirlds.base.state.Stoppable;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
+import com.swirlds.common.io.config.RecycleBinConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.IntegerGauge;
@@ -117,17 +117,17 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
             @NonNull final Time time,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final NodeId nodeId) {
-        final FileSystemManagerConfig fsmConfig = configuration.getConfigData(FileSystemManagerConfig.class);
+        final RecycleBinConfig recycleBinConfig = configuration.getConfigData(RecycleBinConfig.class);
         final Path recycleBinPath =
-                fileSystemManager.resolve(Path.of(fsmConfig.recycleBinDir())).resolve(nodeId.toString());
+                fileSystemManager.resolve(Path.of(recycleBinConfig.dirName())).resolve(nodeId.toString());
 
         return new RecycleBinImpl(
                 metrics,
                 threadManager,
                 time,
                 recycleBinPath,
-                fsmConfig.recycleBinMaximumFileAge(),
-                fsmConfig.recycleBinCollectionPeriod());
+                recycleBinConfig.maximumFileAge(),
+                recycleBinConfig.collectionPeriod());
     }
 
     /**
