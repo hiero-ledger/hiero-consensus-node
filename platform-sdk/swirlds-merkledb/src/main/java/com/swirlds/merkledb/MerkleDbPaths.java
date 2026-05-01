@@ -13,19 +13,23 @@ public class MerkleDbPaths {
 
     @Deprecated
     public final Path pathToDiskLocationInternalNodesFile;
+    @Deprecated
+    public final Path pathToDiskLocationLeafNodesFile;
 
     public final Path idToDiskLocationHashChunksFile;
-    public final Path pathToDiskLocationLeafNodesFile;
+    public final Path idToDiskLocationLeafChunksFile;
 
     @Deprecated
     public final Path hashStoreRamFile;
 
     @Deprecated
     public final Path hashStoreDiskDirectory;
+    @Deprecated
+    public final Path pathToKeyValueDirectory;
 
     public final Path hashChunkDirectory;
     public final Path keyToPathDirectory;
-    public final Path pathToKeyValueDirectory;
+    public final Path leafChunkDirectory;
 
     /**
      * Create a set of all the sub-paths for stored data in a MerkleDb data source.
@@ -39,10 +43,12 @@ public class MerkleDbPaths {
         pathToDiskLocationInternalNodesFile = storageDir.resolve("pathToDiskLocationInternalNodes.ll");
         idToDiskLocationHashChunksFile = storageDir.resolve("idToDiskLocationHashChunks.ll");
         pathToDiskLocationLeafNodesFile = storageDir.resolve("pathToDiskLocationLeafNodes.ll");
+        idToDiskLocationLeafChunksFile = storageDir.resolve("idToDiskLocationLeafChunks.ll");
         hashStoreRamFile = storageDir.resolve("internalHashStoreRam.hl");
         hashStoreDiskDirectory = storageDir.resolve("internalHashStoreDisk");
         hashChunkDirectory = storageDir.resolve("idToHashChunk");
         keyToPathDirectory = storageDir.resolve("objectKeyToPath");
         pathToKeyValueDirectory = storageDir.resolve("pathToHashKeyValue");
+        leafChunkDirectory = storageDir.resolve("idToLeafChunk");
     }
 }

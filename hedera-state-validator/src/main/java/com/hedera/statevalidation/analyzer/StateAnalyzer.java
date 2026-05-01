@@ -41,8 +41,8 @@ public final class StateAnalyzer {
             @NonNull final Report report, @NonNull final MerkleDbDataSource vds) {
         updateReport(
                 report,
-                vds.getKeyValueStore().getFileCollection(),
-                vds.getPathToDiskLocationLeafNodes().size(),
+                vds.getLeafChunkStore().getFileCollection(),
+                vds.getIdToDiskLocationLeafChunks().size(),
                 Report::setPathToKeyValueReport,
                 VirtualLeafBytes::parseFrom);
     }

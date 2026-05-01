@@ -319,40 +319,40 @@ public class VirtualHashChunkTest {
     @Test
     void minChunkIdForPathsTest2() {
         // Chunk height 2
-        assertEquals(0, VirtualHashChunk.lastChunkIdForPaths(1, 2));
-        assertEquals(0, VirtualHashChunk.lastChunkIdForPaths(3, 2));
-        assertEquals(0, VirtualHashChunk.lastChunkIdForPaths(4, 2));
-        assertEquals(0, VirtualHashChunk.lastChunkIdForPaths(6, 2));
-        assertEquals(1, VirtualHashChunk.lastChunkIdForPaths(7, 2));
-        assertEquals(2, VirtualHashChunk.lastChunkIdForPaths(9, 2));
-        assertEquals(4, VirtualHashChunk.lastChunkIdForPaths(14, 2));
-        assertEquals(4, VirtualHashChunk.lastChunkIdForPaths(15, 2));
-        assertEquals(4, VirtualHashChunk.lastChunkIdForPaths(18, 2));
-        assertEquals(4, VirtualHashChunk.lastChunkIdForPaths(22, 2));
-        assertEquals(4, VirtualHashChunk.lastChunkIdForPaths(29, 2));
-        assertEquals(4, VirtualHashChunk.lastChunkIdForPaths(30, 2));
-        assertEquals(5, VirtualHashChunk.lastChunkIdForPaths(31, 2));
-        assertEquals(20, VirtualHashChunk.lastChunkIdForPaths(63, 2));
+        assertEquals(0, VirtualHashChunk.lastChunkIdForPath(1, 2));
+        assertEquals(0, VirtualHashChunk.lastChunkIdForPath(3, 2));
+        assertEquals(0, VirtualHashChunk.lastChunkIdForPath(4, 2));
+        assertEquals(0, VirtualHashChunk.lastChunkIdForPath(6, 2));
+        assertEquals(1, VirtualHashChunk.lastChunkIdForPath(7, 2));
+        assertEquals(2, VirtualHashChunk.lastChunkIdForPath(9, 2));
+        assertEquals(4, VirtualHashChunk.lastChunkIdForPath(14, 2));
+        assertEquals(4, VirtualHashChunk.lastChunkIdForPath(15, 2));
+        assertEquals(4, VirtualHashChunk.lastChunkIdForPath(18, 2));
+        assertEquals(4, VirtualHashChunk.lastChunkIdForPath(22, 2));
+        assertEquals(4, VirtualHashChunk.lastChunkIdForPath(29, 2));
+        assertEquals(4, VirtualHashChunk.lastChunkIdForPath(30, 2));
+        assertEquals(5, VirtualHashChunk.lastChunkIdForPath(31, 2));
+        assertEquals(20, VirtualHashChunk.lastChunkIdForPath(63, 2));
     }
 
     @Test
     void minChunkIdForPathsTest3() {
         // Chunk height 3
-        assertEquals(0, VirtualHashChunk.lastChunkIdForPaths(1, 3));
-        assertEquals(0, VirtualHashChunk.lastChunkIdForPaths(4, 3));
-        assertEquals(0, VirtualHashChunk.lastChunkIdForPaths(11, 3));
-        assertEquals(1, VirtualHashChunk.lastChunkIdForPaths(15, 3));
-        assertEquals(2, VirtualHashChunk.lastChunkIdForPaths(17, 3));
-        assertEquals(8, VirtualHashChunk.lastChunkIdForPaths(29, 3));
-        assertEquals(8, VirtualHashChunk.lastChunkIdForPaths(32, 3));
-        assertEquals(8, VirtualHashChunk.lastChunkIdForPaths(66, 3));
-        assertEquals(8, VirtualHashChunk.lastChunkIdForPaths(100, 3));
-        assertEquals(9, VirtualHashChunk.lastChunkIdForPaths(127, 3));
-        assertEquals(10, VirtualHashChunk.lastChunkIdForPaths(129, 3));
-        assertEquals(72, VirtualHashChunk.lastChunkIdForPaths(255, 3));
-        assertEquals(72, VirtualHashChunk.lastChunkIdForPaths(256, 3));
-        assertEquals(72, VirtualHashChunk.lastChunkIdForPaths(512, 3));
-        assertEquals(73, VirtualHashChunk.lastChunkIdForPaths(1023, 3));
+        assertEquals(0, VirtualHashChunk.lastChunkIdForPath(1, 3));
+        assertEquals(0, VirtualHashChunk.lastChunkIdForPath(4, 3));
+        assertEquals(0, VirtualHashChunk.lastChunkIdForPath(11, 3));
+        assertEquals(1, VirtualHashChunk.lastChunkIdForPath(15, 3));
+        assertEquals(2, VirtualHashChunk.lastChunkIdForPath(17, 3));
+        assertEquals(8, VirtualHashChunk.lastChunkIdForPath(29, 3));
+        assertEquals(8, VirtualHashChunk.lastChunkIdForPath(32, 3));
+        assertEquals(8, VirtualHashChunk.lastChunkIdForPath(66, 3));
+        assertEquals(8, VirtualHashChunk.lastChunkIdForPath(100, 3));
+        assertEquals(9, VirtualHashChunk.lastChunkIdForPath(127, 3));
+        assertEquals(10, VirtualHashChunk.lastChunkIdForPath(129, 3));
+        assertEquals(72, VirtualHashChunk.lastChunkIdForPath(255, 3));
+        assertEquals(72, VirtualHashChunk.lastChunkIdForPath(256, 3));
+        assertEquals(72, VirtualHashChunk.lastChunkIdForPath(512, 3));
+        assertEquals(73, VirtualHashChunk.lastChunkIdForPath(1023, 3));
     }
 
     private static Hash genRandomHash() {

@@ -5,6 +5,7 @@ import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
 
@@ -91,6 +92,7 @@ public record MerkleDbConfig(
         @Deprecated @Positive @ConfigProperty(defaultValue = "1000000") int hashStoreRamBufferSize,
         @Min(0) @ConfigProperty(defaultValue = "262144") int hashChunkCacheThreshold,
         @Deprecated @ConfigProperty(defaultValue = "true") boolean hashStoreRamOffHeapBuffers,
+        @Min(2) @Max(1024) @ConfigProperty(defaultValue = "8") int leafChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES) int longListChunkSize,
         @Positive @ConfigProperty(defaultValue = "" + MEBIBYTES_TO_BYTES / 4) int longListReservedBufferSize,
         @Min(1) @ConfigProperty(defaultValue = "4") int compactionThreads,
@@ -104,7 +106,7 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "false") boolean indexRebuildingEnforced,
         @ConfigProperty(defaultValue = "32") int goodAverageBucketEntryCount,
         @ConfigProperty(defaultValue = "") String tablesToRepairHdhm,
-        @ConfigProperty(defaultValue = "75.0") double percentHalfDiskHashMapFlushThreads,
+        @ConfigProperty(defaultValue = "100.0") double percentHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "-1") int numHalfDiskHashMapFlushThreads,
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,

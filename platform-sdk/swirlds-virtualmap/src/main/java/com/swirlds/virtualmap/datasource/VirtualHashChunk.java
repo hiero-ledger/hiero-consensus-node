@@ -392,7 +392,7 @@ public class VirtualHashChunk {
      * @param chunkHeight Chunk height
      * @return Min chunk ID to cover all paths up to the given path
      */
-    public static long lastChunkIdForPaths(final long maxPath, final int chunkHeight) {
+    public static long lastChunkIdForPath(final long maxPath, final int chunkHeight) {
         assert maxPath > 0;
         // ID of a chunk that contains maxPath
         final long maxPathChunkId = pathToChunkId(maxPath, chunkHeight);

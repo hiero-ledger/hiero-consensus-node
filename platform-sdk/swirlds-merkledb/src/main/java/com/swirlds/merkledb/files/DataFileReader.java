@@ -501,15 +501,14 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
                     return readBuf;
                 }
                 // Otherwise read it separately
-                if (readBB.capacity() <= totalSize) {
+                if (readBB.capacity() < totalSize) {
                     readBB = ByteBuffer.allocate(totalSize);
                     BUFFER_CACHE.set(readBB);
                     readBuf = BufferedData.wrap(readBB);
                     BUFFEREDDATA_CACHE.set(readBuf);
-                } else {
-                    readBB.position(0);
-                    readBB.limit(totalSize);
                 }
+                readBB.position(0);
+                readBB.limit(totalSize);
                 bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile);
                 if (bytesRead != totalSize) {
                     throw new IOException("Failed to read all bytes: toread=" + totalSize + " read=" + bytesRead

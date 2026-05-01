@@ -145,7 +145,7 @@ public final class ValidationPipelineExecutor {
 
                 // Get data file collections
                 final DataFileCollection pathToKeyValueDfc =
-                        vds.getKeyValueStore().getFileCollection();
+                        vds.getLeafChunkStore().getFileCollection();
                 //noinspection DataFlowIssue
                 final DataFileCollection idToHashChunksDfc =
                         vds.getHashChunkStore().getFileCollection();

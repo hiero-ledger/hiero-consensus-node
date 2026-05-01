@@ -165,7 +165,7 @@ class MerkleDbDataSourceSnapshotMergeTest {
                 } else { // thread 1 initiates compaction and waits for its completion
                     dataSource.runHashChunkStoreCompaction();
                     dataSource.runKeyToPathStoreCompaction();
-                    dataSource.runPathToKeyValueStoreCompaction();
+                    dataSource.runLeafChunkStoreCompaction();
 
                     dataSource.awaitForCurrentCompactionsToComplete(4000);
 

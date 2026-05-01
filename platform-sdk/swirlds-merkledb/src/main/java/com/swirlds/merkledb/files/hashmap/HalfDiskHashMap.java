@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.LongSummaryStatistics;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,9 +88,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     /** The limit on the number of concurrent read tasks in {@code endWriting()} */
     private static final int MAX_IN_FLIGHT = 1024;
 
-    /** Platform configuration */
+    /** Flushing thread pool */
     @NonNull
-    private final Configuration config;
+    private final ForkJoinPool flushingPool;
 
     /**
      * Long list used for mapping bucketIndex(index into list) to disk location for latest copy of
@@ -157,34 +158,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     /** A holder for the first exception occurred during endWriting() tasks */
     private final AtomicReference<Throwable> exceptionOccurred = new AtomicReference<>();
 
-    /** Fork-join pool for HDHM.endWriting() */
-    private static volatile ForkJoinPool flushingPool = null;
-
-    /**
-     * This method is invoked from a non-static method and uses the provided configuration.
-     * Consequently, the flushing pool will be initialized using the configuration provided
-     * by the first instance of HalfDiskHashMap class that calls the relevant non-static method.
-     * Subsequent calls will reuse the same pool, regardless of any new configurations provided.
-     * </br>
-     * FUTURE WORK: it can be moved to MerkleDb.
-     */
-    private static ForkJoinPool getFlushingPool(final @NonNull Configuration config) {
-        requireNonNull(config);
-        ForkJoinPool pool = flushingPool;
-        if (pool == null) {
-            synchronized (HalfDiskHashMap.class) {
-                pool = flushingPool;
-                if (pool == null) {
-                    final MerkleDbConfig merkleDbConfig = config.getConfigData(MerkleDbConfig.class);
-                    final int hashingThreadCount = merkleDbConfig.getNumHalfDiskHashMapFlushThreads();
-                    pool = new ForkJoinPool(hashingThreadCount);
-                    flushingPool = pool;
-                }
-            }
-        }
-        return pool;
-    }
-
     /**
      * Construct a new HalfDiskHashMap
      *
@@ -199,6 +172,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * @param legacyStoreName                Base name for the data store. If not null, the store will process
      *                                       files with this prefix at startup. New files in the store will be prefixed with {@code
      *                                       storeName}
+     * @param flushingPool                   Fork-join pool to use for flushing tasks
      * @param preferDiskBasedIndex           When true we will use disk based index rather than ram where
      *                                       possible. This will come with a significant performance cost, especially for writing. It
      *                                       is possible to load a data source that was written with memory index with disk based
@@ -211,10 +185,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final Path storeDir,
             final String storeName,
             final String legacyStoreName,
+            final ForkJoinPool flushingPool,
             final boolean preferDiskBasedIndex)
             throws IOException {
-        this.config = requireNonNull(configuration);
-        final MerkleDbConfig merkleDbConfig = this.config.getConfigData(MerkleDbConfig.class);
+        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         this.goodAverageBucketEntryCount = merkleDbConfig.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, goodAverageBucketEntryCount times smaller than the number of keys.
@@ -225,6 +199,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         final long bucketIndexCapacity =
                 calculateBucketIndexCapacity(merkleDbConfig.maxNumOfKeys(), goodAverageBucketEntryCount);
         this.storeName = storeName;
+        this.flushingPool = flushingPool;
         Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
         // create bucket pool
         this.bucketPool = new ReusableBucketPool(Bucket::new);
@@ -582,14 +557,15 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     size,
                     oneTransactionsData.stream().mapToLong(List::size).sum());
         }
+        final long start = System.currentTimeMillis();
         final DataFileReader dataFileReader;
         try {
             if (size > 0) {
+                fileCollection.startWriting();
+                resetEndWriting(flushingPool, size);
+/*
                 final Iterator<IntObjectPair<List<BucketMutation>>> it =
                         oneTransactionsData.keyValuesView().iterator();
-                fileCollection.startWriting();
-                final ForkJoinPool pool = getFlushingPool(config);
-                resetEndWriting(pool, size);
                 // Create a task to submit bucket processing tasks. This initial submit task
                 // is scheduled to run right away. Subsequent submit tasks will be run only
                 // after some buckets are completely processed to make sure no more than
@@ -600,6 +576,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 // Wait until all tasks are completed by waiting for the notify task to join. This
                 // task depends on the last "store bucket" task
                 notifyTaskRef.get().join();
+*/
+                exceptionOccurred.set(null);
+                final SubmitBucketTask submitTask = new SubmitBucketTask(flushingPool);
+                notifyTaskRef.set(submitTask);
+                submitTask.send();
+                submitTask.join();
                 if (exceptionOccurred.get() != null) {
                     throw new IOException(exceptionOccurred.get());
                 }
@@ -623,6 +605,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             oneTransactionsData = null;
             currentSubmitTask.set(null);
         }
+        final long end = System.currentTimeMillis();
+        logger.info(MERKLE_DB.getMarker(), "endWriting took {} ms", end - start);
         return dataFileReader;
     }
 
@@ -881,6 +865,126 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             // Task body is empty: the task is only needed to wait until its dependency
             // tasks are complete
             return true;
+        }
+    }
+
+    private class SubmitBucketTask extends AbstractTask {
+
+        private final CountDownLatch finishLatch;
+
+        public SubmitBucketTask(final ForkJoinPool pool) {
+            super(pool, 1);
+            finishLatch = new CountDownLatch(oneTransactionsData.size());
+        }
+
+        @Override
+        protected boolean onExecute() throws InterruptedException {
+            for (final IntObjectPair<List<BucketMutation>> pair : oneTransactionsData.keyValuesView()) {
+                final int bucketIndex = pair.getOne();
+                final List<BucketMutation> mutations = pair.getTwo();
+                final BucketTask bucketTask = new BucketTask(getPool(), bucketIndex, mutations, finishLatch);
+                bucketTask.send();
+            }
+            finishLatch.await();
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error(MERKLE_DB.getMarker(), "Failed to submit bucket tasks", t);
+            if (exceptionOccurred.compareAndSet(null, t)) {
+                notifyTaskRef.get().completeExceptionally(t);
+            }
+        }
+    }
+
+    private class BucketTask extends AbstractTask {
+
+        private final int bucketIndex;
+
+        private final List<BucketMutation> keyUpdates;
+
+        private final CountDownLatch finishLatch;
+
+        BucketTask(
+                final ForkJoinPool pool,
+                final int bucketIndex,
+                final List<BucketMutation> keyUpdates,
+                final CountDownLatch finishLatch) {
+            super(pool, 1);
+            this.bucketIndex = bucketIndex;
+            this.keyUpdates = keyUpdates;
+            this.finishLatch = finishLatch;
+        }
+
+        @Override
+        protected boolean onExecute() throws IOException {
+            final BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
+            try (final Bucket bucket = bucketPool.getBucket()) {
+                boolean bucketChanged = false;
+                if (bucketData == null) {
+                    // An empty bucket
+                    bucket.setBucketIndex(bucketIndex);
+                    // Add all entries
+                    assert keyUpdates != null;
+                    for (int i = 0; i < keyUpdates.size(); i++) {
+                        final BucketMutation m = keyUpdates.get(i);
+                        assert m.oldValue() == INVALID_VALUE;
+                        if (m.value() != INVALID_VALUE) {
+                            bucket.addValue(m.keyBytes(), m.keyHashCode(), m.value());
+                        }
+                    }
+                    bucketChanged = true;
+                } else {
+                    // Read from bytes
+                    bucket.readFrom(bucketData);
+                    if ((bucket.getBucketIndex() & bucketIndex) != bucket.getBucketIndex()) {
+                        logger.error(
+                                MERKLE_DB.getMarker(),
+                                "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
+                    /*
+                       This is a workaround for issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
+                       which caused possible corruption in snapshots.
+                       If the snapshot is corrupted, the code may read a bucket from the file, and the bucket index
+                       may be different from the expected one. In this case, we clear the bucket (as it contains garbage
+                       anyway) and set the correct index.
+                    */
+                        bucket.clear();
+                    }
+                    // Apply all updates
+                    for (int i = 0; i < keyUpdates.size(); i++) {
+                        final BucketMutation m = keyUpdates.get(i);
+                        if (bucket.putValue(m.keyBytes(), m.keyHashCode(), m.oldValue(), m.value())) {
+                            bucketChanged = true;
+                        }
+                    }
+                    // Sanitize the bucket only if there have been any updates to it
+                    if (bucketChanged) {
+                        // Clear old bucket entries with wrong hash codes
+                        bucket.sanitize(bucketIndex, bucketMaskBits.get());
+                    }
+                }
+                if (bucket.isEmpty()) {
+                    // bucket is missing or empty, remove it from the index
+                    bucketIndexToBucketLocation.remove(bucketIndex);
+                } else {
+                    // save bucket
+                    final long bucketLocation = fileCollection.storeDataItem(bucket::writeTo, bucket.sizeInBytes());
+                    // update bucketIndexToBucketLocation
+                    bucketIndexToBucketLocation.put(bucketIndex, bucketLocation);
+                }
+            } finally {
+                finishLatch.countDown();
+            }
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error(MERKLE_DB.getMarker(), "Failed to write bucket " + bucketIndex, t);
+            if (exceptionOccurred.compareAndSet(null, t)) {
+                notifyTaskRef.get().completeExceptionally(t);
+            }
         }
     }
 

@@ -73,9 +73,9 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
         Objects.requireNonNull(virtualMap);
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
 
-        this.pathToKeyValueDfc = vds.getKeyValueStore().getFileCollection();
+        this.pathToKeyValueDfc = vds.getLeafChunkStore().getFileCollection();
 
-        this.pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
+        this.pathToDiskLocationLeafNodes = vds.getIdToDiskLocationLeafChunks();
     }
 
     /**

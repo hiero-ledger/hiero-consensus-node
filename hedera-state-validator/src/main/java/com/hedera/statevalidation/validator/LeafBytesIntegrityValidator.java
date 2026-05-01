@@ -83,8 +83,8 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
         this.vds = (MerkleDbDataSource) virtualMap.getDataSource();
         this.keyToPath = vds.getKeyToPath();
 
-        this.pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
-        this.keyValueStore = vds.getKeyValueStore();
+        this.pathToDiskLocationLeafNodes = vds.getIdToDiskLocationLeafChunks();
+        this.keyValueStore = vds.getLeafChunkStore();
 
         this.firstLeafPath = vds.getFirstLeafPath();
         this.lastLeafPath = vds.getLastLeafPath();

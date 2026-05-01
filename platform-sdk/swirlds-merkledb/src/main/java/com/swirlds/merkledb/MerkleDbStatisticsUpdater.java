@@ -83,7 +83,7 @@ public class MerkleDbStatisticsUpdater {
      */
     private int updateLeavesStoreFileStats(final MerkleDbDataSource dataSource) {
         final LongSummaryStatistics leafDataFileSizeStats =
-                dataSource.getKeyValueStore().getFilesSizeStatistics();
+                dataSource.getLeafChunkStore().getFilesSizeStatistics();
         statistics.setLeavesStoreFileCount((int) leafDataFileSizeStats.getCount());
         final int fileSizeInMb = (int) (leafDataFileSizeStats.getSum() * BYTES_TO_MEBIBYTES);
         statistics.setLeavesStoreFileSizeMb(fileSizeInMb);
@@ -121,7 +121,7 @@ public class MerkleDbStatisticsUpdater {
     void updateOffHeapStats(final MerkleDbDataSource dataSource) {
         int totalOffHeapMemoryConsumption = updateOffHeapStat(
                         dataSource.getIdToDiskLocationHashChunks(), statistics::setOffHeapHashesIndexMb)
-                + updateOffHeapStat(dataSource.getPathToDiskLocationLeafNodes(), statistics::setOffHeapLeavesIndexMb)
+                + updateOffHeapStat(dataSource.getIdToDiskLocationLeafChunks(), statistics::setOffHeapLeavesIndexMb)
                 + updateOffHeapStat(dataSource.getKeyToPath(), statistics::setOffHeapObjectKeyBucketsIndexMb);
         statistics.setOffHeapDataSourceMb(totalOffHeapMemoryConsumption);
     }

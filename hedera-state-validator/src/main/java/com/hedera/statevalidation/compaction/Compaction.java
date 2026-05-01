@@ -21,7 +21,7 @@ public final class Compaction {
         vds.enableBackgroundCompaction();
 
         vds.runKeyToPathStoreCompaction();
-        vds.runPathToKeyValueStoreCompaction();
+        vds.runLeafChunkStoreCompaction();
         vds.runHashChunkStoreCompaction();
 
         vds.awaitForCurrentCompactionsToComplete(0);

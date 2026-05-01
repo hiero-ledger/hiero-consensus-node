@@ -82,7 +82,7 @@ public class ReconnectHashLeafFlusherTest {
         final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.init(COUNT - 1, COUNT * 2 - 2);
-        final long minHashChunkId = VirtualHashChunk.lastChunkIdForPaths(COUNT * 2 - 2, hashChunkHeight);
+        final long minHashChunkId = VirtualHashChunk.lastChunkIdForPath(COUNT * 2 - 2, hashChunkHeight);
         for (int i = 0; i <= minHashChunkId; i++) {
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(i, hashChunkHeight);
             final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);

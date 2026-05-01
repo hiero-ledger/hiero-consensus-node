@@ -5,7 +5,7 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEq
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_HASH_CHUNK;
 import static com.swirlds.merkledb.MerkleDbDataSource.OBJECT_KEY_TO_PATH;
-import static com.swirlds.merkledb.MerkleDbDataSource.PATH_TO_KEY_VALUE;
+import static com.swirlds.merkledb.MerkleDbDataSource.ID_TO_LEAF_CHUNK;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
@@ -171,7 +171,7 @@ class CompactionInterruptTest {
         // First round: triggers scan tasks for all three stores
         dataSource.runHashChunkStoreCompaction();
         dataSource.runKeyToPathStoreCompaction();
-        dataSource.runPathToKeyValueStoreCompaction();
+        dataSource.runLeafChunkStoreCompaction();
 
         // Wait for scans to complete — stats are now available in scanStatsByStore
         coordinator.awaitForCurrentCompactionsToComplete(5000);
@@ -179,7 +179,7 @@ class CompactionInterruptTest {
         // Second round: stats are cached, compaction tasks get submitted
         dataSource.runHashChunkStoreCompaction();
         dataSource.runKeyToPathStoreCompaction();
-        dataSource.runPathToKeyValueStoreCompaction();
+        dataSource.runLeafChunkStoreCompaction();
     }
 
     /**
@@ -209,7 +209,7 @@ class CompactionInterruptTest {
         assertFalse(
                 coordinator.isCompactionRunning(OBJECT_KEY_TO_PATH), OBJECT_KEY_TO_PATH + " compaction should not run");
         assertFalse(
-                coordinator.isCompactionRunning(PATH_TO_KEY_VALUE), PATH_TO_KEY_VALUE + " compaction should not run");
+                coordinator.isCompactionRunning(ID_TO_LEAF_CHUNK), ID_TO_LEAF_CHUNK + " compaction should not run");
 
         synchronized (coordinator) {
             assertTrue(coordinator.compactorsByName.isEmpty(), "compactorsByName should be empty");
