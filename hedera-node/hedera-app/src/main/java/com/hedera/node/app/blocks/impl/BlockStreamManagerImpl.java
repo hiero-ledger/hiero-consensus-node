@@ -1279,33 +1279,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private static Instant firstConsensusTimestampOf(final Round round) {
-        Instant earliestEventTimestamp = null;
         for (final ConsensusEvent consensusEvent : round) {
-            // Find the earliest event timestamp in the round (possibly needed later)
-            if (earliestEventTimestamp == null) {
-                final var eventTimestamp = consensusEvent.getConsensusTimestamp();
-                if (eventTimestamp != null
-                        && eventTimestamp.isAfter(Instant.EPOCH)
-                        && eventTimestamp.isBefore(round.getConsensusTimestamp())) {
-                    earliestEventTimestamp = eventTimestamp;
-                }
-            }
-
-            // Iterate through the transactions in the event to find the first consensus timestamp. If found, return it
-            // immediately.
-            final var consensusIt = consensusEvent.consensusTransactionIterator();
-            if (consensusIt.hasNext()) {
-                return consensusIt.next().getConsensusTimestamp();
+            final var eventTimestamp = consensusEvent.getConsensusTimestamp();
+            if (eventTimestamp != null && eventTimestamp.isAfter(Instant.EPOCH)) {
+                return eventTimestamp;
             }
         }
-
-        // If the round has no transactions, but we found an earliest event timestamp, return the earliest event
-        // timestamp
-        if (earliestEventTimestamp != null) {
-            return earliestEventTimestamp;
-        }
-
-        // If the round has no event timestamps, return the round's timestamp
+        // No events with valid timestamps; fall back to round's consensus timestamp
         return round.getConsensusTimestamp();
     }
 
