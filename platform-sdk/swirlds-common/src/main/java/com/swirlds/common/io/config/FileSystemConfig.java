@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.config;
 
-import org.hiero.base.file.FileSystemManager;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import org.hiero.base.file.FileSystemManager;
 
 /**
  * Settings for {@link FileSystemManager}
