@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.filesystem;
+package org.hiero.base.file;
 
 import static java.nio.file.Files.exists;
 import static org.hiero.base.file.FileUtils.rethrowIO;
@@ -10,7 +10,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.base.file.FileUtils;
 
 /**
  * Organizes file creation within a specified root directory in the following structure:

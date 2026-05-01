@@ -3,7 +3,7 @@ package com.swirlds.common.test.fixtures;
 
 import static org.hiero.base.file.FileUtils.rethrowIO;
 
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import org.hiero.base.file.FileSystemManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import org.hiero.base.file.FileUtils;

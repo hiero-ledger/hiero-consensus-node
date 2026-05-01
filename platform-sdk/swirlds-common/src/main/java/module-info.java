@@ -7,7 +7,6 @@ module com.swirlds.common {
     exports com.swirlds.common.context;
     exports com.swirlds.common.io.config;
     exports com.swirlds.common.io.exceptions;
-    exports com.swirlds.common.io.filesystem;
     exports com.swirlds.common.io.streams;
     exports com.swirlds.common.io.utility;
     exports com.swirlds.common.merkle.synchronization;
