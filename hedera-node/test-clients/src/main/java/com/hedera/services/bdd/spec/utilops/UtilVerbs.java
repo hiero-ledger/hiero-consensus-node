@@ -184,6 +184,7 @@ import com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.GetWrappedRecordHashesOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyJumpstartHashOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyLiveWrappedHashOp;
+import com.hedera.services.bdd.spec.utilops.upgrade.VerifyWrappedHashesCoverageOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
 import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
@@ -982,6 +983,19 @@ public class UtilVerbs {
     public static VerifyLiveWrappedHashOp verifyLiveWrappedHash(
             @NonNull final String nodeComputedHash, @NonNull final String liveBlockNum) {
         return new VerifyLiveWrappedHashOp(nodeComputedHash, liveBlockNum);
+    }
+
+    /**
+     * Asserts the wrapped record hashes file contains a contiguous run of block numbers
+     * ending exactly at {@code expectedLastBlockNum}, confirming that disk writes remained
+     * enabled alongside live hash wrapping.
+     *
+     * @param entries              entries read from the node's wrapped record hashes file
+     * @param expectedLastBlockNum the expected block number of the file's last entry
+     */
+    public static VerifyWrappedHashesCoverageOp verifyWrappedHashesCoverage(
+            @NonNull final List<WrappedRecordFileBlockHashes> entries, @NonNull final String expectedLastBlockNum) {
+        return new VerifyWrappedHashesCoverageOp(entries, expectedLastBlockNum);
     }
 
     public static WaitForMarkerFileOp waitForMf(@NonNull final MarkerFile markerFile, @NonNull final Duration timeout) {

@@ -50,6 +50,12 @@ jobs:
       - name: List SSH Resources
         run: tsh -i "${{ steps.auth-ssh.outputs.identity-file }}" ls
 
+      - name: Install Wget
+        run: sudo apt install -y wget
+
+      - name: Download MC
+        run: wget -q -O /tmp/mc https://dl.min.io/client/mc/release/linux-amd64/mc
+
       - name: Call clean Dal
         run: |
           set +e

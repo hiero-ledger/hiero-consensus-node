@@ -2,7 +2,6 @@
 package com.swirlds.platform.wiring;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.components.EventWindowManager;
@@ -20,6 +19,7 @@ import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatusAction;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
