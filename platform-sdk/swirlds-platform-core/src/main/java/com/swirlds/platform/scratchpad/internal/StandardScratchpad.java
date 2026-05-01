@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 import com.swirlds.base.formatting.TextTable;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.scratchpad.ScratchpadType;
@@ -37,7 +38,6 @@ import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

@@ -18,6 +18,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
@@ -52,8 +54,6 @@ import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.CompareTo;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.config.StateCommonConfig_;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.state.config.StateConfig_;

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config;
 
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.platform.NodeIdConverter;
@@ -18,7 +19,6 @@ import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

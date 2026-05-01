@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -24,7 +25,6 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import com.swirlds.common.config.StateCommonConfig;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

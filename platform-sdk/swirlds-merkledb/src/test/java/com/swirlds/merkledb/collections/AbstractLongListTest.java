@@ -20,6 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import com.swirlds.config.api.Configuration;
@@ -40,7 +41,6 @@ import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import com.swirlds.common.config.StateCommonConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;

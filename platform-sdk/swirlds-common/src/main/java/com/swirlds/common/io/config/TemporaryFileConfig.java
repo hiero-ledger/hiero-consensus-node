@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.config;
 
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.common.config.StateCommonConfig;
 
 /**
  * Settings for temporary files

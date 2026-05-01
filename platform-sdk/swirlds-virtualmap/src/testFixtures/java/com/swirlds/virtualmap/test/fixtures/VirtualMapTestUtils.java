@@ -4,6 +4,7 @@ package com.swirlds.virtualmap.test.fixtures;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -29,7 +30,6 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
-import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**

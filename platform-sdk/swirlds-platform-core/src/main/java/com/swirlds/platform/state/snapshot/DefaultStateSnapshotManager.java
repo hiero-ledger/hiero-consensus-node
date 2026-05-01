@@ -7,6 +7,7 @@ import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
@@ -22,7 +23,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.Threshold;
-import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;

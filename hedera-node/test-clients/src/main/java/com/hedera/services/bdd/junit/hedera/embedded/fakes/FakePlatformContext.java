@@ -4,6 +4,7 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -17,7 +18,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.config.BasicConfig;
-import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.model.node.NodeId;

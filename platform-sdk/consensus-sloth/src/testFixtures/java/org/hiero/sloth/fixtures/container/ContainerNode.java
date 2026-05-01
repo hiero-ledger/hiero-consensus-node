@@ -18,6 +18,7 @@ import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.Empty;
+import com.swirlds.common.config.StateCommonConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -38,7 +39,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;

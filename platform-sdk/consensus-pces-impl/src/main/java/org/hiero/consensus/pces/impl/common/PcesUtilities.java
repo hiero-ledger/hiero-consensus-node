@@ -4,6 +4,7 @@ package org.hiero.consensus.pces.impl.common;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -19,7 +20,6 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;

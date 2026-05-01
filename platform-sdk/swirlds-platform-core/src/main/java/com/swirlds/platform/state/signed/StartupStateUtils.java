@@ -10,6 +10,7 @@ import static org.hiero.consensus.state.signed.ReservedSignedState.createNullRes
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
@@ -28,7 +29,6 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import com.swirlds.common.config.StateCommonConfig;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.NodeId;

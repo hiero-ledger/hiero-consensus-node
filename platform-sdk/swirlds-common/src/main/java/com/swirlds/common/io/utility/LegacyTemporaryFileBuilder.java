@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
+import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,7 +14,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
-import com.swirlds.common.config.StateCommonConfig;
 
 /**
  * This class provides utility methods for constructing temporary files.

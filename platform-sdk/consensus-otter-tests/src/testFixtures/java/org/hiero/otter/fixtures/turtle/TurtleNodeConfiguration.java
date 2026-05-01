@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
+import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.io.config.FileSystemManagerConfig_;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.platform.config.PathsConfig_;
@@ -9,7 +10,6 @@ import java.nio.file.Path;
 import java.util.function.Supplier;
 import org.hiero.consensus.config.BasicConfig_;
 import org.hiero.consensus.config.EventConfig_;
-import com.swirlds.common.config.StateCommonConfig_;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
