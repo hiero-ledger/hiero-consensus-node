@@ -480,10 +480,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
+        return endRound(state, roundNum, willCloseBlock(state, roundNum));
+    }
+
+    @Override
+    public boolean willCloseBlock(@NonNull final State state, final long roundNum) {
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
-        final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
+        return shouldCloseBlock(roundNum, freezeRoundNumber);
+    }
+
+    @Override
+    public boolean endRound(@NonNull final State state, final long roundNum, final boolean closesBlock) {
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
+        final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
         if (closesBlock) {
             lifecycle.onCloseBlock(state);
             // No-op if quiescence is disabled

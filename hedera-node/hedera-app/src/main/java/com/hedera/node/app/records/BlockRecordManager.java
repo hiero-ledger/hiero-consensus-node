@@ -10,6 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * {@link BlockRecordManager} is responsible for managing blocks and writing the block record stream. It manages:
@@ -124,6 +125,43 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * @param state The state to update
      */
     void endRound(@NonNull State state);
+
+    /**
+     * Called at the end of a round to make sure the running hash and block information is up-to-date in state.
+     *
+     * @param state the state to update
+     * @param roundConsensusTimestamp the consensus timestamp of the sealed round
+     * @return true if the current record file was closed, false otherwise
+     */
+    boolean endRound(@NonNull State state, @NonNull Instant roundConsensusTimestamp);
+
+    /**
+     * Called at the start of a round before any transaction in the round is handled.
+     *
+     * @param round the round that is about to be handled
+     * @param state the mutable state for this round
+     */
+    void startRound(@NonNull Round round, @NonNull State state);
+
+    /**
+     * Closes the current record file, if one is open, without opening a replacement file.
+     * Returns true when closure has completed or when there was no open file.
+     *
+     * @param state the mutable state to update
+     * @return true once no record file remains open
+     */
+    boolean closeCurrentRecordFileIfOpen(@NonNull State state);
+
+    /**
+     * Closes the current record file, if one is open, when no user transaction has been handled since the
+     * previous seal and the sealed round is at least two seconds after the current block first-consensus time.
+     * Returns true in all cases (idempotent success semantics for seal handling).
+     *
+     * @param state the mutable state to update
+     * @param roundConsensusTimestamp the sealed round consensus timestamp
+     * @return true
+     */
+    boolean closeCurrentRecordFileIfIdleAtSeal(@NonNull State state, @NonNull Instant roundConsensusTimestamp);
 
     /**
      * Closes this BlockRecordManager and wait for any threads to finish.

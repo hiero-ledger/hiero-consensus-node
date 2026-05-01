@@ -175,6 +175,25 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
         }
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public void finishCurrentBlock() {
+        lock.lock();
+        try {
+            if (currentRecordFileWriter == null) {
+                return;
+            }
+            final var writerFuture = currentRecordFileWriter;
+            final var runningHashFuture = lastRecordHashingResult;
+            currentRecordFileWriter = null;
+            CompletableFuture.allOf(writerFuture, runningHashFuture)
+                    .thenRunAsync(() -> closeWriter(writerFuture.join(), runningHashFuture.join()), executorService)
+                    .join();
+        } finally {
+            lock.unlock();
+        }
+    }
+
     /**
      * Write record items to stream files. They must be in exact consensus time order! This must only be called after the user
      * transaction has been committed to state and is 100% done.
