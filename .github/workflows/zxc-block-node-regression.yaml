@@ -102,7 +102,6 @@ jobs:
           fi
 
           echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
-          # Use version matching solo applied custom image supporting preview block verification by hash
           echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
