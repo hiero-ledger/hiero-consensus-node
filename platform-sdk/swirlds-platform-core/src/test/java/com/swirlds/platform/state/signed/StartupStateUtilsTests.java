@@ -21,6 +21,8 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.config.FileSystemConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -327,7 +329,8 @@ public class StartupStateUtilsTests {
     private RecycleBin initializeRecycleBin(PlatformContext platformContext, NodeId selfId) {
         final var metrics = new NoOpMetrics();
         final var configuration = platformContext.getConfiguration();
-        final var fileSystemManager = FileSystemManager.create(configuration);
+        final var fileSystemConfig = configuration.getConfigData(FileSystemConfig.class);
+        final var fileSystemManager = new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir());
         final var time = Time.getCurrent();
         return RecycleBinImpl.create(metrics, configuration, getStaticThreadManager(), time, fileSystemManager, selfId);
     }

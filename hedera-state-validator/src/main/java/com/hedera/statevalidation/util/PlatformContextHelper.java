@@ -3,6 +3,7 @@ package com.hedera.statevalidation.util;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -18,8 +19,8 @@ public final class PlatformContextHelper {
     private static PlatformContext platformContext;
 
     private static PlatformContext createPlatformContext() {
-        return new PlatformContext() {
 
+        return new PlatformContext() {
             @Override
             public Configuration getConfiguration() {
                 return ConfigUtils.getConfiguration();
@@ -47,7 +48,7 @@ public final class PlatformContextHelper {
 
             @Override
             public FileSystemManager getFileSystemManager() {
-                return FileSystemManager.create(ConfigUtils.getConfiguration());
+                return new FileSystemManager();
             }
         };
     }

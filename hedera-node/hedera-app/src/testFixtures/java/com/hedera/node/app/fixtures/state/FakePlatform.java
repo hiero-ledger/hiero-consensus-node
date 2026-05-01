@@ -10,6 +10,8 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.config.FileSystemConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.utility.AutoCloseableWrapper;
@@ -71,6 +73,9 @@ public final class FakePlatform implements Platform {
     private PlatformContext createPlatformContext() {
         final Configuration configuration = HederaTestConfigBuilder.createConfig();
         final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
+        final FileSystemConfig fileSystemConfig = configuration.getConfigData(FileSystemConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir());
         final var metrics = new DefaultPlatformMetrics(
                 selfNodeId,
                 new MetricKeyRegistry(),
@@ -78,11 +83,7 @@ public final class FakePlatform implements Platform {
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
         return PlatformContext.create(
-                configuration,
-                Time.getCurrent(),
-                metrics,
-                FileSystemManager.create(configuration),
-                new NoOpRecycleBin());
+                configuration, Time.getCurrent(), metrics, fileSystemManager, new NoOpRecycleBin());
     }
 
     @Override

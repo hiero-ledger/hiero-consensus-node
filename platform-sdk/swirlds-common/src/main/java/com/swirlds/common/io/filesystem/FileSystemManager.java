@@ -39,6 +39,15 @@ public class FileSystemManager {
     private final AtomicLong tmpFileNameIndex = new AtomicLong(0);
 
     /**
+     * Creates a new instance with the current directory as root location and default directory name for temporary files.
+     *
+     * @throws UncheckedIOException if the dir structure to rootLocation cannot be created
+     */
+    public FileSystemManager() {
+        this(Path.of("."));
+    }
+
+    /**
      * Creates a new instance with the specified root location and default directory name for temporary files.
      *
      * @param rootLocation the location to be used as root path. It should not exist.

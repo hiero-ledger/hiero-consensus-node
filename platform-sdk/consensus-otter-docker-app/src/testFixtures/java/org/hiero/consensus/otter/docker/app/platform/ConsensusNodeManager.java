@@ -13,6 +13,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.io.config.FileSystemConfig;
+import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -101,7 +103,9 @@ public class ConsensusNodeManager {
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
         final Time time = Time.getCurrent();
-        final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
+        final FileSystemConfig fileSystemConfig = platformConfig.getConfigData(FileSystemConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir());
         final RecycleBin recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         getMetricsProvider().subscribeSnapshot((Consumer<? super SnapshotEvent>)
