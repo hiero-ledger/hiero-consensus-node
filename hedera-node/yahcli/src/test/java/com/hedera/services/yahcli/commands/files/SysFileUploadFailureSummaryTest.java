@@ -29,8 +29,8 @@ class SysFileUploadFailureSummaryTest {
                 "Wrong precheck status for FileAppend in 'UploadSystemFile-150'! Expected OK, actual TRANSACTION_OVERSIZE");
         final var handleExecWrap = new IllegalStateException(precheck);
         final var updateSpecialFileWrap = new IllegalStateException(handleExecWrap);
-        final var failure = new HapiSpec.Failure(
-                updateSpecialFileWrap, "Unhandled exception executing 'UploadSystemFile-150'");
+        final var failure =
+                new HapiSpec.Failure(updateSpecialFileWrap, "Unhandled exception executing 'UploadSystemFile-150'");
 
         final var description = SysFileUploadCommand.describeFailure(failure);
 
@@ -46,22 +46,19 @@ class SysFileUploadFailureSummaryTest {
         final var middle = new RuntimeException(deepest);
         final var outer = new IllegalStateException(middle);
 
-        assertThat(SysFileUploadCommand.summarizeCauseChain(outer))
-                .isEqualTo("IllegalStateException: deepest message");
+        assertThat(SysFileUploadCommand.summarizeCauseChain(outer)).isEqualTo("IllegalStateException: deepest message");
     }
 
     @Test
     void summarizeCauseChainHandlesSingleThrowable() {
         final var only = new IllegalStateException("only one");
-        assertThat(SysFileUploadCommand.summarizeCauseChain(only))
-                .isEqualTo("IllegalStateException: only one");
+        assertThat(SysFileUploadCommand.summarizeCauseChain(only)).isEqualTo("IllegalStateException: only one");
     }
 
     @Test
     void summarizeCauseChainHandlesThrowableWithoutMessage() {
         final var noMessage = new RuntimeException();
-        assertThat(SysFileUploadCommand.summarizeCauseChain(noMessage))
-                .isEqualTo("RuntimeException");
+        assertThat(SysFileUploadCommand.summarizeCauseChain(noMessage)).isEqualTo("RuntimeException");
     }
 
     @Test
