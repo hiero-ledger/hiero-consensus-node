@@ -24,7 +24,6 @@ testModuleInfo {
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
-    requires("org.mockito")
     requires("org.mockito.junit.jupiter")
 
     exportsTo("org.hiero.base.utility")
