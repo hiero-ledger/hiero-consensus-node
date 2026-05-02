@@ -102,7 +102,8 @@ jobs:
           fi
 
           echo "Latest Mirror Node tag: ${LATEST_MN_TAG}"
-          echo "MIRROR_NODE_TAG=${LATEST_MN_TAG}" >> "$GITHUB_ENV"
+          # Use last MN version supporting preview block verification by hash & not TSS
+          echo "MIRROR_NODE_TAG=v0.149.0" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
       - name: Checkout Regression Code
@@ -234,11 +235,6 @@ jobs:
                     stream:
                       maxSubscribeAttempts: 10
                       responseTimeout: 10s
-            # custom image to support preview streams hash verification
-            image:
-              registry: docker.io
-              repository: xin323/importer
-              tag: 0.154.0-rc1-f65a7d8e8
           EOF
 
       - name: Print MN Override Values
