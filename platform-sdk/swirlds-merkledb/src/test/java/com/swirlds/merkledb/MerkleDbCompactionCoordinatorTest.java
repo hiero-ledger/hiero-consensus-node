@@ -710,6 +710,30 @@ class MerkleDbCompactionCoordinatorTest {
     }
 
     @Test
+    void testCompactionTaskDoesNotResetFlagOnSuccess() throws InterruptedException, IOException {
+        // After successful compaction, the flag must stay true — resetting it would
+        // allow a concurrent task's CAS to succeed on a file that's already been deleted.
+        final DataFileReader file = mockFileReader(1, 0, 100, 1000);
+
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getAllCompletedFiles()).thenReturn(List.of(file));
+
+        publishScanStats(ID_TO_HASH_CHUNK, buildStats(new StatsEntry(file, 20)));
+
+        final DataFileCompactor compactor = mock(DataFileCompactor.class);
+        when(compactor.compactSingleLevel(anyList(), anyInt())).thenReturn(true);
+        when(compactor.getDataFileCollection()).thenReturn(fileCollection);
+
+        coordinator.submitCompactionTasks(ID_TO_HASH_CHUNK, () -> compactor, config);
+
+        coordinator.awaitForCurrentCompactionsToComplete(2000);
+
+        // Flag was set but must NOT be reset after success
+        verify(file).setCompactionInProgress();
+        verify(file, never()).resetCompactionInProgress();
+    }
+
+    @Test
     void testIsCompactionRunningDetectsGarbageCompactionTask() throws InterruptedException, IOException {
         final DataFileReader level0File = mockFileReader(1, 0, 100, 1000);
 

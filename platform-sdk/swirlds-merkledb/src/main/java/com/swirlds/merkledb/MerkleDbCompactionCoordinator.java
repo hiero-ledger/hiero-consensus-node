@@ -347,21 +347,25 @@ class MerkleDbCompactionCoordinator {
                 executor.submit(new CompactionTask(taskKey, levelKey, level, groups.get(i), compactorFactory, config));
             }
 
+            final List<Integer> fileIndices =
+                    eligible.stream().map(DataFileReader::getIndex).toList();
             if (groups.size() > 1) {
                 logger.info(
                         MERKLE_DB.getMarker(),
-                        "[{}] Submitted {} compaction tasks for level {} ({} eligible files)",
+                        "[{}] Submitted {} compaction tasks for level {} ({} eligible files - {})",
                         storeName,
                         groups.size(),
                         level,
-                        eligible.size());
+                        eligible.size(),
+                        fileIndices);
             } else {
                 logger.info(
                         MERKLE_DB.getMarker(),
-                        "[{}] Submitted a compaction tasks for level {} ({} eligible files)",
+                        "[{}] Submitted a compaction tasks for level {} ({} eligible files - {})",
                         storeName,
                         level,
-                        eligible.size());
+                        eligible.size(),
+                        fileIndices);
             }
         }
         // Second pass: consolidation of small files regardless of garbage ratio
@@ -721,6 +725,7 @@ class MerkleDbCompactionCoordinator {
 
         @Override
         public Boolean call() {
+            boolean success = false;
             try {
                 // Create a compactor and register it for pause/resume/interrupt
                 final DataFileCompactor compactor = compactorFactory.get();
@@ -745,15 +750,18 @@ class MerkleDbCompactionCoordinator {
                 }
 
                 final int targetLevel = Math.min(sourceLevel + 1, config.maxCompactionLevel());
-                return compactor.compactSingleLevel(validFiles, targetLevel);
+                success = compactor.compactSingleLevel(validFiles, targetLevel);
+                return success;
 
             } catch (final InterruptedException | ClosedByInterruptException e) {
                 logger.info(MERKLE_DB.getMarker(), "Interrupted while compacting [{}], this is allowed", taskKey);
             } catch (Exception e) {
                 logger.error(EXCEPTION.getMarker(), "[{}] Compaction failed", taskKey, e);
             } finally {
-                // Reset flag so files become visible to scanner again if compaction failed
-                assignedFiles.forEach(DataFileReader::resetCompactionInProgress);
+                if (!success) {
+                    // Reset flag so files become visible to scanner again if compaction failed
+                    assignedFiles.forEach(DataFileReader::resetCompactionInProgress);
+                }
                 synchronized (MerkleDbCompactionCoordinator.this) {
                     compactorsByName.remove(taskKey);
                     taskKeys.remove(taskKey);
