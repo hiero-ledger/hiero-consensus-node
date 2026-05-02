@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.report;
+package org.hiero.consensus.pcli.report;
 
-import static com.swirlds.base.formatting.StringFormattingUtils.commaSeparatedNumber;
 import static com.swirlds.base.formatting.TextEffect.BRIGHT_CYAN;
 import static com.swirlds.base.formatting.TextEffect.BRIGHT_RED;
 import static com.swirlds.base.formatting.TextEffect.BRIGHT_YELLOW;
-import static com.swirlds.base.units.DataUnit.UNIT_BYTES;
 
 import com.swirlds.base.formatting.HorizontalAlignment;
+import com.swirlds.base.formatting.StringFormattingUtils;
 import com.swirlds.base.formatting.TextHistogram;
 import com.swirlds.base.formatting.TextTable;
 import com.swirlds.base.formatting.UnitFormatter;
+import com.swirlds.base.units.DataUnit;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.model.event.CesEvent;
@@ -65,7 +65,7 @@ public record EventStreamReport(List<EventStreamInfo> granularInfo, EventStreamI
         sb.append("--- Byte Count ---\n");
         new TextHistogram<>(granularInfo, EventStreamInfo::byteCount)
                 .setTimestampExtractor(EventStreamInfo::start)
-                .setValueUnit(UNIT_BYTES)
+                .setValueUnit(DataUnit.UNIT_BYTES)
                 .render(sb);
         sb.append("\n");
 
@@ -80,8 +80,8 @@ public record EventStreamReport(List<EventStreamInfo> granularInfo, EventStreamI
                 .addRow("", "first event", "last event")
                 .addRow(
                         "round",
-                        commaSeparatedNumber(firstEvent.getRoundReceived()),
-                        commaSeparatedNumber(lastEvent.getRoundReceived()))
+                        StringFormattingUtils.commaSeparatedNumber(firstEvent.getRoundReceived()),
+                        StringFormattingUtils.commaSeparatedNumber(lastEvent.getRoundReceived()))
                 .addRow(
                         "timestamp",
                         firstEvent.getPlatformEvent().getConsensusTimestamp(),
@@ -96,8 +96,8 @@ public record EventStreamReport(List<EventStreamInfo> granularInfo, EventStreamI
                         lastEvent.getRunningHash().getHash().toHex(HASH_STRING_LENGTH))
                 .addRow(
                         "consensus order",
-                        commaSeparatedNumber(firstEvent.getPlatformEvent().getConsensusOrder()),
-                        commaSeparatedNumber(lastEvent.getPlatformEvent().getConsensusOrder()))
+                        StringFormattingUtils.commaSeparatedNumber(firstEvent.getPlatformEvent().getConsensusOrder()),
+                        StringFormattingUtils.commaSeparatedNumber(lastEvent.getPlatformEvent().getConsensusOrder()))
                 .addRow(
                         "creator ID",
                         firstEvent.getPlatformEvent().getCreatorId(),
@@ -108,8 +108,8 @@ public record EventStreamReport(List<EventStreamInfo> granularInfo, EventStreamI
                         lastEvent.isLastInRoundReceived() ? "yes" : "no")
                 .addRow(
                         "transaction count",
-                        commaSeparatedNumber(firstEvent.getPlatformEvent().getTransactionCount()),
-                        commaSeparatedNumber(lastEvent.getPlatformEvent().getTransactionCount()))
+                        StringFormattingUtils.commaSeparatedNumber(firstEvent.getPlatformEvent().getTransactionCount()),
+                        StringFormattingUtils.commaSeparatedNumber(lastEvent.getPlatformEvent().getTransactionCount()))
                 .render(sb);
 
         sb.append("\n\n");
@@ -134,16 +134,16 @@ public record EventStreamReport(List<EventStreamInfo> granularInfo, EventStreamI
                 .setTitle(BRIGHT_CYAN.apply("Stream Info"))
                 .addTitleEffects(BRIGHT_CYAN)
                 .addColumnEffects(0, BRIGHT_RED)
-                .addRow("rounds", commaSeparatedNumber(summary.roundCount()))
+                .addRow("rounds", StringFormattingUtils.commaSeparatedNumber(summary.roundCount()))
                 .addRow(
                         "time",
-                        commaSeparatedNumber(Duration.between(summary.start(), summary.end())
+                        StringFormattingUtils.commaSeparatedNumber(Duration.between(summary.start(), summary.end())
                                         .toSeconds()) + "s")
-                .addRow("events", commaSeparatedNumber(summary.eventCount()))
-                .addRow("application transactions", commaSeparatedNumber(summary.applicationTransactionCount()))
-                .addRow("files", commaSeparatedNumber(summary.fileCount()))
-                .addRow("bytes", new UnitFormatter(summary.byteCount(), UNIT_BYTES).render())
-                .addRow("damaged file count", commaSeparatedNumber(summary.damagedFileCount()))
+                .addRow("events", StringFormattingUtils.commaSeparatedNumber(summary.eventCount()))
+                .addRow("application transactions", StringFormattingUtils.commaSeparatedNumber(summary.applicationTransactionCount()))
+                .addRow("files", StringFormattingUtils.commaSeparatedNumber(summary.fileCount()))
+                .addRow("bytes", new UnitFormatter(summary.byteCount(), DataUnit.UNIT_BYTES).render())
+                .addRow("damaged file count", StringFormattingUtils.commaSeparatedNumber(summary.damagedFileCount()))
                 .render(sb);
 
         return sb.toString();
