@@ -5,3 +5,8 @@ bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
 networkAdmin.exportCandidateRoster=true
 addressBook.useRosterLifecycle=true
 nodes.gossipFqdnRestricted=false
+
+blockNode.globalCoolDownSeconds=1
+blockNode.basicNodeCoolDownSeconds=1
+blockNode.extendedNodeCoolDownSeconds=1
+blockNode.connectionStallThresholdMillis=5000
