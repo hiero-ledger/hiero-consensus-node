@@ -237,7 +237,7 @@ jobs:
             # custom image to support preview streams hash verification
             image:
               registry: docker.io
-              repository: xin323/importer
+              repository: xin323/importer-native
               tag: 0.154.0-rc1-f65a7d8e8
           EOF
 
