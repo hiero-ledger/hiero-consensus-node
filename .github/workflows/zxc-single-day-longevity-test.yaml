@@ -280,6 +280,7 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        if: false
         run: |
           npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
@@ -287,7 +288,6 @@ jobs:
           solo --version
 
       - name: Build Solo
-        if: false
         run: |
           set +x
           set +e
@@ -525,7 +525,7 @@ jobs:
 
           test=LongevityLoadTest
 
-          NLGargs="-K ECDSA -L -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
           echo kubectl -n "${{ steps.set-namespace.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
@@ -932,7 +932,7 @@ jobs:
 
           test=LongevityLoadTest
 
-          NLGargs="-K ECDSA -L -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
           echo kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
