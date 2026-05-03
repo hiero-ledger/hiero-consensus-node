@@ -310,7 +310,7 @@ jobs:
 
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          git checkout 03919-D-loss-java-opts
+          git checkout 101efa5670e5830a4ab265370d7f236879d9ed05
           task build:compile
           #npm run build
 
