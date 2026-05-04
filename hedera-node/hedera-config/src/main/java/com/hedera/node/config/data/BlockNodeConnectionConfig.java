@@ -9,7 +9,8 @@ import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
- * Configuration for Connecting to Block Nodes.
+ * Configuration for connecting to Block Nodes.
+ *
  * @param blockNodeConnectionFileDir the directory to get the block node configuration file
  * @param maxEndOfStreamsAllowed the limit of EndOfStream responses allowed within a time frame
  * @param endOfStreamTimeFrame the time frame in seconds to check for EndOfStream responses
@@ -35,6 +36,10 @@ import java.time.Duration;
  * @param extendedNodeCoolDownSeconds the minimum amount of time (in seconds) to permit reconnecting to a block node for extended scenarios
  * @param wantedBlockExpirationMillis the maximum amount of time (in milliseconds) allowed to elapse between when a block node's
  *                                    wanted block is determined versus when the streaming connection is created and uses the wanted block
+ * @param numBlocksBehindLowThreshold number of blocks (as a percentage - 0.0 to 100.0 - of the max number of blocks allowed in the buffer
+ *                                    via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in a basic cool down
+ * @param numBlocksBehindHighThreshold number of blocks (as a percentage - 0.0 to 100.0 - of the max number of blocks allowed in the buffer
+ *                                     via {@link BlockBufferConfig#maxBlocks()}) a block node can be behind before the node is placed in an extended cool down
  */
 // spotless:off
 @ConfigData("blockNode")
@@ -62,6 +67,8 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int globalCoolDownSeconds,
         @ConfigProperty(defaultValue = "15") @Min(0) @NetworkProperty int basicNodeCoolDownSeconds,
         @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int extendedNodeCoolDownSeconds,
-        @ConfigProperty(defaultValue = "2000") @Min(10) @NetworkProperty long wantedBlockExpirationMillis) {
+        @ConfigProperty(defaultValue = "2000") @Min(10) @NetworkProperty long wantedBlockExpirationMillis,
+        @ConfigProperty(defaultValue = "20.0") @Min(0) @NetworkProperty double numBlocksBehindLowThreshold,
+        @ConfigProperty(defaultValue = "35.0") @Min(0) @NetworkProperty double numBlocksBehindHighThreshold) {
 }
 // spotless:on

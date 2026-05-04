@@ -23,13 +23,13 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
-import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
+import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.getPeriod;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
