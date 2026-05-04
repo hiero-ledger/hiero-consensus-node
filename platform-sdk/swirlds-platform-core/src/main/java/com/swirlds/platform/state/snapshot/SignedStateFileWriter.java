@@ -137,6 +137,14 @@ public final class SignedStateFileWriter {
      *       the flush-triggered snapshot completes or a configurable timeout
      *       ({@link StateConfig#asyncSnapshotTimeout()}) expires.</li>
      * </ul>
+     * <p>
+     * <b>Snapshot before PCES copy:</b> PCES copying must happen only after the state snapshot has completed.
+     * The copy logic performs a best-effort filesystem scan and does not coordinate with the PCES writer.
+     * Recent PCES data may still be buffered or otherwise not yet visible to that scan. Keeping the snapshot
+     * write before the PCES scan provides the ordering and I/O activity needed in practice for recent PCES
+     * files to be discoverable. Moving the PCES scan earlier can produce a saved state with no copied PCES
+     * files. Do not reorder this unless PCES copying is changed to explicitly coordinate with, or sync
+     * with the PCES writer.
      *
      * @param platformContext       the platform context
      * @param selfId                the id of the platform
@@ -188,6 +196,9 @@ public final class SignedStateFileWriter {
                 reservedSignedState.close();
             }
 
+            // Keep this after snapshot creation. BestEffortPcesFileCopy only scans files currently visible
+            // on disk and does not coordinate with the PCES writer; scanning before the snapshot has
+            // previously raced with PCES writes and found no files to copy.
             copyPcesFiles(selfId, directory, configuration, pcesLowerBound, round);
         } catch (final TimeoutException e) {
             logger.error(
