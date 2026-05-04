@@ -102,6 +102,7 @@ public class SimulatedNetworkChannel {
             lock.lock();
             try {
                 ensureConnected();
+                ensureOpenForWrite();
                 while (inflightBytes + bytes.length > config.inflightBytesLimit()) {
                     try {
                         stateChanged.await();
@@ -110,6 +111,7 @@ public class SimulatedNetworkChannel {
                         throw new IOException("Interrupted while waiting for simulated network capacity", e);
                     }
                     ensureConnected();
+                    ensureOpenForWrite();
                 }
 
                 final long now = System.nanoTime();
@@ -123,6 +125,12 @@ public class SimulatedNetworkChannel {
                 stateChanged.signalAll();
             } finally {
                 lock.unlock();
+            }
+        }
+
+        private void ensureOpenForWrite() throws IOException {
+            if (closed) {
+                throw new IOException("Simulated network channel output is closed");
             }
         }
     }

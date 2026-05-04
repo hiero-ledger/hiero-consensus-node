@@ -101,6 +101,20 @@ class SimulatedNetworkChannelTest {
     }
 
     @Test
+    void writeAfterCloseThrowsAndKeepsEofStable() throws Exception {
+        final SimulatedNetworkChannel channel =
+                new SimulatedNetworkChannel(NetworkSimulationConfig.resolve(NetworkProfile.LOOPBACK, 0, 1, 1));
+
+        final OutputStream out = channel.outputStream();
+        final InputStream in = channel.inputStream();
+        out.close();
+
+        assertEquals(-1, in.read());
+        assertThrows(IOException.class, () -> out.write(1));
+        assertEquals(-1, in.read());
+    }
+
+    @Test
     void disconnectWakesBlockedReader() throws Exception {
         final SimulatedNetworkChannel channel = new SimulatedNetworkChannel(
                 NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 1_000_000, 1, 1024));
