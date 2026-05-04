@@ -37,7 +37,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.constructable.ConstructableRegistration;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -61,6 +60,7 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.utility.test.fixtures.io.InputOutputStream;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.event.stream.internal.LinkedObjectStreamValidateUtils;
 import org.hiero.consensus.event.stream.internal.StreamValidationResult;
 import org.hiero.consensus.event.stream.test.fixtures.ObjectForTestStream;

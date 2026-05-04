@@ -34,6 +34,7 @@ module com.hedera.node.app.hapi.utils {
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires org.hiero.base.crypto;
+    requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.databind;
     requires com.google.common;
     requires com.sun.jna;

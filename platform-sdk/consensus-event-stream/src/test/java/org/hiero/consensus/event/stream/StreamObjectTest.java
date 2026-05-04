@@ -11,7 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistration;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,6 +30,7 @@ import org.apache.logging.log4j.MarkerManager;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.event.stream.internal.LinkedObjectStreamValidateUtils;
 import org.hiero.consensus.event.stream.internal.StreamValidationResult;
 import org.hiero.consensus.event.stream.test.fixtures.StreamFileSigner;
