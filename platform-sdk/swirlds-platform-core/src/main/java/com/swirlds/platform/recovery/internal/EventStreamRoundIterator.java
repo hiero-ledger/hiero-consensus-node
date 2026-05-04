@@ -41,7 +41,7 @@ public class EventStreamRoundIterator implements IOIterator<StreamedRound> {
             @NonNull final Roster consensusRoster,
             final Path eventStreamDirectory,
             final long startingRound,
-            boolean allowPartialRound,
+            final boolean allowPartialRound,
             final long userTxnOffsetNanos)
             throws IOException {
         this(
@@ -61,7 +61,7 @@ public class EventStreamRoundIterator implements IOIterator<StreamedRound> {
     public EventStreamRoundIterator(
             @NonNull final Roster consensusRoster,
             final IOIterator<CesEvent> eventIterator,
-            boolean allowPartialRound,
+            final boolean allowPartialRound,
             final long userTxnOffsetNanos) {
         this.consensusRoster = Objects.requireNonNull(consensusRoster);
         this.eventIterator = Objects.requireNonNull(eventIterator);

@@ -11,6 +11,7 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+/** Tests for {@link EventUtils}. */
 class EventUtilsTest {
 
     private static final Instant EVENT_TIMESTAMP = Instant.ofEpochSecond(1_000_000L);
@@ -46,7 +47,7 @@ class EventUtilsTest {
 
     @Test
     @DisplayName("getLastTransTime returns event timestamp for zero transactions")
-    void getLastTransTimeZeroTransactionsTest() {
+    void lastTransTimeZeroTransactionsTest() {
         final PlatformEvent event = buildEvent(0);
 
         assertEquals(
@@ -57,7 +58,7 @@ class EventUtilsTest {
 
     @Test
     @DisplayName("getLastTransTime returns offset timestamp for single transaction")
-    void getLastTransTimeOneTransactionTest() {
+    void lastTransTimeOneTransactionTest() {
         final PlatformEvent event = buildEvent(1);
 
         assertEquals(
@@ -70,7 +71,7 @@ class EventUtilsTest {
 
     @Test
     @DisplayName("getLastTransTime returns last transaction timestamp for multiple transactions")
-    void getLastTransTimeMultipleTransactionsTest() {
+    void lastTransTimeMultipleTransactionsTest() {
         final PlatformEvent event = buildEvent(3);
 
         assertEquals(
