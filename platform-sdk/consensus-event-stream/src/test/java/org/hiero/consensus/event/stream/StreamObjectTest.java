@@ -2,7 +2,7 @@
 package org.hiero.consensus.event.stream;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static org.hiero.base.io.FileUtils.deleteDirectory;
+import static org.hiero.base.file.FileUtils.deleteDirectory;
 import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.generateStreamFileNameFromInstant;
 import static org.hiero.consensus.event.stream.internal.StreamValidationResult.OK;
 import static org.hiero.consensus.event.stream.internal.StreamValidationResult.SIG_FILE_COUNT_MISMATCH;

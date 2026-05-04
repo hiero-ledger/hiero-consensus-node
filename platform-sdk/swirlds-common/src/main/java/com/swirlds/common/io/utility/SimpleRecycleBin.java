@@ -4,7 +4,7 @@ package com.swirlds.common.io.utility;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import org.hiero.base.io.FileUtils;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.io.RecycleBin;
 
 /**

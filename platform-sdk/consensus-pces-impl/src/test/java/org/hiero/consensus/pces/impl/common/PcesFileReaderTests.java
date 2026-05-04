@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
-import org.hiero.base.io.FileUtils;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.pces.impl.PcesTestFilesGenerator;
 import org.hiero.consensus.pces.impl.PcesTestFilesGenerator.Range;
 import org.junit.jupiter.api.AfterEach;

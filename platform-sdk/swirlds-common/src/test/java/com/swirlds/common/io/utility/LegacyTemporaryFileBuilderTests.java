@@ -6,8 +6,8 @@ import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemp
 import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.getTemporaryFileLocation;
 import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.overrideTemporaryFileLocation;
 import static java.nio.file.Files.exists;
-import static org.hiero.base.io.FileUtils.deleteDirectory;
-import static org.hiero.base.io.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.deleteDirectory;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;

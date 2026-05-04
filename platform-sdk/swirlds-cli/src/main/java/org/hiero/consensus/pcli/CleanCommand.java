@@ -11,7 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
-import org.hiero.base.io.FileUtils;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.config.EventConfig;
 import picocli.CommandLine;
 

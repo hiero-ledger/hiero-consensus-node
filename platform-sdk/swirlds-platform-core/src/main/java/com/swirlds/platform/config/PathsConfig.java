@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config;
 
-import static org.hiero.base.io.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;

@@ -3,8 +3,8 @@ package com.swirlds.common.io.utility;
 
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.io.FileUtils.deleteDirectoryAndLog;
-import static org.hiero.base.io.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
@@ -18,7 +18,7 @@ import java.nio.file.attribute.FileAttribute;
 /**
  * This class provides utility methods for constructing temporary files.
  *
- * @deprecated use the {@link com.swirlds.common.io.filesystem.FileSystemManager} provided
+ * @deprecated use the {@link org.hiero.base.file.FileSystemManager} provided
  * by {@link com.swirlds.common.context.PlatformContext} instead
  */
 @Deprecated
@@ -78,7 +78,7 @@ public final class LegacyTemporaryFileBuilder {
      *
      * @param configuration platform configuration
      * @return a new temporary file
-     * @deprecated use {@link com.swirlds.common.io.filesystem.FileSystemManager#resolveNewTemp(String)} instead.
+     * @deprecated use {@link org.hiero.base.file.FileSystemManager#resolveNewTemp(String)} instead.
      */
     @Deprecated
     public static synchronized Path buildTemporaryFile(final @NonNull Configuration configuration) throws IOException {
@@ -95,7 +95,7 @@ public final class LegacyTemporaryFileBuilder {
      * 		if a human ever looks at it directly. Ignored if null.
      * @param configuration platform configuration
      * @return a new temporary file
-     * @deprecated use {@link com.swirlds.common.io.filesystem.FileSystemManager#resolveNewTemp(String)} instead.
+     * @deprecated use {@link org.hiero.base.file.FileSystemManager#resolveNewTemp(String)} instead.
      */
     @Deprecated
     public static synchronized Path buildTemporaryFile(final String postfix, final @NonNull Configuration configuration)
@@ -120,7 +120,7 @@ public final class LegacyTemporaryFileBuilder {
      *
      * @param configuration platform configuration
      * @return a new temporary directory
-     * @deprecated use {@link com.swirlds.common.io.filesystem.FileSystemManager#resolveNewTemp(String)} instead
+     * @deprecated use {@link org.hiero.base.file.FileSystemManager#resolveNewTemp(String)} instead
      * and then create a directory using {@link Files#createDirectory(Path, FileAttribute[])}
      */
     @Deprecated
@@ -140,7 +140,7 @@ public final class LegacyTemporaryFileBuilder {
      * 		if a human ever looks at it directly. Ignored if null.
      * @param configuration platform configuration
      * @return a new temporary directory
-     * @deprecated use {@link com.swirlds.common.io.filesystem.FileSystemManager#resolveNewTemp(String)} instead
+     * @deprecated use {@link org.hiero.base.file.FileSystemManager#resolveNewTemp(String)} instead
      * and then create a directory using {@link Files#createDirectory(Path, FileAttribute[])}
      */
     @Deprecated

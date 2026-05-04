@@ -3,7 +3,7 @@ package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
-import static org.hiero.base.io.FileUtils.deleteDirectoryAndLog;
+import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
 import com.swirlds.base.time.Time;

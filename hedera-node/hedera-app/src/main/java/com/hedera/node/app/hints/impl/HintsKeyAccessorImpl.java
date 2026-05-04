@@ -2,7 +2,7 @@
 package com.hedera.node.app.hints.impl;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.io.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.tss.SequentialContentManager;

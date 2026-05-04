@@ -2,7 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.io.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.node.app.history.HistoryLibrary;

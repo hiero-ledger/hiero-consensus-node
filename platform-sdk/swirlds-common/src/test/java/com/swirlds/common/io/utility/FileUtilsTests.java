@@ -5,7 +5,7 @@ import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
-import static org.hiero.base.io.FileUtils.writeAndFlush;
+import static org.hiero.base.file.FileUtils.writeAndFlush;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

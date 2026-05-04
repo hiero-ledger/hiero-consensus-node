@@ -12,7 +12,7 @@ import java.time.Duration;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
-import org.hiero.base.io.FileUtils;
+import org.hiero.base.file.FileUtils;
 import org.hiero.sloth.fixtures.Capability;
 import org.hiero.sloth.fixtures.Network;
 import org.hiero.sloth.fixtures.TestEnvironment;

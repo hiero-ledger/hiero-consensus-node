@@ -14,7 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.stream.Stream;
-import org.hiero.base.io.FileUtils;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.app.OtterApp;
 

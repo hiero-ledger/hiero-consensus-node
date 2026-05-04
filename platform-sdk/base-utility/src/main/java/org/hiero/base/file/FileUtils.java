@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.base.io;
+package org.hiero.base.file;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
@@ -29,6 +29,9 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.io.IOConsumer;
+import org.hiero.base.io.IORunnable;
+import org.hiero.base.io.IOSupplier;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**

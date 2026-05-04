@@ -15,8 +15,8 @@ import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.io.FileUtils.getAbsolutePath;
-import static org.hiero.base.io.FileUtils.rethrowIO;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -46,7 +46,7 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -73,6 +73,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateUtils;
@@ -166,7 +167,8 @@ public class ServicesMain {
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
-        final var fileSystemManager = FileSystemManager.create(platformConfig);
+        final var fileSystemConfig = platformConfig.getConfigData(FileSystemConfig.class);
+        final var fileSystemManager = new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir());
         final var recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
