@@ -193,7 +193,6 @@ public final class SignedStateFileWriter {
                 snapshotFuture.get(stateConfig.asyncSnapshotTimeout(), TimeUnit.SECONDS);
             } else {
                 stateLifecycleManager.createSnapshot(signedState.getState(), directory);
-                reservedSignedState.close();
             }
 
             // Keep this after snapshot creation. BestEffortPcesFileCopy only scans files currently visible
