@@ -649,7 +649,7 @@ public class PlatformComponentBuilder {
                     blocks.appVersion(),
                     blocks.consensusStateEventHandler(),
                     blocks.selfId(),
-                    0L);
+                    0L); // TODO(#24984): replace with computed userTxnOffsetNanos (handleMaxPrecedingRecords + reservedSystemTxnNanos + 1)
         }
         return transactionHandler;
     }
