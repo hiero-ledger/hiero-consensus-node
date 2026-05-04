@@ -34,6 +34,8 @@ Modify:
 - `platform-sdk/swirlds-benchmarks/src/main/java/module-info.java`
   Export the simulator package for tests and JMH code.
 - `platform-sdk/swirlds-benchmarks/build.gradle.kts`
+  Add test module access to JUnit before introducing `src/test` tests.
+- `platform-sdk/swirlds-benchmarks/build.gradle.kts`
   Add `jmhReconnect` property passthrough for network and state-size JMH params.
 - `platform-sdk/swirlds-benchmarks/src/jmh/java/com/swirlds/benchmark/reconnect/PairedStreams.java`
   Replace loopback sockets with simulated network channels.
@@ -54,13 +56,24 @@ Delete:
 ## Task 1: Network Config Types
 
 **Files:**
+- Modify: `platform-sdk/swirlds-benchmarks/build.gradle.kts`
 - Create: `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/NetworkProfile.java`
 - Create: `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/NetworkSimulationConfig.java`
 - Create: `platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network/SimulatedNetworkStats.java`
 - Modify: `platform-sdk/swirlds-benchmarks/src/main/java/module-info.java`
 - Test: `platform-sdk/swirlds-benchmarks/src/test/java/com/swirlds/benchmark/reconnect/network/SimulatedNetworkChannelTest.java`
 
-- [ ] **Step 1: Write failing config tests**
+- [ ] **Step 1: Add JUnit access for the new test source set**
+
+`swirlds-benchmarks` did not previously have `src/test` tests. Add this block to `platform-sdk/swirlds-benchmarks/build.gradle.kts` before writing JUnit tests:
+
+```kotlin
+testModuleInfo {
+    requires("org.junit.jupiter.api")
+}
+```
+
+- [ ] **Step 2: Write failing config tests**
 
 Create `SimulatedNetworkChannelTest.java` with these first tests:
 
@@ -123,7 +136,7 @@ class SimulatedNetworkChannelTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 3: Run test to verify it fails**
 
 Run:
 
@@ -131,9 +144,9 @@ Run:
 ./gradlew :swirlds-benchmarks:test --tests com.swirlds.benchmark.reconnect.network.SimulatedNetworkChannelTest
 ```
 
-Expected: FAIL because `NetworkProfile`, `NetworkSimulationConfig`, and `SimulatedNetworkStats` do not exist.
+Expected: FAIL because `NetworkProfile`, `NetworkSimulationConfig`, and `SimulatedNetworkStats` do not exist. If it fails because JUnit is unavailable, the `testModuleInfo` setup is wrong and must be fixed before implementation.
 
-- [ ] **Step 3: Implement config classes**
+- [ ] **Step 4: Implement config classes**
 
 Create `NetworkProfile.java`:
 
@@ -218,7 +231,7 @@ module com.swirlds.benchmarks {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 5: Run test to verify it passes**
 
 Run:
 
@@ -228,10 +241,11 @@ Run:
 
 Expected: PASS for the four config tests.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add platform-sdk/swirlds-benchmarks/src/main/java/module-info.java \
+git add platform-sdk/swirlds-benchmarks/build.gradle.kts \
+  platform-sdk/swirlds-benchmarks/src/main/java/module-info.java \
   platform-sdk/swirlds-benchmarks/src/main/java/com/swirlds/benchmark/reconnect/network \
   platform-sdk/swirlds-benchmarks/src/test/java/com/swirlds/benchmark/reconnect/network/SimulatedNetworkChannelTest.java
 git commit -m "test: add network simulation config"

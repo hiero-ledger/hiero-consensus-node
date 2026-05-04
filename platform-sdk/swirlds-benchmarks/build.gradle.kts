@@ -34,6 +34,10 @@ jmhModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
 }
 
+testModuleInfo {
+    requires("org.junit.jupiter.api")
+}
+
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
 
 // ── Benchmark run configurations ─────────────────────────────────────
