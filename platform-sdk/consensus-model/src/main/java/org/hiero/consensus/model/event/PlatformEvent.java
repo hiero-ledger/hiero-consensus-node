@@ -391,7 +391,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         if (transactionIndex >= getTransactionCount()) {
             throw new IllegalArgumentException("Event does not have a transaction with index: " + transactionIndex);
         }
-        return consensusTimestamp.plusNanos(userTxnOffsetNanos + (long) transactionIndex * MIN_TRANS_TIMESTAMP_INCR_NANOS);
+        return consensusTimestamp.plusNanos(userTxnOffsetNanos + MIN_TRANS_TIMESTAMP_INCR_NANOS * transactionIndex);
     }
 
     /**
