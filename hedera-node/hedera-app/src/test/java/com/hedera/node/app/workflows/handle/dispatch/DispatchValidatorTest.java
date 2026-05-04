@@ -57,6 +57,7 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -107,6 +108,7 @@ class DispatchValidatorTest {
     @BeforeEach
     void setUp() {
         subject = new DispatchValidator(recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), null);
+        lenient().when(dispatch.config()).thenReturn(HederaTestConfigBuilder.createConfig());
     }
 
     @Test
@@ -392,6 +394,30 @@ class DispatchValidatorTest {
         givenPayer(payer -> payer.tinybarBalance(1L).smartContract(true));
         given(dispatch.txnInfo()).willReturn(TXN_INFO);
         assertThrows(IllegalStateException.class, () -> subject.validateFeeChargingScenario(dispatch));
+    }
+
+    @Test
+    void contractUserPayerIsAllowedWhenSmartContractSenderEnabled() {
+        // Mirror node opts in to this via accounts.smartContractSenderEnabled=true to support
+        // eth_estimateGas simulations whose sender is a contract. The same dispatch with the flag off
+        // (the consensus-node default) is rejected by contractUserPayerIsFailInvalid.
+        given(dispatch.config())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("accounts.smartContractSenderEnabled", "true")
+                        .getOrCreateConfig());
+
+        givenCreatorInfo();
+        givenUserDispatch();
+        givenNonDuplicate();
+        givenSolvencyCheckSetup();
+        givenValidPayerSig();
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        final var payerAccount = givenPayer(payer -> payer.tinybarBalance(1L).smartContract(true));
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newSuccess(dispatch.creatorInfo().accountId(), payerAccount), report);
     }
 
     @Test
