@@ -79,7 +79,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     private int deGen = 0;
 
     /** A unique sequence number determining the order in which this event was processed */
-    private long sequence = Sequencer.NO_SEQUENCE;
+    private long consensusSequence = Sequencer.NO_SEQUENCE;
 
     /**
      * Constructor
@@ -467,6 +467,14 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
+     * The sequence number of this event, order in which it was released from the orphan buffer
+     * @return the sequence number of this event.
+     */
+    public long getSequenceNumber() {
+        return getPlatformEvent().getSequenceNumber();
+    }
+
+    /**
      * Get the birth round of this event
      *
      * @return the birth round of this event
@@ -524,21 +532,21 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * Get the sequence number of this event, which determines the order in which this event was processed.
+     * Get the consensus sequence number of this event, which indicates the order in which this event was processed in consensus.
      *
      * @return the sequence number of this event
      */
-    public long getSequence() {
-        return sequence;
+    public long getConsensusSequence() {
+        return consensusSequence;
     }
 
     /**
-     * Set the sequence number of this event, which determines the order in which this event was processed.
+     * Set the sequence number of this event, which indicates the order in which this event was processed by consensus.
      *
-     * @param sequence the sequence number to set
+     * @param consensusSequence the sequence number to set
      */
-    public void setSequence(final long sequence) {
-        this.sequence = sequence;
+    public void setConsensusSequence(final long consensusSequence) {
+        this.consensusSequence = consensusSequence;
     }
 
     //

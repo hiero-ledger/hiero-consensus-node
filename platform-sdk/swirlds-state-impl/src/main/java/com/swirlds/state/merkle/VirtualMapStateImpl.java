@@ -26,8 +26,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.Reservable;
-import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -78,7 +76,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.Reservable;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Mnemonics;
 import org.json.JSONObject;
 
 /**

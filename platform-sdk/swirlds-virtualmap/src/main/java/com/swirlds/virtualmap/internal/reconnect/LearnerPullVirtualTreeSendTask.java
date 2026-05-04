@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.virtualmap.internal.Path;
@@ -94,15 +95,23 @@ public class LearnerPullVirtualTreeSendTask {
         this.rootResponseTimeout = reconnectConfig.pullLearnerRootResponseTimeout();
     }
 
+    /**
+     * Start the background thread that sends requests to the teacher.
+     */
     void exec() {
         workGroup.execute(NAME, this::run);
     }
 
+    /**
+     * Main loop for the sender thread. Sends the root request first, waits for the root
+     * response, then continuously queries the view for the next path to request. Sends
+     * a terminating {@link Path#INVALID_PATH} request when all paths have been sent.
+     */
     private void run() {
         try {
             if (rootRequestSent.compareAndSet(false, true)) {
                 // Send a request for the root node first. The response will contain the virtual path range
-                out.sendAsync(new PullVirtualTreeRequest(Path.ROOT_PATH, new Hash()));
+                sendRequest(new PullVirtualTreeRequest(Path.ROOT_PATH, new Hash()));
                 view.getMapStats().incrementTransfersFromLearner();
                 responsesExpected.incrementAndGet();
             }
@@ -118,7 +127,7 @@ public class LearnerPullVirtualTreeSendTask {
                     // Once the last learner sending task is done, send the teacher a marker
                     // (final) reconnect request and terminate the async out
                     if (tasksDone.decrementAndGet() == 0) {
-                        out.sendAsync(new PullVirtualTreeRequest(Path.INVALID_PATH, null));
+                        sendRequest(new PullVirtualTreeRequest(Path.INVALID_PATH, null));
                         out.done();
                     }
                     break;
@@ -129,7 +138,7 @@ public class LearnerPullVirtualTreeSendTask {
                     Thread.sleep(0, 1);
                     continue;
                 }
-                out.sendAsync(new PullVirtualTreeRequest(path, view.getNodeHash(path)));
+                sendRequest(new PullVirtualTreeRequest(path, view.getNodeHash(path)));
                 responsesExpected.incrementAndGet();
                 view.getMapStats().incrementTransfersFromLearner();
             }
@@ -139,5 +148,17 @@ public class LearnerPullVirtualTreeSendTask {
         } catch (final Exception ex) {
             workGroup.handleError(ex);
         }
+    }
+
+    /**
+     * Serializes the given request to bytes and sends it through the async output stream.
+     *
+     * @param request the request to send
+     * @throws InterruptedException if interrupted while waiting to enqueue
+     */
+    private void sendRequest(final PullVirtualTreeRequest request) throws InterruptedException {
+        final byte[] bytes = new byte[request.getSizeInBytes()];
+        request.writeTo(BufferedData.wrap(bytes));
+        out.sendAsync(bytes);
     }
 }

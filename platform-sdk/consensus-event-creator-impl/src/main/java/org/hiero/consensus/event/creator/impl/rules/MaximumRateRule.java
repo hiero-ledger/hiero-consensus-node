@@ -6,7 +6,7 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LI
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreationStatus;
 

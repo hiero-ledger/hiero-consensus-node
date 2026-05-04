@@ -9,6 +9,7 @@ plugins {
 description = "Default Consensus Hashgraph Implementation"
 
 testModuleInfo {
+    requires("org.hiero.consensus.gui")
     requires("com.swirlds.base.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("com.swirlds.common")

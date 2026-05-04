@@ -99,7 +99,7 @@ public class CreatePrecompileSuite {
     public static final String TOKEN_CREATE_CONTRACT = "TokenCreateContract";
     public static final String FIRST_CREATE_TXN = "firstCreateTxn";
     private static final String ACCOUNT_BALANCE = "ACCOUNT_BALANCE";
-    public static final long DEFAULT_AMOUNT_TO_SEND = 20 * ONE_HBAR;
+    public static final long DEFAULT_AMOUNT_TO_SEND = 30 * ONE_HBAR;
     public static final String ED25519KEY = "ed25519key";
     public static final String ECDSA_KEY = "ecdsa";
     public static final String EXISTING_TOKEN = "EXISTING_TOKEN";

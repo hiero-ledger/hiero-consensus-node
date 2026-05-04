@@ -22,7 +22,7 @@ jobs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -62,7 +62,7 @@ jobs:
     uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' }}
     with:
-      test-asset: "SDLT2"
+      test-asset: "SDLT2" # TODO: Once Chewie application is installed we can remove this input.
       ref: "${{ github.ref }}"
       solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "100000000"
@@ -73,6 +73,7 @@ jobs:
       delete-namespace: true
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
@@ -82,7 +83,7 @@ jobs:
       - verify-tag
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -137,7 +138,7 @@ jobs:
       commit: ${{ steps.find-commit-author-slack.outputs.commit }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -190,7 +191,7 @@ jobs:
       !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 
@@ -317,7 +318,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
         with:
           egress-policy: audit
 

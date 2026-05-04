@@ -11,6 +11,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchExecution;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.isStakingAccount;
+import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.chargeableGasLimit;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_OPTIONAL;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_REQUIRED;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
@@ -50,6 +51,8 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -172,8 +175,6 @@ public class TransferExecutor extends BaseTokenHandler {
             boolean skipCustomFee) {
         final var topLevelPayer = context.payer();
         transferContext.validateHbarAllowances();
-        final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
-
         // Replace all aliases in the transaction body with its account ids; use in all further steps
         final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
         List<CryptoTransferTransactionBody> txns = List.of(replacedOp);
@@ -210,11 +211,18 @@ public class TransferExecutor extends BaseTokenHandler {
                         HooksABI.FN_ALLOW_PRE,
                         numAttemptedHookCalls);
             } catch (HandleException e) {
+                final var config = context.configuration();
                 // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
                         (ctx, ignored) -> refundHookFee(
-                                context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
+                                context,
+                                ctx,
+                                hookCalls,
+                                numAttemptedHookCalls.get(),
+                                config.getConfigData(HooksConfig.class),
+                                config.getConfigData(AccountsConfig.class),
+                                topLevelPayer));
             }
         }
 
@@ -234,12 +242,18 @@ public class TransferExecutor extends BaseTokenHandler {
                         HooksABI.FN_ALLOW_POST,
                         numAttemptedHookCalls);
             } catch (HandleException e) {
-                // if hook execution failed, we still want to throw an exception but refund the charged fees
-                // for other hook calls that didn't execute
+                final var config = context.configuration();
+                // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
                         (ctx, ignored) -> refundHookFee(
-                                context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
+                                context,
+                                ctx,
+                                hookCalls,
+                                numAttemptedHookCalls.get(),
+                                config.getConfigData(HooksConfig.class),
+                                config.getConfigData(AccountsConfig.class),
+                                topLevelPayer));
             }
         }
 
@@ -257,12 +271,18 @@ public class TransferExecutor extends BaseTokenHandler {
             @NonNull final HookCalls hookCalls,
             final int numAttemptedHookCalls,
             @NonNull final HooksConfig hooksConfig,
+            @NonNull final AccountsConfig accountsConfig,
             @NonNull final AccountID payerId) {
+        if (accountsConfig.isSuperuser(payerId)) {
+            // Edge case for test env mostly; superusers aren't charged fees in the first place, don't refund them
+            return;
+        }
         final long tinycentsToRefund = getFeesToRefund(
                 hookCalls,
                 numAttemptedHookCalls,
                 hooksConfig.hookInvocationCostTinyCents(),
-                context.getGasPriceInTinycents());
+                context.getGasPriceInTinycents(),
+                context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction());
         final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(tinycentsToRefund);
         ctx.refund(payerId, new Fees(0, 0, refundInTinybars));
     }
@@ -275,13 +295,15 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param hookCalls the hook calls
      * @param numAttemptedHookCalls number of attempted hook calls
      * @param hookInvocationCostTinyCents cost of hook invocation in tiny cents
+     * @param maxGasPerTransaction the max gas limit per contract call transaction
      * @return gas to refund
      */
     private long getFeesToRefund(
             final HookCalls hookCalls,
             final int numAttemptedHookCalls,
             final long hookInvocationCostTinyCents,
-            final long gasPriceInTinyCents) {
+            final long gasPriceInTinyCents,
+            final long maxGasPerTransaction) {
         final var preOnlyHooks = hookCalls.preOnlyHooks();
         final var prePostHooks = hookCalls.prePostHooks();
 
@@ -299,7 +321,7 @@ public class TransferExecutor extends BaseTokenHandler {
         // pre-only hooks: FN_ALLOW
         for (final var hook : preOnlyHooks) {
             if (invocationIndex >= numAttemptedHookCalls) {
-                gasToRefund += hook.gasLimit();
+                gasToRefund += chargeableGasLimit(hook.gasLimit(), maxGasPerTransaction);
                 invocationsToRefund++;
             }
             invocationIndex++;
@@ -308,7 +330,7 @@ public class TransferExecutor extends BaseTokenHandler {
         // pre part of pre-post hooks: FN_ALLOW_PRE
         for (final var hook : prePostHooks) {
             if (invocationIndex >= numAttemptedHookCalls) {
-                gasToRefund += hook.gasLimit();
+                gasToRefund += chargeableGasLimit(hook.gasLimit(), maxGasPerTransaction);
                 invocationsToRefund++;
             }
             invocationIndex++;
@@ -317,7 +339,7 @@ public class TransferExecutor extends BaseTokenHandler {
         // post part of pre-post hooks: FN_ALLOW_POST
         for (final var hook : prePostHooks) {
             if (invocationIndex >= numAttemptedHookCalls) {
-                gasToRefund += hook.gasLimit();
+                gasToRefund += chargeableGasLimit(hook.gasLimit(), maxGasPerTransaction);
                 invocationsToRefund++;
             }
             invocationIndex++;

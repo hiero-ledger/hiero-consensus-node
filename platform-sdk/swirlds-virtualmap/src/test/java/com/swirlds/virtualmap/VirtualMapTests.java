@@ -1015,19 +1015,15 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     void testEnableVirtualRootFlush() {
         VirtualMap fcm0 = createMap();
-        fcm0.postInit();
         assertFalse(fcm0.shouldBeFlushed(), "map should not yet be flushed");
 
         VirtualMap fcm1 = fcm0.copy();
-        fcm1.postInit();
         assertFalse(fcm1.shouldBeFlushed(), "map should not yet be flushed");
 
         VirtualMap fcm2 = fcm1.copy();
-        fcm2.postInit();
         assertFalse(fcm1.shouldBeFlushed(), "map should not yet be flushed");
 
         VirtualMap fcm3 = fcm2.copy();
-        fcm3.postInit();
         fcm3.enableFlush();
         assertTrue(fcm3.shouldBeFlushed(), "map should now be flushed");
 
@@ -1071,7 +1067,6 @@ class VirtualMapTests extends VirtualTestBase {
         fcm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
 
         final VirtualMap copy = fcm.copy();
-        copy.postInit();
         fcm.release();
         fcm.waitUntilFlushed();
 
@@ -1093,7 +1088,6 @@ class VirtualMapTests extends VirtualTestBase {
         fcm.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
 
         final VirtualMap copy = fcm.copy();
-        copy.postInit();
         fcm.release();
         fcm.waitUntilFlushed();
 
@@ -1118,7 +1112,6 @@ class VirtualMapTests extends VirtualTestBase {
         fcm.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
         final VirtualMap copy = fcm.copy();
-        copy.postInit();
         fcm.release();
         fcm.waitUntilFlushed();
 
@@ -1277,7 +1270,6 @@ class VirtualMapTests extends VirtualTestBase {
         for (int i = 0; i < 50; i++) {
             assertEquals(threshold, root.getFlushCandidateThreshold());
             VirtualMap copy = root.copy();
-            copy.postInit();
             root.release();
             root = copy;
         }

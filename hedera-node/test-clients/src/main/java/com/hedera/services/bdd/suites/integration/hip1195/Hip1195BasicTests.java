@@ -33,6 +33,7 @@ import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
@@ -45,6 +46,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_BASE_FEE;
@@ -103,6 +105,7 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -1442,6 +1445,34 @@ public class Hip1195BasicTests {
                 assertHookIdList("threeHooksToStartNZZNZ", List.of()),
                 contractUpdate("threeHooksToStartNZNZZ").withHook(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
                 assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> refundAndChargingAreBothCappedAtTxGasLimit() {
+        final var senderBefore = new AtomicLong();
+        final var senderAfter = new AtomicLong();
+        final var receiverBefore = new AtomicLong();
+        final var receiverAfter = new AtomicLong();
+        return hapiTest(
+                cryptoCreate("sender")
+                        .balance(ONE_MILLION_HBARS)
+                        .withHooks(accountAllowanceHook(1L, FALSE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("receiver").withHooks(accountAllowanceHook(3L, TRUE_ALLOWANCE_HOOK.name())),
+                getAccountBalance("sender").exposingBalanceTo(senderBefore::set),
+                getAccountBalance("receiver").exposingBalanceTo(receiverBefore::set),
+                doWithStartupConfig("contracts.maxGasPerTransaction", property -> cryptoTransfer(
+                                movingHbar(1).between("sender", "receiver"))
+                        .withPreHookFor("sender", 1L, 25_000L, "")
+                        .withPreHookFor("receiver", 3L, 3 * Long.parseLong(property), "")
+                        .payingWith("sender")
+                        .fee(500 * THOUSAND_HBAR)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)),
+                getAccountBalance("sender").exposingBalanceTo(senderAfter::set),
+                getAccountBalance("receiver").exposingBalanceTo(receiverAfter::set),
+                withOpContext((spec, opLog) -> {
+                    assertEquals(receiverBefore.get(), receiverAfter.get(), "receiver balance should be unchanged");
+                    assertTrue(senderBefore.get() - senderAfter.get() > 0, "sender balance should be debited");
+                }));
     }
 
     private SpecOperation assertHookIdList(@NonNull final String account, @NonNull final List<Long> expectedHookIds) {

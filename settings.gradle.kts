@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 plugins {
     id("org.hiero.gradle.build") version "0.7.6"
-    id("com.hedera.pbj.pbj-compiler") version "0.14.5" apply false
+    id("com.hedera.pbj.pbj-compiler") version "0.15.2" apply false
 }
 
 // Configure test retry for CI flaky test handling using the retry plugin bundled with Develocity.
@@ -16,6 +16,15 @@ gradle.allprojects {
                 failOnPassedAfterRetry.set(false)
             }
             reports.junitXml.mergeReruns.set(true)
+
+            // Write a marker when tests actually execute (not on cache restore).
+            // Resolve eagerly to avoid capturing Project in the doLast closure (configuration
+            // cache).
+            val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
+            doLast {
+                markerFile.parentFile.mkdirs()
+                markerFile.writeText(java.time.Instant.now().toString())
+            }
         }
     }
 }

@@ -27,6 +27,7 @@ testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("com.swirlds.logging.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
     requires("org.apache.logging.log4j.core")

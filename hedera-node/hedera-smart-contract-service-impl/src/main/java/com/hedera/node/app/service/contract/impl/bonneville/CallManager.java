@@ -9,14 +9,13 @@ import com.hedera.node.app.service.contract.impl.exec.processors.PublicMessagePr
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.TangerineWhistleGasCalculator;
@@ -51,8 +50,7 @@ public abstract class CallManager {
         assert recv_contract != null;
         bevm.isWarm(recv_contract); // Force contract address to be warmed up
 
-        if( bevm._updater instanceof ProxyWorldUpdater pwu )
-            pwu.setupInternalAliasedCreate(sender, recv_contract);
+        bevm._updater.setupInternalAliasedCreate(sender, recv_contract);
 
         // gas cost for making the contract
         long gas = bevm._gasCalc.txCreateCost()  + // 32000
@@ -186,17 +184,14 @@ public abstract class CallManager {
 
         boolean hasValue = value.toUInt256() != UInt256.ZERO;
 
-        if( bevm.mustBePresent(contract, hasValue) ) {
-            //    FrameUtils.invalidAddressContext(bevm._frame).set(to,InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
-            //    return new OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
-            throw new TODO();
-        }
+        if( bevm.mustBePresent(contract, hasValue) )
+            assert bevm.assertValidSolidity(contract);
 
         // CallOperation
         if( isStatic && hasValue ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 
         // Not sure how this can be set
-        Account contractAccount = bevm._updater.get(contract);
+        AbstractMutableEvmAccount contractAccount = bevm._updater.get(contract);
         if( contractAccount != null && contractAccount.hasDelegatedCode() )
             throw new TODO();
 
@@ -347,10 +342,9 @@ public abstract class CallManager {
 
     private static boolean checkHookExec(BEVM bevm) {
         if( bevm._hookOwner == null ) return false;
-        if( !(bevm._updater instanceof ProxyWorldUpdater pwu) ) return false;
 
         // isNotRedirectFromNativeEntity
-        final var recipient = pwu.getHederaAccount(bevm._recvAddr);
+        final var recipient = bevm._updater.getHederaAccount(bevm._recvAddr);
         return !recipient.isTokenFacade() && !recipient.isScheduleTxnFacade() && !recipient.isRegularAccount();
     }
 

@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
+import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
