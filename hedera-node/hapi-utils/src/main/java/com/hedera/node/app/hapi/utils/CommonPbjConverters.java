@@ -282,7 +282,7 @@ public class CommonPbjConverters {
             final var bytes = requireNonNull(proto).toByteArray();
             final var codecField = requireNonNull(pbjClass).getDeclaredField("PROTOBUF");
             final var codec = (Codec<R>) codecField.get(null);
-            return codec.parse(BufferedData.wrap(bytes));
+            return codec.parseStrict(BufferedData.wrap(bytes));
         } catch (NoSuchFieldException | IllegalAccessException | ParseException e) {
             // Should be impossible, so just propagate an exception
             throw new RuntimeException("Invalid conversion to PBJ for " + pbjClass.getSimpleName(), e);
@@ -417,7 +417,7 @@ public class CommonPbjConverters {
         requireNonNull(keyValue);
         try {
             final var bytes = keyValue.toByteArray();
-            return Key.PROTOBUF.parse(BufferedData.wrap(bytes));
+            return Key.PROTOBUF.parseStrict(BufferedData.wrap(bytes));
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
@@ -442,8 +442,7 @@ public class CommonPbjConverters {
         requireNonNull(txBody);
         try {
             final var bytes = txBody.toByteArray();
-            return TransactionBody.PROTOBUF.parse(
-                    BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+            return TransactionBody.PROTOBUF.parseStrict(BufferedData.wrap(bytes));
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
