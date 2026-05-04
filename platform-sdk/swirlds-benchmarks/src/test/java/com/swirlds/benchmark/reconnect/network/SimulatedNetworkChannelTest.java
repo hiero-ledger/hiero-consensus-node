@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.DataInputStream;
@@ -13,6 +14,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
@@ -159,9 +161,11 @@ class SimulatedNetworkChannelTest {
 
         final long start = System.nanoTime();
         channel.outputStream().write(payload);
-        channel.inputStream().readNBytes(payload.length);
+        final byte[] received = channel.inputStream().readNBytes(payload.length);
         final long elapsedNanos = System.nanoTime() - start;
 
+        assertEquals(payload.length, received.length);
+        assertEquals(payload.length, channel.snapshotStats().bytesRead());
         assertTrue(elapsedNanos >= 150_000_000L, "250 KB at 1 MB/s should take noticeable time");
     }
 
@@ -178,17 +182,25 @@ class SimulatedNetworkChannelTest {
             }
         });
 
-        writer.start();
-        awaitThreadState(writer, Thread.State.WAITING);
-        assertEquals(16, channel.snapshotStats().maxInflightBytes());
+        try {
+            writer.setDaemon(true);
+            writer.start();
+            awaitThreadState(writer, Thread.State.WAITING);
+            assertEquals(16, channel.snapshotStats().maxInflightBytes());
 
-        channel.inputStream().readNBytes(64);
-        writer.join(5_000);
+            final byte[] received = assertTimeoutPreemptively(
+                    Duration.ofSeconds(5), () -> channel.inputStream().readNBytes(64));
+            assertEquals(64, received.length);
+            writer.join(5_000);
 
-        assertFalse(writer.isAlive());
-        assertNull(thrown.get());
-        assertEquals(64, channel.snapshotStats().bytesWritten());
-        assertEquals(64, channel.snapshotStats().bytesRead());
+            assertFalse(writer.isAlive());
+            assertNull(thrown.get());
+            assertEquals(64, channel.snapshotStats().bytesWritten());
+            assertEquals(64, channel.snapshotStats().bytesRead());
+        } finally {
+            channel.disconnect();
+            writer.join(5_000);
+        }
     }
 
     private static void awaitThreadState(final Thread thread, final Thread.State... states) throws InterruptedException {
