@@ -89,8 +89,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
                 roster,
                 selfId,
                 freezeChecker,
-                0L); // TODO(#24984): replace with computed userTxnOffsetNanos (handleMaxPrecedingRecords +
-        // reservedSystemTxnNanos + 1)
+                0L); // FUTURE WORK (#24984): replace with computed userTxnOffsetNanos
         consensusEngineWiring.bind(consensusEngine);
 
         if (pipelineTracker != null) {

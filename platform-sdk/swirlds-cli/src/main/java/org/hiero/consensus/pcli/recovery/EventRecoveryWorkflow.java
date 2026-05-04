@@ -140,8 +140,7 @@ public final class EventRecoveryWorkflow {
                     eventStreamDirectory,
                     initialState.get().getRound() + 1,
                     allowPartialRounds,
-                    0L); // TODO(#24984): replace with computed userTxnOffsetNanos (handleMaxPrecedingRecords +
-            // reservedSystemTxnNanos + 1)
+                    0L); // FUTURE WORK (#24984): replace with computed userTxnOffsetNanos
 
             logger.info(STARTUP.getMarker(), "Reapplying transactions");
 

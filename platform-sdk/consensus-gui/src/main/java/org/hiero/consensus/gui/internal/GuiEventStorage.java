@@ -50,7 +50,7 @@ public class GuiEventStorage {
      */
     public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
         this.configuration = Objects.requireNonNull(configuration);
-        // TODO(#24984): replace 0L with computed userTxnOffsetNanos
+        // FUTURE WORK (#24984): replace 0L with computed userTxnOffsetNanos
         this.consensus = new ConsensusImpl(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
         this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
