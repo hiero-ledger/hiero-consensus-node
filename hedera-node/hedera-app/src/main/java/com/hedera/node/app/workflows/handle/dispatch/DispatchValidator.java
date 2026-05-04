@@ -195,11 +195,9 @@ public class DispatchValidator {
      * For the child and preceding transactions, the payer account can be null. Because the payer for contract
      * operations can be a token address.
      *
-     * <p>The smart-contract payer rejection can be opted out of by setting
-     * {@code accounts.smartContractSenderEnabled=true}. This is a {@link com.hedera.node.config.NodeProperty}
-     * intended only for the standalone {@code TransactionExecutor} used by mirror node to support
-     * {@code eth_estimateGas} simulations whose sender is a contract account; it must remain {@code false} on every
-     * consensus node.
+     * <p>The smart-contract payer rejection can be opted out of via
+     * {@code accounts.smartContractSenderEnabled}, intended for the standalone {@code TransactionExecutor}
+     * used by mirror node to support {@code eth_estimateGas} simulations whose sender is a contract account.
      *
      * @param storeFactory the store factory
      * @param accountID the account ID

@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.config.NetworkProperty;
-import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,7 +58,7 @@ public record AccountsConfig(
         @ConfigProperty(value = "blocklist.path", defaultValue = "") @NetworkProperty
         String blocklistResource,
 
-        @ConfigProperty(defaultValue = "false") @NodeProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean smartContractSenderEnabled) {
 
     /**
