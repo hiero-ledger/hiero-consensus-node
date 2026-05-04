@@ -4,6 +4,7 @@ package com.swirlds.benchmark.reconnect.network;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -135,6 +136,59 @@ class SimulatedNetworkChannelTest {
 
         assertFalse(reader.isAlive());
         assertTrue(thrown.get() instanceof IOException);
+    }
+
+    @Test
+    void latencyDelaysFirstByteVisibility() throws Exception {
+        final SimulatedNetworkChannel channel =
+                new SimulatedNetworkChannel(NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 50_000, 1_000, 1024));
+
+        channel.outputStream().write(123);
+        final long start = System.nanoTime();
+        assertEquals(123, channel.inputStream().read());
+        final long elapsedNanos = System.nanoTime() - start;
+
+        assertTrue(elapsedNanos >= 40_000_000L, "first byte should be delayed by configured latency");
+    }
+
+    @Test
+    void bandwidthLimitsFullStreamDelivery() throws Exception {
+        final SimulatedNetworkChannel channel =
+                new SimulatedNetworkChannel(NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 0, 8, 500_000));
+        final byte[] payload = new byte[250_000];
+
+        final long start = System.nanoTime();
+        channel.outputStream().write(payload);
+        channel.inputStream().readNBytes(payload.length);
+        final long elapsedNanos = System.nanoTime() - start;
+
+        assertTrue(elapsedNanos >= 150_000_000L, "250 KB at 1 MB/s should take noticeable time");
+    }
+
+    @Test
+    void backpressureBlocksWriterUntilReaderConsumesBytes() throws Exception {
+        final SimulatedNetworkChannel channel =
+                new SimulatedNetworkChannel(NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 0, 1_000, 16));
+        final AtomicReference<Throwable> thrown = new AtomicReference<>();
+        final Thread writer = new Thread(() -> {
+            try {
+                channel.outputStream().write(new byte[64]);
+            } catch (final Throwable t) {
+                thrown.set(t);
+            }
+        });
+
+        writer.start();
+        awaitThreadState(writer, Thread.State.WAITING);
+        assertEquals(16, channel.snapshotStats().maxInflightBytes());
+
+        channel.inputStream().readNBytes(64);
+        writer.join(5_000);
+
+        assertFalse(writer.isAlive());
+        assertNull(thrown.get());
+        assertEquals(64, channel.snapshotStats().bytesWritten());
+        assertEquals(64, channel.snapshotStats().bytesRead());
     }
 
     private static void awaitThreadState(final Thread thread, final Thread.State... states) throws InterruptedException {
