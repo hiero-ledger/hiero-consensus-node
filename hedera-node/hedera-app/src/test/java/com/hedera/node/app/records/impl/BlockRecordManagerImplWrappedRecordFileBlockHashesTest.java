@@ -751,6 +751,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 app.platform(),
                 diskWriter,
                 () -> mock(BlockItemWriter.class),
+                NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RECONNECT)) {
             final var t0 = InstantUtils.instant(10, 1);
             mgr.startUserTransaction(t0, state);
