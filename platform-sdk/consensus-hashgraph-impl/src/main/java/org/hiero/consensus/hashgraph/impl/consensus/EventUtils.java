@@ -22,8 +22,7 @@ public final class EventUtils {
      * @param userTxnOffsetNanos nanoseconds offset applied to user transactions from the event consensus timestamp
      * @return timestamp of the last transaction, or the event consensus timestamp if there are no transactions
      */
-    public static @NonNull Instant getLastTransTime(
-            @NonNull final PlatformEvent event, final long userTxnOffsetNanos) {
+    public static @NonNull Instant getLastTransTime(@NonNull final PlatformEvent event, final long userTxnOffsetNanos) {
         if (event.getConsensusTimestamp() == null) {
             throw new IllegalArgumentException("Event is not a consensus event");
         }

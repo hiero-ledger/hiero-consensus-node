@@ -10,7 +10,6 @@ import java.util.Objects;
 import org.hiero.base.iterator.TypedIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 
 /**

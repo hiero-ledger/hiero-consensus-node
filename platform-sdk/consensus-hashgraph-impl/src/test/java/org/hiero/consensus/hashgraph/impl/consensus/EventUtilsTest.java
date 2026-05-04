@@ -65,9 +65,7 @@ class EventUtilsTest {
                 EventUtils.getLastTransTime(event, OFFSET),
                 "1 transaction should return eventTimestamp + offset, not raw eventTimestamp");
         assertEquals(
-                EVENT_TIMESTAMP,
-                EventUtils.getLastTransTime(event, 0L),
-                "with offset=0, should return eventTimestamp");
+                EVENT_TIMESTAMP, EventUtils.getLastTransTime(event, 0L), "with offset=0, should return eventTimestamp");
     }
 
     @Test
