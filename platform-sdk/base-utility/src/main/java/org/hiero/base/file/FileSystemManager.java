@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class FileSystemManager {
 
-    private static final String DEFAULT_TMP_DIR_NAME = "tmp";
+    private static final Path DEFAULT_TMP_DIR = Path.of("tmp");
 
     protected final Path rootPath;
     protected final Path tempPath;
@@ -52,29 +52,8 @@ public class FileSystemManager {
      * @param rootLocation the location to be used as root path. It should not exist.
      * @throws UncheckedIOException if the dir structure to rootLocation cannot be created
      */
-    public FileSystemManager(@NonNull final String rootLocation) {
-        this(rootLocation, DEFAULT_TMP_DIR_NAME);
-    }
-
-    /**
-     * Creates a new instance with the specified root location and default directory name for temporary files.
-     *
-     * @param rootLocation the location to be used as root path. It should not exist.
-     * @throws UncheckedIOException if the dir structure to rootLocation cannot be created
-     */
     public FileSystemManager(@NonNull final Path rootLocation) {
-        this(rootLocation, DEFAULT_TMP_DIR_NAME);
-    }
-
-    /**
-     * Creates a new instance with the specified root location and directory name and temporary files.
-     *
-     * @param rootLocation the location to be used as root path. It should not exist.
-     * @param tmpDirName   the name of the tmp file directory
-     * @throws UncheckedIOException if the dir structure to rootLocation cannot be created
-     */
-    public FileSystemManager(@NonNull final String rootLocation, @NonNull final String tmpDirName) {
-        this(Path.of(rootLocation), tmpDirName);
+        this(rootLocation, DEFAULT_TMP_DIR);
     }
 
     /**
@@ -84,7 +63,7 @@ public class FileSystemManager {
      * @param tmpDirName   the name of the tmp file directory
      * @throws UncheckedIOException if the dir structure to rootLocation cannot be created
      */
-    public FileSystemManager(@NonNull final Path rootLocation, @NonNull final String tmpDirName) {
+    public FileSystemManager(@NonNull final Path rootLocation, @NonNull final Path tmpDirName) {
         this.rootPath = rootLocation.normalize();
         if (!exists(rootPath)) {
             rethrowIO(() -> Files.createDirectories(rootPath));

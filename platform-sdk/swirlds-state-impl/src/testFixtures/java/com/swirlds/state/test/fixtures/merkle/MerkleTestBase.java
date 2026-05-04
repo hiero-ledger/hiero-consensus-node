@@ -35,6 +35,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.io.TempDir;

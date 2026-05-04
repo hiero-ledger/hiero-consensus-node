@@ -3,6 +3,7 @@ package com.swirlds.common.io.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import java.nio.file.Path;
 import java.time.Duration;
 
 /**
@@ -14,8 +15,6 @@ import java.time.Duration;
  */
 @ConfigData("recycleBin")
 public record RecycleBinConfig(
-        @ConfigProperty(defaultValue = "swirlds-recycle-bin")
-        String dirName,
-
+        @ConfigProperty(defaultValue = "swirlds-recycle-bin") Path dirName,
         @ConfigProperty(defaultValue = "7d") Duration maximumFileAge,
         @ConfigProperty(defaultValue = "1d") Duration collectionPeriod) {}

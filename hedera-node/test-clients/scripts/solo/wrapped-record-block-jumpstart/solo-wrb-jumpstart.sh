@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Wrapped Record Block Jumpstart Scenario
-# 1) Deploy a solo consensus network on v0.73.0-rc.1
+# 1) Deploy a solo consensus network on v0.73.0
 # 2) Wait 30s, then run offline wrapping from genesis records
 # 3) Build temp upgrade application.properties from 0.74 base + jumpstart values
 # 4) Upgrade to local build with temp properties
@@ -21,7 +21,7 @@ Environment:
   UPGRADE_VERSION               Solo upgrade-version for network upgrade
                                 (explicit value uses tag-based upgrade)
   LOCAL_BUILD_UPGRADE_TAG       Optional placeholder tag passed to Solo for local-build upgrades
-                                (default: v0.73.0-rc.5)
+                                (default: v0.74.0-rc.1)
   LOCAL_BUILD_PATH              Local build path with lib/ and apps/ jars
                                 (used when UPGRADE_VERSION is not set; default: <repo>/hedera-node/data)
   DEPLOY_APP_PROPS_FILE         application.properties used for initial deploy
@@ -92,9 +92,9 @@ else
 fi
 
 CONSENSUS_NODE_COUNT="$(awk -F',' '{print NF}' <<< "${NODE_ALIASES}")"
-INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0-rc.1}"
+INITIAL_RELEASE_TAG="${INITIAL_RELEASE_TAG:-v0.73.0}"
 UPGRADE_VERSION="${UPGRADE_VERSION:-${UPGRADE_LOCAL_VERSION:-}}"
-LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.73.0-rc.5}"
+LOCAL_BUILD_UPGRADE_TAG="${LOCAL_BUILD_UPGRADE_TAG:-v0.74.0-rc.1}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 DEPLOY_APP_PROPS_FILE="${DEPLOY_APP_PROPS_FILE:-${SCRIPT_DIR}/resources/0.73/application.properties}"
@@ -522,19 +522,36 @@ download_solo_minio_record_streams_range() {
 
 load_jumpstart_env_from_bin() {
   local jumpstart_file="$1"
-  local k v
+  local k v parser_out
   [[ -f "${jumpstart_file}" ]] || { echo "jumpstart.bin not found: ${jumpstart_file}" >&2; return 1; }
+  # Capture parser output and exit code explicitly; process substitution
+  # (`done < <(...)`) does NOT propagate the inner command's exit code, so a
+  # failing `node` would otherwise silently leave the JUMPSTART_* vars unset
+  # and the script would fail later with a misleading "unbound variable" error.
+  if ! parser_out="$(node "${JUMPSTART_PARSE_SCRIPT}" "${jumpstart_file}" 2>&1)"; then
+    echo "Failed to parse jumpstart.bin (${jumpstart_file}):" >&2
+    echo "${parser_out}" >&2
+    echo "jumpstart.bin size: $(wc -c <"${jumpstart_file}" 2>/dev/null || echo unknown) bytes" >&2
+    echo "jumpstart.bin head (hex, first 200 bytes):" >&2
+    # Order matters: send od stdout to fd 2 first, THEN drop od's own stderr.
+    od -An -tx1 -N 200 "${jumpstart_file}" >&2 2>/dev/null || true
+    return 1
+  fi
   while IFS='=' read -r k v; do
     case "${k}" in
       JUMPSTART_BLOCK_NUMBER) JUMPSTART_BLOCK_NUMBER="${v}" ;;
       JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH) JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH="${v}" ;;
+      JUMPSTART_CONSENSUS_TIMESTAMP_HASH) JUMPSTART_CONSENSUS_TIMESTAMP_HASH="${v}" ;;
+      JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH) JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH="${v}" ;;
       JUMPSTART_STREAMING_HASHER_LEAF_COUNT) JUMPSTART_STREAMING_HASHER_LEAF_COUNT="${v}" ;;
       JUMPSTART_STREAMING_HASHER_HASH_COUNT) JUMPSTART_STREAMING_HASHER_HASH_COUNT="${v}" ;;
       JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES) JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES="${v}" ;;
     esac
-  done < <(node "${JUMPSTART_PARSE_SCRIPT}" "${jumpstart_file}")
+  done <<< "${parser_out}"
   export JUMPSTART_BLOCK_NUMBER
   export JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH
+  export JUMPSTART_CONSENSUS_TIMESTAMP_HASH
+  export JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH
   export JUMPSTART_STREAMING_HASHER_LEAF_COUNT
   export JUMPSTART_STREAMING_HASHER_HASH_COUNT
   export JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES
@@ -657,6 +674,8 @@ create_temp_upgrade_properties() {
     echo "# Added by solo-wrb-jumpstart.sh"
     echo "blockStream.jumpstart.blockNum=${JUMPSTART_BLOCK_NUMBER}"
     echo "blockStream.jumpstart.previousWrappedRecordBlockHash=${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH}"
+    echo "blockStream.jumpstart.consensusTimestampHash=${JUMPSTART_CONSENSUS_TIMESTAMP_HASH}"
+    echo "blockStream.jumpstart.outputItemsTreeRootHash=${JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH}"
     echo "blockStream.jumpstart.streamingHasherLeafCount=${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}"
     echo "blockStream.jumpstart.streamingHasherHashCount=${JUMPSTART_STREAMING_HASHER_HASH_COUNT}"
     echo "blockStream.jumpstart.streamingHasherSubtreeHashes=${JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES}"
@@ -891,11 +910,11 @@ require_cmd awk
 require_cmd node
 require_cmd java
 validate_block_node_repo
-validate_local_build_path "${LOCAL_BUILD_PATH}"
 [[ -f "${LOG4J2_XML_PATH}" ]] || { echo "log4j2 config not found: ${LOG4J2_XML_PATH}" >&2; exit 1; }
 [[ -f "${DEPLOY_APP_PROPS_FILE}" ]] || { echo "Deploy application.properties not found: ${DEPLOY_APP_PROPS_FILE}" >&2; exit 1; }
 [[ -f "${BASE_074_APP_PROPS_FILE}" ]] || { echo "Base 0.74 application.properties not found: ${BASE_074_APP_PROPS_FILE}" >&2; exit 1; }
 if [[ -z "${UPGRADE_VERSION}" ]]; then
+  validate_local_build_path "${LOCAL_BUILD_PATH}"
   local_build_version="$(local_build_implementation_version)"
   [[ -n "${local_build_version}" ]] || {
     echo "Unable to determine local build Implementation-Version from ${LOCAL_BUILD_PATH}/apps/HederaNode.jar" >&2

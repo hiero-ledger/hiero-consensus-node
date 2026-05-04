@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedConsumer;
 import com.swirlds.base.units.UnitConstants;
@@ -700,7 +701,10 @@ class MerkleDbDataSourceTest {
                 // // key 10 is moved to path 15, key 11 is moved to path 16, etc.
                 assertEquals(i + 5, leaf.path(), "Leaf path mismatch at path " + i);
                 assertEquals(keys.get(i), leaf.keyBytes(), "Wrong key at path " + i);
-                assertEquals(values.get(i), leaf.value(testType.dataType().getCodec()), "Wrong value at path " + i);
+                assertEquals(
+                        values.get(i),
+                        leaf.value(testType.dataType().getCodec(), Codec.DEFAULT_MAX_SIZE),
+                        "Wrong value at path " + i);
             }
             for (int i = 16; i < 21; i++) {
                 final VirtualLeafBytes leafBytes = dataSource.loadLeafRecord(keys.get(i));
@@ -729,7 +733,10 @@ class MerkleDbDataSourceTest {
                 // // key 10 was moved to path 15, key 11 is moved to path 16, etc.
                 assertEquals(i + 5, leaf.path(), "Leaf path mismatch at path " + i);
                 assertEquals(keys.get(i), leaf.keyBytes(), "Wrong key at path " + i);
-                assertEquals(values.get(i), leaf.value(testType.dataType().getCodec()), "Wrong value at path " + i);
+                assertEquals(
+                        values.get(i),
+                        leaf.value(testType.dataType().getCodec(), Codec.DEFAULT_MAX_SIZE),
+                        "Wrong value at path " + i);
             }
         });
     }

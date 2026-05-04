@@ -22,9 +22,7 @@ testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
-    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
-    requires("org.mockito.junit.jupiter")
 
     exportsTo("org.hiero.base.utility")
 }

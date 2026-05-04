@@ -214,7 +214,8 @@ public class BlockNodeConfigService {
                                 nodeConfig.address() + ":" + nodeConfig.streamingPort(), _ -> new AtomicInteger())
                         .incrementAndGet();
             } catch (final RuntimeException e) {
-                logger.warn("Failed to parse block node configuration; skipping block node (config={})", nodeConfig, e);
+                logger.warn(
+                        "Failed to parse block node configuration; skipping block node (config: {})", nodeConfig, e);
             }
         }
 

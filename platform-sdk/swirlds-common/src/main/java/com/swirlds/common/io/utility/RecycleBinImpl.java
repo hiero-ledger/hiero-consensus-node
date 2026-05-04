@@ -119,7 +119,7 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
             @NonNull final NodeId nodeId) {
         final RecycleBinConfig recycleBinConfig = configuration.getConfigData(RecycleBinConfig.class);
         final Path recycleBinPath =
-                fileSystemManager.resolve(Path.of(recycleBinConfig.dirName())).resolve(nodeId.toString());
+                fileSystemManager.resolve(recycleBinConfig.dirName()).resolve(nodeId.toString());
 
         return new RecycleBinImpl(
                 metrics,

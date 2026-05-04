@@ -1097,3 +1097,6 @@ snyk/
 ### AI Helpers Code
 .claude/
 **/ai.local
+
+### Solo Testing Output
+/hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/generated/

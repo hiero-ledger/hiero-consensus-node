@@ -3,15 +3,15 @@ package com.swirlds.common.io.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import org.hiero.base.file.FileSystemManager;
+import java.nio.file.Path;
 
 /**
- * Settings for {@link FileSystemManager}
+ * Configuration for file system related properties.
  *
- * @param rootPath The directory where temporary files are created.
- * @param tmpDir the directory where temporary files are created, relative to rootPath
+ * @param rootPath The path of the directory where temporary files are created
+ * @param tmpDir the name of the directory where temporary files are created, relative to rootPath
  */
 @ConfigData("fileSystem")
 public record FileSystemConfig(
-        @ConfigProperty(defaultValue = "data/saved") String rootPath,
-        @ConfigProperty(defaultValue = "swirlds-tmp") String tmpDir) {}
+        @ConfigProperty(defaultValue = "data/saved") Path rootPath,
+        @ConfigProperty(defaultValue = "tmp") Path tmpDir) {}

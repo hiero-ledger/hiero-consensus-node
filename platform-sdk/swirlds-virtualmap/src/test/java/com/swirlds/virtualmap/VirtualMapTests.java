@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.test.fixtures.TestFileSystemManager;
@@ -225,15 +226,15 @@ class VirtualMapTests extends VirtualTestBase {
 
             leaf = detached.findLeafRecord(A_KEY);
             assertNotNull(leaf);
-            assertEquals(APPLE, leaf.value(TestValueCodec.INSTANCE));
+            assertEquals(APPLE, leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
 
             leaf = detached.findLeafRecord(B_KEY);
             assertNotNull(leaf);
-            assertEquals(BANANA, leaf.value(TestValueCodec.INSTANCE));
+            assertEquals(BANANA, leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
 
             leaf = detached.findLeafRecord(C_KEY);
             assertNotNull(leaf);
-            assertEquals(CHERRY, leaf.value(TestValueCodec.INSTANCE));
+            assertEquals(CHERRY, leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
 
             assertNull(detached.findLeafRecord(D_KEY));
             assertNull(detached.findLeafRecord(E_KEY));
@@ -982,7 +983,7 @@ class VirtualMapTests extends VirtualTestBase {
         assertNotNull(leaf);
         assertEquals(TestObjectKey.longToKey(4), leaf.keyBytes());
         assertEquals(new TestValue(4).toBytes(), leaf.valueBytes());
-        assertEquals(new TestValue(4), leaf.value(TestValueCodec.INSTANCE));
+        assertEquals(new TestValue(4), leaf.value(TestValueCodec.INSTANCE, Codec.DEFAULT_MAX_SIZE));
 
         VirtualMap copy = map.copy();
         map.release();

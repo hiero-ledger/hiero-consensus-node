@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.filesystem.internal;
+package org.hiero.base.file;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -14,8 +14,6 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.file.FileUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,28 +27,23 @@ public class FileSystemManagerTest {
 
     // These values are the default values defined in FileSystemConfig, they are used here to verify
     // that the FileSystemManager is using the correct default values when creating directories.
-    private static final String EXPECTED_ROOT_DIR_NAME = "data/saved";
-    private static final String EXPECTED_TMP_DIR_NAME = "swirlds-tmp";
+    private static final Path EXPECTED_ROOT_DIR = Path.of("data/saved");
+    private static final Path EXPECTED_TMP_DIR = Path.of("swirlds-tmp");
 
     @TempDir
     private Path tempDir;
 
     private Path testRootDir;
+    private FileSystemManager fileSystemManager;
 
     @BeforeEach
     public void setup() {
-        testRootDir = tempDir.resolve("FileSystemManagerImplTest").resolve(EXPECTED_ROOT_DIR_NAME);
-    }
-
-    public FileSystemManager getFileSystemManager() {
-        return new FileSystemManager(testRootDir, EXPECTED_TMP_DIR_NAME);
+        testRootDir = tempDir.resolve("FileSystemManagerImplTest").resolve(EXPECTED_ROOT_DIR);
+        fileSystemManager = new FileSystemManager(testRootDir, EXPECTED_TMP_DIR);
     }
 
     @Test
     public void testNew_rootPathIsCreated() {
-        // given
-        getFileSystemManager();
-        // then
         assertThat(testRootDir).isDirectory().startsWithRaw(tempDir).isNotEmptyDirectory();
     }
 
@@ -59,9 +52,10 @@ public class FileSystemManagerTest {
         // given
         final String largeRootLocation =
                 new StringBuffer(testRootDir.toString()).repeat("/child", 100).toString();
-        new FileSystemManager(largeRootLocation, EXPECTED_TMP_DIR_NAME);
+        final Path rootLocation = Path.of(largeRootLocation);
+        new FileSystemManager(rootLocation, EXPECTED_TMP_DIR);
         // then
-        assertThat(Path.of(largeRootLocation)).isDirectory().isNotEmptyDirectory();
+        assertThat(rootLocation).isDirectory().isNotEmptyDirectory();
     }
 
     @Test
@@ -74,21 +68,18 @@ public class FileSystemManagerTest {
                 .map(x -> FileUtils.rethrowIO(() -> Files.createTempFile(tmpDir, x + "", null)))
                 .map(p -> p.toFile().getName())
                 .toList();
-        // when
-        getFileSystemManager();
 
         // then
         assertThat(testRootDir)
                 .isNotEmptyDirectory()
-                .isDirectoryContaining("glob:**" + EXPECTED_TMP_DIR_NAME)
-                .isDirectoryContaining("glob:**" + EXPECTED_TMP_DIR_NAME);
+                .isDirectoryContaining("glob:**" + EXPECTED_TMP_DIR)
+                .isDirectoryContaining("glob:**" + EXPECTED_TMP_DIR);
         assertThat(tmpDir).isDirectoryNotContaining("glob:{" + String.join(",", tmpFileNames) + "}");
     }
 
     @Test
     public void testResolve_validRelativePath() {
         // given
-        final FileSystemManager fileSystemManager = getFileSystemManager();
         final Path relativePath = Paths.get("file.txt");
         final Path resolvedPath = fileSystemManager.resolve(relativePath);
 
@@ -100,7 +91,6 @@ public class FileSystemManagerTest {
     @Test
     public void testResolve_emptyPath() {
         // given
-        final FileSystemManager fileSystemManager = getFileSystemManager();
         final Path relativeEmptyPath = Paths.get("");
 
         // then
@@ -114,7 +104,6 @@ public class FileSystemManagerTest {
     @Test
     public void testResolve_absolutePath() {
         // given
-        final FileSystemManager fileSystemManager = getFileSystemManager();
         final Path absolutePath = Paths.get("/home/user/file.txt");
 
         // then
@@ -128,7 +117,6 @@ public class FileSystemManagerTest {
     @Test
     public void testResolve_pathEscapingRoot() {
         // given
-        final FileSystemManager fileSystemManager = getFileSystemManager();
         final Path escapingPath = Paths.get("../etc/passwd");
 
         // then
@@ -142,7 +130,6 @@ public class FileSystemManagerTest {
     @Test
     public void testResolveNewTemp_validName() {
         // given
-        final FileSystemManager fileSystemManager = getFileSystemManager();
         final String name = "myTempFile";
         final Path tempPath = fileSystemManager.resolveNewTemp(name);
 
@@ -151,14 +138,13 @@ public class FileSystemManagerTest {
         assertThat(tempPath)
                 .doesNotExist()
                 .satisfies(p -> assertThat(p.toAbsolutePath().toString())
-                        .contains(testRootDir.resolve(EXPECTED_TMP_DIR_NAME).toString()))
+                        .contains(testRootDir.resolve(EXPECTED_TMP_DIR).toString()))
                 .satisfies(p -> assertThat(p.getFileName().toString()).endsWith("myTempFile"));
     }
 
     @Test
     public void testResolveNewTemp_concurrentCallDoesNotThrow(TestExecutor testExecutor) {
         // given
-        final FileSystemManager fileSystemManager = getFileSystemManager();
         Runnable r = () -> fileSystemManager.resolveNewTemp("aTag");
         Runnable[] params = Stream.generate(() -> r).limit(100).toArray(Runnable[]::new);
         // when
