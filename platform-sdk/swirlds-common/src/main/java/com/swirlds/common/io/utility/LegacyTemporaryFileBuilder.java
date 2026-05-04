@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.io.utility;
 
-import static com.swirlds.common.io.utility.FileUtils.deleteDirectoryAndLog;
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;

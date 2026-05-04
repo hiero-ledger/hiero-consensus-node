@@ -9,6 +9,7 @@ description = "Base Utility"
 
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
+    requires("org.hiero.base.concurrent")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.assertj.core")
