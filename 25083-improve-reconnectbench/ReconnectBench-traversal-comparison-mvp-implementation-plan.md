@@ -10,6 +10,23 @@
 
 ---
 
+## Execution Rules
+
+- Use TDD for each behavior-bearing task: write or update the focused test first, verify the intended failure, then implement.
+- Keep each task commit small. Do not mix unrelated cleanup.
+- Do not modify production/runtime consensus-node behavior.
+- Do not change `VirtualMapConfig`; traversal order remains configured there.
+- Use `./gradlew :swirlds-benchmarks:test --tests com.swirlds.benchmark.reconnect.network.SimulatedNetworkChannelTest` for simulator tasks.
+- Use `./gradlew :swirlds-benchmarks:compileJmhJava` after JMH wiring tasks.
+- Use `./gradlew :swirlds-benchmarks:jmhReconnect` only after wiring and with small test parameters first.
+- Agent sandbox note: run every `./gradlew ...` command with sandbox escalation. Non-escalated Gradle fails in this
+  workspace due `~/.gradle` lock-file access and Gradle's local file-lock listener socket. Do not spend task time
+  debugging Java code when the error is `Operation not permitted` for Gradle locks or local sockets; rerun the same
+  Gradle command with escalation.
+- Use `25083-improve-reconnectbench` directory for any docs.
+
+---
+
 ## File Structure
 
 Create:
