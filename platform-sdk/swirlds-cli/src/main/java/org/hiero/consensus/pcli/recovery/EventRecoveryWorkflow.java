@@ -139,7 +139,8 @@ public final class EventRecoveryWorkflow {
                     initialState.get().getRoster(),
                     eventStreamDirectory,
                     initialState.get().getRound() + 1,
-                    allowPartialRounds);
+                    allowPartialRounds,
+                    0L);
 
             logger.info(STARTUP.getMarker(), "Reapplying transactions");
 

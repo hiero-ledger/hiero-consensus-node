@@ -83,7 +83,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
 
         // Create and bind components
         final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, freezeChecker);
+                new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, freezeChecker, 0L);
         consensusEngineWiring.bind(consensusEngine);
 
         if (pipelineTracker != null) {

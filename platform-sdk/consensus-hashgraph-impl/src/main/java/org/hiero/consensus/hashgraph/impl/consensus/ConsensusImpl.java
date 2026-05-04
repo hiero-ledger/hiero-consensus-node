@@ -182,19 +182,28 @@ public class ConsensusImpl implements Consensus {
     private boolean pcesMode = false;
 
     /**
+     * Nanoseconds to add to an event's consensus timestamp before the first user transaction, reserving
+     * space for preceding and system records. Injected at construction time from the application layer.
+     */
+    private final long userTxnOffsetNanos;
+
+    /**
      * Constructs an empty object (no events) to keep track of elections and calculate consensus.
      *
-     * @param configuration the configuration
-     * @param time the time source
-     * @param consensusMetrics metrics related to consensus
-     * @param roster the global address book, which never changes
+     * @param configuration      the configuration
+     * @param time               the time source
+     * @param consensusMetrics   metrics related to consensus
+     * @param roster             the global address book, which never changes
+     * @param userTxnOffsetNanos nanoseconds to offset user transactions from the event consensus timestamp
      */
     public ConsensusImpl(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final ConsensusMetrics consensusMetrics,
-            @NonNull final Roster roster) {
+            @NonNull final Roster roster,
+            final long userTxnOffsetNanos) {
         this.config = requireNonNull(configuration).getConfigData(ConsensusConfig.class);
+        this.userTxnOffsetNanos = userTxnOffsetNanos;
         this.time = time;
         this.consensusMetrics = consensusMetrics;
 
@@ -858,7 +867,7 @@ public class ConsensusImpl implements Consensus {
                     .setConsensusData(new EventConsensusData(
                             HapiUtils.asTimestamp(e.getPreliminaryConsensusTimestamp()), numConsensus));
 
-            lastConsensusTime = EventUtils.getLastTransTime(e.getBaseEvent());
+            lastConsensusTime = EventUtils.getLastTransTime(e.getBaseEvent(), userTxnOffsetNanos);
             numConsensus++;
             consensusMetrics.consensusReached(e);
         }

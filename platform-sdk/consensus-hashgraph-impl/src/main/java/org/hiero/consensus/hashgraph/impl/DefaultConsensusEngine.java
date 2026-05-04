@@ -59,12 +59,13 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     /**
      * Constructor
      *
-     * @param configuration the configuration
-     * @param metrics the metrics registry
-     * @param time the time source
-     * @param roster the current roster
-     * @param selfId the ID of the node
-     * @param freezeChecker checks if the consensus time has reached the freeze period
+     * @param configuration      the configuration
+     * @param metrics            the metrics registry
+     * @param time               the time source
+     * @param roster             the current roster
+     * @param selfId             the ID of the node
+     * @param freezeChecker      checks if the consensus time has reached the freeze period
+     * @param userTxnOffsetNanos nanoseconds to offset user transactions from the event consensus timestamp
      */
     public DefaultConsensusEngine(
             @NonNull final Configuration configuration,
@@ -72,10 +73,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final FreezePeriodChecker freezeChecker) {
+            @NonNull final FreezePeriodChecker freezeChecker,
+            final long userTxnOffsetNanos) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
-        consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster);
+        consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, userTxnOffsetNanos);
 
         linker = new ConsensusLinker(new DefaultLinkerLogsAndMetrics(metrics, time));
         futureEventBuffer =

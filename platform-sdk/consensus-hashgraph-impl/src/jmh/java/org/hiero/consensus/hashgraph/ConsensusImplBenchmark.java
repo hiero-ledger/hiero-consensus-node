@@ -74,7 +74,8 @@ public class ConsensusImplBenchmark {
                 platformContext.getConfiguration(),
                 platformContext.getTime(),
                 new NoOpConsensusMetrics(),
-                generator.getRoster());
+                generator.getRoster(),
+                0L);
     }
 
     @Benchmark

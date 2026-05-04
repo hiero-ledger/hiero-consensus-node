@@ -358,14 +358,17 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     /**
      * Set the consensus timestamp on the transaction wrappers for this event. This must be done after the consensus
      * time is set for this event.
+     *
+     * @param userTxnOffsetNanos nanoseconds to add to the event consensus timestamp before the first user
+     *                           transaction, reserving space for preceding and system records
      */
-    public void setConsensusTimestampsOnTransactions() {
+    public void setConsensusTimestampsOnTransactions(final long userTxnOffsetNanos) {
         if (this.consensusData == NO_CONSENSUS) {
             throw new IllegalStateException("Consensus data must be set");
         }
 
         for (int i = 0; i < metadata.getTransactions().size(); i++) {
-            metadata.getTransactions().get(i).setConsensusTimestamp(getTransactionTime(i));
+            metadata.getTransactions().get(i).setConsensusTimestamp(getTransactionTime(i, userTxnOffsetNanos));
         }
     }
 
@@ -374,19 +377,21 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Returns the timestamp of the transaction with given index in this event
+     * Returns the timestamp of the transaction with given index in this event.
      *
-     * @param transactionIndex index of the transaction in this event
+     * @param transactionIndex   index of the transaction in this event
+     * @param userTxnOffsetNanos nanoseconds to add to the event consensus timestamp before the first user
+     *                           transaction, reserving space for preceding and system records
      * @return timestamp of the given index transaction
      */
-    public @NonNull Instant getTransactionTime(final int transactionIndex) {
+    public @NonNull Instant getTransactionTime(final int transactionIndex, final long userTxnOffsetNanos) {
         if (consensusTimestamp == null) {
             throw new IllegalArgumentException("Event is not a consensus event");
         }
         if (transactionIndex >= getTransactionCount()) {
             throw new IllegalArgumentException("Event does not have a transaction with index: " + transactionIndex);
         }
-        return consensusTimestamp.plusNanos(transactionIndex * MIN_TRANS_TIMESTAMP_INCR_NANOS);
+        return consensusTimestamp.plusNanos(userTxnOffsetNanos + (long) transactionIndex * MIN_TRANS_TIMESTAMP_INCR_NANOS);
     }
 
     /**
