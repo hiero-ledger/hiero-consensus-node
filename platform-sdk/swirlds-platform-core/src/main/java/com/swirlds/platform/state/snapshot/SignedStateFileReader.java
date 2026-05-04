@@ -2,7 +2,6 @@
 package com.swirlds.platform.state.snapshot;
 
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
-import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SUPPORTED_SIGSET_VERSIONS;
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
 
@@ -26,7 +25,6 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.hiero.consensus.roster.RosterStateId;
@@ -112,21 +110,7 @@ public final class SignedStateFileReader {
     }
 
     /**
-     * Read the version from a signature set file and check it
-     *
-     * @param in the stream to read from
-     * @throws IOException if the version is invalid
-     */
-    private static void readAndCheckSigSetFileVersion(@NonNull final SerializableDataInputStream in)
-            throws IOException {
-        final int fileVersion = in.readInt();
-        if (!SUPPORTED_SIGSET_VERSIONS.contains(fileVersion)) {
-            throw new IOException("Unsupported file version: " + fileVersion);
-        }
-        in.readProtocolVersion();
-    }
-
-    /**
+     * /**
      * Register stub states for PlatformStateService and RosterService so that the State knows about them per the metadata and services registry.
      * <p>
      * Note that the state data objects associated with these services MUST ALREADY EXIST in the merkle tree (or on disk.)

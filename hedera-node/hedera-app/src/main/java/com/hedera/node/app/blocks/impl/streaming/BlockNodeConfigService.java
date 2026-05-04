@@ -10,7 +10,6 @@ import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -34,6 +33,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileUtils;
 
 /**
  * Service for retrieving block node configurations from disk. This service will launch a file watcher process that will
@@ -214,7 +214,8 @@ public class BlockNodeConfigService {
                                 nodeConfig.address() + ":" + nodeConfig.streamingPort(), _ -> new AtomicInteger())
                         .incrementAndGet();
             } catch (final RuntimeException e) {
-                logger.warn("Failed to parse block node configuration; skipping block node (config={})", nodeConfig, e);
+                logger.warn(
+                        "Failed to parse block node configuration; skipping block node (config: {})", nodeConfig, e);
             }
         }
 

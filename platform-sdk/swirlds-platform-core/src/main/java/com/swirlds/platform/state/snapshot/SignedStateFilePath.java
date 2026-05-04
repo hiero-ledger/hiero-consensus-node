@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.swirlds.common.config.StateCommonConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;

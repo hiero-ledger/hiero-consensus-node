@@ -246,7 +246,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         } catch (final Exception e) {
             final GrpcException grpcException = findGrpcException(e);
             if (grpcException != null) {
-                logger.warn("{} Error retrieving block node status (grpcStatus={})", this, grpcException.status(), e);
+                logger.warn("{} Error retrieving block node status (grpcStatus: {})", this, grpcException.status(), e);
             } else {
                 logger.warn("{} Error retrieving block node status", this, e);
             }
@@ -263,7 +263,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
 
         logger.debug(
-                "{} Received the following block node server status: lastAvailableBlock={} (latency: {}ms)",
+                "{} Received the following block node server status => lastAvailableBlock: {}, latency: {}ms",
                 this,
                 response.lastAvailableBlock(),
                 durationMillis);
