@@ -48,11 +48,7 @@ public class MerkleBenchmarkUtils {
             // calculate hash
             desiredTree.getHash();
         }
-        return testSynchronization(
-                startingTree,
-                desiredTree,
-                networkConfig,
-                configuration);
+        return testSynchronization(startingTree, desiredTree, networkConfig, configuration);
     }
 
     /**

@@ -34,18 +34,17 @@ jmhModuleInfo {
     runtimeOnly("com.swirlds.config.impl")
 }
 
-testModuleInfo {
-    requires("org.junit.jupiter.api")
-}
+testModuleInfo { requires("org.junit.jupiter.api") }
 
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
+
 fun jmhParamProperty(name: String, defaultValue: String) =
-    objects.listProperty<String>().value(listOf(providers.gradleProperty(name).orElse(defaultValue).get()))
+    objects
+        .listProperty<String>()
+        .value(listOf(providers.gradleProperty(name).orElse(defaultValue).get()))
 
 tasks.named<Jar>("jmhJarWithMergedServiceFiles") {
-    from(sourceSets.main.get().output) {
-        include("com/swirlds/benchmark/reconnect/network/**")
-    }
+    from(sourceSets.main.get().output) { include("com/swirlds/benchmark/reconnect/network/**") }
 }
 
 // ── Benchmark run configurations ─────────────────────────────────────
@@ -66,12 +65,18 @@ tasks.register<JMHTask>("jmhReconnect") {
     includes.set(listOf("ReconnectBench"))
     jvmArgs.set(listOf("-Xmx16g"))
     benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
-    benchmarkParameters.put("networkLatencyMicroseconds", jmhParamProperty("networkLatencyMicroseconds", "500"))
+    benchmarkParameters.put(
+        "networkLatencyMicroseconds",
+        jmhParamProperty("networkLatencyMicroseconds", "500"),
+    )
     benchmarkParameters.put(
         "networkBandwidthMegabitsPerSecond",
-        jmhParamProperty("networkBandwidthMegabitsPerSecond", "1000")
+        jmhParamProperty("networkBandwidthMegabitsPerSecond", "1000"),
     )
-    benchmarkParameters.put("networkInflightBytesLimit", jmhParamProperty("networkInflightBytesLimit", "131072"))
+    benchmarkParameters.put(
+        "networkInflightBytesLimit",
+        jmhParamProperty("networkInflightBytesLimit", "131072"),
+    )
     benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "100"))
     benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "100000"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-reconnect.txt"))

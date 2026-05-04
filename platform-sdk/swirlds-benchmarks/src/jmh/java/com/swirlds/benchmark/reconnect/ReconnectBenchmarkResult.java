@@ -8,5 +8,4 @@ public record ReconnectBenchmarkResult(
         VirtualMap reconnectedMap,
         AtomicReconnectMapStats reconnectStats,
         SimulatedNetworkStats teacherToLearnerStats,
-        SimulatedNetworkStats learnerToTeacherStats) {
-}
+        SimulatedNetworkStats learnerToTeacherStats) {}

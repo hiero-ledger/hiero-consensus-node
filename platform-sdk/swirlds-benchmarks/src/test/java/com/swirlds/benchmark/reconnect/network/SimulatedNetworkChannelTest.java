@@ -142,8 +142,8 @@ class SimulatedNetworkChannelTest {
 
     @Test
     void latencyDelaysFirstByteVisibility() throws Exception {
-        final SimulatedNetworkChannel channel =
-                new SimulatedNetworkChannel(NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 50_000, 1_000, 1024));
+        final SimulatedNetworkChannel channel = new SimulatedNetworkChannel(
+                NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 50_000, 1_000, 1024));
 
         channel.outputStream().write(123);
         final long start = System.nanoTime();
@@ -203,7 +203,8 @@ class SimulatedNetworkChannelTest {
         }
     }
 
-    private static void awaitThreadState(final Thread thread, final Thread.State... states) throws InterruptedException {
+    private static void awaitThreadState(final Thread thread, final Thread.State... states)
+            throws InterruptedException {
         final long deadline = System.nanoTime() + 5_000_000_000L;
         while (System.nanoTime() < deadline) {
             for (final Thread.State state : states) {

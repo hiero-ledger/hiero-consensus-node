@@ -201,7 +201,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 networkLatencyMicroseconds,
                 networkBandwidthMegabitsPerSecond,
                 networkInflightBytesLimit);
-        final String reconnectMode = configuration.getConfigData(VirtualMapConfig.class).reconnectMode();
+        final String reconnectMode =
+                configuration.getConfigData(VirtualMapConfig.class).reconnectMode();
         logger.info("ReconnectBench traversal mode={}", reconnectMode);
         logger.info(
                 "ReconnectBench network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}, inflightBytesLimit={}",
@@ -221,9 +222,9 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
     static void main() throws Exception {
         new Runner(new OptionsBuilder()
-                .include(ReconnectBench.class.getSimpleName())
-                .jvmArgs("-Xmx16g")
-                .build())
+                        .include(ReconnectBench.class.getSimpleName())
+                        .jvmArgs("-Xmx16g")
+                        .build())
                 .run();
     }
 }
