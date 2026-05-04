@@ -6,8 +6,7 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 
 import com.swirlds.base.time.Time;
 import com.swirlds.benchmark.BenchmarkMetrics;
-import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
-import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
+import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
@@ -18,15 +17,11 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
-import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.gossip.config.GossipConfig;
-import org.hiero.consensus.gossip.config.SocketConfig;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**
@@ -36,15 +31,10 @@ public class MerkleBenchmarkUtils {
 
     private static final Logger logger = LogManager.getLogger(MerkleBenchmarkUtils.class);
 
-    public static VirtualMap hashAndTestSynchronization(
+    public static ReconnectBenchmarkResult hashAndTestSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
-            final long randomSeed,
-            final long delayStorageMicroseconds,
-            final double delayStorageFuzzRangePercent,
-            final long delayNetworkMicroseconds,
-            final double delayNetworkFuzzRangePercent,
-            final NodeId selfId,
+            final NetworkSimulationConfig networkConfig,
             final Configuration configuration)
             throws Exception {
         printVirtualMap("Starting Tree", startingTree);
@@ -61,110 +51,44 @@ public class MerkleBenchmarkUtils {
         return testSynchronization(
                 startingTree,
                 desiredTree,
-                randomSeed,
-                delayStorageMicroseconds,
-                delayStorageFuzzRangePercent,
-                delayNetworkMicroseconds,
-                delayNetworkFuzzRangePercent,
-                selfId,
+                networkConfig,
                 configuration);
     }
 
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
-    private static VirtualMap testSynchronization(
+    private static ReconnectBenchmarkResult testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
-            final long randomSeed,
-            final long delayStorageMicroseconds,
-            final double delayStorageFuzzRangePercent,
-            final long delayNetworkMicroseconds,
-            final double delayNetworkFuzzRangePercent,
-            final NodeId selfId,
+            final NetworkSimulationConfig networkConfig,
             final Configuration configuration)
             throws Exception {
-        final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
-        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
-        try (PairedStreams streams = new PairedStreams(selfId, socketConfig, gossipConfig)) {
-            final LearningSynchronizer learner;
-            final TeachingSynchronizer teacher;
-
-            final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
+        try (PairedStreams streams = new PairedStreams(networkConfig)) {
+            final AtomicReconnectMapStats reconnectStats = new AtomicReconnectMapStats();
+            final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, reconnectStats);
             final VirtualMapLearner vmapLearner = new VirtualMapLearner(startingTree, reconnectConfig, mapStats);
             final LearnerTreeView learnerView = vmapLearner.getLearnerView();
-            if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
-                learner = new LearningSynchronizer(
-                        getStaticThreadManager(),
-                        streams.getLearnerInput(),
-                        streams.getLearnerOutput(),
-                        learnerView,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                logger.error("Error while shutting down sockets", e);
-                            }
-                        },
-                        reconnectConfig);
-                teacher = new TeachingSynchronizer(
-                        Time.getCurrent(),
-                        getStaticThreadManager(),
-                        streams.getTeacherInput(),
-                        streams.getTeacherOutput(),
-                        desiredTree.buildTeacherView(reconnectConfig),
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                logger.error("Error while shutting down sockets", e);
-                            }
-                        },
-                        reconnectConfig);
-            } else {
-                learner = new BenchmarkSlowLearningSynchronizer(
-                        streams.getLearnerInput(),
-                        streams.getLearnerOutput(),
-                        learnerView,
-                        randomSeed,
-                        delayStorageMicroseconds,
-                        delayStorageFuzzRangePercent,
-                        delayNetworkMicroseconds,
-                        delayNetworkFuzzRangePercent,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                logger.error("Error while shutting down sockets", e);
-                            }
-                        },
-                        reconnectConfig);
-                teacher = new BenchmarkSlowTeachingSynchronizer(
-                        streams.getTeacherInput(),
-                        streams.getTeacherOutput(),
-                        desiredTree.buildTeacherView(reconnectConfig),
-                        randomSeed,
-                        delayStorageMicroseconds,
-                        delayStorageFuzzRangePercent,
-                        delayNetworkMicroseconds,
-                        delayNetworkFuzzRangePercent,
-                        () -> {
-                            try {
-                                streams.disconnect();
-                            } catch (final IOException e) {
-                                // test code, no danger
-                                logger.error("Error while shutting down sockets", e);
-                            }
-                        },
-                        reconnectConfig);
-            }
+            final Runnable disconnect = streams::disconnect;
+            final LearningSynchronizer learner = new LearningSynchronizer(
+                    getStaticThreadManager(),
+                    streams.getLearnerInput(),
+                    streams.getLearnerOutput(),
+                    learnerView,
+                    disconnect,
+                    reconnectConfig);
+            final TeachingSynchronizer teacher = new TeachingSynchronizer(
+                    Time.getCurrent(),
+                    getStaticThreadManager(),
+                    streams.getTeacherInput(),
+                    streams.getTeacherOutput(),
+                    desiredTree.buildTeacherView(reconnectConfig),
+                    disconnect,
+                    reconnectConfig);
 
             final AtomicReference<Throwable> firstReconnectException = new AtomicReference<>();
             final Function<Throwable, Boolean> exceptionListener = t -> {
@@ -189,7 +113,11 @@ public class MerkleBenchmarkUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            return vmapLearner.getVirtualMap();
+            return new ReconnectBenchmarkResult(
+                    vmapLearner.getVirtualMap(),
+                    reconnectStats,
+                    streams.getTeacherToLearnerStats(),
+                    streams.getLearnerToTeacherStats());
         }
     }
 

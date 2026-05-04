@@ -4,11 +4,13 @@ package com.swirlds.benchmark;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
+import com.swirlds.benchmark.reconnect.ReconnectBenchmarkResult;
 import com.swirlds.benchmark.reconnect.StateBuilder;
+import com.swirlds.benchmark.reconnect.network.NetworkProfile;
+import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.model.node.NodeId;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -19,10 +21,10 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
-@BenchmarkMode(Mode.AverageTime)
+@BenchmarkMode(Mode.SingleShotTime)
 @Fork(value = 1)
-@Warmup(iterations = 1)
-@Measurement(iterations = 7)
+@Warmup(iterations = 0)
+@Measurement(iterations = 1)
 public class ReconnectBench extends VirtualMapBaseBench {
 
     /** A random seed for the StateBuilder. */
@@ -38,39 +40,23 @@ public class ReconnectBench extends VirtualMapBaseBench {
     public double teacherRemoveProbability;
 
     /**
-     * The probability of the teacher map having a value under a key that differs
-     * from the value under the same key in the learner map.
+     * The probability of the teacher map having a value under a key that differs from the value under the same key in
+     * the learner map.
      */
     @Param({"0.05"})
     public double teacherModifyProbability;
 
-    /**
-     * Emulated delay for sendAsync() calls in both Teaching- and Learning-Synchronizers,
-     * or zero for no delay. This emulates slow disk I/O when reading data.
-     */
-    @Param({"0"})
-    public long delayStorageMicroseconds;
+    @Param({"REALISTIC"})
+    public NetworkProfile networkProfile;
 
-    /**
-     * A percentage fuzz range for the delayStorageMicroseconds values,
-     * e.g. 0.15 for a -15%..+15% range around the value.
-     */
-    @Param({"0.15"})
-    public double delayStorageFuzzRangePercent;
+    @Param({"500"})
+    public long networkLatencyMicroseconds;
 
-    /**
-     * Emulated delay for serializeMessage() calls in both Teaching- and Learning-Synchronizers,
-     * or zero for no delay. This emulates slow network I/O when sending data.
-     */
-    @Param({"0"})
-    public long delayNetworkMicroseconds;
+    @Param({"1000"})
+    public long networkBandwidthMegabitsPerSecond;
 
-    /**
-     * A percentage fuzz range for the delayNetworkMicroseconds values,
-     * e.g. 0.15 for a -15%..+15% range around the value.
-     */
-    @Param({"0.15"})
-    public double delayNetworkFuzzRangePercent;
+    @Param({"131072"})
+    public int networkInflightBytesLimit;
 
     private static final String TEACHER_MAP_NAME = "teacher";
     private VirtualMap teacherMap;
@@ -79,7 +65,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
     private static final String LEARNER_MAP_NAME = "learner";
     private VirtualMap learnerMap;
 
-    private VirtualMap reconnectedMap;
+    private ReconnectBenchmarkResult reconnectResult;
 
     private long[] teacherData;
 
@@ -168,7 +154,10 @@ public class ReconnectBench extends VirtualMapBaseBench {
      */
     @Override
     protected void onInvocationTearDown() throws Exception {
-        reconnectedMap.release();
+        if (reconnectResult != null && reconnectResult.reconnectedMap() != null) {
+            reconnectResult.reconnectedMap().release();
+        }
+        reconnectResult = null;
 
         super.onInvocationTearDown();
     }
@@ -206,25 +195,32 @@ public class ReconnectBench extends VirtualMapBaseBench {
     public void reconnect() throws Exception {
         logger.info(RUN_DELIMITER);
 
-        reconnectedMap = MerkleBenchmarkUtils.hashAndTestSynchronization(
-                learnerMap,
-                teacherMap,
-                randomSeed,
-                delayStorageMicroseconds,
-                delayStorageFuzzRangePercent,
-                delayNetworkMicroseconds,
-                delayNetworkFuzzRangePercent,
-                new NodeId(),
-                configuration);
+        final NetworkSimulationConfig networkConfig = NetworkSimulationConfig.resolve(
+                networkProfile,
+                networkLatencyMicroseconds,
+                networkBandwidthMegabitsPerSecond,
+                networkInflightBytesLimit);
+        logger.info(
+                "ReconnectBench network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}, inflightBytesLimit={}",
+                networkConfig.profile(),
+                networkConfig.latencyNanos(),
+                networkConfig.bandwidthBytesPerSecond(),
+                networkConfig.inflightBytesLimit());
 
-        verifyMap(teacherData, reconnectedMap);
+        reconnectResult =
+                MerkleBenchmarkUtils.hashAndTestSynchronization(learnerMap, teacherMap, networkConfig, configuration);
+
+        verifyMap(teacherData, reconnectResult.reconnectedMap());
+        logger.info("Reconnect stats: {}", reconnectResult.reconnectStats().format());
+        logger.info("Network teacherToLearner: {}", reconnectResult.teacherToLearnerStats());
+        logger.info("Network learnerToTeacher: {}", reconnectResult.learnerToTeacherStats());
     }
 
     static void main() throws Exception {
         new Runner(new OptionsBuilder()
-                        .include(ReconnectBench.class.getSimpleName())
-                        .jvmArgs("-Xmx16g")
-                        .build())
+                .include(ReconnectBench.class.getSimpleName())
+                .jvmArgs("-Xmx16g")
+                .build())
                 .run();
     }
 }
