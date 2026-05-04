@@ -909,7 +909,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
                 sendRequest(new BlockNodeStreamingConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
-            } catch (RuntimeException e) {
+            } catch (final RuntimeException e) {
                 exceptionRef.set(e);
             }
         });
@@ -926,7 +926,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         // Verify exception was thrown
         assertThat(exceptionRef.get()).isNotNull();
-        assertThat(exceptionRef.get().getMessage()).contains("Interrupted while waiting for pipeline.onNext()");
+        assertThat(exceptionRef.get().getMessage()).contains("Interrupted while sending request to block node");
         assertThat(exceptionRef.get().getCause()).isInstanceOf(InterruptedException.class);
     }
 

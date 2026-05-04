@@ -126,7 +126,13 @@ class WrappedRecordBlockHashMigrationTest {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
         // hashCount=5 but only 1 subtree hash provided
         final var badConfig = new BlockStreamJumpstartConfig(
-                100, Bytes.wrap(new byte[HASH_SIZE]), 4, 5, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+                100,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                5,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -264,7 +270,13 @@ class WrappedRecordBlockHashMigrationTest {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
         // previousWrappedRecordBlockHash is 32 bytes instead of HASH_SIZE (48)
         final var badConfig = new BlockStreamJumpstartConfig(
-                100, Bytes.wrap(new byte[32]), 4, 1, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+                100,
+                Bytes.wrap(new byte[32]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -278,16 +290,110 @@ class WrappedRecordBlockHashMigrationTest {
                 Bytes.wrap(new byte[HASH_SIZE]),
                 4,
                 2,
-                List.of(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[32])));
+                List.of(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[32])),
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
+        assertNull(subject.result());
+    }
+
+    @Test
+    void returnsEarlyWhenJumpstartConsensusTimestampHashMismatches() throws Exception {
+        final var matchingOutputHash = Bytes.wrap(new byte[HASH_SIZE]);
+        final var fileTimestampHash = fillHash((byte) 0xAA);
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(i == 98 ? entryWithHashes(i, fileTimestampHash, matchingOutputHash) : entry(i));
+        }
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+
+        // Jumpstart config provides a different consensus-timestamp hash for block 98
+        final var badConfig = new BlockStreamJumpstartConfig(
+                98,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                fillHash((byte) 0x11),
+                matchingOutputHash);
+
+        subject.execute(StreamMode.RECORDS, config, badConfig, false);
+        assertNull(subject.result());
+    }
+
+    @Test
+    void returnsEarlyWhenJumpstartOutputItemsTreeRootHashMismatches() throws Exception {
+        final var matchingTimestampHash = Bytes.wrap(new byte[HASH_SIZE]);
+        final var fileOutputHash = fillHash((byte) 0xBB);
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(i == 98 ? entryWithHashes(i, matchingTimestampHash, fileOutputHash) : entry(i));
+        }
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+
+        // Jumpstart config provides a different output-items tree root hash for block 98
+        final var badConfig = new BlockStreamJumpstartConfig(
+                98,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                matchingTimestampHash,
+                fillHash((byte) 0x22));
+
+        subject.execute(StreamMode.RECORDS, config, badConfig, false);
+        assertNull(subject.result());
+    }
+
+    @Test
+    void skipsHashMatchCheckWhenCurrentBlockHashesNotPopulated() throws Exception {
+        // When both currentBlock*Hash properties are empty, the new check is skipped and the
+        // migration proceeds even though the file entry would not match empty hashes.
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(entryWithHashes(i, fillHash((byte) 0xCC), fillHash((byte) 0xDD)));
+        }
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+
+        final var jsConfig = new BlockStreamJumpstartConfig(
+                98,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.EMPTY,
+                Bytes.EMPTY);
+
+        subject.execute(StreamMode.RECORDS, config, jsConfig, false);
+        assertThat(subject.result()).isNotNull();
+    }
+
+    @Test
+    void returnsEarlyWhenJumpstartBlockEntryNotFoundInRecentHashes() throws Exception {
+        // Jumpstart block 93 is within [first=90, last=100] range but the entry itself is missing.
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            if (i != 93) {
+                entries.add(entry(i));
+            }
+        }
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(93, 4, 1), false);
         assertNull(subject.result());
     }
 
     @Test
     void returnsEarlyWhenPreviousBlockHashIsEmpty() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
-        final var badConfig =
-                new BlockStreamJumpstartConfig(100, Bytes.EMPTY, 4, 1, List.of(Bytes.wrap(new byte[HASH_SIZE])));
+        final var badConfig = new BlockStreamJumpstartConfig(
+                100,
+                Bytes.EMPTY,
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
     }
@@ -303,11 +409,22 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     private WrappedRecordFileBlockHashes entry(long blockNumber) {
+        return entryWithHashes(blockNumber, Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[HASH_SIZE]));
+    }
+
+    private WrappedRecordFileBlockHashes entryWithHashes(
+            long blockNumber, Bytes consensusTimestampHash, Bytes outputItemsTreeRootHash) {
         return WrappedRecordFileBlockHashes.newBuilder()
                 .blockNumber(blockNumber)
-                .outputItemsTreeRootHash(Bytes.wrap(new byte[HASH_SIZE]))
-                .consensusTimestampHash(Bytes.wrap(new byte[HASH_SIZE]))
+                .consensusTimestampHash(consensusTimestampHash)
+                .outputItemsTreeRootHash(outputItemsTreeRootHash)
                 .build();
+    }
+
+    private static Bytes fillHash(byte b) {
+        final var bytes = new byte[HASH_SIZE];
+        java.util.Arrays.fill(bytes, b);
+        return Bytes.wrap(bytes);
     }
 
     @FunctionalInterface
@@ -331,7 +448,14 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     private static BlockStreamJumpstartConfig defaultJumpstartConfig() {
-        return new BlockStreamJumpstartConfig(-1, Bytes.wrap(new byte[HASH_SIZE]), 0, 0, List.of());
+        return new BlockStreamJumpstartConfig(
+                -1,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                0,
+                0,
+                List.of(),
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
     }
 
     private static BlockStreamJumpstartConfig jumpstartConfig(long blockNumber, long leafCount, int numHashes) {
@@ -340,6 +464,12 @@ class WrappedRecordBlockHashMigrationTest {
             subtreeHashes.add(Bytes.wrap(new byte[HASH_SIZE]));
         }
         return new BlockStreamJumpstartConfig(
-                blockNumber, Bytes.wrap(new byte[HASH_SIZE]), leafCount, numHashes, subtreeHashes);
+                blockNumber,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                leafCount,
+                numHashes,
+                subtreeHashes,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[HASH_SIZE]));
     }
 }

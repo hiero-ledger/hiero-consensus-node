@@ -13,6 +13,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresh
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
@@ -70,8 +71,8 @@ public final class SignedStateFileWriter {
         final String platformInfo = getInfoString(state);
 
         logger.info(STATE_TO_DISK.getMarker(), """
-                        Information for state written to disk:
-                        {}""", platformInfo);
+                Information for state written to disk:
+                {}""", platformInfo);
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
 
@@ -103,7 +104,8 @@ public final class SignedStateFileWriter {
 
     /**
      * Write the signature set file.
-     * @param directory the directory to write to
+     *
+     * @param directory   the directory to write to
      * @param signedState the signature set file
      */
     public static void writeSignatureSetFile(final @NonNull Path directory, final @NonNull SignedState signedState)
@@ -167,6 +169,7 @@ public final class SignedStateFileWriter {
         writeSignatureSetFile(directory, signedState);
         writeHashInfoFile(platformContext, directory, signedState.getState());
         writeMetadataFile(selfId, directory, signedState);
+        writeConsensusSnapshotFile(directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         writeRosterFile(directory, currentRoster);
         writeSettingsUsed(directory, configuration);
@@ -253,6 +256,36 @@ public final class SignedStateFileWriter {
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
             }
+        }
+    }
+
+    /**
+     * Write the consensus snapshot file. This is a JSON file that contains a human-readable summary of the state of
+     * consensus at the time the signed state was created. It is useful for debugging and replaying PCES files on top of
+     * the state snapshot.
+     *
+     * @param directory   the directory to write to
+     * @param signedState the signed state being written
+     */
+    private static void writeConsensusSnapshotFile(
+            @NonNull final Path directory, @NonNull final SignedState signedState) {
+        final Path consensusSnapshotFile = directory.resolve(SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME);
+        final ConsensusSnapshot snapshot = PlatformStateUtils.consensusSnapshotOf(signedState.getState());
+        if (snapshot == null) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "No consensus snapshot found in state for round {}.",
+                    signedState.getRound());
+            return;
+        }
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(consensusSnapshotFile.toFile()))) {
+            writer.write(ConsensusSnapshot.JSON.toJSON(snapshot));
+        } catch (final IOException e) {
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Failed to write consensus snapshot file to disk at {}",
+                    consensusSnapshotFile,
+                    e);
         }
     }
 
