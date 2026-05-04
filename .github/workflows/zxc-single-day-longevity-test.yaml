@@ -288,7 +288,6 @@ jobs:
           solo --version
 
       - name: Build Solo
-        if: false
         run: |
           set +x
           set +e
