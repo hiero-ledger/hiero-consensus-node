@@ -143,7 +143,6 @@ jobs:
           node-version: 20.18.0
 
       - name: Install Solo
-        if: false
         run: |
           npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
@@ -151,6 +150,7 @@ jobs:
           solo --version
 
       - name: Build Solo
+        if: false
         run: |
           set +x
           set +e
@@ -259,11 +259,17 @@ jobs:
         run: |
           set +e
           set +x
-          #cd hiero-block-node/tools-and-tests/scripts/solo-e2e-test
-          #task load:up NLG_TEST_TYPE="${{ inputs.nlg-test }}" NLG_ARGS="${{ inputs.nlg-args }} -a ${{ inputs.nlg-accounts }} -tt ${{ inputs.nlg-time }}s" NLG_MAX_TPS="${{ inputs.nlg-tps }}"
           . "${{ github.workspace }}"/solo/testenv.sh
           cd "${{ github.workspace }}"/solo
           task test-e2e-performance
+
+      - name: Upload Logs to GitHub
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: solo-logs-nlg
+          path: ~/.solo/logs/*
+          if-no-files-found: ignore
 
       - name: Stop NLG test
         if: false
