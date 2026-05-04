@@ -24,7 +24,7 @@ public class NetworkSimulationTest {
     private static final Duration SIMULATION_DURATION = Duration.ofMillis(100);
 
     @Test
-    void sim(){
+    void fastFourNodeNetwork(){
         final Configuration configuration = new TestConfigBuilder()
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
