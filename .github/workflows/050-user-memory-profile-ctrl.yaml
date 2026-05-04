@@ -191,13 +191,9 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y docker.io net-tools iputils-ping node-typescript snapd
-
+          sudo apt install -y zip unzip wget x11-common x11-session-utils x11-utils x11-xserver-utils
           #YQ
-          sudo add-apt-repository ppa:rmescandon/yq
-          sudo apt update
-          sudo apt install -y yq zip unzip
-          sudo apt install -y x11-common x11-session-utils x11-utils x11-xserver-utils
+          sudo wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
 
       - name: Install Memory Analyzer
         run: |
