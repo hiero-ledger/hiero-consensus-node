@@ -42,6 +42,12 @@ fun listProperty(value: String) = objects.listProperty<String>().value(listOf(va
 fun jmhParamProperty(name: String, defaultValue: String) =
     objects.listProperty<String>().value(listOf(providers.gradleProperty(name).orElse(defaultValue).get()))
 
+tasks.named<Jar>("jmhJarWithMergedServiceFiles") {
+    from(sourceSets.main.get().output) {
+        include("com/swirlds/benchmark/reconnect/network/**")
+    }
+}
+
 // ── Benchmark run configurations ─────────────────────────────────────
 
 tasks.register<JMHTask>("jmhCrypto") {
@@ -61,7 +67,10 @@ tasks.register<JMHTask>("jmhReconnect") {
     jvmArgs.set(listOf("-Xmx16g"))
     benchmarkParameters.put("networkProfile", jmhParamProperty("networkProfile", "REALISTIC"))
     benchmarkParameters.put("networkLatencyMicroseconds", jmhParamProperty("networkLatencyMicroseconds", "500"))
-    benchmarkParameters.put("networkBandwidthMegabitsPerSecond", jmhParamProperty("networkBandwidthMegabitsPerSecond", "1000"))
+    benchmarkParameters.put(
+        "networkBandwidthMegabitsPerSecond",
+        jmhParamProperty("networkBandwidthMegabitsPerSecond", "1000")
+    )
     benchmarkParameters.put("networkInflightBytesLimit", jmhParamProperty("networkInflightBytesLimit", "131072"))
     benchmarkParameters.put("numFiles", jmhParamProperty("numFiles", "100"))
     benchmarkParameters.put("numRecords", jmhParamProperty("numRecords", "100000"))

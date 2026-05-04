@@ -9,6 +9,7 @@ import com.swirlds.benchmark.reconnect.StateBuilder;
 import com.swirlds.benchmark.reconnect.network.NetworkProfile;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -200,6 +201,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 networkLatencyMicroseconds,
                 networkBandwidthMegabitsPerSecond,
                 networkInflightBytesLimit);
+        final String reconnectMode = configuration.getConfigData(VirtualMapConfig.class).reconnectMode();
+        logger.info("ReconnectBench traversal mode={}", reconnectMode);
         logger.info(
                 "ReconnectBench network profile={}, latencyNanos={}, bandwidthBytesPerSecond={}, inflightBytesLimit={}",
                 networkConfig.profile(),
