@@ -38,7 +38,7 @@ import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
-import com.hedera.node.app.tss.TssBlockHashSigner;
+import com.hedera.node.app.tss.DualBlockHashSigner;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
@@ -322,15 +322,17 @@ public class ServicesMain {
                 new OrderedServiceMigrator(),
                 InstantSource.system(),
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> new HintsServiceImpl(
+                (appContext, bootstrapConfig, rsaContext, rsaSignings) -> new HintsServiceImpl(
                         metrics,
                         ForkJoinPool.commonPool(),
                         appContext,
                         new HintsLibraryImpl(),
-                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
+                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                        rsaContext,
+                        rsaSignings),
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
-                TssBlockHashSigner::new,
+                DualBlockHashSigner::new,
                 configuration,
                 metrics,
                 time);

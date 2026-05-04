@@ -5,6 +5,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
@@ -113,7 +114,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
-    private final int hashCombineBatchSize;
     private final BlockHashSigner blockHashSigner;
     private final SemanticVersion version;
     private final SemanticVersion hapiVersion;
@@ -220,7 +220,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
-        this.hashCombineBatchSize = blockStreamConfig.hashCombineBatchSize();
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -605,7 +604,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     block.writer().flushPendingBlock(pendingProof);
                 });
             } else {
-                final var attempt = blockHashSigner.sign(finalBlockRootHash);
+                final var attempt = blockHashSigner.sign(finalBlockRootHash, SUCCINCT_SIGNATURE);
                 attempt.signatureFuture()
                         .thenAcceptAsync(signature -> {
                             if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
@@ -848,14 +847,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 indirectProofCounter.increment();
             }
 
-            // (FUTURE: GH issue #22676) Re-enable setting the verification key and chain of trust proof
-            // once the API is finalized
-            //            if (verificationKey != null) {
-            //                proof.verificationKey(verificationKey);
-            //                if (chainOfTrustProof != null) {
-            //                    proof.verificationKeyProof(chainOfTrustProof);
-            //                }
-            //            }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
             currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
             currentPendingBlock.writer().closeCompleteBlock();

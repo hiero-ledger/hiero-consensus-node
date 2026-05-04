@@ -264,7 +264,9 @@ public final class StateUtils {
                                 new HintsLibraryImpl(),
                                 bootstrapConfig
                                         .getConfigData(BlockStreamConfig.class)
-                                        .blockPeriod()),
+                                        .blockPeriod(),
+                                new com.hedera.node.app.hints.impl.RsaContext(appContext.configSupplier()),
+                                new java.util.concurrent.ConcurrentHashMap<>()),
                         new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> {
                             throw new UnsupportedOperationException("No startup networks available");
                         }),
