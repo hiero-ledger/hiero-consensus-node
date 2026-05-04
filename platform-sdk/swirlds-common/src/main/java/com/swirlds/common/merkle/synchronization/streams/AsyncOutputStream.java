@@ -47,7 +47,7 @@ public class AsyncOutputStream {
      * A queue that needs to be written to the output stream. It contains either message
      * bytes (byte array) or some code to run (Runnable).
      */
-    private final BlockingQueue<Object> streamQueue;
+    private final BlockingQueue<byte[]> streamQueue;
 
     /**
      * The time that has elapsed since the last flush was attempted.
@@ -171,22 +171,16 @@ public class AsyncOutputStream {
      * @return true if a message was sent.
      */
     private boolean handleQueuedMessages() {
-        Object item = streamQueue.poll();
+        byte[] item = streamQueue.poll();
         if (item == null) {
             return false;
         }
         try {
-            while (item != null) {
-                switch (item) {
-                    case Runnable runItem -> runItem.run();
-                    case byte[] messageItem -> {
-                        writeMessage(messageItem);
-                        bufferedMessageCount += 1;
-                    }
-                    default -> throw new RuntimeException("Unknown item type");
-                }
+            do {
+                writeMessage(item);
+                bufferedMessageCount += 1;
                 item = streamQueue.poll();
-            }
+            } while (item != null);
         } catch (final IOException e) {
             throw new MerkleSynchronizationException(e);
         }
