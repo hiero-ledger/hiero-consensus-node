@@ -73,7 +73,7 @@ jobs:
       delete-namespace: true
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      github_token: ${{ secrets.GITHUB_TOKEN }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
