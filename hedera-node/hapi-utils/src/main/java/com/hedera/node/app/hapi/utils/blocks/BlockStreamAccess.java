@@ -172,6 +172,8 @@ public enum BlockStreamAccess {
         try {
             if (fileName.endsWith(".gz")) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
+                    // parse the protobuf in strict mode.
+                    // We can't use the `parseStrict` call because we want also to validate the depth of the messages.
                     return Block.PROTOBUF.parse(
                             Bytes.wrap(in.readAllBytes()).toReadableSequentialData(),
                             false,

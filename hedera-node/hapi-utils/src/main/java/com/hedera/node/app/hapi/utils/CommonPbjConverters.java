@@ -442,7 +442,10 @@ public class CommonPbjConverters {
         requireNonNull(txBody);
         try {
             final var bytes = txBody.toByteArray();
-            return TransactionBody.PROTOBUF.parseStrict(BufferedData.wrap(bytes));
+            // parse in strict mode.
+            // We can't use the `parseStrict` call because we want to also validate the depth of protob messages.
+            return TransactionBody.PROTOBUF.parse(
+                    BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
