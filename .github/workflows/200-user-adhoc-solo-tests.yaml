@@ -12,7 +12,7 @@ on:
         description: "[Both] Solo version to install."
         required: false
         type: string
-        default: "0.68.0"
+        default: "latest"
       scenario:
         description: "Which Solo test scenario to run."
         required: false
