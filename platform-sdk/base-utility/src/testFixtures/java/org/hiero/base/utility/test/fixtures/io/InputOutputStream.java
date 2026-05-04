@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures.io;
+package org.hiero.base.utility.test.fixtures.io;
 
-import com.swirlds.common.io.streams.DebuggableDataInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.utility.test.fixtures.io.internal.DebuggableDataInputStream;
 
 /**
  * A convenience class that constructs a pair of streams.

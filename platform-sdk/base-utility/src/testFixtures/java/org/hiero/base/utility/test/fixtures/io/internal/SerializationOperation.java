@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.streams.internal;
+package org.hiero.base.utility.test.fixtures.io.internal;
 
 import java.io.DataInputStream;
 import java.io.InputStream;

@@ -8,7 +8,6 @@ module com.swirlds.common {
     exports com.swirlds.common.io.config;
     exports com.swirlds.common.io.exceptions;
     exports com.swirlds.common.io.filesystem;
-    exports com.swirlds.common.io.streams;
     exports com.swirlds.common.io.utility;
     exports com.swirlds.common.merkle.synchronization;
     exports com.swirlds.common.merkle.synchronization.streams;
@@ -21,8 +20,6 @@ module com.swirlds.common {
     exports com.swirlds.common.utility;
     exports com.swirlds.common.startup;
     exports com.swirlds.common.merkle.synchronization.stats;
-    exports com.swirlds.common.io.streams.internal to
-            org.hiero.base.utility;
 
     opens com.swirlds.common.merkle.utility to
             com.fasterxml.jackson.databind;
