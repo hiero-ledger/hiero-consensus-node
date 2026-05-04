@@ -12,17 +12,18 @@ import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.network.simulation.fixtures.SimulatedNetwork;
+import org.hiero.consensus.network.simulation.fixtures.NetworkLatency;
+import org.hiero.consensus.network.simulation.fixtures.SimulatedBroadcast;
 import org.junit.jupiter.api.Test;
 
-class SimulatedNetworkTest {
+class SimulatedBroadcastTest {
 
     private static final int NUM_NODES = 4;
     private static final Instant START = Instant.parse("2026-01-01T00:00:00Z");
 
     @Test
     void eventsAreDeliveredAfterLatencyExpires() {
-        final SimulatedNetwork network = new SimulatedNetwork(START, NUM_NODES);
+        final SimulatedBroadcast network = new SimulatedBroadcast(START, NUM_NODES);
         final PlatformEvent event = buildEvent(NodeId.of(0));
 
         network.submitEvent(event);
@@ -43,8 +44,8 @@ class SimulatedNetworkTest {
 
     @Test
     void eventsAreNotDeliveredBeforeLatencyExpires() {
-        final SimulatedNetwork network = new SimulatedNetwork(START, NUM_NODES);
-        network.setUniformLatency(Duration.ofMillis(100));
+        final SimulatedBroadcast network = new SimulatedBroadcast(START, NUM_NODES);
+        network.setLatency(NetworkLatency.uniformLatency(Duration.ofMillis(100), NUM_NODES));
 
         final PlatformEvent event = buildEvent(NodeId.of(0));
         network.submitEvent(event);
@@ -74,7 +75,7 @@ class SimulatedNetworkTest {
 
     @Test
     void getDeliveredEventsDrainsTheQueue() {
-        final SimulatedNetwork network = new SimulatedNetwork(START, NUM_NODES);
+        final SimulatedBroadcast network = new SimulatedBroadcast(START, NUM_NODES);
         final PlatformEvent event = buildEvent(NodeId.of(0));
 
         network.submitEvent(event);
@@ -91,7 +92,7 @@ class SimulatedNetworkTest {
     @Test
     void setLatenciesAppliesAsymmetricLatencies() {
         final int nodes = 3;
-        final SimulatedNetwork network = new SimulatedNetwork(START, nodes);
+        final SimulatedBroadcast network = new SimulatedBroadcast(START, nodes);
 
         final int[][] latencies = new int[nodes][nodes];
         for (int i = 0; i < nodes; i++) {
@@ -100,7 +101,7 @@ class SimulatedNetworkTest {
                 latencies[i][j] = (i + 1) * (j + 1) * 10;
             }
         }
-        network.setLatencies(latencies);
+        network.setLatency(NetworkLatency.fromMatrix(latencies));
 
         // Event from node 0:
         //   latency to node 1 = 1*2*10 = 20ms
@@ -120,7 +121,7 @@ class SimulatedNetworkTest {
 
     @Test
     void eventsFromMultipleCreatorsAreDelivered() {
-        final SimulatedNetwork network = new SimulatedNetwork(START, NUM_NODES);
+        final SimulatedBroadcast network = new SimulatedBroadcast(START, NUM_NODES);
 
         // Submit one event per node
         for (int i = 0; i < NUM_NODES; i++) {
@@ -140,14 +141,14 @@ class SimulatedNetworkTest {
     @Test
     void eventsAreDeliveredInArrivalTimeOrder() {
         final int nodes = 3;
-        final SimulatedNetwork network = new SimulatedNetwork(START, nodes);
+        final SimulatedBroadcast network = new SimulatedBroadcast(START, nodes);
 
         // Configure so that node 1's events arrive at node 0 with 50ms latency,
         // and node 2's events arrive at node 0 with 20ms latency.
         final int[][] latencies = new int[nodes][nodes];
         latencies[1][0] = 50; // node 1 -> node 0: 50ms
         latencies[2][0] = 20; // node 2 -> node 0: 20ms
-        network.setLatencies(latencies);
+        network.setLatency(NetworkLatency.fromMatrix(latencies));
 
         // Submit event from node 1 first, then from node 2.
         // Despite node 1's event being submitted first, node 2's event should arrive first
@@ -173,8 +174,8 @@ class SimulatedNetworkTest {
     @Test
     void eventsSubmittedAtDifferentTimesAreDeliveredInOrder() {
         final int nodes = 2;
-        final SimulatedNetwork network = new SimulatedNetwork(START, nodes);
-        network.setUniformLatency(Duration.ofMillis(100));
+        final SimulatedBroadcast network = new SimulatedBroadcast(START, nodes);
+        network.setLatency(NetworkLatency.uniformLatency(Duration.ofMillis(100), nodes));
 
         // Submit first event at START
         final PlatformEvent firstEvent = buildEvent(NodeId.of(0));

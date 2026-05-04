@@ -22,7 +22,7 @@ import org.hiero.consensus.model.node.NodeId;
  * This gossip simulation is intentionally simplistic. It does not attempt to mimic any real gossip algorithm in any
  * meaningful way and makes no attempt to reduce the rate of duplicate events.
  */
-public class SimulatedNetwork {
+public class SimulatedBroadcast {
 
     /**
      * Events that are currently in transit between nodes in the network.
@@ -31,22 +31,22 @@ public class SimulatedNetwork {
     private final Map<NodeId, List<PlatformEvent>> eventsDelivered;
 
     private final Map<ConnectionKey, ConnectionInfo> connections = new HashMap<>();
-    private final Set<NodeId> nodes;
+    private final List<NodeId> nodes;
 
     Instant now;
 
-    public SimulatedNetwork(final Instant now, final int numNodes) {
+    public SimulatedBroadcast(final Instant now, final int numNodes) {
         this.now = now;
-        this.nodes = LongStream.range(0, numNodes).mapToObj(NodeId::of).collect(Collectors.toSet());
+        this.nodes = LongStream.range(0, numNodes).mapToObj(NodeId::of).toList();
         eventsInTransit = nodes.stream().collect(Collectors.toMap(Function.identity(),
                 _ -> new PriorityQueue<>()));
         eventsDelivered = nodes.stream().collect(Collectors.toMap(Function.identity(),
                 _ -> new LinkedList<>()));
     }
 
-    public SimulatedNetwork(final Instant now, final List<NodeId> nodes) {
+    public SimulatedBroadcast(final Instant now, final List<NodeId> nodes) {
         this.now = now;
-        this.nodes = new HashSet<>(nodes);
+        this.nodes = nodes.stream().toList();
         eventsInTransit = nodes.stream().collect(Collectors.toMap(Function.identity(),
                 _ -> new PriorityQueue<>()));
         eventsDelivered = nodes.stream().collect(Collectors.toMap(Function.identity(),
@@ -110,31 +110,15 @@ public class SimulatedNetwork {
         }
     }
 
-    /**
-     * Configures connection latencies from a 2D array of millisecond values. The value at {@code latenciesMs[i][j]} is
-     * the latency in milliseconds from node {@code i} to node {@code j}. The array must be square with dimensions equal
-     * to the number of nodes.
-     *
-     * @param latenciesMs a square matrix of latencies in milliseconds, where {@code latenciesMs[i][j]} is the time in
-     *                    milliseconds for an event sent from node {@code i} to reach node {@code j}
-     */
-    public void setLatencies(@NonNull final int[][] latenciesMs) {
-        if (latenciesMs.length != nodes.size()) {
-            throw new IllegalArgumentException(
-                    "Latency matrix size " + latenciesMs.length + " does not match node count " + nodes.size());
-        }
-        for (int i = 0; i < latenciesMs.length; i++) {
-            if (latenciesMs[i].length != nodes.size()) {
-                throw new IllegalArgumentException(
-                        "Row " + i + " has length " + latenciesMs[i].length + ", expected " + nodes.size());
-            }
-            for (int j = 0; j < latenciesMs[i].length; j++) {
+    public void setLatency(final NetworkLatency latency){
+        for (int i = 0; i < nodes.size(); i++) {
+            for (int j = 0; j < nodes.size(); j++) {
                 if (i == j) {
                     continue;
                 }
                 connections.put(
-                        new ConnectionKey(NodeId.of(i), NodeId.of(j)),
-                        new ConnectionInfo(Duration.ofMillis(latenciesMs[i][j])));
+                        new ConnectionKey(nodes.get(i), nodes.get(j)),
+                        new ConnectionInfo(latency.getLatency(i, j)));
             }
         }
     }

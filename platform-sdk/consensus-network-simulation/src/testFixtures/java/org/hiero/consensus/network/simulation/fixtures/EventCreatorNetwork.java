@@ -8,7 +8,6 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import java.security.KeyPair;
 import java.security.SecureRandom;
@@ -25,8 +24,6 @@ import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.crypto.SigningImplementation;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
-import org.hiero.consensus.event.creator.config.EventCreationConfig;
-import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
@@ -46,9 +43,9 @@ public class EventCreatorNetwork {
     final FakeTime time;
     final Roster roster;
     final PlatformContext platformContext;
-    final SimulatedNetwork network;
+    final SimulatedBroadcast network;
 
-    public EventCreatorNetwork(final long seed, final int numNodes, final int maxOtherParents) {
+    public EventCreatorNetwork(final long seed, final int numNodes, final Configuration configuration) {
         // Build a roster with real keys
         final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create(seed))
                 .withSize(numNodes)
@@ -58,11 +55,6 @@ public class EventCreatorNetwork {
         roster = rosterBuilder.build();
 
         eventCreators = new HashMap<>();
-        final Configuration configuration = new TestConfigBuilder()
-                .withConfigDataType(EventCreationConfig.class)
-                .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
-                .withValue("event.creation.maxOtherParents", Integer.toString(maxOtherParents))
-                .getOrCreateConfig();
         time = new FakeTime(Instant.parse("2026-01-01T00:00:00Z"), Duration.ZERO);
 
         platformContext = TestPlatformContextBuilder.create()
@@ -93,8 +85,8 @@ public class EventCreatorNetwork {
         }
         orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
         final List<NodeId> ids = roster.rosterEntries().stream().map(entry -> NodeId.of(entry.nodeId())).toList();
-        network = new SimulatedNetwork(time.now(), ids);
-        network.setUniformLatency(Duration.of(100, ChronoUnit.MICROS));
+        network = new SimulatedBroadcast(time.now(), ids);
+        network.setLatency(NetworkLatency.uniformLatency(Duration.of(100, ChronoUnit.MICROS), numNodes));
     }
 
     public Roster getRoster() {
@@ -111,7 +103,7 @@ public class EventCreatorNetwork {
         }
     }
 
-    public List<PlatformEvent> cycle(final Duration delay){
+    public List<PlatformEvent> tick(final Duration delay){
         final List<PlatformEvent> newEvents = new ArrayList<>();
         for (final DefaultEventCreationManager creator : eventCreators.values()) {
             final PlatformEvent event = creator.maybeCreateEvent();

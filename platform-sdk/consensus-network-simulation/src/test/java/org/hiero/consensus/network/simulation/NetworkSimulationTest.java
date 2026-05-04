@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.network.simulation;
 
+import com.swirlds.config.api.Configuration;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -14,6 +15,9 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.network.simulation.fixtures.EventCreatorNetwork;
 import org.junit.jupiter.api.Test;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
+import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 
 public class NetworkSimulationTest {
     private static final Duration SIMULATION_DURATION = Duration.ofMillis(100);
@@ -39,7 +43,12 @@ public class NetworkSimulationTest {
     }
 
     private void runSimulation(final Integer delay, final int nodes, final int maxOtherParents) {
-        final EventCreatorNetwork creatorNetwork = new EventCreatorNetwork(0, nodes, maxOtherParents);
+        final Configuration configuration = new TestConfigBuilder()
+                .withConfigDataType(EventCreationConfig.class)
+                .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
+                .withValue("event.creation.maxOtherParents", Integer.toString(maxOtherParents))
+                .getOrCreateConfig();
+        final EventCreatorNetwork creatorNetwork = new EventCreatorNetwork(0, nodes, configuration);
         final DefaultConsensusEngine consensusEngine = new DefaultConsensusEngine(
                 creatorNetwork.getPlatformContext().getConfiguration(),
                 creatorNetwork.getPlatformContext().getMetrics(),
@@ -55,7 +64,7 @@ public class NetworkSimulationTest {
         final Instant end = start.plus(SIMULATION_DURATION);
         int numEvents = 0;
         while (creatorNetwork.getPlatformContext().getTime().now().isBefore(end)) {
-            final List<PlatformEvent> events = creatorNetwork.cycle(delayDuration);
+            final List<PlatformEvent> events = creatorNetwork.tick(delayDuration);
             numEvents += events.size();
             final List<ConsensusEngineOutput> engineOutputs = events.stream().map(consensusEngine::addEvent).toList();
             engineOutputs.stream().map(ConsensusEngineOutput::consensusRounds).flatMap(List::stream)
