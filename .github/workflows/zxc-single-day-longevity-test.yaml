@@ -280,6 +280,7 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        if: false
         run: |
           npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
@@ -310,8 +311,8 @@ jobs:
 
           git clone https://github.com/hiero-ledger/solo.git solo
           cd solo
-          git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
-          git checkout dc6f06166804c20fbc9bfc5b65166210bbada721
+          git fetch origin e9e578ae5684c47eab71c09260de37241d1a5402
+          git checkout e9e578ae5684c47eab71c09260de37241d1a5402
           task build:compile
           #npm run build
 
