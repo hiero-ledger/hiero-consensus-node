@@ -3,7 +3,10 @@ package com.hedera.statevalidation.report;
 
 import static com.hedera.statevalidation.util.ConfigUtils.NODE_NAME;
 
-public class Report {
+/**
+ * Represents a comprehensive report for a node, containing details about different storage types and their respective analyses.
+ */
+public class StateReport {
 
     private String nodeName = NODE_NAME;
 

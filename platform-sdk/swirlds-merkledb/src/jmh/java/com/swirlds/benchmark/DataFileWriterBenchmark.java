@@ -5,7 +5,6 @@ import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.test.fixtures.util.DataUtils;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.merkledb.files.DataFileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,6 +13,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.file.FileUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

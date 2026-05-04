@@ -2,7 +2,6 @@
 package com.swirlds.platform;
 
 import static com.swirlds.base.test.fixtures.util.DataUtils.randomUtf8Bytes;
-import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME;
@@ -15,6 +14,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSig
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
+import static org.hiero.base.file.FileUtils.throwIfFileExists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
