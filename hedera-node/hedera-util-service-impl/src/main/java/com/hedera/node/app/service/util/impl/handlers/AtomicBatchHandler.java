@@ -155,7 +155,15 @@ public class AtomicBatchHandler implements TransactionHandler {
 
         final var txns = op.transactions();
 
-        final List<HandleException.OnRollback> rollbackStack = new ArrayList<>();
+        /* Rollback queue collects side effects of each executed transaction within the batch,
+        that should be replayed if the batch fails (including the side effects of the
+        failing transaction, which triggers the rollback).
+        It contains two types of items:
+            - instances of EthereumTransactionRollbackHandler, which handle replaying the side effects of
+              EthereumTransactions
+            - lambda instances (created later in this method), which handle replaying the fees for all
+              transaction types */
+        final List<HandleException.OnRollback> rollbackQueue = new ArrayList<>();
 
         // The parsing check is done in the pre-handle workflow,
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
@@ -177,29 +185,38 @@ public class AtomicBatchHandler implements TransactionHandler {
                 dispatchMetadata.putMetadata(EXPLICIT_WRITE_TRACING, batchHasMoreThanOneContractOp);
             }
             if (innerTxnBody.hasEthereumTransaction()) {
+                /* Here we collect the instances of EthereumTransactionRollbackHandler, which handle
+                replaying the Ethereum-specific side effects (nonce updates, code delegations).
+                Note that EthereumTransactionRollbackHandler also replays the charges collected in EVM -
+                we don't really want that, because replaying the charges within atomic batch is handled
+                separately (see the addition of another rollbackQueue item below). To fix that, we provide
+                a no-op FeeCharging.Context to the callback. */
                 dispatchMetadata.<Consumer<HandleException.OnRollback>>putMetadata(
-                        BATCH_ROLLBACK_CALLBACK_CONSUMER, rollbackStack::add);
+                        BATCH_ROLLBACK_CALLBACK_CONSUMER, onRollback -> {
+                            rollbackQueue.add((feeChargingContext, handleCtx) ->
+                                    onRollback.replay(new NoOpFeeChargingContext(feeChargingContext), handleCtx));
+                        });
             }
+
             final var streamBuilder = context.dispatch(dispatchOptions);
 
-            // Ethereum transactions handle all rollback effects themselves
-            // via the BATCH_ROLLBACK_CALLBACK_CONSUMER metadata, so
-            // batch handler only needs to take care of reapplying the fees for other transaction types.
-            if (!innerTxnBody.hasEthereumTransaction()) {
-                final var recordedCharges = List.copyOf(recordedFeeCharging.charges());
-                rollbackStack.add((ctx, dispatch) -> {
-                    final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
-                    recordedCharges.forEach(
-                            charge -> charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum)));
-                    streamBuilder.setReplayedFees(asTransferList(adjustments));
-                });
-            }
+            /* Let's collect the recorded fees and add a replay action to the queue. */
+            final var recordedCharges = List.copyOf(recordedFeeCharging.charges());
+            rollbackQueue.add((ctx, _) -> {
+                final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
+                recordedCharges.forEach(
+                        charge -> charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum)));
+                streamBuilder.setReplayedFees(asTransferList(adjustments));
+            });
 
             if (streamBuilder.status() != SUCCESS) {
+                /* Finally, if any transaction within the batch fails: throw HandleException and,
+                within its onRollback handler, iterate the rollback queue and replay all collected side effects
+                of previously executed transactions (and the one that has just failed). */
                 throw new HandleException(
                         INNER_TRANSACTION_FAILED,
                         (feeChargingContext, dispatch) ->
-                                rollbackStack.forEach(onRollback -> onRollback.replay(feeChargingContext, dispatch)));
+                                rollbackQueue.forEach(onRollback -> onRollback.replay(feeChargingContext, dispatch)));
             }
         }
     }
@@ -397,5 +414,42 @@ public class AtomicBatchHandler implements TransactionHandler {
                         .amount(entry.getValue())
                         .build())
                 .toList());
+    }
+
+    private record NoOpFeeChargingContext(FeeCharging.Context delegate) implements FeeCharging.Context {
+        @Override
+        public AccountID payerId() {
+            return delegate.payerId();
+        }
+
+        @Override
+        public AccountID nodeAccountId() {
+            return delegate.nodeAccountId();
+        }
+
+        @Override
+        public Fees charge(@NonNull AccountID payerId, @NonNull Fees fees, ObjLongConsumer<AccountID> cb) {
+            return fees;
+        }
+
+        @Override
+        public Fees charge(
+                @NonNull AccountID payerId,
+                @NonNull Fees fees,
+                @NonNull AccountID nodeAccountId,
+                ObjLongConsumer<AccountID> cb) {
+            return fees;
+        }
+
+        @Override
+        public void refund(@NonNull AccountID payerId, @NonNull Fees fees, @NonNull AccountID nodeAccountId) {}
+
+        @Override
+        public void refund(@NonNull AccountID receiverId, @NonNull Fees fees) {}
+
+        @Override
+        public TransactionCategory category() {
+            return delegate.category();
+        }
     }
 }

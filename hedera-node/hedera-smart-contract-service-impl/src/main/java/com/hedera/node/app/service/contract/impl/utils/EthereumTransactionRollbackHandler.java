@@ -19,37 +19,35 @@ public class EthereumTransactionRollbackHandler implements HandleException.OnRol
 
     private final CallOutcome outcome;
     private final List<HederaOperations.GasChargingEvent> gasChargingEvents;
-    private final HandleContext handleContext;
 
     public EthereumTransactionRollbackHandler(
-            @NonNull CallOutcome outcome,
-            @NonNull List<HederaOperations.GasChargingEvent> gasChargingEvents,
-            @NonNull HandleContext handleContext) {
+            @NonNull CallOutcome outcome, @NonNull List<HederaOperations.GasChargingEvent> gasChargingEvents) {
         this.outcome = outcome;
         this.gasChargingEvents = gasChargingEvents;
-        this.handleContext = handleContext;
     }
 
     @Override
-    public void replay(
-            @NonNull FeeCharging.Context feeChargingContext, @NonNull HandleException.ChildDispatch dispatch) {
+    public void replay(@NonNull FeeCharging.Context feeChargingContext, @NonNull HandleContext handleContext) {
         // Replay fee charges
-        replayGasChargingIn(feeChargingContext);
+        replayGasChargingIn(feeChargingContext, handleContext);
     }
 
-    private void replayGasChargingIn(@NonNull final FeeCharging.Context feeChargingContext) {
+    private void replayGasChargingIn(
+            @NonNull final FeeCharging.Context feeChargingContext, HandleContext handleContext) {
+        final var tokenServiceApi = handleContext.storeFactory().serviceApi(TokenServiceApi.class);
         final Map<AccountID, Long> netCharges = new LinkedHashMap<>();
         for (final var event : gasChargingEvents) {
             if (event.action() == HandleHederaOperations.GasChargingAction.CHARGE) {
                 netCharges.merge(event.accountId(), event.amount(), Long::sum);
                 if (event.withNonceIncrement()) {
-                    final var tokenServiceApi = handleContext.storeFactory().serviceApi(TokenServiceApi.class);
                     tokenServiceApi.incrementSenderNonce(event.accountId());
                 }
             } else {
                 netCharges.merge(event.accountId(), -event.amount(), Long::sum);
             }
         }
-        netCharges.forEach((payerId, amount) -> feeChargingContext.charge(payerId, new Fees(0, amount, 0), null));
+        netCharges.forEach((payerId, amount) -> {
+            feeChargingContext.charge(payerId, new Fees(0, amount, 0), null);
+        });
     }
 }

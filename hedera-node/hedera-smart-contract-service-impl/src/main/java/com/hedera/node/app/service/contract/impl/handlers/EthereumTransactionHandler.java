@@ -171,7 +171,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
         }
         final var rollbackHandler = new EthereumTransactionRollbackHandler(
-                outcome, component.hederaOperations().gasChargingEvents(), context);
+                outcome, component.hederaOperations().gasChargingEvents());
         context.dispatchMetadata()
                 .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
                 .ifPresent(consumer -> consumer.accept(rollbackHandler));

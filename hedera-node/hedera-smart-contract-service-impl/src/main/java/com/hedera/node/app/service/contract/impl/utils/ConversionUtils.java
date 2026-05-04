@@ -43,7 +43,6 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -692,19 +691,14 @@ public class ConversionUtils {
     /**
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
      * @param outcome the outcome
-     * @param handleContext the handle context
      * @param hederaOperations the Hedera operations
      */
     public static void throwIfUnsuccessfulCall(
-            @NonNull final CallOutcome outcome,
-            @NonNull final HandleContext handleContext,
-            @NonNull final HederaOperations hederaOperations) {
+            @NonNull final CallOutcome outcome, @NonNull final HederaOperations hederaOperations) {
         requireNonNull(outcome);
-        requireNonNull(handleContext);
         requireNonNull(hederaOperations);
         throwIfUnsuccessfulCall(
-                outcome,
-                new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents(), handleContext));
+                outcome, new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents()));
     }
 
     public static void throwIfUnsuccessfulCall(
