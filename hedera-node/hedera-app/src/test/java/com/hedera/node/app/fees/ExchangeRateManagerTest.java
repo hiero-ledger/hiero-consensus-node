@@ -7,12 +7,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TimestampSeconds;
+import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.fees.schemas.V0490FeeSchema;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.service.file.FileService;
+import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -98,6 +102,27 @@ class ExchangeRateManagerTest {
 
         // expect
         assertEquals(activeRate, expectedExchangeRate);
+    }
+
+    @Test
+    void exchangeRateInfoParsesExchangeRatesFromFileState() {
+        final var exchangeRatesFileId = FileID.newBuilder().fileNum(112L).build();
+        final var exchangeRatesFile =
+                File.newBuilder().contents(validRateBytes).build();
+        final var state = new FakeState()
+                .addService(
+                        FeeService.NAME,
+                        Map.of(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID, new AtomicReference<>(validRatesObj)))
+                .addService(
+                        FileService.NAME,
+                        Map.of(V0490FileSchema.FILES_STATE_ID, Map.of(exchangeRatesFileId, exchangeRatesFile)));
+
+        final var info = subject.exchangeRateInfo(state);
+
+        assertEquals(hbarEquiv, info.exchangeRates().currentRateOrThrow().hbarEquiv());
+        assertEquals(centEquiv, info.exchangeRates().currentRateOrThrow().centEquiv());
+        assertEquals(hbarEquiv * 2, info.exchangeRates().nextRateOrThrow().hbarEquiv());
+        assertEquals(centEquiv * 2, info.exchangeRates().nextRateOrThrow().centEquiv());
     }
 
     private static Stream<Arguments> provideConsensusTimesForActiveRate() {
