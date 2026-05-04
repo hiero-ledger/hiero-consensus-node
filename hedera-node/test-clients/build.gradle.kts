@@ -223,7 +223,7 @@ val prCheckPropOverrides =
             "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
         "hapiTestNDReconnect" to
-            "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true,state.saveStateAsync=false",
+                "blockStream.enableStateProofs=true,block.stateproof.verification.enabled=true",
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
