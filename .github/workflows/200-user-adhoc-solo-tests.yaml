@@ -22,10 +22,10 @@ on:
           - "jumpstart"
           - "wrb-streaming"
       jumpstart-starting-tag:
-        description: "[Jumpstart] Consensus-node release tag used for the initial network deployment."
+        description: "[Jumpstart] Consensus-node release tag used for the initial network deployment. Leave blank to default to v0.73.0."
         required: false
         type: string
-        default: "v0.73.0"
+        default: ""
       jumpstart-upgrade-tag:
         description: "[Jumpstart] Consensus-node release tag to upgrade the network to (e.g. v0.74.0). Leave blank to upgrade to the local build instead."
         required: false
@@ -142,7 +142,7 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              INITIAL_RELEASE_TAG="${{ inputs.jumpstart-starting-tag }}" \
+              INITIAL_RELEASE_TAG="${{ inputs.jumpstart-starting-tag || 'v0.73.0' }}" \
               UPGRADE_VERSION="${{ inputs.jumpstart-upgrade-tag }}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-script.log"
