@@ -15,4 +15,4 @@ import org.hiero.base.file.FileSystemManager;
 @ConfigData("fileSystem")
 public record FileSystemConfig(
         @ConfigProperty(defaultValue = "data/saved") Path rootPath,
-        @ConfigProperty(defaultValue = "swirlds-tmp") Path tmpDir) {}
+        @ConfigProperty(defaultValue = "tmp") Path tmpDir) {}
