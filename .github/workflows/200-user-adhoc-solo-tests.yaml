@@ -9,7 +9,7 @@ on:
         required: true
         type: string
       solo-version:
-        description: "[Both] Solo version to install. Pinned to 0.68.0 — 0.70.0 introduced an additive-merge change to --application-properties (PR #3963) that breaks the post-upgrade gossip/consensus startup."
+        description: "[Both] Solo version to install."
         required: false
         type: string
         default: "0.68.0"
