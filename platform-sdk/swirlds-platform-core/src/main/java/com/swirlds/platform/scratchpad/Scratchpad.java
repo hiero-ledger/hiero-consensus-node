@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.scratchpad;
 
-import org.hiero.base.file.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.internal.StandardScratchpad;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.consensus.model.node.NodeId;
 

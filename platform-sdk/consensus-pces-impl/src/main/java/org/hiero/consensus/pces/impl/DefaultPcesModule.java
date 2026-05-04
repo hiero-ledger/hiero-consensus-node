@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.swirlds.base.time.Time;
-import org.hiero.base.file.FileSystemManager;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -20,6 +19,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
