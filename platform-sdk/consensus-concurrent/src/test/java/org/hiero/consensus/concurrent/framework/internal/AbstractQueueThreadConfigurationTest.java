@@ -23,6 +23,7 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadMetricsConfiguration;
+import org.hiero.consensus.concurrent.framework.queue.MeasuredBlockingQueue;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
 import org.hiero.consensus.metrics.config.MetricsConfig;

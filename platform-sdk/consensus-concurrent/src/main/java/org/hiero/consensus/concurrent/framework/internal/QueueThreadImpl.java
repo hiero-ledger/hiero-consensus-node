@@ -13,6 +13,7 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
+import org.hiero.consensus.concurrent.framework.queue.AbstractBlockingQueue;
 
 /**
  * Implements a thread that continuously takes elements from a queue and handles them.
