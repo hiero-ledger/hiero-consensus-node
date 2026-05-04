@@ -298,10 +298,94 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     @Test
+    void returnsEarlyWhenJumpstartConsensusTimestampHashMismatches() throws Exception {
+        final var matchingOutputHash = Bytes.wrap(new byte[HASH_SIZE]);
+        final var fileTimestampHash = fillHash((byte) 0xAA);
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(i == 98 ? entryWithHashes(i, fileTimestampHash, matchingOutputHash) : entry(i));
+        }
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+
+        // Jumpstart config provides a different consensus-timestamp hash for block 98
+        final var badConfig = new BlockStreamJumpstartConfig(
+                98,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                fillHash((byte) 0x11),
+                matchingOutputHash);
+
+        subject.execute(StreamMode.RECORDS, config, badConfig, false);
+        assertNull(subject.result());
+    }
+
+    @Test
+    void returnsEarlyWhenJumpstartOutputItemsTreeRootHashMismatches() throws Exception {
+        final var matchingTimestampHash = Bytes.wrap(new byte[HASH_SIZE]);
+        final var fileOutputHash = fillHash((byte) 0xBB);
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(i == 98 ? entryWithHashes(i, matchingTimestampHash, fileOutputHash) : entry(i));
+        }
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+
+        // Jumpstart config provides a different output-items tree root hash for block 98
+        final var badConfig = new BlockStreamJumpstartConfig(
+                98,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                matchingTimestampHash,
+                fillHash((byte) 0x22));
+
+        subject.execute(StreamMode.RECORDS, config, badConfig, false);
+        assertNull(subject.result());
+    }
+
+    @Test
+    void skipsHashMatchCheckWhenCurrentBlockHashesNotPopulated() throws Exception {
+        // When both currentBlock*Hash properties are empty, the new check is skipped and the
+        // migration proceeds even though the file entry would not match empty hashes.
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            entries.add(entryWithHashes(i, fillHash((byte) 0xCC), fillHash((byte) 0xDD)));
+        }
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+
+        final var jsConfig = new BlockStreamJumpstartConfig(
+                98,
+                Bytes.wrap(new byte[HASH_SIZE]),
+                4,
+                1,
+                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                Bytes.EMPTY,
+                Bytes.EMPTY);
+
+        subject.execute(StreamMode.RECORDS, config, jsConfig, false);
+        assertThat(subject.result()).isNotNull();
+    }
+
+    @Test
+    void returnsEarlyWhenJumpstartBlockEntryNotFoundInRecentHashes() throws Exception {
+        // Jumpstart block 93 is within [first=90, last=100] range but the entry itself is missing.
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = 90; i <= 100; i++) {
+            if (i != 93) {
+                entries.add(entry(i));
+            }
+        }
+        final var config = enabledRecordsConfig(createRecentHashesDir(entries));
+
+        subject.execute(StreamMode.RECORDS, config, jumpstartConfig(93, 4, 1), false);
+        assertNull(subject.result());
+    }
+
+    @Test
     void returnsEarlyWhenPreviousBlockHashIsEmpty() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
-        // previousWrappedRecordBlockHash intentionally empty; new fields populated normally so they
-        // don't short-circuit the test before validateHashLengths runs.
         final var badConfig = new BlockStreamJumpstartConfig(
                 100,
                 Bytes.EMPTY,
@@ -312,58 +396,6 @@ class WrappedRecordBlockHashMigrationTest {
                 Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
         assertNull(subject.result());
-    }
-
-    @Test
-    void returnsEarlyWhenConsensusTimestampHashMismatchesOnDiskEntry() throws Exception {
-        // On-disk entry at jumpstart block 98 has consensusTimestampHash = 0xAA...AA
-        final var diskCth = filledHash((byte) 0xAA);
-        final var diskOir = filledHash((byte) 0xCC);
-        final var config = enabledRecordsConfig(createRecentHashesDir(
-                List.of(entry(98, diskCth, diskOir), entry(99, diskCth, diskOir), entry(100, diskCth, diskOir))));
-        // Jumpstart provides a different consensusTimestampHash at block 98
-        final var jsConfig = jumpstartConfigWithCnHashes(
-                98, 4, 1, /* differentCth= */ filledHash((byte) 0xBB), /* matchingOir= */ diskOir);
-        subject.execute(StreamMode.RECORDS, config, jsConfig, false);
-        assertNull(subject.result());
-    }
-
-    @Test
-    void returnsEarlyWhenOutputItemsTreeRootHashMismatchesOnDiskEntry() throws Exception {
-        final var diskCth = filledHash((byte) 0xAA);
-        final var diskOir = filledHash((byte) 0xCC);
-        final var config = enabledRecordsConfig(createRecentHashesDir(
-                List.of(entry(98, diskCth, diskOir), entry(99, diskCth, diskOir), entry(100, diskCth, diskOir))));
-        // Jumpstart matches consensusTimestampHash but not outputItemsTreeRootHash
-        final var jsConfig = jumpstartConfigWithCnHashes(
-                98, 4, 1, /* matchingCth= */ diskCth, /* differentOir= */ filledHash((byte) 0xDD));
-        subject.execute(StreamMode.RECORDS, config, jsConfig, false);
-        assertNull(subject.result());
-    }
-
-    @Test
-    void returnsEarlyWhenJumpstartHasCnHashesButNoOnDiskEntryAtJumpstartBlock() throws Exception {
-        // Disk has entries at 90, 99, 100 (gap at 98). validateBlockNumberRange passes because
-        // jumpstartBlockNum=98 lies within [90, 100] and entries after 98 (99, 100) are consecutive,
-        // but the new CN verification cannot find an entry exactly at the jumpstart block.
-        final var diskCth = filledHash((byte) 0xAA);
-        final var diskOir = filledHash((byte) 0xCC);
-        final var config = enabledRecordsConfig(createRecentHashesDir(
-                List.of(entry(90, diskCth, diskOir), entry(99, diskCth, diskOir), entry(100, diskCth, diskOir))));
-        final var jsConfig = jumpstartConfigWithCnHashes(98, 4, 1, diskCth, diskOir);
-        subject.execute(StreamMode.RECORDS, config, jsConfig, false);
-        assertNull(subject.result());
-    }
-
-    @Test
-    void runsWhenBothCnVerificationHashesMatchOnDiskEntry() throws Exception {
-        final var diskCth = filledHash((byte) 0xAA);
-        final var diskOir = filledHash((byte) 0xCC);
-        final var config = enabledRecordsConfig(createRecentHashesDir(
-                List.of(entry(98, diskCth, diskOir), entry(99, diskCth, diskOir), entry(100, diskCth, diskOir))));
-        final var jsConfig = jumpstartConfigWithCnHashes(98, 4, 1, diskCth, diskOir);
-        subject.execute(StreamMode.RECORDS, config, jsConfig, false);
-        assertThat(subject.result()).isNotNull();
     }
 
     private Path createRecentHashesDir(List<WrappedRecordFileBlockHashes> entries) throws Exception {
@@ -377,46 +409,22 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     private WrappedRecordFileBlockHashes entry(long blockNumber) {
-        return WrappedRecordFileBlockHashes.newBuilder()
-                .blockNumber(blockNumber)
-                .outputItemsTreeRootHash(Bytes.wrap(new byte[HASH_SIZE]))
-                .consensusTimestampHash(Bytes.wrap(new byte[HASH_SIZE]))
-                .build();
+        return entryWithHashes(blockNumber, Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[HASH_SIZE]));
     }
 
-    private WrappedRecordFileBlockHashes entry(
+    private WrappedRecordFileBlockHashes entryWithHashes(
             long blockNumber, Bytes consensusTimestampHash, Bytes outputItemsTreeRootHash) {
         return WrappedRecordFileBlockHashes.newBuilder()
                 .blockNumber(blockNumber)
-                .outputItemsTreeRootHash(outputItemsTreeRootHash)
                 .consensusTimestampHash(consensusTimestampHash)
+                .outputItemsTreeRootHash(outputItemsTreeRootHash)
                 .build();
     }
 
-    private static Bytes filledHash(byte value) {
-        final byte[] arr = new byte[HASH_SIZE];
-        java.util.Arrays.fill(arr, value);
-        return Bytes.wrap(arr);
-    }
-
-    private static BlockStreamJumpstartConfig jumpstartConfigWithCnHashes(
-            long blockNumber,
-            long leafCount,
-            int numHashes,
-            Bytes consensusTimestampHash,
-            Bytes outputItemsTreeRootHash) {
-        final List<Bytes> subtreeHashes = new ArrayList<>(numHashes);
-        for (int i = 0; i < numHashes; i++) {
-            subtreeHashes.add(Bytes.wrap(new byte[HASH_SIZE]));
-        }
-        return new BlockStreamJumpstartConfig(
-                blockNumber,
-                Bytes.wrap(new byte[HASH_SIZE]),
-                leafCount,
-                numHashes,
-                subtreeHashes,
-                consensusTimestampHash,
-                outputItemsTreeRootHash);
+    private static Bytes fillHash(byte b) {
+        final var bytes = new byte[HASH_SIZE];
+        java.util.Arrays.fill(bytes, b);
+        return Bytes.wrap(bytes);
     }
 
     @FunctionalInterface
@@ -455,9 +463,6 @@ class WrappedRecordBlockHashMigrationTest {
         for (int i = 0; i < numHashes; i++) {
             subtreeHashes.add(Bytes.wrap(new byte[HASH_SIZE]));
         }
-        // Use 48-byte zero hashes for consensusTimestampHash / outputItemsTreeRootHash so they
-        // match what entry(blockNumber) produces; this exercises the strict validateCnVerificationHashes
-        // code path rather than the lenient empty-skip.
         return new BlockStreamJumpstartConfig(
                 blockNumber,
                 Bytes.wrap(new byte[HASH_SIZE]),

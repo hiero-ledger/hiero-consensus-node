@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
+import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeOutOfRange;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -289,7 +290,7 @@ public class BlockNodeConnectionManager {
      */
     private @Nullable BlockNode getNextPriorityBlockNode(@NonNull final List<BlockNode> availableBlockNodes) {
         requireNonNull(availableBlockNodes, "Available block nodes list is required");
-        logger.debug("Searching for new block node connection based on node priorities.");
+        logger.debug("Searching for new block node connection based on node priorities");
 
         final SortedMap<Integer, List<BlockNode>> priorityGroups = availableBlockNodes.stream()
                 .collect(Collectors.groupingBy(node -> node.configuration().priority(), TreeMap::new, toList()));
@@ -309,12 +310,12 @@ public class BlockNodeConnectionManager {
             }
 
             if (outcome == null) {
-                logger.debug("No available node found in priority group {}.", priority);
+                logger.debug("No available node found in priority group {}", priority);
                 continue;
             }
 
             if (!outcome.inRangeCandidates().isEmpty()) {
-                logger.debug("Found in-range available node in priority group {}.", priority);
+                logger.debug("Found in-range available node in priority group {}", priority);
                 return selectRandomCandidate(outcome.inRangeCandidates());
             }
 
@@ -332,7 +333,7 @@ public class BlockNodeConnectionManager {
         }
 
         logger.debug(
-                "All groups only had ahead candidates. Selecting from global lowest wantedBlock={}",
+                "All groups only had ahead candidates. Selecting from global lowest wantedBlock: {}",
                 globalLowestWantedBlock);
         return selectRandomCandidate(globalLowestAheadCandidates);
     }
@@ -478,6 +479,8 @@ public class BlockNodeConnectionManager {
             final long wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
             if (latestAvailableBlock != -1) {
                 if (wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
+                    final long numBlocksBehind = earliestAvailableBlock - wantedBlock;
+                    node.applyCoolDown(new BlockNodeOutOfRange(numBlocksBehind));
                     logger.info(
                             "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (wantedBlock: {}, blocksAvailable: {}-{}))",
                             streamingEndpoint.host(),
@@ -995,7 +998,11 @@ public class BlockNodeConnectionManager {
         final BlockNode selectedNode = getNextPriorityBlockNode(candidates);
 
         if (selectedNode == null) {
-            logger.warn("No other block nodes found available for streaming");
+            if (activeConnection == null) {
+                logger.warn("No block nodes available for streaming");
+            } else {
+                logger.debug("Tried to find another block node to connect to, but none were available");
+            }
             return false;
         }
 

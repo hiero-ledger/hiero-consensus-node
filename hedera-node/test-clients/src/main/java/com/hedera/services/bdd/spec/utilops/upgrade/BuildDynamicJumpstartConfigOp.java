@@ -100,11 +100,6 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
 
         final var intermediateHashes = hasher.intermediateHashingState();
 
-        // CN verification hashes — taken straight from the on-disk entry at the jumpstart block
-        // so the migration's pre-flight check (validateCnVerificationHashes) finds an exact match.
-        final var consensusTimestampHash = jumpstartEntry.consensusTimestampHash();
-        final var outputItemsTreeRootHash = jumpstartEntry.outputItemsTreeRootHash();
-
         // Populate config properties for BlockStreamJumpstartConfig
         envOverrides.put("blockStream.jumpstart.blockNum", Long.toString(jumpstartBlockNum));
         envOverrides.put("blockStream.jumpstart.previousWrappedRecordBlockHash", prevWrappedBlockHash.toHex());
@@ -113,8 +108,12 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
         envOverrides.put(
                 "blockStream.jumpstart.streamingHasherSubtreeHashes",
                 intermediateHashes.stream().map(Bytes::toHex).collect(Collectors.joining(",")));
-        envOverrides.put("blockStream.jumpstart.consensusTimestampHash", consensusTimestampHash.toHex());
-        envOverrides.put("blockStream.jumpstart.outputItemsTreeRootHash", outputItemsTreeRootHash.toHex());
+        envOverrides.put(
+                "blockStream.jumpstart.currentBlockConsensusTimestampHash",
+                jumpstartEntry.consensusTimestampHash().toHex());
+        envOverrides.put(
+                "blockStream.jumpstart.currentBlockOutputItemsTreeRootHash",
+                jumpstartEntry.outputItemsTreeRootHash().toHex());
         log.info(
                 "Set jumpstart config properties: blockNum={}, leafCount={}, hashCount={}",
                 jumpstartBlockNum,
@@ -128,8 +127,8 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
                 hasher.leafCount(),
                 intermediateHashes.size(),
                 intermediateHashes,
-                consensusTimestampHash,
-                outputItemsTreeRootHash));
+                jumpstartEntry.consensusTimestampHash(),
+                jumpstartEntry.outputItemsTreeRootHash()));
         return false;
     }
 }

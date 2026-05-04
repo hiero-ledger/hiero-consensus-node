@@ -14,10 +14,14 @@ import java.util.List;
  * @param streamingHasherLeafCount the number of leaves in the streaming hasher state
  * @param streamingHasherHashCount the number of hashes in the streaming hasher state
  * @param streamingHasherSubtreeHashes the list of subtree hashes in the streaming hasher state
- * @param consensusTimestampHash SHA-384 leaf hash of the block's first consensus timestamp
- *        (added by hiero-block-node #2612 for CN verification; empty when not provided)
- * @param outputItemsTreeRootHash streaming merkle root of all output items in the block
- *        (added by hiero-block-node #2612 for CN verification; empty when not provided)
+ * @param currentBlockConsensusTimestampHash the hash of the first consensus timestamp of block {@code blockNum},
+ *                                           used to verify the jumpstart data against the wrapped record hashes
+ *                                           file. Optional: when empty (along with
+ *                                           {@code currentBlockOutputItemsTreeRootHash}), the match check is skipped
+ * @param currentBlockOutputItemsTreeRootHash the root hash of the output-items subtree of block {@code blockNum},
+ *                                            used to verify the jumpstart data against the wrapped record hashes
+ *                                            file. Optional: when empty (along with
+ *                                            {@code currentBlockConsensusTimestampHash}), the match check is skipped
  */
 @ConfigData("blockStream.jumpstart")
 public record BlockStreamJumpstartConfig(
@@ -34,6 +38,6 @@ public record BlockStreamJumpstartConfig(
 
         @ConfigProperty(defaultValue = "") @NetworkProperty List<Bytes> streamingHasherSubtreeHashes,
 
-        @ConfigProperty(defaultValue = "") @NetworkProperty Bytes consensusTimestampHash,
+        @ConfigProperty(defaultValue = "") @NetworkProperty Bytes currentBlockConsensusTimestampHash,
 
-        @ConfigProperty(defaultValue = "") @NetworkProperty Bytes outputItemsTreeRootHash) {}
+        @ConfigProperty(defaultValue = "") @NetworkProperty Bytes currentBlockOutputItemsTreeRootHash) {}

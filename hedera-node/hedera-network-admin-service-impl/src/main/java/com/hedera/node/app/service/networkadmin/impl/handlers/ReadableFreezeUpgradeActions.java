@@ -4,9 +4,9 @@ package com.hedera.node.app.service.networkadmin.impl.handlers;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.utility.CommonUtils.nameToAlias;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.runAsync;
+import static org.hiero.base.utility.CommonUtils.nameToAlias;
 
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ServiceEndpoint;

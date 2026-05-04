@@ -501,7 +501,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
                     return readBuf;
                 }
                 // Otherwise read it separately
-                if (readBB.capacity() <= totalSize) {
+                if (readBB.capacity() < totalSize) {
                     readBB = ByteBuffer.allocate(totalSize);
                     BUFFER_CACHE.set(readBB);
                     readBuf = BufferedData.wrap(readBB);
