@@ -14,11 +14,14 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -37,6 +40,12 @@ class V0740BlockRecordSchemaTest {
 
     @Mock
     private BlockStreamJumpstartConfig blockStreamJumpstartConfig;
+
+    @Mock
+    private VersionConfig versionConfig;
+
+    @Mock
+    private HederaConfig hederaConfig;
 
     @Mock
     private WritableStates writableStates;
@@ -65,6 +74,11 @@ class V0740BlockRecordSchemaTest {
     void restartIsNoopWhenLiveWriteDisabled() {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 74, 0, "", ""));
+        given(hederaConfig.configVersion()).willReturn(0);
+        given(ctx.isUpgrade(any())).willReturn(true);
         given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
         given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(false);
 
@@ -87,8 +101,26 @@ class V0740BlockRecordSchemaTest {
     }
 
     @Test
-    void restartSkipsWhenVotingAlreadyInitialized() {
+    void restartIsNoopWhenNotUpgrade() {
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 74, 0, "", ""));
+        given(hederaConfig.configVersion()).willReturn(0);
+        given(ctx.isUpgrade(any())).willReturn(false);
+
+        subject.restart(ctx);
+
+        verify(ctx, never()).newStates();
+        verifyNoInteractions(blockInfoState);
+    }
+
+    @Test
+    void restartReinitializesVotingFieldsWhenJumpstartEnabled() {
         givenRestartPreconditions();
+        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
+        given(blockStreamJumpstartConfig.blockNum()).willReturn(1L);
         given(ctx.newStates()).willReturn(writableStates);
         given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
         given(blockInfoState.get())
@@ -100,7 +132,13 @@ class V0740BlockRecordSchemaTest {
 
         subject.restart(ctx);
 
-        verify(blockInfoState, never()).put(any());
+        verify(blockInfoState)
+                .put(baseBlockInfo()
+                        .copyBuilder()
+                        .votingComplete(false)
+                        .votingCompletionDeadlineBlockNumber(baseBlockInfo().lastBlockNumber() + 10)
+                        .migrationRootHashVotes(List.of())
+                        .build());
     }
 
     @Test
@@ -119,6 +157,7 @@ class V0740BlockRecordSchemaTest {
                         .copyBuilder()
                         .votingComplete(false)
                         .votingCompletionDeadlineBlockNumber(baseBlockInfo().lastBlockNumber() + 10)
+                        .migrationRootHashVotes(List.of())
                         .build());
     }
 
@@ -139,6 +178,11 @@ class V0740BlockRecordSchemaTest {
     private void givenRestartPreconditions() {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 74, 0, "", ""));
+        given(hederaConfig.configVersion()).willReturn(0);
+        given(ctx.isUpgrade(any())).willReturn(true);
         given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
         given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(true);
     }
