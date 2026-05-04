@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.concurrent.framework.internal;
+package org.hiero.consensus.concurrent.framework.config;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import org.hiero.consensus.concurrent.framework.config.QueueThreadMetricsConfiguration;
 import org.hiero.consensus.concurrent.framework.queue.MeasuredBlockingQueue;
 
 /**

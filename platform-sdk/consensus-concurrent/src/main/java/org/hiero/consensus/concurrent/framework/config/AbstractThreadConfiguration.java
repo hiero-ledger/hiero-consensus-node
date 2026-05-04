@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.concurrent.framework.internal;
+package org.hiero.consensus.concurrent.framework.config;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
@@ -20,7 +20,6 @@ import org.apache.logging.log4j.ThreadContext;
 import org.hiero.base.Copyable;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.ThreadSeed;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -675,5 +674,6 @@ public abstract class AbstractThreadConfiguration<C extends AbstractThreadConfig
      * Each executor worker restores this snapshot before running a task and reinstates the previous
      * values afterwards so diagnostic context survives thread hops.
      */
-    protected record ContextSnapshot(@NonNull Map<String, String> map, @NonNull List<String> stack) {}
+    protected record ContextSnapshot(
+            @NonNull Map<String, String> map, @NonNull List<String> stack) {}
 }

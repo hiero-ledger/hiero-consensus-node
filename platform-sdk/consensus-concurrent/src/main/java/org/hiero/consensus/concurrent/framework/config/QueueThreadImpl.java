@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.concurrent.framework.internal;
+package org.hiero.consensus.concurrent.framework.config;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
@@ -20,7 +20,7 @@ import org.hiero.consensus.concurrent.framework.queue.AbstractBlockingQueue;
  *
  * @param <T> the type of the item in the queue
  */
-public class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements QueueThread<T> {
+class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements QueueThread<T> {
 
     private final int bufferSize;
 
