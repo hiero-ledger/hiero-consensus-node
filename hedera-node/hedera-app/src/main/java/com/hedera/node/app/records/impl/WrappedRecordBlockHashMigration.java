@@ -192,7 +192,7 @@ public class WrappedRecordBlockHashMigration {
     private WrappedRecordFileBlockHashesLog loadRecentHashes(@NonNull final Path recentHashesPath) throws Exception {
         final var loadedBytes = Files.readAllBytes(recentHashesPath);
         final var allRecentWrappedRecordHashes =
-                WrappedRecordFileBlockHashesLog.PROTOBUF.parse(Bytes.wrap(loadedBytes));
+                WrappedRecordFileBlockHashesLog.PROTOBUF.parseStrict(Bytes.wrap(loadedBytes));
         if (allRecentWrappedRecordHashes.entries().isEmpty()) {
             log.error("Recent wrapped record hashes file contains no entries. {}", RESUME_MESSAGE);
             return null;
