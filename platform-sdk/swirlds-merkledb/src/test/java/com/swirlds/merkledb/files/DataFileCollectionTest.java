@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.test.fixtures.logging.MockAppender;
+import com.swirlds.logging.test.fixtures.MockAppender;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.ImmutableIndexedObjectListUsingArray;

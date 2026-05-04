@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.recovery;
 
-import static com.swirlds.platform.recovery.RecoveryTestUtils.generateRandomEvents;
-import static com.swirlds.platform.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static com.swirlds.platform.recovery.internal.EventStreamLowerBound.UNBOUNDED;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
+import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.generateRandomEvents;
+import static com.swirlds.platform.test.fixtures.recovery.RecoveryTestUtils.writeRandomEventStream;
 import static org.hiero.base.CompareTo.isLessThan;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertThrows;

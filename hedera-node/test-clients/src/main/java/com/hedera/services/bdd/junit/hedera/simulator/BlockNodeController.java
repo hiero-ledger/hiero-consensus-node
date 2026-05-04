@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.simulator;
 
+import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,6 +10,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -404,6 +406,63 @@ public class BlockNodeController {
 
         final SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
         return server.getReceivedBlockNumbers();
+    }
+
+    /**
+     * Check whether a specific simulator has received a {@link RecordFileItem} (WRB content)
+     * for the given block number.
+     *
+     * @param index the index of the simulated block node (0-based)
+     * @param blockNumber the block number to check
+     * @return true if a RecordFileItem has been received for that block
+     * @throws IllegalArgumentException if the simulator index is invalid
+     */
+    public boolean hasReceivedRecordFileItem(final long index, final long blockNumber) {
+        if (index < 0 || index >= simulatedBlockNodes.size()) {
+            throw new IllegalArgumentException(
+                    "Invalid simulator index: " + index + ", valid range is 0-" + (simulatedBlockNodes.size() - 1));
+        }
+
+        final SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
+        return server.hasReceivedRecordFileItem(blockNumber);
+    }
+
+    /**
+     * Get the {@link RecordFileItem} received by a specific simulator for the given block number,
+     * if any.
+     *
+     * @param index the index of the simulated block node (0-based)
+     * @param blockNumber the block number to query
+     * @return an Optional containing the RecordFileItem, or empty if none received
+     * @throws IllegalArgumentException if the simulator index is invalid
+     */
+    @NonNull
+    public Optional<RecordFileItem> getRecordFileItem(final long index, final long blockNumber) {
+        if (index < 0 || index >= simulatedBlockNodes.size()) {
+            throw new IllegalArgumentException(
+                    "Invalid simulator index: " + index + ", valid range is 0-" + (simulatedBlockNodes.size() - 1));
+        }
+
+        final SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
+        return server.getRecordFileItem(blockNumber);
+    }
+
+    /**
+     * Get all {@link RecordFileItem}s received by a specific simulator, keyed by block number.
+     *
+     * @param index the index of the simulated block node (0-based)
+     * @return an unmodifiable map from block number to RecordFileItem
+     * @throws IllegalArgumentException if the simulator index is invalid
+     */
+    @NonNull
+    public Map<Long, RecordFileItem> getAllRecordFileItems(final long index) {
+        if (index < 0 || index >= simulatedBlockNodes.size()) {
+            throw new IllegalArgumentException(
+                    "Invalid simulator index: " + index + ", valid range is 0-" + (simulatedBlockNodes.size() - 1));
+        }
+
+        final SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
+        return server.getAllRecordFileItems();
     }
 
     /**

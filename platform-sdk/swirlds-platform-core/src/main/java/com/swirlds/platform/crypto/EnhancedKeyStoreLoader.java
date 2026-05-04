@@ -59,11 +59,11 @@ import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.util.encoders.DecoderException;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemWriter;
-import org.hiero.consensus.crypto.CertificateUtils;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
-import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.base.crypto.CertificateUtils;
+import org.hiero.base.crypto.CryptoConstants;
+import org.hiero.base.crypto.CryptoUtils;
+import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeyCertPurpose;
-import org.hiero.consensus.crypto.KeyGeneratingException;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -229,7 +229,7 @@ public class EnhancedKeyStoreLoader {
         Objects.requireNonNull(configuration, "configuration must not be null");
         Objects.requireNonNull(localNodes, MSG_NODES_TO_START_NON_NULL);
 
-        final String keyStorePassphrase = ConsensusCryptoUtils.getConfiguredKeystorePassword(configuration);
+        final String keyStorePassphrase = CryptoUtils.getConfiguredKeystorePassword(configuration);
         final Path keyStoreDirectory =
                 configuration.getConfigData(PathsConfig.class).getKeysDirPath();
 
