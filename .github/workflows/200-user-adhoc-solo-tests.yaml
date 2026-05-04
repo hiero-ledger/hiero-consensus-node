@@ -5,34 +5,34 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "[Both] Consensus-node branch, tag, or SHA to checkout for local build."
+        description: "[Both] Consensus-node branch, tag, or SHA to checkout. Determines both the version of the local build (when used) and the version of the scripts that drive the run."
         required: true
         type: string
       solo-version:
         description: "[Both] Solo version to install."
-        required: false
+        required: true
         type: string
         default: "latest"
       scenario:
         description: "Which Solo test scenario to run."
-        required: false
+        required: true
         type: choice
         default: "jumpstart"
         options:
           - "jumpstart"
           - "wrb-streaming"
-      starting-tag:
-        description: "[Both] Consensus-node release tag used for the initial network deployment."
+      jumpstart-starting-tag:
+        description: "[Jumpstart] Consensus-node release tag used for the initial network deployment."
         required: false
         type: string
         default: "v0.73.0"
-      upgrade-tag:
+      jumpstart-upgrade-tag:
         description: "[Jumpstart] Consensus-node release tag to upgrade the network to (e.g. v0.74.0). Leave blank to upgrade to the local build instead."
         required: false
         type: string
         default: ""
-      block-node-chart-version:
-        description: "[Streaming] Optional Block Node chart version for WRB streaming. Defaults to latest Block Node release."
+      streaming-tag:
+        description: "[Streaming] Consensus-node release tag for the WRB streaming network deploy (e.g. v0.74.0-rc.1). Leave blank to deploy from the local build instead."
         required: false
         type: string
         default: ""
@@ -131,7 +131,7 @@ jobs:
           kubectl version --client=true
 
       - name: Build Consensus Node Local Artifacts
-        if: ${{ inputs.upgrade-tag == '' }}
+        if: ${{ inputs.jumpstart-upgrade-tag == '' }}
         run: ${GRADLE_EXEC} assemble
 
       - name: Run WRB Solo Jumpstart Scenario
@@ -142,8 +142,8 @@ jobs:
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              INITIAL_RELEASE_TAG="${{ inputs.starting-tag }}" \
-              UPGRADE_VERSION="${{ inputs.upgrade-tag }}" \
+              INITIAL_RELEASE_TAG="${{ inputs.jumpstart-starting-tag }}" \
+              UPGRADE_VERSION="${{ inputs.jumpstart-upgrade-tag }}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-script.log"
 
@@ -267,11 +267,6 @@ jobs:
       - name: Resolve Block Node Chart Version
         run: |
           set -eo pipefail
-          if [[ -n "${{ inputs.block-node-chart-version }}" ]]; then
-            echo "BLOCK_NODE_CHART_VERSION=${{ inputs.block-node-chart-version }}" >> "${GITHUB_ENV}"
-            exit 0
-          fi
-
           bn_url="https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest"
           curl_response="$(curl -fsSL -H "Accept: application/vnd.github+json" "${bn_url}")"
           latest_bn_tag="$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')"
@@ -283,6 +278,7 @@ jobs:
           echo "BLOCK_NODE_CHART_VERSION=${latest_bn_tag}" >> "${GITHUB_ENV}"
 
       - name: Build Consensus Node Local Artifacts
+        if: ${{ inputs.streaming-tag == '' }}
         run: ${GRADLE_EXEC} assemble
 
       - name: Run WRB Streaming to Block Node Scenario
@@ -292,9 +288,10 @@ jobs:
           chmod +x "${SCRIPT_PATH}"
           timeout --signal=SIGINT --kill-after=5m 75m \
             env \
-              RELEASE_TAG="${{ inputs.starting-tag }}" \
-              BLOCK_NODE_RELEASE_TAG="${{ inputs.starting-tag }}" \
+              RELEASE_TAG="${{ inputs.streaming-tag || 'v0.73.0' }}" \
+              BLOCK_NODE_RELEASE_TAG="${{ inputs.streaming-tag || 'v0.73.0' }}" \
               BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION}" \
+              USE_LOCAL_BUILD="${{ inputs.streaming-tag == '' && 'true' || 'false' }}" \
               KEEP_NETWORK="false" \
             "${SCRIPT_PATH}" --nodes 3 | tee "${RUNNER_TEMP}/wrb-block-node-streaming-script.log"
 
