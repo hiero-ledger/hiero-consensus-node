@@ -44,8 +44,7 @@ public class AsyncOutputStream {
     private final DataOutputStream outputStream;
 
     /**
-     * A queue that needs to be written to the output stream. It contains either message
-     * bytes (byte array) or some code to run (Runnable).
+     * A queue that needs to be written to the output stream.
      */
     private final BlockingQueue<byte[]> streamQueue;
 
