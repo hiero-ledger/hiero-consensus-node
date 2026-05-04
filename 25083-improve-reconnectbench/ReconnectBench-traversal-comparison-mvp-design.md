@@ -368,3 +368,81 @@ Deferred from the original design:
 - two-process teacher/learner harness.
 
 These may be valuable later, but they should not block the traversal-comparison MVP.
+
+## Calibration Notes
+
+### 2026-05-04
+
+Machine:
+
+- Model: Mac15,9
+- CPU: Apple M3 Max
+- Memory: 48 GiB
+- JVM: Temurin OpenJDK 25.0.2+10 LTS
+- JMH JVM args: `-Xmx16g`
+
+Smoke commands:
+
+```bash
+./gradlew :swirlds-benchmarks:jmhReconnect -PnetworkProfile=LOOPBACK -PnumFiles=1 -PnumRecords=1000 --no-daemon
+```
+
+Result:
+
+- Passed.
+- Score: `0.153 s/op`.
+- State size: `1 * 1000` requested; generated teacher size logged as `1022`, learner size logged as `999`.
+- Traversal mode: `pullTopToBottom`.
+- Network profile: `LOOPBACK`; resolved latency `0 ns`, bandwidth `Long.MAX_VALUE B/s`, in-flight limit `Integer.MAX_VALUE`.
+- Reconnect stats: `transfersFromTeacher=1023`, `transfersFromLearner=1023`, `leafData=1022`, `leafCleanData=883`.
+- Network stats: teacher-to-learner `33982` bytes; learner-to-teacher `64457` bytes.
+
+```bash
+./gradlew :swirlds-benchmarks:jmhReconnect -PnetworkProfile=REALISTIC -PnetworkLatencyMicroseconds=500 -PnetworkBandwidthMegabitsPerSecond=1000 -PnetworkInflightBytesLimit=131072 -PnumFiles=1 -PnumRecords=1000 --no-daemon
+```
+
+Result:
+
+- Passed.
+- Score: `0.135 s/op`.
+- State size: `1 * 1000` requested; generated teacher size logged as `1022`, learner size logged as `999`.
+- Traversal mode: `pullTopToBottom`.
+- Network profile: `REALISTIC`; resolved latency `500000 ns`, bandwidth `125000000 B/s`, in-flight limit `131072`.
+- Reconnect stats: `transfersFromTeacher=1023`, `transfersFromLearner=1023`, `leafData=1022`, `leafCleanData=883`.
+- Network stats: teacher-to-learner `33982` bytes; learner-to-teacher `64457` bytes.
+
+The first attempted smoke run failed inside the forked JMH benchmark with `NoClassDefFoundError` for
+`com.swirlds.benchmark.reconnect.network.NetworkProfile`. Root cause was that the JMH merged jar packaged `src/jmh`
+classes but not the simulator classes under `src/main`. The build now adds `com/swirlds/benchmark/reconnect/network/**`
+to `jmhJarWithMergedServiceFiles`.
+
+Traversal sanity commands used temporary settings:
+
+```text
+benchmark.saveDataDirectory=true
+benchmark.benchmarkData=/tmp/reconnectbench-comparison-20260504
+virtualMap.reconnectMode=pullTopToBottom
+```
+
+```bash
+./gradlew :swirlds-benchmarks:jmhReconnect -PnetworkProfile=REALISTIC -PnumFiles=1 -PnumRecords=10000 --no-daemon
+```
+
+Then only `virtualMap.reconnectMode` changed to `pullTwoPhasePessimistic`, and the same command was rerun. Finally,
+`pullTopToBottom` was run again against the already-restored state to avoid comparing generated-state setup with
+restored-state setup.
+
+Results:
+
+- `pullTopToBottom`, first run, generated state under `/tmp/reconnectbench-comparison-20260504`: `0.551 s/op`.
+- `pullTwoPhasePessimistic`, restored the same state: `0.306 s/op`.
+- `pullTopToBottom`, restored the same state: `0.702 s/op`.
+
+Notes:
+
+- The restored `pullTwoPhasePessimistic` run was faster than the restored `pullTopToBottom` run at this small `10000`
+  record size, despite `pullTopToBottom` transferring fewer items (`7353` teacher/learner transfers versus `10044`).
+- This contradicts the expected broad traversal ordering and should not be treated as traversal evidence. It is a
+  small-state sanity result only; use larger states and repeated runs before drawing conclusions.
+- The benchmark now clearly logs whether state is generated or restored, the traversal mode, resolved network profile,
+  reconnect stats, and network byte counters.
