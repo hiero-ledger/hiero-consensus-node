@@ -28,6 +28,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.config.data.AccountsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -82,8 +83,11 @@ public class DispatchValidator {
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);
         } else {
-            final var payer =
-                    getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
+            final var payer = getPayerAccount(
+                    dispatch.readableStoreFactory(),
+                    dispatch.payerId(),
+                    dispatch.txnCategory(),
+                    dispatch.config().getConfigData(AccountsConfig.class));
             final var category = dispatch.txnCategory();
             // Check payer signature for all batch inner transactions, scheduled, and user transactions
             final var requiresPayerSig = category == SCHEDULED || category == USER || category == BATCH_INNER;
@@ -191,15 +195,23 @@ public class DispatchValidator {
      * For the child and preceding transactions, the payer account can be null. Because the payer for contract
      * operations can be a token address.
      *
+     * <p>The smart-contract payer rejection can be opted out of by setting
+     * {@code accounts.smartContractSenderEnabled=true}. This is a {@link com.hedera.node.config.NodeProperty}
+     * intended only for the standalone {@code TransactionExecutor} used by mirror node to support
+     * {@code eth_estimateGas} simulations whose sender is a contract account; it must remain {@code false} on every
+     * consensus node.
+     *
      * @param storeFactory the store factory
      * @param accountID the account ID
      * @param category the transaction category
+     * @param accountsConfig the {@link AccountsConfig} for this dispatch
      * @return the payer account
      */
     private Account getPayerAccount(
             @NonNull final ReadableStoreFactory storeFactory,
             @NonNull final AccountID accountID,
-            @NonNull final HandleContext.TransactionCategory category) {
+            @NonNull final HandleContext.TransactionCategory category,
+            @NonNull final AccountsConfig accountsConfig) {
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         final var account = accountStore.getAccountById(accountID);
         return switch (category) {
@@ -212,7 +224,7 @@ public class DispatchValidator {
                     throw new IllegalStateException(
                             String.format("Category %s payer account with id %s is deleted", category, accountID));
                 }
-                if (account.smartContract()) {
+                if (account.smartContract() && !accountsConfig.smartContractSenderEnabled()) {
                     throw new IllegalStateException(String.format(
                             "Category %s payer account with id %s is a smart contract", category, accountID));
                 }
