@@ -264,7 +264,7 @@ tasks:
           export CONSENSUS_NODE_FLAG='--release-tag {{.CONSENSUS_NODE_VERSION}}'
         fi
         if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
-          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${LOCAL_BUILD_FLAG} ${SOLO} ${NODE_SETUP_EXTRA_FLAGS} -q --dev
+          SOLO_HOME_DIR=${SOLO_HOME_DIR} solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${LOCAL_BUILD_FLAG} --pvcs true ${SOLO} ${NODE_SETUP_EXTRA_FLAGS} -q --dev
         else
           SOLO_HOME_DIR=${SOLO_HOME_DIR} solo node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases {{.node_identifiers}} ${CONSENSUS_NODE_FLAG} ${LOCAL_BUILD_FLAG} ${SOLO} ${NODE_SETUP_EXTRA_FLAGS} -q --dev
         fi
