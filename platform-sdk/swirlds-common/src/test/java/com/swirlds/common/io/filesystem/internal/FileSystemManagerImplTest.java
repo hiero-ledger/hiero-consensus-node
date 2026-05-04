@@ -15,7 +15,7 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.FileUtils;
 import org.hiero.consensus.io.RecycleBin;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

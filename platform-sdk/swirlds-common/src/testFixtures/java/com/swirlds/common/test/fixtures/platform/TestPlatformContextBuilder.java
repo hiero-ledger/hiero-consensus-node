@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.platform;
 
-import static org.hiero.base.file.FileUtils.rethrowIO;
+import static org.hiero.base.io.FileUtils.rethrowIO;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.time.Time;

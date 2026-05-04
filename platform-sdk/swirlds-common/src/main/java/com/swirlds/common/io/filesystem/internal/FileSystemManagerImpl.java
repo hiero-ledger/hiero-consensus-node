@@ -2,7 +2,7 @@
 package com.swirlds.common.io.filesystem.internal;
 
 import static java.nio.file.Files.exists;
-import static org.hiero.base.file.FileUtils.rethrowIO;
+import static org.hiero.base.io.FileUtils.rethrowIO;
 
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.config.api.Configuration;
@@ -12,7 +12,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.FileUtils;
 import org.hiero.consensus.io.RecycleBin;
 
 /**

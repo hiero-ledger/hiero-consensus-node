@@ -32,7 +32,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Signer;
-import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.FileUtils;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;

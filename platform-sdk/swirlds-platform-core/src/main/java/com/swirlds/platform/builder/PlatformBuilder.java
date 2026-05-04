@@ -8,7 +8,7 @@ import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTIN
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.file.FileUtils.getAbsolutePath;
+import static org.hiero.base.io.FileUtils.getAbsolutePath;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 

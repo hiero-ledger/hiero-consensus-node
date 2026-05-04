@@ -4,6 +4,7 @@ package com.swirlds.common.io.utility;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.base.io.FileUtils;
 import org.hiero.consensus.io.RecycleBin;
 
 /**
@@ -13,7 +14,7 @@ public class SimpleRecycleBin implements RecycleBin {
     @Override
     public void recycle(@NonNull final Path path) throws IOException {
         // deletes files as well, even though the name might be misleading
-        org.hiero.base.file.FileUtils.deleteDirectory(path);
+        FileUtils.deleteDirectory(path);
     }
 
     @Override

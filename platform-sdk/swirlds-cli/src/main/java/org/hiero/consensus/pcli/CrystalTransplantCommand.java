@@ -36,7 +36,7 @@ import java.util.Objects;
 import java.util.Scanner;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.FileUtils;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;

@@ -65,7 +65,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.FileUtils;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 
 /**

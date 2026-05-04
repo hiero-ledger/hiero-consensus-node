@@ -33,7 +33,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Random;
 import org.hiero.base.constructable.ConstructableRegistryException;
-import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.FileUtils;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;

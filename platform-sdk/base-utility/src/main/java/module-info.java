@@ -9,7 +9,6 @@ module org.hiero.base.utility {
     exports org.hiero.base.iterator;
     exports org.hiero.base.utility;
     exports org.hiero.base.structures;
-    exports org.hiero.base.file;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;

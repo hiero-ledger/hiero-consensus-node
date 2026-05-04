@@ -33,7 +33,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.FileUtils;
 
 /**
  * Service for retrieving block node configurations from disk. This service will launch a file watcher process that will

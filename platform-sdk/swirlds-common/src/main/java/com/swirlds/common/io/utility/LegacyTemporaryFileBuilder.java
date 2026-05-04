@@ -3,8 +3,8 @@ package com.swirlds.common.io.utility;
 
 import static java.nio.file.Files.exists;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
-import static org.hiero.base.file.FileUtils.getAbsolutePath;
+import static org.hiero.base.io.FileUtils.deleteDirectoryAndLog;
+import static org.hiero.base.io.FileUtils.getAbsolutePath;
 
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;

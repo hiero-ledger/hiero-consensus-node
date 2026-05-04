@@ -32,6 +32,6 @@ public final class FileUtils {
         requireNonNull(directory);
         // don't null check operation as FileUtilsTests#executeAndRename expects IOException
         requireNonNull(configuration);
-        org.hiero.base.file.FileUtils.executeAndRename(directory, buildTemporaryDirectory(configuration), operation);
+        org.hiero.base.io.FileUtils.executeAndRename(directory, buildTemporaryDirectory(configuration), operation);
     }
 }

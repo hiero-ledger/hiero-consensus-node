@@ -15,8 +15,8 @@ import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.file.FileUtils.getAbsolutePath;
-import static org.hiero.base.file.FileUtils.rethrowIO;
+import static org.hiero.base.io.FileUtils.getAbsolutePath;
+import static org.hiero.base.io.FileUtils.rethrowIO;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.google.common.annotations.VisibleForTesting;

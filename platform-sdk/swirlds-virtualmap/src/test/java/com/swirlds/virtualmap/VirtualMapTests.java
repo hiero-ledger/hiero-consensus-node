@@ -8,7 +8,7 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURA
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.hiero.base.file.FileUtils.deleteDirectory;
+import static org.hiero.base.io.FileUtils.deleteDirectory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;

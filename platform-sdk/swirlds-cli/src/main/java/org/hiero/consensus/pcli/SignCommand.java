@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.FileUtils;
 import picocli.CommandLine;
 
 /**

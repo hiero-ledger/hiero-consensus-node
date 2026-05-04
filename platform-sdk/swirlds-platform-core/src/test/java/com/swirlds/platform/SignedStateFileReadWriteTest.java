@@ -14,7 +14,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSig
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
-import static org.hiero.base.file.FileUtils.throwIfFileExists;
+import static org.hiero.base.io.FileUtils.throwIfFileExists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;

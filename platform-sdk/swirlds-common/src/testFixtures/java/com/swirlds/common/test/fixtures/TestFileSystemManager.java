@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures;
 
-import static org.hiero.base.file.FileUtils.rethrowIO;
+import static org.hiero.base.io.FileUtils.rethrowIO;
 
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,7 +9,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicLong;
-import org.hiero.base.file.FileUtils;
+import org.hiero.base.io.FileUtils;
 
 /**
  * A {@link FileSystemManager} that uses {@link TestRecycleBin}
