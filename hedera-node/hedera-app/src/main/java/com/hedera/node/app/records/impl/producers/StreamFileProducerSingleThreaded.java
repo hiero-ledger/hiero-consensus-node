@@ -2,6 +2,8 @@
 package com.hedera.node.app.records.impl.producers;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.CompletableFuture.completedFuture;
+import static java.util.concurrent.CompletableFuture.failedFuture;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
@@ -13,6 +15,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
@@ -70,7 +73,7 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
 
     /** {@inheritDoc} */
     @Override
-    public void switchBlocks(
+    public CompletableFuture<Bytes> switchBlocks(
             final long lastBlockNumber,
             final long newBlockNumber,
             @NonNull final Instant newBlockFirstTransactionConsensusTime) {
@@ -82,12 +85,13 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
         requireNonNull(newBlockFirstTransactionConsensusTime);
         this.currentBlockNumber = newBlockNumber;
         final var lastRunningHash = asHashObject(getRunningHash());
-        closeWriter(lastRunningHash, lastBlockNumber);
+        final var closedRecordFileHash = closeWriter(lastRunningHash, lastBlockNumber);
         openWriter(newBlockNumber, lastRunningHash, newBlockFirstTransactionConsensusTime);
         logger.debug(
                 "Initializing block record writer for block {} with running hash {}",
                 currentBlockNumber,
                 lastRunningHash);
+        return closedRecordFileHash;
     }
 
     /** {@inheritDoc} */
@@ -179,7 +183,8 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
         return new HashObject(HashAlgorithm.SHA_384, (int) hash.length(), hash);
     }
 
-    private void closeWriter(@NonNull final HashObject lastRunningHash, final long lastBlockNumber) {
+    private CompletableFuture<Bytes> closeWriter(
+            @NonNull final HashObject lastRunningHash, final long lastBlockNumber) {
         if (writer != null) {
             logger.debug(
                     "Closing block record writer for block {} with running hash {}", lastBlockNumber, lastRunningHash);
@@ -188,13 +193,15 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
             // Make sure this is logged. In the FUTURE we may need to do something more drastic, like shut down the
             // node, or maybe retry a number of times before giving up.
             try {
-                writer.close(lastRunningHash);
+                return completedFuture(writer.close(lastRunningHash));
             } catch (final Exception e) {
                 logger.error("Error closing block record writer for block {}", lastBlockNumber, e);
+                return failedFuture(e);
             } finally {
                 writer = null;
             }
         }
+        return completedFuture(Bytes.EMPTY);
     }
 
     private void openWriter(

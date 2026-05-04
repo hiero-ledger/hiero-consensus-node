@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.concurrent.framework.internal;
+package org.hiero.consensus.concurrent.framework.config;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -31,7 +31,7 @@ import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
  *
  * @param <T> the type of instance that will do work
  */
-public class StoppableThreadImpl<T extends InterruptableRunnable> implements TypedStoppableThread<T> {
+class StoppableThreadImpl<T extends InterruptableRunnable> implements TypedStoppableThread<T> {
 
     private static final Logger logger = LogManager.getLogger(StoppableThreadImpl.class);
     /** the minimum await time when waiting for a thread to pause */

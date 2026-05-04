@@ -292,7 +292,9 @@ public enum TransactionExecutors {
                 ForkJoinPool.commonPool(),
                 appContext,
                 new HintsLibraryImpl(),
-                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                new com.hedera.node.app.hints.impl.RsaContext(appContext.configSupplier()),
+                new java.util.concurrent.ConcurrentHashMap<>());
         final var historyService =
                 new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl());
         final var standaloneNetworkInfo = new StandaloneNetworkInfo(configProvider);

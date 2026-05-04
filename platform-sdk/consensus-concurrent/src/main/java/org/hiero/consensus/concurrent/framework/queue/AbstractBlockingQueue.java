@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.concurrent.framework.internal;
+package org.hiero.consensus.concurrent.framework.queue;
 
 import java.util.Collection;
 import java.util.Iterator;

@@ -134,7 +134,9 @@ class IngestComponentTest {
                 ForkJoinPool.commonPool(),
                 appContext,
                 new HintsLibraryImpl(),
-                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                new com.hedera.node.app.hints.impl.RsaContext(appContext.configSupplier()),
+                new java.util.concurrent.ConcurrentHashMap<>());
         final var historyService =
                 new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl());
         final var state = new FakeState();

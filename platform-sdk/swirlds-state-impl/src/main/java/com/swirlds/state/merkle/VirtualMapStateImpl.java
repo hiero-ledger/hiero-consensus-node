@@ -10,6 +10,7 @@ import static com.swirlds.state.merkle.StateKeyUtils.kvKey;
 import static com.swirlds.state.merkle.StateKeyUtils.queueKey;
 import static com.swirlds.state.merkle.StateKeyUtils.queueStateKey;
 import static com.swirlds.state.merkle.StateKeyUtils.singletonKey;
+import static com.swirlds.state.merkle.StateUtils.STATE_VALUE_QUEUE_STATE;
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateUtils.unwrap;
 import static com.swirlds.state.merkle.StateUtils.wrapValue;
@@ -835,7 +836,12 @@ public class VirtualMapStateImpl implements VirtualMapState {
                                 extractStateIdFromStateValueOneOf(leafBytes.valueBytes()), new QueueStateCodec());
                         try {
                             final QueueState queueState = queueStateCodec
-                                    .parse(leafBytes.valueBytes())
+                                    .parse(
+                                            leafBytes.valueBytes().toReadableSequentialData(),
+                                            false,
+                                            false,
+                                            Codec.DEFAULT_MAX_DEPTH,
+                                            virtualMap.valueParseMaxSizeBytes())
                                     .value();
                             final JSONObject queueJson = new JSONObject();
                             queueJson.put("head", queueState.head());
@@ -1041,7 +1047,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         // increment tail and persist queue state
         final QueueState updated = qState.elementAdded();
         final Bytes rawState = QueueStateCodec.INSTANCE.toBytes(updated);
-        final Bytes wrappedState = wrapValue(stateId, rawState);
+        final Bytes wrappedState = wrapValue(STATE_VALUE_QUEUE_STATE, rawState);
         virtualMap.putBytes(qStateKey, wrappedState);
     }
 
@@ -1067,7 +1073,7 @@ public class VirtualMapStateImpl implements VirtualMapState {
         // increment head
         final QueueState updated = qState.elementRemoved();
         final Bytes rawState = QueueStateCodec.INSTANCE.toBytes(updated);
-        final Bytes wrappedState = wrapValue(stateId, rawState);
+        final Bytes wrappedState = wrapValue(STATE_VALUE_QUEUE_STATE, rawState);
         virtualMap.putBytes(qStateKey, wrappedState);
 
         return value;

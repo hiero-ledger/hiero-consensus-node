@@ -7,7 +7,7 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTr
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.hiero.consensus.concurrent.framework.internal.AbstractQueueThreadConfiguration.UNLIMITED_CAPACITY;
+import static org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration.UNLIMITED_CAPACITY;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

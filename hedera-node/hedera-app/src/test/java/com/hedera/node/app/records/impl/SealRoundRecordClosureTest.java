@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
@@ -26,10 +27,14 @@ import java.util.List;
 import java.util.function.Supplier;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 
 class SealRoundRecordClosureTest extends AppTestBase {
     private static final Bytes RUNNING_HASH = Bytes.wrap(new byte[48]);
+
+    @Mock
+    private BlockHashSigner blockHashSigner;
 
     @Test
     void closesOnSealAndReopensOnNextUserTxInBothMode() {
@@ -126,6 +131,7 @@ class SealRoundRecordClosureTest extends AppTestBase {
                 platform,
                 Mockito.mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 wrbSupplier,
+                blockHashSigner,
                 InitTrigger.RESTART);
         return new Context(manager, producer, app.workingStateAccessor().getState());
     }
