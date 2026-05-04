@@ -257,7 +257,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             final var proofJsonPath = proofJson.toPath();
             final PendingProof pendingProof;
             try {
-                pendingProof = PendingProof.JSON.parse(new ReadableStreamingData(proofJsonPath));
+                pendingProof = PendingProof.JSON.parseStrict(new ReadableStreamingData(proofJsonPath));
             } catch (IOException | ParseException e) {
                 logger.warn(
                         "Error reading pending proof metadata from {} (not considering remaining - {})",
@@ -310,6 +310,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     private static Block parseBlock(final byte[] bytes, final int maxReadDepth, final int maxReadSize)
             throws ParseException {
+        // parse the block strictly. We can't use the `parseStrict` version as we also want to validate the max depth here.
         return Block.PROTOBUF.parse(
                 Bytes.wrap(bytes).toReadableSequentialData(), false, false, maxReadDepth, maxReadSize);
     }
