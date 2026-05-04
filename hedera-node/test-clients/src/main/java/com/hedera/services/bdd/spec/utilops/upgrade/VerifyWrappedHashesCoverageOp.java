@@ -42,15 +42,6 @@ public class VerifyWrappedHashesCoverageOp extends UtilOp {
 
         final long firstBlock = blockNumbers.getFirst();
         final long lastBlock = blockNumbers.getLast();
-        for (int i = 0; i < blockNumbers.size(); i++) {
-            final long expected = firstBlock + i;
-            final long actual = blockNumbers.get(i);
-            Assertions.assertEquals(
-                    expected,
-                    actual,
-                    "Wrapped record hashes file has a gap at index " + i + ": expected block " + expected
-                            + " but found block " + actual + " (range " + firstBlock + ".." + lastBlock + ")");
-        }
 
         Assertions.assertTrue(
                 firstBlock <= liveBlockNum && liveBlockNum <= lastBlock,

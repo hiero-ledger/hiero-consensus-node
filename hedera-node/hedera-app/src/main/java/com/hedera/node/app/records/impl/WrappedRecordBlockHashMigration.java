@@ -229,7 +229,7 @@ public class WrappedRecordBlockHashMigration {
             return false;
         }
         if (!matchingEntry.consensusTimestampHash().equals(jumpstartTimestampHash)) {
-            log.warn(
+            log.info(
                     "Jumpstart currentBlockConsensusTimestampHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
                     jumpstartBlockNum,
                     jumpstartTimestampHash,
@@ -238,7 +238,7 @@ public class WrappedRecordBlockHashMigration {
             return false;
         }
         if (!matchingEntry.outputItemsTreeRootHash().equals(jumpstartOutputHash)) {
-            log.warn(
+            log.info(
                     "Jumpstart currentBlockOutputItemsTreeRootHash for block {} does not match wrapped record hashes file entry ({} vs {}). {}",
                     jumpstartBlockNum,
                     jumpstartOutputHash,

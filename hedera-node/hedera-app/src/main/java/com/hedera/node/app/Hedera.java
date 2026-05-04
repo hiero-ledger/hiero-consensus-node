@@ -1432,8 +1432,10 @@ public final class Hedera
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
         if (streamMode == BOTH) {
             final var closesBlock = daggerApp.blockStreamManager().willCloseBlock(state, round.getRoundNum());
-            final var closedRecordFile =
-                    !closesBlock || daggerApp.blockRecordManager().closeCurrentRecordFileIfOpen(state);
+            var closedRecordFile = false;
+            if (closesBlock) {
+                closedRecordFile = daggerApp.blockRecordManager().closeCurrentRecordFileIfOpen(state);
+            }
             final var closedBlock = daggerApp.blockStreamManager().endRound(state, round.getRoundNum(), closesBlock);
             return closedRecordFile && closedBlock;
         }
