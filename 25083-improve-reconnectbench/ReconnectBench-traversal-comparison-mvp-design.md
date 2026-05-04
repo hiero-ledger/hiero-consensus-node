@@ -213,6 +213,26 @@ Traversal comparisons need realistic response visibility and backpressure. The s
 
 It intentionally does not model jitter, packet loss, retransmission, TCP slow start, congestion control, or OS socket buffers. Those would add noise or complexity without improving the MVP's main question: how traversal modes compare under stable network constraints.
 
+### Simulator Overhead And Sanity Expectations
+
+The simulator will add overhead. That is acceptable only if the overhead is bounded, visible, and does not dominate the traversal signal.
+
+Expected overhead sources:
+
+- copying bytes into the simulated channel;
+- lock and condition coordination between stream readers and writers;
+- timer checks for latency and bandwidth scheduling;
+- occasional thread parking when the model intentionally blocks a reader or writer.
+
+The implementation should avoid per-reconnect-message sleeps and should not create one queued object per byte. It should work at byte-range level, split large writes only when required for backpressure/progressive delivery, and make the `LOOPBACK` profile a cheap fast path: no latency waits, no bandwidth waits, and no in-flight cap waits.
+
+Validation must include overhead sanity checks:
+
+- A `LOOPBACK` reconnect should be in the same broad runtime range as the current zero-delay benchmark. If the in-memory simulator is dramatically slower than the old loopback-socket path, fix the simulator before trusting traversal comparisons.
+- In `REALISTIC`, changing bandwidth or latency should move wall time in the expected direction. Lower bandwidth or higher latency should not make the same run faster except within measurement noise.
+- Existing traversal expectations should hold. `PULL_TOP_TO_BOTTOM` is the current fastest traversal mode; `PULL_TWO_PHASE_PESSIMISTIC` and `PULL_PARALLEL_SYNC` are legacy modes and should be slower under comparable state and network settings. If a benchmark run reports the opposite, treat it as a signal to inspect the benchmark setup, simulator overhead, and logs before drawing product conclusions.
+- Compare traversal modes only within the same benchmark implementation, network profile, state, JVM settings, and machine class. The MVP is a relative comparison tool, not an absolute production-time predictor.
+
 ## Reconnect Stats And Diagnostics
 
 Primary comparison data:
@@ -348,4 +368,3 @@ Deferred from the original design:
 - two-process teacher/learner harness.
 
 These may be valuable later, but they should not block the traversal-comparison MVP.
-
