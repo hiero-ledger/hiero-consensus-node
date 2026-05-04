@@ -30,6 +30,7 @@
 | zxc-execute-hapi-tests.yaml                           | ZXC: Execute HAPI Tests                                           |                  |                      |
 | zxc-execute-timing-sensitive-tests.yaml               | ZXC: Execute Timing Sensitive Tests                               |                  |                      |
 | zxc-execute-hammer-tests.yaml                         | ZXC: Execute Hammer Tests                                         |                  |                      |
+| 801-read-chewie-response.yaml                         | 801: [CITR] Read Chewie Response                                  |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # CICD                                                |                                                                   |                  |                      |
 | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |                  |                      |

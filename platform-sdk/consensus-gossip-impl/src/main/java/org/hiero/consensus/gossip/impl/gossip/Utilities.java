@@ -12,9 +12,8 @@ import java.security.cert.Certificate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
-import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -76,7 +75,7 @@ public class Utilities {
     public static @NonNull KeyStore createPublicKeyStore(@NonNull final Collection<PeerInfo> peers)
             throws KeyStoreException {
         Objects.requireNonNull(peers);
-        final KeyStore store = ConsensusCryptoUtils.createEmptyTrustStore();
+        final KeyStore store = CryptoUtils.createEmptyTrustStore();
         for (final PeerInfo peer : peers) {
             final Certificate sigCert = peer.signingCertificate();
             store.setCertificateEntry(SIGNING.storeName(peer.nodeId()), sigCert);
