@@ -170,10 +170,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * The most recent wrapped record block root hash.
      */
     private Bytes previousWrappedRecordBlockRootHash;
-    /** True if a record file is currently open for writing. */
-    private boolean recordFileOpen;
-    /** True if at least one user transaction started since the previous seal. */
-    private boolean sawUserTransactionSinceLastSeal;
 
     /**
      * Construct BlockRecordManager
@@ -211,8 +207,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // FUTURE: check if we were started in event recover mode and if event recovery needs to be completed before we
         // write any new records to stream
         this.eventRecoveryCompleted = false;
-        this.recordFileOpen = false;
-        this.sawUserTransactionSinceLastSeal = false;
 
         // Get static configuration that is assumed not to change while the node is running
         final var recordStreamConfig = configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
@@ -255,8 +249,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // thrown here, then startup of the node will fail. This is the intended behavior. We MUST be able to produce
         // record streams, or there really is no point to running the node!
         this.streamFileProducer.initRunningHash(lastRunningHashes);
-        // Derive open/closed state from persisted BlockInfo so reconnect and restart are deterministic.
-        this.recordFileOpen = !EPOCH.equals(this.lastBlockInfo.firstConsTimeOfCurrentBlock());
     }
 
     // =================================================================================================================
@@ -372,7 +364,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * {@inheritDoc}
      */
     public boolean startUserTransaction(@NonNull final Instant consensusTime, @NonNull final State state) {
-        sawUserTransactionSinceLastSeal = true;
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             // This is the first transaction of the first block, so set both the firstConsTimeOfCurrentBlock
             // and the current consensus time to now
@@ -396,7 +387,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 // No-op if quiescence is disabled
                 quiescenceController.startingBlock(lastBlockInfo.lastBlockNumber() + 1);
             }
-            recordFileOpen = true;
             return true;
         }
 
@@ -493,7 +483,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             if (writeWrappedRecordFileBlockHashesToDisk() || liveWritePrevWrappedRecordHashes()) {
                 beginTrackingNewBlock(lastBlockHashBytes);
             }
-            recordFileOpen = true;
             return true;
         }
         return false;
@@ -905,15 +894,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     @Override
     public boolean closeCurrentRecordFileIfOpen(@NonNull final State state) {
         requireNonNull(state);
-        final var blockOpenInState = !EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock());
-        if (!recordFileOpen && !blockOpenInState) {
+        if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             return true;
         }
-        if (!blockOpenInState) {
-            recordFileOpen = false;
-            return true;
-        }
-        recordFileOpen = true;
 
         final var hashOfJustFinishedBlock = streamFileProducer.getRunningHash();
         final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
@@ -961,7 +944,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 wrappedIntermediateHashes,
                 wrappedIntermediateLeafCount);
         updateBlockInfo(updatedInfo, state);
-        recordFileOpen = false;
         return true;
     }
 
@@ -970,24 +952,17 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final State state, @NonNull final Instant roundConsensusTimestamp) {
         requireNonNull(state);
         requireNonNull(roundConsensusTimestamp);
-        try {
-            if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
-                recordFileOpen = false;
-                return true;
-            }
-            if (sawUserTransactionSinceLastSeal) {
-                return true;
-            }
-            // Use state-derived openness to avoid reconnect-specific divergence from transient flags.
-            recordFileOpen = true;
-            final var firstConsTime = asInstant(lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow());
-            if (!roundConsensusTimestamp.isBefore(firstConsTime.plusSeconds(2))) {
-                return closeCurrentRecordFileIfOpen(state);
-            }
+        if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             return true;
-        } finally {
-            sawUserTransactionSinceLastSeal = false;
         }
+        final var firstConsTime = asInstant(lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow());
+        if (!roundConsensusTimestamp.isBefore(firstConsTime.plusSeconds(configProvider
+                .getConfiguration()
+                .getConfigData(BlockRecordStreamConfig.class)
+                .logPeriod()))) {
+            return closeCurrentRecordFileIfOpen(state);
+        }
+        return true;
     }
 
     public long lastBlockNo() {

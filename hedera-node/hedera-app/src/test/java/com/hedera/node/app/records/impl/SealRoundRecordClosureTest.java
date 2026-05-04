@@ -27,9 +27,12 @@ import java.util.List;
 import java.util.function.Supplier;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class SealRoundRecordClosureTest extends AppTestBase {
     private static final Bytes RUNNING_HASH = Bytes.wrap(new byte[48]);
 
