@@ -14,6 +14,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.network.simulation.fixtures.EventCreatorNetwork;
+import org.hiero.consensus.network.simulation.fixtures.NetworkLatency;
 import org.junit.jupiter.api.Test;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
@@ -22,33 +23,19 @@ import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 public class NetworkSimulationTest {
     private static final Duration SIMULATION_DURATION = Duration.ofMillis(100);
 
-    private static final List<Integer> delays = List.of(100);
-    private static final List<Integer> numNodes = List.of(4);
-    private static final List<Integer> maxOp = List.of(10);
-
     @Test
     void sim(){
-        System.out.println("Delay(μs)  Nodes  MaxOP avgC2C(μs) maxC2C(μs)  ev/sec");
-
-        for (final Integer delay : delays) {
-            for (final int nodes : numNodes) {
-                for (final int maxOtherParents : maxOp) {
-
-
-                    runSimulation(delay, nodes, maxOtherParents);
-
-                }
-            }
-        }
-    }
-
-    private void runSimulation(final Integer delay, final int nodes, final int maxOtherParents) {
         final Configuration configuration = new TestConfigBuilder()
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
-                .withValue("event.creation.maxOtherParents", Integer.toString(maxOtherParents))
+                .withValue("event.creation.maxOtherParents", Integer.toString(4))
                 .getOrCreateConfig();
-        final EventCreatorNetwork creatorNetwork = new EventCreatorNetwork(0, nodes, configuration);
+        runSimulation(Duration.of(100, ChronoUnit.MICROS), 4, configuration);
+    }
+
+    private void runSimulation(final Duration tick, final int nodes, final Configuration configuration) {
+        final EventCreatorNetwork creatorNetwork = new EventCreatorNetwork(0, nodes, configuration,
+                NetworkLatency.uniformLatency(Duration.of(100, ChronoUnit.MICROS), nodes));
         final DefaultConsensusEngine consensusEngine = new DefaultConsensusEngine(
                 creatorNetwork.getPlatformContext().getConfiguration(),
                 creatorNetwork.getPlatformContext().getMetrics(),
@@ -58,13 +45,12 @@ public class NetworkSimulationTest {
                 t -> false
         );
 
-        final Duration delayDuration = Duration.of(delay, ChronoUnit.MICROS);
         final List<Duration> c2cs = new ArrayList<>();
         final Instant start = creatorNetwork.getPlatformContext().getTime().now();
         final Instant end = start.plus(SIMULATION_DURATION);
         int numEvents = 0;
         while (creatorNetwork.getPlatformContext().getTime().now().isBefore(end)) {
-            final List<PlatformEvent> events = creatorNetwork.tick(delayDuration);
+            final List<PlatformEvent> events = creatorNetwork.tick(tick);
             numEvents += events.size();
             final List<ConsensusEngineOutput> engineOutputs = events.stream().map(consensusEngine::addEvent).toList();
             engineOutputs.stream().map(ConsensusEngineOutput::consensusRounds).flatMap(List::stream)
@@ -82,10 +68,10 @@ public class NetworkSimulationTest {
         final double averageC2C = c2cs.stream().mapToLong(Duration::toNanos).average().orElse(0);
         final Duration max = c2cs.stream().max(Comparator.naturalOrder()).orElse(Duration.ZERO);
         final Duration timePassed = Duration.between(start, creatorNetwork.getPlatformContext().getTime().now());
-        System.out.printf("%,9d %6d %6d %,10d %,10d %,7d %n",
-                delay,
+        System.out.println("Delay(μs)  Nodes avgC2C(μs) maxC2C(μs)  ev/sec");
+        System.out.printf("%,9d %6d %,10d %,10d %,7d %n",
+                tick.toNanos()/1000,
                 nodes,
-                maxOtherParents,
                 (long)averageC2C/1000,
                 toMicros(max),
                 (long)(numEvents/((double)timePassed.toMillis()/1000)));
@@ -98,11 +84,10 @@ public class NetworkSimulationTest {
 
     @Test
     void stringTest(){
-        System.out.println("Delay(μs)  Nodes  MaxOP avgC2C(μs) maxC2C(μs)  ev/sec");
-        System.out.printf("%,9d %6d %6d %,10d %,10d %,7d %n",
+        System.out.println("Delay(μs)  Nodes avgC2C(μs) maxC2C(μs)  ev/sec");
+        System.out.printf("%,9d %6d %,10d %,10d %,7d %n",
                 80,
                 4,
-                5,
                 1123,
                 2500,
                 100_000);

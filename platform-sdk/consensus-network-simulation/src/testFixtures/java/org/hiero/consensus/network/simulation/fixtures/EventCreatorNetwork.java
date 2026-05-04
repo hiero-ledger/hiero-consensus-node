@@ -13,7 +13,6 @@ import java.security.KeyPair;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,7 +44,7 @@ public class EventCreatorNetwork {
     final PlatformContext platformContext;
     final SimulatedBroadcast network;
 
-    public EventCreatorNetwork(final long seed, final int numNodes, final Configuration configuration) {
+    public EventCreatorNetwork(final long seed, final int numNodes, final Configuration configuration, final NetworkLatency latency) {
         // Build a roster with real keys
         final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create(seed))
                 .withSize(numNodes)
@@ -86,7 +85,7 @@ public class EventCreatorNetwork {
         orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
         final List<NodeId> ids = roster.rosterEntries().stream().map(entry -> NodeId.of(entry.nodeId())).toList();
         network = new SimulatedBroadcast(time.now(), ids);
-        network.setLatency(NetworkLatency.uniformLatency(Duration.of(100, ChronoUnit.MICROS), numNodes));
+        network.setLatency(latency);
     }
 
     public Roster getRoster() {
