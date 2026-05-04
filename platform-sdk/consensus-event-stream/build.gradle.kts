@@ -22,7 +22,6 @@ testModuleInfo {
 timingSensitiveModuleInfo {
     requires("org.hiero.consensus.event.stream")
     requires("org.hiero.consensus.event.stream.test.fixtures")
-    requires("com.swirlds.common")
     requires("org.hiero.base.crypto")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
