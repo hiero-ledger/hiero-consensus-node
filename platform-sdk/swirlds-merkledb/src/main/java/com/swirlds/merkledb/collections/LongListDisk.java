@@ -533,7 +533,6 @@ public class LongListDisk extends AbstractLongList<Long> {
      */
     @Override
     protected void closeChunk(@NonNull final Long chunk) {
-        System.err.println("Close chunk: " + chunk);
         // Zero out the chunk region in the backing file.
         // This can happen outside the lock – the chunk-list entry is
         // already null, so no NEW reader can reach this offset.
