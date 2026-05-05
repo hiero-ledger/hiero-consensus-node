@@ -2,10 +2,13 @@
 package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+import static org.awaitility.Awaitility.await;
 
 import com.swirlds.benchmark.reconnect.MerkleBenchmarkUtils;
 import com.swirlds.benchmark.reconnect.StateBuilder;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
+import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.model.node.NodeId;
@@ -104,11 +107,11 @@ public class ReconnectBench extends VirtualMapBaseBench {
             // Both maps should be restored - otherwise, something went wrong
             if (teacherMap == null || learnerMap == null) {
                 if (teacherMap != null) {
-                    releaseAndCloseMap(teacherMap);
+                    teacherMap.release();
                     teacherMap = null;
                 }
                 if (learnerMap != null) {
-                    releaseAndCloseMap(learnerMap);
+                    learnerMap.release();
                     learnerMap = null;
                 }
             }
@@ -168,6 +171,10 @@ public class ReconnectBench extends VirtualMapBaseBench {
      */
     @Override
     protected void onInvocationTearDown() throws Exception {
+        if (verify) {
+            verifyMap(teacherData, reconnectedMap);
+        }
+
         reconnectedMap.release();
 
         super.onInvocationTearDown();
@@ -182,22 +189,12 @@ public class ReconnectBench extends VirtualMapBaseBench {
         teacherMap.release();
         teacherMapCopy.release();
 
-        // Close all data sources
-        learnerMap.getDataSource().close();
-        teacherMap.getDataSource().close();
-
-        // release()/close() would delete the DB files eventually but not right away.
-        // Add a short sleep to help prevent irrelevant warning messages from being printed
-        // when the Tear Down deletes test files recursively right after
-        // this current runnable finishes executing.
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException ignore) {
-        }
-
         learnerMap = null;
         teacherMap = null;
+        teacherMapCopy = null;
         teacherData = null;
+
+        await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
 
         super.onTrialTearDown();
     }
@@ -216,8 +213,6 @@ public class ReconnectBench extends VirtualMapBaseBench {
                 delayNetworkFuzzRangePercent,
                 new NodeId(),
                 configuration);
-
-        verifyMap(teacherData, reconnectedMap);
     }
 
     static void main() throws Exception {

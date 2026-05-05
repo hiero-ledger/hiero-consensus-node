@@ -3,12 +3,14 @@ package com.hedera.statevalidation.exporter;
 
 import static com.hedera.statevalidation.util.ConfigUtils.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.util.ConfigUtils.PRETTY_PRINT_ENABLED;
+import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
 import static com.swirlds.state.merkle.StateKeyUtils.extractStateIdFromStateKeyOneOf;
 import static java.lang.StrictMath.toIntExact;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.JsonUtils;
@@ -169,7 +171,12 @@ public class JsonExporter {
                         continue;
                     }
                     stateKey = StateKey.PROTOBUF.parse(keyBytes);
-                    stateValue = StateValue.PROTOBUF.parse(valueBytes);
+                    stateValue = StateValue.PROTOBUF.parse(
+                            valueBytes.toReadableSequentialData(),
+                            false,
+                            false,
+                            Codec.DEFAULT_MAX_DEPTH,
+                            getVirtualMapValueParseMaxSizeBytes());
                     if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
                         JsonUtils.write(
                                 writer,

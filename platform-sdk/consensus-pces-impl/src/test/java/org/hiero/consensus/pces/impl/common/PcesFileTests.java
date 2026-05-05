@@ -16,7 +16,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
 import java.io.IOException;
@@ -33,6 +32,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;

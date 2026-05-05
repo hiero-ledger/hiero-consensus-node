@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
