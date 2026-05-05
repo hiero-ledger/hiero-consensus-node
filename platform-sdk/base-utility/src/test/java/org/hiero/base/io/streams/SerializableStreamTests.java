@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform;
+package org.hiero.base.io.streams;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -8,8 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -31,9 +29,8 @@ import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.AugmentedDataOutputStream;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.io.SerializableLong;
+import org.hiero.base.utility.test.fixtures.io.InputOutputStream;
 import org.hiero.base.utility.test.fixtures.io.SelfSerializableExample;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.junit.jupiter.api.BeforeAll;

@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.test.fixtures.merkle.util.MerkleTestUtils;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -31,6 +30,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.junit.jupiter.api.AfterEach;
