@@ -8,7 +8,6 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIG
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
@@ -18,8 +17,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
@@ -45,8 +42,6 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
  * Default implementation of the {@link EventCreationManager}.
  */
 public class DefaultEventCreationManager implements EventCreationManager {
-
-    private static final Logger logger = LogManager.getLogger(DefaultEventCreationManager.class);
 
     private static final DoubleGauge.Config SYNC_ROUND_LAG_METRIC_CONFIG = new DoubleGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "syncRoundLag")
@@ -79,10 +74,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
     private final PlatformStatusRule platformStatusRule;
 
     private final DoubleGauge syncLagBehind;
-
-    private PlatformStatus platformStatus = PlatformStatus.STARTING_UP;
-
-    private QuiescenceCommand quiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
 
     /**
      * Utility class for computing median lag for sync.
@@ -141,8 +132,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Nullable
     public PlatformEvent maybeCreateEvent() {
         if (!eventCreationRules.isEventCreationPermitted()) {
-            final var status = eventCreationRules.getEventCreationStatus();
-            phase.activatePhase(status);
+            phase.activatePhase(eventCreationRules.getEventCreationStatus());
             return null;
         }
 
@@ -192,8 +182,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         Objects.requireNonNull(quiescenceCommand);
-        this.quiescenceCommand = quiescenceCommand;
-        logger.info(LogMarker.STARTUP.getMarker(), "Event creator quiescence command updated to {}", quiescenceCommand);
         quiescenceRule.quiescenceCommand(quiescenceCommand);
         creator.quiescenceCommand(quiescenceCommand);
     }
@@ -215,9 +203,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        this.platformStatus = Objects.requireNonNull(platformStatus);
-        logger.info(LogMarker.STARTUP.getMarker(), "Event creator platform status updated to {}", platformStatus);
-        this.platformStatusRule.setPlatformStatus(platformStatus);
+        this.platformStatusRule.setPlatformStatus(Objects.requireNonNull(platformStatus));
     }
 
     /**

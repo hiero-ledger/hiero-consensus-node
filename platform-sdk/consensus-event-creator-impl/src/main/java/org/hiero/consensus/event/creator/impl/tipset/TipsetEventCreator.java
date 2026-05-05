@@ -205,10 +205,6 @@ public class TipsetEventCreator implements EventCreator {
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
-        logger.info(
-                LogMarker.STARTUP.getMarker(),
-                "Tipset event creator quiescence command updated to {}",
-                quiescenceCommand);
     }
 
     /**
@@ -218,7 +214,6 @@ public class TipsetEventCreator implements EventCreator {
     @Override
     public PlatformEvent maybeCreateEvent() {
         if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
-            logger.info(LogMarker.STARTUP.getMarker(), "Tipset event creator is quiesced and will not create an event");
             return null;
         }
         UnsignedEvent event = maybeCreateUnsignedEvent();
@@ -313,7 +308,6 @@ public class TipsetEventCreator implements EventCreator {
             }
 
             // we are creating a genesis event, so we can use a null other parent
-            logger.info(LogMarker.STARTUP.getMarker(), "Tipset creating genesis event with no other parents");
             return buildAndProcessEvent();
         }
 
