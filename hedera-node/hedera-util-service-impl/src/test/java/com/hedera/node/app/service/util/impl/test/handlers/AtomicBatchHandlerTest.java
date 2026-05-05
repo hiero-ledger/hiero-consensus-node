@@ -10,11 +10,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.BATCH_ROLLBACK_CALLBACK_CONSUMER;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -35,6 +37,7 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
+import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -48,16 +51,20 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -352,6 +359,42 @@ class AtomicBatchHandlerTest {
         given(recordBuilder.status()).willReturn(UNKNOWN);
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(INNER_TRANSACTION_FAILED, msg.getStatus());
+    }
+
+    @Test
+    void ethereumTransactionRollbackCallbackIsUsed() throws PreCheckException {
+        final var transaction = innerTxnFrom("123");
+        final var innerTxnBody = newTxnBodyBuilder(payerId1, consensusTimestamp, SIMPLE_KEY_A)
+                .ethereumTransaction(EthereumTransactionBody.newBuilder().build())
+                .build();
+        final var bytes = transactionsToBytes(transaction);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var storeFactoryMock = mock(StoreFactory.class);
+
+        given(handleContext.body()).willReturn(txnBody);
+        given(handleContext.storeFactory()).willReturn(storeFactoryMock);
+        given(handleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
+
+        // Mock dispatch provides the rollback callback
+        final var rollbackCallbackCalledFlag = new AtomicBoolean(false);
+        given(handleContext.dispatch(any())).willAnswer(answer -> {
+            final var options = (DispatchOptions<StreamBuilder>) answer.getArgument(0);
+            options.dispatchMetadata()
+                    .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
+                    .ifPresent(consumer -> ((Consumer<HandleException.OnRollback>) consumer)
+                            .accept((_, _) -> rollbackCallbackCalledFlag.set(true)));
+            return recordBuilder;
+        });
+        given(recordBuilder.status()).willReturn(UNKNOWN);
+
+        final var handleException = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INNER_TRANSACTION_FAILED, handleException.getStatus());
+
+        // Make sure that when the side effects are replayed they include EthereumTransaction's callback
+        handleException.maybeReplay(mock(FeeCharging.Context.class), handleContext);
+        assertTrue(rollbackCallbackCalledFlag.get());
     }
 
     @Test
