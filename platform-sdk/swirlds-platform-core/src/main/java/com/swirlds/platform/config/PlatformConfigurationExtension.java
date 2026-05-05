@@ -47,7 +47,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 RecycleBinConfig.class,
                 StateCommonConfig.class,
                 TemporaryFileConfig.class,
-                PathsConfig.class,
                 UptimeConfig.class,
                 VirtualMapConfig.class,
                 WiringConfig.class,
