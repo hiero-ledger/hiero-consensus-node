@@ -2,6 +2,7 @@
 package com.hedera.node.app.records;
 
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -126,18 +127,58 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     void endRound(@NonNull State state);
 
     /**
-     * Closes the current record file, if one is open, without opening a replacement file.
-     * Returns true when closure has completed or when there was no open file.
+     * Closes the currently-open record file, if present, and advances {@link BlockInfo} to a
+     * "no open record block" state ({@code firstConsTimeOfCurrentBlock = EPOCH}).
      *
-     * @param state the mutable state to update
-     * @return true once no record file remains open
+     * <p>This method is used at consensus round seal boundaries to align record-stream files with
+     * the round being sealed. In {@code BOTH} mode, the caller
+     * first asks block streaming whether the sealed round closes a block; when true, this method is
+     * invoked so the record file closes at the same boundary. In {@code RECORDS} mode, the caller
+     * invokes this method during seal handling when the idleness/age policy says the open record file
+     * should be closed before reporting seal completion.
+     *
+     * <p>Operationally, this method:
+     * <ol>
+     *   <li>Returns immediately if no record file is open (derived from
+     *   {@code firstConsTimeOfCurrentBlock == EPOCH}).</li>
+     *   <li>Finalizes wrapped-record hash bookkeeping for the just-finished record block (state and/or
+     *   disk features as configured).</li>
+     *   <li>Calls {@link BlockRecordStreamProducer#finishCurrentBlock()} to close the writer without
+     *   opening a replacement file.</li>
+     *   <li>Persists updated {@link BlockInfo} with the closed-block metadata and clears current-block
+     *   tracking fields.</li>
+     * </ol>
+     *
+     * <p>The key guarantee is that after a successful return, the record stream has no open file,
+     * and state reflects that closed condition. This keeps post-seal record-file boundaries consistent
+     * with block/seal boundaries so {@code Hedera#onSealConsensusRound(...)} can accurately signal to
+     * the platform when a signed state may be created from the sealed round.
      */
     boolean closeCurrentRecordFileIfOpen(@NonNull State state);
 
     /**
-     * Closes the current record file, if one is open, when no user transaction has been handled since the
-     * previous seal and the sealed round is at least two seconds after the current block first-consensus time.
-     * Returns true in all cases (idempotent success semantics for seal handling).
+     * Seal-time variant of {@link #closeCurrentRecordFileIfOpen(State)} used by {@code RECORDS} mode.
+     *
+     * <p>Applies additional policy before closing:
+     * <ol>
+     *   <li>A record file must currently be open.</li>
+     *   <li>No user transaction has started since the previous seal callback.</li>
+     *   <li>The sealed-round consensus timestamp is at or after
+     *   {@code firstConsTimeOfCurrentBlock + logPeriod}.</li>
+     * </ol>
+     *
+     * <p>If all conditions are met, the method closes the current record file and updates
+     * {@link BlockInfo} to the closed-file state ({@code firstConsTimeOfCurrentBlock = EPOCH}).
+     * Otherwise it leaves the file open.
+     *
+     * <p>This method must be idempotent for seal handling and return {@code true} in all cases.
+     * The return value represents successful evaluation/application of policy, not necessarily that
+     * a close occurred.
+     *
+     * <p>The purpose is to allow closure of an open record file that would otherwise remain open
+     * until another user transaction is handled, so that at seal time
+     * {@code Hedera#onSealConsensusRound(...)} can accurately signal to the platform that a signed
+     * state may be created from this round.
      *
      * @param state the mutable state to update
      * @param roundConsensusTimestamp the sealed round consensus timestamp
