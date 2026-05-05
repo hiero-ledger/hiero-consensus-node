@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.exec.v066;
 
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.INITIAL_CONTRACT_NONCE;
 import static com.hedera.node.app.service.contract.impl.exec.processors.ProcessorModule.REQUIRE_CODE_DEPOSIT_TO_SUCCEED;
-import static org.hyperledger.besu.evm.MainnetEVMs.registerCancunOperations;
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
@@ -37,6 +36,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSyst
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -48,9 +48,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
-import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.contractvalidation.ContractValidationRule;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
@@ -89,8 +87,7 @@ public interface V066Module {
             @ServicesV066 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV066 @NonNull final FeatureFlags featureFlags,
-            @NonNull final GasCalculator gasCalculator,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull final GasCalculator gasCalculator) {
         return new TransactionProcessor(
                 frameBuilder,
                 frameRunner,
@@ -99,7 +96,6 @@ public interface V066Module {
                 contractCreationProcessor,
                 featureFlags,
                 gasCalculator,
-                codeFactory,
                 null);
     }
 
@@ -139,7 +135,8 @@ public interface V066Module {
 
         // Use Cancun EVM with 0.51 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
-        registerCancunOperations(operationRegistry, gasCalculator, BigInteger.ZERO);
+        HederaOperationsRegistry.forVersion(EvmSpecVersion.CANCUN)
+                .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
         return new HEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
@@ -222,19 +219,16 @@ public interface V066Module {
     @Provides
     @IntoSet
     @ServicesV066
-    static Operation provideCreateOperation(
-            @NonNull final GasCalculator gasCalculator, @NonNull final CodeFactory codeFactory) {
-        return new CustomCreateOperation(gasCalculator, codeFactory);
+    static Operation provideCreateOperation(@NonNull final GasCalculator gasCalculator) {
+        return new CustomCreateOperation(gasCalculator);
     }
 
     @Provides
     @IntoSet
     @ServicesV066
     static Operation provideCreate2Operation(
-            @NonNull final GasCalculator gasCalculator,
-            @ServicesV066 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory) {
-        return new CustomCreate2Operation(gasCalculator, featureFlags, codeFactory);
+            @NonNull final GasCalculator gasCalculator, @ServicesV066 @NonNull final FeatureFlags featureFlags) {
+        return new CustomCreate2Operation(gasCalculator, featureFlags);
     }
 
     @Provides

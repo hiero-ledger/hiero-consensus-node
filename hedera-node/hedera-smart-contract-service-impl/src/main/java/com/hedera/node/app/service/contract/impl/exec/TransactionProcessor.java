@@ -65,7 +65,7 @@ public class TransactionProcessor {
             @NonNull final ContractCreationProcessor contractCreation,
             @NonNull final FeatureFlags featureFlags,
             @NonNull final GasCalculator gasCalculator,
-            @NonNull HEVM hevm) {
+            final HEVM hevm) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);

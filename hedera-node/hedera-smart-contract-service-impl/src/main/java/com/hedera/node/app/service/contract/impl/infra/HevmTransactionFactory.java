@@ -74,6 +74,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import javax.inject.Inject;
 
 @TransactionScope
@@ -427,7 +428,9 @@ public class HevmTransactionFactory {
     private void assertValidGasAndAmount(@NonNull final HederaEvmTransaction hederaEvmTxn) {
         final var minGasLimit = Math.max(
                 ContractServiceImpl.INTRINSIC_GAS_LOWER_BOUND,
-                gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
+                gasCalculator
+                        .transactionGasRequirements(EMPTY, false, List.of(), List.of())
+                        .intrinsicGas());
         validateTrue(hederaEvmTxn.gasLimit() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(hederaEvmTxn.value() >= 0, CONTRACT_NEGATIVE_VALUE);
         validateTrue(hederaEvmTxn.gasLimit() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);

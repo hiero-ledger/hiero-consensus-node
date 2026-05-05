@@ -6,7 +6,9 @@ import static com.hedera.node.app.service.contract.impl.exec.processors.Processo
 import static org.hyperledger.besu.evm.operation.SStoreOperation.FRONTIER_MINIMUM;
 
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
+import com.hedera.node.app.service.contract.impl.annotations.ServicesV067;
 import com.hedera.node.app.service.contract.impl.annotations.ServicesV070;
+import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
@@ -39,6 +41,7 @@ import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChec
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
+import com.hedera.node.config.data.ContractsConfig;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -48,6 +51,7 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EvmSpecVersion;
@@ -131,8 +135,10 @@ public interface V070Module {
             @ServicesV070 @NonNull final Set<Operation> customOperations,
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
-            @CustomOps @NonNull final Set<Operation> customOps) {
-
+            @CustomOps @NonNull final Set<Operation> customOps,
+            @NonNull final Supplier<ContractsConfig> contractsConfigSupplier,
+            @ServicesV067 @NonNull final FeatureFlags featureFlags,
+            @ServicesV067 @NonNull final AddressChecks addressChecks) {
         oneTimeEVMModuleInitialization();
 
         final var operationRegistry = new OperationRegistry();
@@ -140,9 +146,18 @@ public interface V070Module {
                 .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
-        // Create and return a custom HederaEVM instance
-        // TODO: version the HederaEVM class
-        return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.PRAGUE);
+
+        if (contractsConfigSupplier.get().useBonnevilleEVM()) {
+            return new BonnevilleEVM(
+                    operationRegistry,
+                    gasCalculator,
+                    evmConfiguration,
+                    EvmSpecVersion.CANCUN,
+                    featureFlags,
+                    addressChecks);
+        } else {
+            return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+        }
     }
 
     @Provides

@@ -54,7 +54,7 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeFactory;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -78,20 +78,16 @@ public class DispatchingEvmFrameState implements EvmFrameState {
 
     private final HederaNativeOperations nativeOperations;
     private final ContractStateStore contractStateStore;
-    private final CodeFactory codeFactory;
 
     /**
      * @param nativeOperations   the Hedera native operation
      * @param contractStateStore the contract store that manages the key/value states
-     * @param codeFactory the code factory
      */
     public DispatchingEvmFrameState(
             @NonNull final HederaNativeOperations nativeOperations,
-            @NonNull final ContractStateStore contractStateStore,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull final ContractStateStore contractStateStore) {
         this.nativeOperations = requireNonNull(nativeOperations);
         this.contractStateStore = requireNonNull(contractStateStore);
-        this.codeFactory = codeFactory;
     }
 
     /**
@@ -362,7 +358,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public void finalizeHollowAccount(@NonNull final Address address) {
-        nativeOperations.finalizeHollowAccountAsContract(tuweniToPbjBytes(address));
+        nativeOperations.finalizeHollowAccountAsContract(tuweniToPbjBytes(address.getBytes()));
     }
 
     @Override
@@ -396,7 +392,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 to.hederaId(),
                 new ActiveContractVerificationStrategy(
                         from.hederaContractId(),
-                        tuweniToPbjBytes(from.getAddress()),
+                        tuweniToPbjBytes(from.getAddress().getBytes()),
                         delegateCall,
                         UseTopLevelSigs.YES));
         if (status != OK) {

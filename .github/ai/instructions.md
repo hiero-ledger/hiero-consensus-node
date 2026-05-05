@@ -39,7 +39,4 @@ The `./gradlew` wrapper handles it.
 - If there is a file called `ai.local` at the project root then the agent will take additional instructions from that file.
 - The agent shall never generate a commit. The user must always review and create commits themselves.
 - The agent is not an author of the code, only the user.
-<<<<<<< HEAD
-=======
 - The agent shall never add origin or attribution information (such as "Created by Claude", "Generated with Claude Code", "Co-Authored-By: Claude", or any similar marker) to commit messages, pull request titles, pull request descriptions, code comments, or any other repository content.
->>>>>>> upstream-ssh/main
