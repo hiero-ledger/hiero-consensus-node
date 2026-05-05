@@ -132,7 +132,8 @@ public class BlockStreamRecoveryWorkflow {
                 }
 
                 if (item.hasStateChanges()) {
-                    applyStateChanges(state, item.stateChangesOrThrow());
+                    BinaryStateChangeApplier.applyStateChanges(
+                            state, StateChanges.PROTOBUF.toBytes(item.stateChangesOrThrow()));
                 }
             }
         });
@@ -175,15 +176,6 @@ public class BlockStreamRecoveryWorkflow {
             throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "
                     .formatted(expectedRootHash, rootHash));
         }
-    }
-
-    /**
-     * Applies state changes through the {@link BinaryState} API by parsing the binary protobuf
-     * wire format directly, avoiding deserialization into domain objects.
-     */
-    private static void applyStateChanges(
-            @NonNull final BinaryState binaryState, @NonNull final StateChanges stateChanges) {
-        BinaryStateChangeApplier.applyStateChanges(binaryState, StateChanges.PROTOBUF.toBytes(stateChanges));
     }
 
     /**
@@ -382,6 +374,19 @@ public class BlockStreamRecoveryWorkflow {
             return normalizeMapKeyPayload(stateId, fieldNumber, payload);
         }
 
+        /**
+         * Normalizes map key payload bytes to match the format stored in the VirtualMap.
+         * Most block-stream keys are byte-compatible, but token relationship keys are an
+         * exception: the block stream encodes them as {@link TokenAssociation} (field 1 = token_id,
+         * field 2 = account_id), while the state stores {@link EntityIDPair} (field 1 = account_id,
+         * field 2 = token_id).
+         *
+         * @param stateId the numeric state identifier; 9 = token relationships
+         * @param fieldNumber the protobuf field number from the MapChangeKey oneOf wrapper;
+         *                    field 2 indicates a TokenAssociation encoding that needs conversion
+         * @param payload the raw key bytes extracted from the block stream
+         * @return normalized key bytes compatible with the VirtualMap key format
+         */
         private static Bytes normalizeMapKeyPayload(
                 final int stateId, final int fieldNumber, @NonNull final Bytes payload) {
             if (stateId == 9 && fieldNumber == 2) {
@@ -403,10 +408,22 @@ public class BlockStreamRecoveryWorkflow {
             return stateId;
         }
 
+        /**
+         * Skips a protobuf field based on the wire type encoded in the given tag.
+         *
+         * @param input the input stream positioned at the field's value
+         * @param tag the raw protobuf tag (field number + wire type)
+         */
         private static void skipField(@NonNull final ReadableSequentialData input, final int tag) {
             skipField(input, ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK));
         }
 
+        /**
+         * Skips a protobuf field value for the given wire type.
+         *
+         * @param input the input stream positioned at the field's value
+         * @param wireType the protobuf wire type indicating how to skip the value
+         */
         private static void skipField(
                 @NonNull final ReadableSequentialData input, @NonNull final ProtoConstants wireType) {
             try {
