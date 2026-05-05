@@ -133,19 +133,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Full Otter)
-        id: detect-flaky-full-otter
-        if: ${{ !cancelled() && steps.check-tests-executed-full-otter.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" platform-sdk/consensus-otter-tests/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload Full Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && (steps.gradle-full-otter-tests.conclusion == 'failure' || steps.detect-flaky-full-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && steps.gradle-full-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
@@ -221,19 +211,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Fast Otter)
-        id: detect-flaky-fast-otter
-        if: ${{ !cancelled() && steps.check-tests-executed-fast-otter.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" platform-sdk/consensus-otter-tests/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload Fast Otter Tests Turtle Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && (steps.gradle-fast-otter-tests.conclusion == 'failure' || steps.detect-flaky-fast-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -241,7 +221,7 @@ jobs:
 
       - name: Upload Fast Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && (steps.gradle-fast-otter-tests.conclusion == 'failure' || steps.detect-flaky-fast-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container
@@ -317,19 +297,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Chaos Otter)
-        id: detect-flaky-chaos-otter
-        if: ${{ !cancelled() && steps.check-tests-executed-chaos-otter.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" platform-sdk/consensus-otter-tests/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload Chaos Otter Tests Turtle Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && (steps.gradle-chaos-otter-tests.conclusion == 'failure' || steps.detect-flaky-chaos-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Turtle Logs
           path: platform-sdk/consensus-otter-tests/build/turtle
@@ -337,7 +307,7 @@ jobs:
 
       - name: Upload Chaos Otter Tests Container Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && (steps.gradle-chaos-otter-tests.conclusion == 'failure' || steps.detect-flaky-chaos-otter.outputs.has-flaky == 'true') && !cancelled() }}
+        if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Container Logs
           path: platform-sdk/consensus-otter-tests/build/container

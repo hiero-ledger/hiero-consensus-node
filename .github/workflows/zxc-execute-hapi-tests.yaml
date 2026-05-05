@@ -190,20 +190,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Misc)
-        id: detect-flaky-hapi-misc
-        if: ${{ !cancelled() && steps.check-tests-executed-hapi-misc.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null \
-            || grep -rql "<flakyFailure" hedera-node/yahcli/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Misc) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.gradle-yahcli-misc.conclusion == 'failure' || steps.detect-flaky-hapi-misc.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.gradle-yahcli-misc.conclusion == 'failure') }}
         with:
           name: HAPI Test (Misc) Network Logs
           path: |
@@ -216,7 +205,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.gradle-yahcli-misc.conclusion == 'failure' || steps.detect-flaky-hapi-misc.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.gradle-yahcli-misc.conclusion == 'failure') }}
         with:
           name: HAPI Test (Misc) Failure Artifacts
           path: |
@@ -319,19 +308,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Misc Records, Crypto & Misc Serial)
-        id: detect-flaky-hapi-misc-records-crypto-and-serial
-        if: ${{ !cancelled() && steps.check-tests-executed-hapi-misc-records-crypto-and-serial.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Misc Records, Crypto & Misc Serial) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc-records-crypto-and-serial.conclusion == 'failure' || steps.detect-flaky-hapi-misc-records-crypto-and-serial.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-misc-records-crypto-and-serial.conclusion == 'failure' }}
         with:
           name: HAPI Test (Misc Records, Crypto & Misc Serial) Network Logs
           path: |
@@ -342,7 +321,7 @@ jobs:
 
       - name: Upload HAPI Test (Misc Records, Crypto & Misc Serial) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-misc-records-crypto-and-serial.conclusion == 'failure' || steps.detect-flaky-hapi-misc-records-crypto-and-serial.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && steps.gradle-hapi-misc-records-crypto-and-serial.conclusion == 'failure' }}
         with:
           name: HAPI Test (Misc Records, Crypto & Misc Serial) Failure Artifacts
           path: |
@@ -440,19 +419,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Token & Time Consuming)
-        id: detect-flaky-hapi-token-and-time-consuming
-        if: ${{ !cancelled() && steps.check-tests-executed-hapi-token-and-time-consuming.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Token & Time Consuming) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' || steps.detect-flaky-hapi-token-and-time-consuming.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' }}
         with:
           name: HAPI Test (Token & Time Consuming) Network Logs
           path: |
@@ -463,7 +432,7 @@ jobs:
 
       - name: Upload HAPI Test (Token & Time Consuming) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' || steps.detect-flaky-hapi-token-and-time-consuming.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' }}
         with:
           name: HAPI Test (Token & Time Consuming) Failure Artifacts
           path: |
@@ -561,19 +530,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Simple Fees & ND Reconnect)
-        id: detect-flaky-hapi-simple-fees-and-nd-reconnect
-        if: ${{ !cancelled() && steps.check-tests-executed-hapi-simple-fees-and-nd-reconnect.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Simple Fees & ND Reconnect) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-simple-fees-and-nd-reconnect.conclusion == 'failure' || steps.detect-flaky-hapi-simple-fees-and-nd-reconnect.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-simple-fees-and-nd-reconnect.conclusion == 'failure' }}
         with:
           name: HAPI Test (Simple Fees & ND Reconnect) Network Logs
           path: |
@@ -584,7 +543,7 @@ jobs:
 
       - name: Upload HAPI Test (Simple Fees & ND Reconnect) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-simple-fees-and-nd-reconnect.conclusion == 'failure' || steps.detect-flaky-hapi-simple-fees-and-nd-reconnect.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && steps.gradle-hapi-simple-fees-and-nd-reconnect.conclusion == 'failure' }}
         with:
           name: HAPI Test (Simple Fees & ND Reconnect) Failure Artifacts
           path: |
@@ -681,19 +640,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Smart Contracts & ISS)
-        id: detect-flaky-hapi-smart-contract-and-iss
-        if: ${{ !cancelled() && steps.check-tests-executed-hapi-smart-contract-and-iss.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Smart Contracts & ISS) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-smart-contract-and-iss.conclusion == 'failure' || steps.detect-flaky-hapi-smart-contract-and-iss.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-smart-contract-and-iss.conclusion == 'failure' }}
         with:
           name: HAPI Test (Smart Contracts & ISS) Network Logs
           path: |
@@ -704,7 +653,7 @@ jobs:
 
       - name: Upload HAPI Test (Smart Contracts & ISS) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-smart-contract-and-iss.conclusion == 'failure' || steps.detect-flaky-hapi-smart-contract-and-iss.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && steps.gradle-hapi-smart-contract-and-iss.conclusion == 'failure' }}
         with:
           name: HAPI Test (Smart Contracts & ISS) Failure Artifacts
           path: |
@@ -784,19 +733,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Restart)
-        id: detect-flaky-hapi-restart
-        if: ${{ !cancelled() && steps.check-tests-executed-hapi-restart.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Restart) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-restart.conclusion == 'failure' || steps.detect-flaky-hapi-restart.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-restart.conclusion == 'failure' }}
         with:
           name: HAPI Test (Restart) Network Logs
           path: |
@@ -807,7 +746,7 @@ jobs:
 
       - name: Upload HAPI Test (Restart) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-restart.conclusion == 'failure' || steps.detect-flaky-hapi-restart.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && steps.gradle-hapi-restart.conclusion == 'failure' }}
         with:
           name: HAPI Test (Restart) Failure Artifacts
           path: |
@@ -887,19 +826,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Block Node Communication)
-        id: detect-flaky-hapi-bn-communication
-        if: ${{ !cancelled() && steps.check-tests-executed-hapi-bn-communication.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Block Node Communication) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-bn-communication.conclusion == 'failure' || steps.detect-flaky-hapi-bn-communication.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-bn-communication.conclusion == 'failure' }}
         with:
           name: HAPI Test (Block Node Communication) Network Logs
           path: |
@@ -908,7 +837,7 @@ jobs:
 
       - name: Upload HAPI Test (Block Node Communication) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-bn-communication.conclusion == 'failure' || steps.detect-flaky-hapi-bn-communication.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && steps.gradle-hapi-bn-communication.conclusion == 'failure' }}
         with:
           name: HAPI Test (Block Node Communication) Failure Artifacts
           path: |
@@ -1005,19 +934,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (Atomic Batch)
-        id: detect-flaky-hapi-atomic-batch
-        if: ${{ !cancelled() && steps.check-tests-executed-hapi-atomic-batch.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Atomic Batch) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-atomic-batch.conclusion == 'failure' || steps.detect-flaky-hapi-atomic-batch.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-atomic-batch.conclusion == 'failure' }}
         with:
           name: HAPI Test (Atomic Batch) Network Logs
           path: |
@@ -1028,7 +947,7 @@ jobs:
 
       - name: Upload HAPI Test (Atomic Batch) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-atomic-batch.conclusion == 'failure' || steps.detect-flaky-hapi-atomic-batch.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && steps.gradle-hapi-atomic-batch.conclusion == 'failure' }}
         with:
           name: HAPI Test (Atomic Batch) Failure Artifacts
           path: |
@@ -1108,19 +1027,9 @@ jobs:
           fi
           echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
-      - name: Detect Flaky Tests (State Throttling)
-        id: detect-flaky-hapi-state-throttling
-        if: ${{ !cancelled() && steps.check-tests-executed-hapi-state-throttling.outputs.tests-executed == 'true' }}
-        run: |
-          has_flaky="false"
-          if grep -rql "<flakyFailure" hedera-node/test-clients/build/test-results/ --include="TEST-*.xml" 2>/dev/null; then
-            has_flaky="true"
-          fi
-          echo "has-flaky=${has_flaky}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (State Throttling) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-state-throttling.conclusion == 'failure' || steps.detect-flaky-hapi-state-throttling.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-state-throttling.conclusion == 'failure' }}
         with:
           name: HAPI Test (State Throttling) Network Logs
           path: |
@@ -1131,7 +1040,7 @@ jobs:
 
       - name: Upload HAPI Test (State Throttling) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && (steps.gradle-hapi-state-throttling.conclusion == 'failure' || steps.detect-flaky-hapi-state-throttling.outputs.has-flaky == 'true') }}
+        if: ${{ !cancelled() && steps.gradle-hapi-state-throttling.conclusion == 'failure' }}
         with:
           name: HAPI Test (State Throttling) Failure Artifacts
           path: |
