@@ -2,14 +2,13 @@
 package org.hiero.otter.fixtures.turtle;
 
 import com.swirlds.common.config.StateCommonConfig_;
-import com.swirlds.common.io.config.FileSystemConfig_;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
-import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.function.Supplier;
 import org.hiero.consensus.config.BasicConfig_;
 import org.hiero.consensus.config.EventConfig_;
+import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.pces.config.PcesConfig_;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
@@ -45,12 +44,9 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
         this.overrideProperties.withConfigValue(EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp"));
         this.overrideProperties.withConfigValue(
                 StateCommonConfig_.SAVED_STATE_DIRECTORY, outputDirectory.resolve("data/saved"));
-        this.overrideProperties.withConfigValue(FileSystemConfig_.ROOT_PATH, outputDirectory.resolve("data/saved"));
+        this.overrideProperties.withConfigValue(PathsConfig_.SAVED_STATE_DIR, outputDirectory.resolve("data/saved"));
         this.overrideProperties.withConfigValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory);
         this.overrideProperties.withConfigValue(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"));
-        this.overrideProperties.withConfigValue(PathsConfig_.APPS_DIR_PATH, outputDirectory.resolve("data/apps"));
-        this.overrideProperties.withConfigValue(
-                PathsConfig_.MARKER_FILES_DIR, outputDirectory.resolve("data/saved/marker_files"));
         this.overrideProperties.withConfigValue(StateConfig_.SAVE_STATE_ASYNC, false);
     }
 }

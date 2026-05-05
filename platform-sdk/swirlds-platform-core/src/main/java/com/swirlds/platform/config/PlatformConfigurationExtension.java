@@ -2,7 +2,6 @@
 package com.swirlds.platform.config;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.common.io.config.RecycleBinConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.platform.NodeIdConverter;
@@ -20,6 +19,7 @@ import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -47,7 +47,7 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 RecycleBinConfig.class,
                 StateCommonConfig.class,
                 TemporaryFileConfig.class,
-                FileSystemConfig.class,
+                PathsConfig.class,
                 UptimeConfig.class,
                 VirtualMapConfig.class,
                 WiringConfig.class,

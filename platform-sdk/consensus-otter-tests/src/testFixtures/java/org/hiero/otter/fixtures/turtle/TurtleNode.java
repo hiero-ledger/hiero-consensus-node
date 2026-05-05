@@ -17,7 +17,6 @@ import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
@@ -49,6 +48,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -214,9 +214,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                 // ignore, this is just a fallback in case an earlier test didn't clean up properly
             }
             final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
-            final FileSystemConfig fileSystemConfig = currentConfiguration.getConfigData(FileSystemConfig.class);
+            final PathsConfig pathsConfig = currentConfiguration.getConfigData(PathsConfig.class);
             final FileSystemManager fileSystemManager =
-                    new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir());
+                    new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
             final RecycleBin recycleBin = RecycleBinImpl.create(
                     metrics,
                     currentConfiguration,

@@ -10,17 +10,18 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -73,10 +74,10 @@ public final class FakePlatform implements Platform {
     private PlatformContext createPlatformContext() {
         final Configuration configuration = HederaTestConfigBuilder.createConfig();
         final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
-        final FileSystemConfig fileSystemConfig = configuration.getConfigData(FileSystemConfig.class);
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
         final FileSystemManager fileSystemManager =
-                new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir());
-        final var metrics = new DefaultPlatformMetrics(
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        final Metrics metrics = new DefaultPlatformMetrics(
                 selfNodeId,
                 new MetricKeyRegistry(),
                 METRIC_EXECUTOR,

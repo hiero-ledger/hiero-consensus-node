@@ -3,7 +3,6 @@ package org.hiero.consensus.pcli;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.FileSystemConfig;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -12,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Scanner;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import picocli.CommandLine;
 
@@ -68,14 +68,12 @@ public class PrepareForTransplantCommand extends AbstractCommand {
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
-        final FileSystemConfig fileSystemConfig = configuration.getConfigData(FileSystemConfig.class);
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
         final PlatformContext platformContext = PlatformContext.create(
-                configuration,
-                Time.getCurrent(),
-                new NoOpMetrics(),
-                new FileSystemManager(fileSystemConfig.rootPath(), fileSystemConfig.tmpDir()),
-                new SimpleRecycleBin());
+                configuration, Time.getCurrent(), new NoOpMetrics(), fileSystemManager, new SimpleRecycleBin());
 
         System.out.println("Transplanting state from: " + statePath);
         final int discardedEventCount = SavedStateUtils.prepareStateForTransplant(statePath, platformContext);

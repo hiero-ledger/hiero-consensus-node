@@ -8,6 +8,7 @@ module com.swirlds.merkledb.test.fixtures {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
+    requires org.hiero.consensus.utility;
     requires com.swirlds.base;
     requires com.swirlds.common.test.fixtures;
     requires com.swirlds.common;
