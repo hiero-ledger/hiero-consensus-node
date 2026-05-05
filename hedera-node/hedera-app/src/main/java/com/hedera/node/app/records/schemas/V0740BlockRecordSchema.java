@@ -71,6 +71,9 @@ public class V0740BlockRecordSchema extends Schema<SemanticVersion> {
                         "Initialized wrapped record voting singleton with deadline={}",
                         votingCompletionDeadlineBlockNumber);
             }
+        }
+        if (!ctx.isGenesis()) {
+            final var blockInfoSingleton = ctx.newStates().<BlockInfo>getSingleton(BLOCKS_STATE_ID);
             if (ctx.appConfig().getConfigData(BlockStreamConfig.class).enableCutover()) {
                 ctx.sharedValues().put(SHARED_BLOCK_RECORD_INFO, blockInfoSingleton.get());
                 ctx.sharedValues()

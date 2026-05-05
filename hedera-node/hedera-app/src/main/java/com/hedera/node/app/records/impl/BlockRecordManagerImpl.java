@@ -364,6 +364,15 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * {@inheritDoc}
      */
     public boolean startUserTransaction(@NonNull final Instant consensusTime, @NonNull final State state) {
+        final var platformState = state.getReadableStates(PlatformStateService.NAME)
+                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
+                .get();
+        requireNonNull(platformState);
+        final var isFirstTransactionAfterFreezeRestart = platformState.freezeTime() != null
+                && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
+        if (isFirstTransactionAfterFreezeRestart) {
+            new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME)).setFreezeTime(null);
+        }
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             // This is the first transaction of the first block, so set both the firstConsTimeOfCurrentBlock
             // and the current consensus time to now
@@ -396,17 +405,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var currentBlockPeriod = getBlockPeriod(lastBlockInfo.firstConsTimeOfCurrentBlock());
         final var newBlockPeriod = getBlockPeriod(consensusTime);
 
-        final var platformState = state.getReadableStates(PlatformStateService.NAME)
-                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
-                .get();
-        requireNonNull(platformState);
-        // Also check to see if this is the first transaction we're handling after a freeze restart. If so, we also
-        // start a new block.
-        final var isFirstTransactionAfterFreezeRestart = platformState.freezeTime() != null
-                && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
-        if (isFirstTransactionAfterFreezeRestart) {
-            new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME)).setFreezeTime(null);
-        }
         // Now we test if we need to start a new block. If so, create the new block
         if (newBlockPeriod > currentBlockPeriod || isFirstTransactionAfterFreezeRestart) {
             // Compute the state for the newly completed block. The `lastBlockHashBytes` is the running hash after
