@@ -501,8 +501,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private void addPendingBlock(@NonNull final PendingBlock pendingBlock) {
-        pendingBlocks.add(requireNonNull(pendingBlock));
+        requireNonNull(pendingBlock);
         synchronized (pendingBlockProofsFutureLock) {
+            pendingBlocks.add(pendingBlock);
             final int previousPendingBlocks = pendingBlockProofCount.getAndIncrement();
             if (previousPendingBlocks == 0 || pendingBlockProofsFuture == null || pendingBlockProofsFuture.isDone()) {
                 pendingBlockProofsFuture = new CompletableFuture<>();
