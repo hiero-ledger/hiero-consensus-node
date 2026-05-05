@@ -10,6 +10,7 @@ open module com.swirlds.virtualmap.test.fixtures {
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.reconnect;
+    requires org.hiero.consensus.utility;
     requires org.junit.jupiter.api;
     requires org.hiero.base.utility.test.fixtures;
 }

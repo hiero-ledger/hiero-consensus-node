@@ -29,11 +29,14 @@ jmhModuleInfo {
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.reconnect")
+    requires("org.hiero.consensus.utility")
+    requires("org.hiero.base.utility.test.fixtures")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
     requires("com.swirlds.config.extensions.test.fixtures")
     requiresStatic("com.github.spotbugs.annotations")
     runtimeOnly("com.swirlds.config.impl")
+    requires("awaitility")
 }
 
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
@@ -46,10 +49,16 @@ tasks.register<JMHTask>("jmhCrypto") {
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-crypto.txt"))
 }
 
-tasks.register<JMHTask>("jmhVirtualMap") {
-    includes.set(listOf("VirtualMapBench"))
+tasks.register<JMHTask>("jmhVirtualMapRead") {
+    includes.set(listOf("VirtualMapReadBench"))
     jvmArgs.set(listOf("-Xmx16g"))
-    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap.txt"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-read.txt"))
+}
+
+tasks.register<JMHTask>("jmhVirtualMapEdit") {
+    includes.set(listOf("VirtualMapEditBench"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
 tasks.register<JMHTask>("jmhReconnect") {

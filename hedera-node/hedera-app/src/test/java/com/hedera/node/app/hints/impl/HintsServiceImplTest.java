@@ -193,7 +193,7 @@ class HintsServiceImplTest {
     @Test
     void signCreatesSigningSubmitsPartialSignatureAndRemovesFromMapOnCompletion() {
         final var blockHash = Bytes.wrap("block-hash".getBytes());
-        final var signings = new ConcurrentHashMap<Bytes, HintsContext.Signing>();
+        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
         given(component.signingContext()).willReturn(context);
         given(context.isReady()).willReturn(true);
         given(component.signings()).willReturn(signings);
@@ -217,7 +217,7 @@ class HintsServiceImplTest {
     @Test
     void signReusesExistingSigningForSameBlockHash() {
         final var blockHash = Bytes.wrap("same-hash".getBytes());
-        final var signings = new ConcurrentHashMap<Bytes, HintsContext.Signing>();
+        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
         signings.put(blockHash, signing);
         given(component.signingContext()).willReturn(context);
         given(context.isReady()).willReturn(true);

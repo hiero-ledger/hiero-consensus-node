@@ -22,6 +22,7 @@ import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.tss.DualBlockHashSigner;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -115,8 +116,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected FakeHistoryService historyService;
     /**
      * Non-final because the compiler can't tell that the {@link com.hedera.node.app.Hedera.BlockHashSignerFactory}
-     * lambda we give the {@link Hedera} constructor will always set this (the fake's delegate will ultimately need
-     * needs to be constructed from the Hedera instance's {@code HintsService} and {@code HistoryService}).
+     * lambda we give the {@link Hedera} constructor will always set this.
      */
     protected LapsingBlockHashSigner blockHashSigner;
 
@@ -281,10 +281,11 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 new FakeServiceMigrator(),
                 this::now,
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> this.hintsService = new FakeHintsService(appContext, bootstrapConfig),
+                (appContext, bootstrapConfig, rsaContext, rsaSignings) ->
+                        this.hintsService = new FakeHintsService(appContext, bootstrapConfig, rsaContext, rsaSignings),
                 (appContext, bootstrapConfig) -> this.historyService = new FakeHistoryService(appContext),
-                (hints, history, configProvider) ->
-                        this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
+                (rsaContext, rsaSignings, submissions, delegate) -> this.blockHashSigner = new LapsingBlockHashSigner(
+                        new DualBlockHashSigner(rsaContext, rsaSignings, submissions, delegate)),
                 PLATFORM_CONFIG,
                 FILE_SYSTEM_MANAGER,
                 metrics,
