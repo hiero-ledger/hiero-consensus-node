@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -75,6 +76,7 @@ public abstract class BlockRecordInjectionModule {
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Platform platform,
             @NonNull final WrappedRecordFileBlockHashesDiskWriter wrappedRecordHashesDiskWriter,
+            @NonNull final BlockHashSigner blockHashSigner,
             @NonNull @Named("wrb") final Supplier<BlockItemWriter> wrbWriterSupplier) {
         final var merkleState = state.getState();
         if (merkleState == null) {
@@ -89,6 +91,7 @@ public abstract class BlockRecordInjectionModule {
                 platform,
                 wrappedRecordHashesDiskWriter,
                 wrbWriterSupplier,
+                blockHashSigner,
                 initTrigger);
     }
 

@@ -4,7 +4,6 @@ package org.hiero.consensus.concurrent.framework.config;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
-import org.hiero.consensus.concurrent.framework.internal.AbstractStoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**

@@ -3,10 +3,10 @@ package org.hiero.consensus.event.stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.test.fixtures.io.SerializationUtils;
 import java.time.Instant;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.utility.test.fixtures.io.SerializationUtils;
 import org.hiero.consensus.event.stream.test.fixtures.ObjectForTestStream;
 import org.junit.jupiter.api.Test;
 

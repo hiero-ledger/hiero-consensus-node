@@ -25,7 +25,6 @@ mainModuleInfo {
 }
 
 jmhModuleInfo {
-    requires("com.swirlds.common")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.hedera.node.hapi")

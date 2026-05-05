@@ -3,7 +3,7 @@ package com.hedera.node.app.hapi.utils.exports;
 
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.readMaybeCompressedRecordStreamFile;
 import static com.hedera.services.stream.proto.SignatureType.SHA_384_WITH_RSA;
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,7 +14,6 @@ import com.hedera.services.stream.proto.HashObject;
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.SignatureFile;
 import com.hedera.services.stream.proto.SignatureObject;
-import com.swirlds.common.constructable.ConstructableRegistration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -53,6 +52,7 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.event.stream.EventStreamType;
 import org.hiero.consensus.event.stream.StreamType;
 import org.hiero.consensus.event.stream.StreamTypeFromJson;
