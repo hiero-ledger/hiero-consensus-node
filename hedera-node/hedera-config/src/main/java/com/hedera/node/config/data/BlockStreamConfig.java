@@ -15,7 +15,6 @@ import java.time.Duration;
  * @param streamMode Value of RECORDS disables the block stream; BOTH enables it
  * @param writerMode if we are writing to a file or gRPC stream
  * @param blockFileDir directory to store block files
- * @param hashCombineBatchSize the number of items to hash in a batch
  * @param roundsPerBlock the number of rounds per block
  * @param blockPeriod the block period
  * @param receiptEntriesBatchSize the maximum number of receipts to accumulate in a {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} wrapper before writing a queue state changes item to the block stream
@@ -35,9 +34,6 @@ public record BlockStreamConfig(
 
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams") @NodeProperty
         String blockFileDir,
-
-        @ConfigProperty(defaultValue = "32") @NetworkProperty
-        int hashCombineBatchSize,
 
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
 

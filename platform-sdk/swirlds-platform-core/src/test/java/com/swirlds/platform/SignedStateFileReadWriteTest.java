@@ -25,7 +25,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -48,6 +47,7 @@ import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.signed.SigSet;
@@ -89,13 +89,11 @@ class SignedStateFileReadWriteTest {
     @Test
     @DisplayName("writeHashInfoFile() Test")
     void writeHashInfoFileTest() throws IOException {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final SignedState signedState = new RandomSignedStateGenerator()
                 .setSoftwareVersion(platformVersion)
                 .build();
         final VirtualMapState state = signedState.getState();
-        writeHashInfoFile(platformContext, testDirectory, state);
+        writeHashInfoFile(testDirectory, state);
 
         final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");

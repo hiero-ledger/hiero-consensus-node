@@ -8,13 +8,13 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
