@@ -176,7 +176,8 @@ public class SigSet implements FastCopyable, Iterable<NodeId> {
         final long limitBefore = in.limit();
         in.limit(in.position() + length);
 
-        final com.hedera.hapi.platform.state.SigSet sigSet = com.hedera.hapi.platform.state.SigSet.PROTOBUF.parse(in);
+        final com.hedera.hapi.platform.state.SigSet sigSet = com.hedera.hapi.platform.state.SigSet.PROTOBUF.parseStrict(
+                in);
         in.limit(limitBefore);
 
         final List<NodeIdSignaturePair> nodeIdSignaturePairs = sigSet.nodeIdSignaturePairs();
