@@ -3,8 +3,8 @@ package org.hiero.consensus.pces.impl.copy;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
+import static org.hiero.base.file.FileUtils.executeAndRename;
 
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -75,11 +75,10 @@ public final class BestEffortPcesFileCopy {
         while (triesRemaining > 0) {
             triesRemaining--;
             try {
-                FileUtils.executeAndRename(
-                        fileSystemManager,
+                executeAndRename(
                         pcesDestination,
-                        temporaryDirectory -> copyPcesFiles(configuration, selfId, temporaryDirectory, lowerBound),
-                        configuration);
+                        fileSystemManager.resolveNewTemp(),
+                        temporaryDirectory -> copyPcesFiles(configuration, selfId, temporaryDirectory, lowerBound));
 
                 return;
             } catch (final IOException | UncheckedIOException e) {

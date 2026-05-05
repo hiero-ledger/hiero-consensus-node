@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSettingsUsed;
@@ -9,6 +8,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_R
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.executeAndRename;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
 
@@ -384,11 +384,10 @@ public final class SignedStateFileWriter {
                     savedStateDirectory);
 
             executeAndRename(
-                    platformContext.getFileSystemManager(),
                     savedStateDirectory,
+                    platformContext.getFileSystemManager().resolveNewTemp(),
                     directory -> writeSignedStateFilesToDirectory(
-                            platformContext, selfId, directory, reservedSignedState, stateLifecycleManager),
-                    platformContext.getConfiguration());
+                            platformContext, selfId, directory, reservedSignedState, stateLifecycleManager));
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
                             signedState.getRound(),
