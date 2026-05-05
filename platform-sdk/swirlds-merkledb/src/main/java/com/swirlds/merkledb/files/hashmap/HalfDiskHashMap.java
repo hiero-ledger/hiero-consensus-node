@@ -535,13 +535,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     size,
                     oneTransactionsData.stream().mapToLong(List::size).sum());
         }
-        final long start = System.currentTimeMillis();
         final DataFileReader dataFileReader;
         try {
             if (size > 0) {
                 fileCollection.startWriting();
-                final ForkJoinPool pool = getFlushingPool(config);
                 exceptionOccurred.set(null);
+                final ForkJoinPool pool = getFlushingPool(config);
                 final AbstractTask notifyTask = new NotifyTask(pool, size);
                 final SubmitBucketTask submitTask = new SubmitBucketTask(pool, notifyTask);
                 submitTask.send();
@@ -568,11 +567,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             writingThread = null;
             oneTransactionsData = null;
         }
-        final long end = System.currentTimeMillis();
-        logger.info(MERKLE_DB.getMarker(), "endWriting took {} ms", end - start);
         return dataFileReader;
     }
 
+    /**
+     * A simple task to submit individual tasks to load, update, and store buckets
+     * according to oneTransactionData. This task doesn't have any dependencies.
+     */
     private class SubmitBucketTask extends AbstractTask {
 
         private final AbstractTask notifyTask;
@@ -600,12 +601,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         }
     }
 
+    /**
+     * A task to load a bucket, apply all given updates (bucket mutations), and then
+     * store the updated bucket to the file collection. After the task is complete,
+     * it notifies the given notifyTask using send().
+     */
     private class BucketTask extends AbstractTask {
 
+        /// Bucket index
         private final int bucketIndex;
 
+        /// Bucket mutations to apply to the bucket
         private final List<BucketMutation> keyUpdates;
 
+        /// A task to notify, when bucket processing is complete
         private final AbstractTask notifyTask;
 
         BucketTask(
@@ -683,11 +692,17 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
         @Override
         protected void onException(final Throwable t) {
-            logger.error(MERKLE_DB.getMarker(), "Failed to write bucket " + bucketIndex, t);
+            logger.error(MERKLE_DB.getMarker(), "Failed to process bucket " + bucketIndex, t);
             notifyTask.completeExceptionally(t);
         }
     }
 
+    /**
+     * A no-op task, which is used in {@link #endWriting()} to wait till all buckets
+     * are processed. The task is created right in {@link #endWriting()}, but not started.
+     * All individual bucket tasks notify this task, so when all buckets are processed,
+     * this task is run, and {@link #endWriting()} is unblocked.
+     */
     private class NotifyTask extends AbstractTask {
 
         NotifyTask(final ForkJoinPool pool, final int bucketCount) {
