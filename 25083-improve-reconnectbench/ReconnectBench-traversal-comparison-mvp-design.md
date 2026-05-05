@@ -201,7 +201,35 @@ The bandwidth-delay-product calculation is:
 125,000 bytes ~= 122 KiB, rounded to 128 KiB
 ```
 
-These values are MVP defaults, not calibrated production truth. Users should be able to sweep them when needed.
+These values are MVP defaults, not calibrated production truth. They are best understood as a constrained-window
+baseline, not as a universal data-center or mainnet profile.
+
+Calibration on a `50M` saved state showed that the `128 KiB` in-flight cap can strongly affect traversal ordering.
+With the same latency and bandwidth but a `16 MiB` in-flight cap, `pullTopToBottom` moved much closer to loopback time.
+This means `networkInflightBytesLimit` is not just a harmless implementation detail. It models the amount of data the
+sender can keep outstanding across network and buffering layers, and must be swept when the benchmark is used to reason
+about real deployments.
+
+For production-like studies, choose parameters from measured deployment data:
+
+- one-way latency should be derived from measured RTT between the candidate teacher and learner;
+- bandwidth should come from sustained throughput measurements, not nominal NIC speed alone;
+- in-flight bytes should be at least the bandwidth-delay product for that path unless intentionally modeling a
+  constrained receive/window/buffering scenario.
+
+Example bandwidth-delay-product guide:
+
+```text
+1 Gbps, 1ms RTT    ~= 125 KiB
+1 Gbps, 50ms RTT   ~= 6.25 MiB
+1 Gbps, 100ms RTT  ~= 12.5 MiB
+1 Gbps, 200ms RTT  ~= 25 MiB
+10 Gbps, 100ms RTT ~= 125 MiB
+```
+
+Increasing latency without increasing the in-flight cap may model a small-window bottleneck more than a real
+well-tuned WAN link. Conversely, using a large in-flight cap with a small latency mostly isolates traversal and storage
+behavior from backpressure.
 
 ### Why This Model Is Enough For The MVP
 
@@ -230,7 +258,10 @@ Validation must include overhead sanity checks:
 
 - A `LOOPBACK` reconnect should be in the same broad runtime range as the current zero-delay benchmark. If the in-memory simulator is dramatically slower than the old loopback-socket path, fix the simulator before trusting traversal comparisons.
 - In `REALISTIC`, changing bandwidth or latency should move wall time in the expected direction. Lower bandwidth or higher latency should not make the same run faster except within measurement noise.
-- Existing traversal expectations should hold. `PULL_TOP_TO_BOTTOM` is the current fastest traversal mode; `PULL_TWO_PHASE_PESSIMISTIC` and `PULL_PARALLEL_SYNC` are legacy modes and should be slower under comparable state and network settings. If a benchmark run reports the opposite, treat it as a signal to inspect the benchmark setup, simulator overhead, and logs before drawing product conclusions.
+- Existing traversal expectations are network-shape dependent. `pullTopToBottom` may transfer less total work and win
+  in low-latency/high-window environments, but `pullParallelSync` can win under constrained-window or higher
+  round-trip-sensitive profiles because it keeps more requests in flight. If a benchmark run reports an unexpected
+  ordering, inspect the benchmark setup, simulator overhead, wait counters, and logs before drawing product conclusions.
 - Compare traversal modes only within the same benchmark implementation, network profile, state, JVM settings, and machine class. The MVP is a relative comparison tool, not an absolute production-time predictor.
 
 ## Reconnect Stats And Diagnostics
@@ -446,3 +477,101 @@ Notes:
   small-state sanity result only; use larger states and repeated runs before drawing conclusions.
 - The benchmark now clearly logs whether state is generated or restored, the traversal mode, resolved network profile,
   reconnect stats, and network byte counters.
+
+### 2026-05-05
+
+The `10000` record calibration was too small to evaluate traversal ordering. A `500K` state was the first useful sanity
+size, using `numFiles=50`, `numRecords=10000`, `networkProfile=REALISTIC`, `500us` one-way latency, `1 Gbps`, and
+`128 KiB` in-flight limit.
+
+Results on the same saved state:
+
+- `pullTopToBottom`: `7.262 s/op`.
+- `pullTwoPhasePessimistic`: `7.247 s/op`.
+- `pullTopToBottom` repeat: `7.462 s/op`.
+
+The wall times were effectively tied, but the stats showed `pullTopToBottom` doing less work:
+
+- `pullTopToBottom`: `371215` teacher/learner transfers; teacher-to-learner `12196096` bytes; learner-to-teacher
+  `23386553` bytes.
+- `pullTwoPhasePessimistic`: `447747` teacher/learner transfers; teacher-to-learner `13400260` bytes;
+  learner-to-teacher `28208069` bytes.
+
+Verification was then disabled for larger timed runs because result verification consumed several seconds of the `500K`
+run and would distort traversal timing.
+
+The next useful calibration state was `50M`, generated with `numFiles=5000`, `numRecords=10000`, `keySize=32`,
+`recordSize=128`, `benchmark.verifyResult=false`, and `-Xms24g -Xmx24g -XX:+AlwaysPreTouch`. The saved state was reused
+from `platform-sdk/swirlds-benchmarks/data/ReconnectBench`.
+
+Baseline `REALISTIC` results with `500us` one-way latency, `1 Gbps`, and `128 KiB` in-flight:
+
+- `pullTopToBottom`: first run `209.591 s/op`; repeated measured iterations mean `199.220 s/op`.
+- `pullParallelSync`: first run `137.628 s/op`; repeated measured iterations mean `148.145 s/op`.
+- `pullTwoPhasePessimistic`: `320.868 s/op`.
+
+The result was initially surprising because `pullTopToBottom` was expected to win. However, stats showed that
+`pullTopToBottom` and `pullParallelSync` transferred nearly the same bytes:
+
+- `pullTopToBottom`: teacher-to-learner about `1.175 GB`; learner-to-teacher about `2.176 GB`.
+- `pullParallelSync`: teacher-to-learner about `1.166 GB`; learner-to-teacher about `2.164 GB`.
+
+This ruled out "parallel sent far less data" as the explanation.
+
+Loopback isolation on the same saved state:
+
+- `pullTopToBottom`: `174.125 s/op`.
+- `pullParallelSync`: `167.323 s/op`.
+
+The large `REALISTIC` gap mostly collapsed under `LOOPBACK`. This suggested that the network shape, not basic benchmark
+wiring, was driving most of the unexpected ordering.
+
+Temporary wait diagnostics were added to `SimulatedNetworkStats` during investigation. With baseline `REALISTIC`:
+
+- `pullTopToBottom`: `192.481 s/op`; cumulative empty-read wait was about `212.6s` across both directions.
+- `pullParallelSync`: `144.576 s/op`; cumulative empty-read wait was about `107.1s` across both directions.
+
+These wait numbers overlap across threads and directions and should not be added to wall-clock time. The useful signal is
+the ratio: `pullTopToBottom` spends much more time waiting for peer responses. This matches the traversal algorithms:
+top-to-bottom waits for parent responses before sending some descendants, while parallel sync keeps more chunks in
+flight pessimistically.
+
+Sensitivity checks:
+
+```text
+Profile                                         pullTopToBottom   pullParallelSync
+REALISTIC, 500us one-way, 128 KiB in-flight      192.481 s/op      144.576 s/op
+REALISTIC, 500us one-way, 16 MiB in-flight       171.917 s/op      152.291 s/op
+REALISTIC, 0us one-way, 128 KiB in-flight        180.798 s/op      145.142 s/op
+LOOPBACK                                         174.125 s/op      167.323 s/op
+```
+
+Interpretation:
+
+- The `128 KiB` in-flight cap is a major part of the `pullTopToBottom` slowdown. Raising the cap to `16 MiB` moved
+  `pullTopToBottom` close to loopback.
+- Removing the `500us` latency helped `pullTopToBottom`, but less than increasing the in-flight cap.
+- `pullParallelSync` remained faster under the baseline and zero-latency constrained-window profiles because it keeps
+  the reconnect pipeline fuller.
+- `pullTopToBottom` may still win in real low-latency/high-window data-center deployments because it transfers less
+  work and is less redundant. A local Latitude-style deployment can have private or provider-local networking that is
+  not equivalent to the benchmark's default constrained `128 KiB` window. Latitude documents both global locations and
+  different private-network sharing behavior by location, so a "Latitude network" is not one uniform latency/window
+  profile. See <https://www.latitude.sh/docs/regions-locations> and <https://www.latitude.sh/locations>.
+- Hedera mainnet-style comparisons should not use the same assumptions as a single data-center run. Mainnet consensus
+  nodes are distributed across operators and endpoints, and current node addresses should be taken from the live address
+  book or Hashscan as described by Hedera docs: <https://docs.hedera.com/hedera/networks/mainnet/mainnet-nodes>.
+  Cross-continent links have much larger bandwidth-delay products: at `1 Gbps`, `100ms` RTT implies about `12.5 MiB`
+  in flight, and `200ms` RTT implies about `25 MiB`. A `128 KiB` cap on those paths would model a severe window
+  bottleneck, not a well-tuned WAN link.
+
+Follow-up calibration guidance:
+
+- Treat `128 KiB` as a constrained-window profile.
+- Treat `16 MiB` as a better first serious WAN/data-center comparison profile for `1 Gbps` links with tens to low
+  hundreds of milliseconds RTT.
+- For cross-continent or faster-than-1Gbps studies, sweep `networkInflightBytesLimit` with bandwidth-delay-product
+  values instead of guessing one number.
+- Keep `LOOPBACK` as the storage/traversal baseline.
+- If the temporary wait counters are useful, convert them into optional permanent diagnostics; otherwise remove them
+  before finalizing the implementation.
