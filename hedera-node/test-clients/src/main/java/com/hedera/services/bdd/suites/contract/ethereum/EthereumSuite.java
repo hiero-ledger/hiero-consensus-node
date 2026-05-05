@@ -1360,7 +1360,7 @@ public class EthereumSuite {
     // {0..26} ∪ {29..34} — used to leave chainId() as null, which could NPE downstream.
     // After the fix, those values should lead to invalid chainId as opposed to NPE.
     @HapiTest
-    final Stream<DynamicTest> legacyEtxWithNonStandardVResultsInInvalidChainNotNpe() {
+    final Stream<DynamicTest> legacyEthTxDataWithNonStandardVResultsInInvalidChainNotNpe() {
         final byte[] nonce = Integers.toBytes(1);
         final byte[] gasPrice = new byte[] {0x2f};
         final byte[] gasLimit = Integers.toBytes(GAS_LIMIT);

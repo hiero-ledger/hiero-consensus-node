@@ -29,8 +29,8 @@ import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EthTxDataTest {
     private static final BigInteger N = SECNamedCurves.getByName("secp256k1").getN();
@@ -767,22 +767,15 @@ class EthTxDataTest {
         assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
     }
 
-    @ParameterizedTest(name = "v={0} → chainId byte = {1}")
-    @CsvSource({
-        // (v - 35) >> 1 then asUnsignedByteArray. Negative results are encoded as a single
-        // two's-complement byte, hence the [0xEE..0xFF] range.
-        " 0, 238", //  -18 → 0xEE
-        " 1, 239", //  -17 → 0xEF
-        "26, 251", //   -5 → 0xFB
-        "29, 253", //   -3 → 0xFD
-        "34, 255" //   -1 → 0xFF
-    })
+    @ParameterizedTest(name = "v={0}")
+    @ValueSource(ints = {0, 1, 26, 29, 34})
     // Legacy `v` byte values that are neither EIP-155 protected (v >= 35, derived from
     // v = chainId*2 + 35|36) nor pre-EIP-155 unprotected (v == 27 or 28) — i.e. v in
     // {0..26} ∪ {29..34} — used to leave chainId() as null, which could NPE downstream.
-    // After the fix the formula is applied unconditionally, so chainId is always non-null;
-    // for these non-standard v values it is a phantom value that won't match any real network.
-    void testChainIdCanNotBeNullForLegacyV(final int vInt, final int expectedChainByte) {
+    // After the fix populateEthTxData derives a phantom chainId that doesn't match any
+    // real Hedera network, so matchesChainId returns false and HevmTransactionFactory
+    // rejects with WRONG_CHAIN_ID instead of NPE'ing.
+    void testChainIdCanNotBeNullForLegacyV(final int vInt) {
         final byte[] nonce = Integers.toBytes(1);
         final byte[] gasPrice = new byte[] {0x2f};
         final byte[] gasLimit = Integers.toBytes(98_304L);
@@ -800,6 +793,37 @@ class EthTxDataTest {
         final var subject = EthTxData.populateEthTxData(rawTx);
         assertNotNull(subject);
         assertEquals(EthTxData.EthTransactionType.LEGACY_ETHEREUM, subject.type());
-        assertArrayEquals(new byte[] {(byte) expectedChainByte}, subject.chainId());
+        // Per HIP-26: 295 mainnet, 296 testnet, 297 previewnet.
+        // Whatever phantom chainId was derived, it must not match any Hedera network.
+        for (final long hederaChainId : new long[] {295L, 296L, 297L}) {
+            assertFalse(
+                    subject.matchesChainId(Integers.toBytes(hederaChainId)),
+                    "phantom chainId unexpectedly matched Hedera chainId " + hederaChainId);
+        }
+    }
+
+    @Test
+    // The compact constructor enforces the parser invariant: chainId must never be null.
+    void constructorRejectsNullChainId() {
+        assertThrows(
+                NullPointerException.class,
+                () -> new EthTxData(
+                        null,
+                        EthTransactionType.LEGACY_ETHEREUM,
+                        null, // chainId must not be null
+                        1L,
+                        new byte[0],
+                        null,
+                        null,
+                        1L,
+                        new byte[0],
+                        BigInteger.ZERO,
+                        new byte[0],
+                        null,
+                        null,
+                        0,
+                        new byte[0],
+                        new byte[0],
+                        new byte[0]));
     }
 }
