@@ -19,7 +19,6 @@ import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -40,7 +39,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 MerkleDbConfig.class,
                 ModulesConfig.class,
                 OSHealthCheckConfig.class,
-                PathsConfig.class,
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
