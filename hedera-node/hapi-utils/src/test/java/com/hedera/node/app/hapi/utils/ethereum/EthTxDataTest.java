@@ -777,7 +777,7 @@ class EthTxDataTest {
         final byte[] to = Hex.decode("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
         final byte[] value = new byte[0];
         final byte[] callData = new byte[] {0x76, 0x53};
-        // v = 1 → not in {27, 28} and not > 34, so chainId stays null
+        // v = 1 → not in {27, 28} and not >= 35
         final byte[] v = new byte[] {0x01};
         final byte[] r = Hex.decode("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
         final byte[] s = Hex.decode("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
@@ -788,7 +788,7 @@ class EthTxDataTest {
         final var subject = EthTxData.populateEthTxData(rawTx);
         assertNotNull(subject);
         assertEquals(EthTxData.EthTransactionType.LEGACY_ETHEREUM, subject.type());
-        assertNotNull(subject.chainId());
-
+        // (v - 35) >> 1 = -17 → asUnsignedByteArray → [0xEF] (= 239 unsigned)
+        assertArrayEquals(new byte[] {(byte) 0xEF}, subject.chainId());
     }
 }
