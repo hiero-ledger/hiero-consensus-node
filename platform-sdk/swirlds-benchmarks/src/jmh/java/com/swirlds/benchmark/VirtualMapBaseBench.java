@@ -7,7 +7,6 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutorService;
@@ -22,16 +21,13 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 public abstract class VirtualMapBaseBench extends BaseBench {
 
-    protected static final Logger logger = LogManager.getLogger(VirtualMapBench.class);
+    protected static final Logger logger = LogManager.getLogger(VirtualMapBaseBench.class);
 
     protected static final String SAVED = "saved";
     protected static final String SNAPSHOT = "snapshot";
     protected static final long SNAPSHOT_DELAY = 20_000;
 
     protected MerkleDbDataSourceBuilder dataSourceBuilder;
-
-    /* This map may be pre-created on demand and reused between benchmarks/iterations */
-    protected VirtualMap virtualMapP;
 
     /* Run snapshots periodically */
     private boolean doSnapshots;
@@ -44,17 +40,6 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                     .setThreadName("hasher")
                     .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during hashing", ex))
                     .buildFactory());
-
-    protected void releaseAndCloseMap(final VirtualMap map) {
-        if (map != null) {
-            map.release();
-            try {
-                map.getDataSource().close();
-            } catch (IOException ex) {
-                throw new UncheckedIOException(ex);
-            }
-        }
-    }
 
     /**
      * {@inheritDoc}
@@ -72,8 +57,6 @@ public abstract class VirtualMapBaseBench extends BaseBench {
      */
     @Override
     protected void onTrialTearDown() throws Exception {
-        releaseAndCloseMap(virtualMapP);
-        virtualMapP = null;
         hasher.shutdown();
 
         super.onTrialTearDown();
@@ -198,10 +181,6 @@ public abstract class VirtualMapBaseBench extends BaseBench {
     }
 
     protected void verifyMap(long[] map, VirtualMap virtualMap) {
-        if (!verify) {
-            return;
-        }
-
         long start = System.currentTimeMillis();
         final AtomicInteger index = new AtomicInteger(0);
         final AtomicInteger countGood = new AtomicInteger(0);

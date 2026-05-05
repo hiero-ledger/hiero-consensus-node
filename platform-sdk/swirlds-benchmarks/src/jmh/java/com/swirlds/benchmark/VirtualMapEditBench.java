@@ -3,14 +3,13 @@ package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
+import static org.awaitility.Awaitility.await;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.benchmark.reconnect.StateBuilder;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.VirtualMap;
+import java.time.Duration;
 import java.util.ArrayDeque;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.IntStream;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -27,26 +26,60 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @State(Scope.Thread)
 @Warmup(iterations = 1)
 @Measurement(iterations = 5)
-public class VirtualMapBench extends VirtualMapBaseBench {
+public class VirtualMapEditBench extends VirtualMapBaseBench {
+
+    /** The mutable map used by write-based benchmarks. */
+    protected VirtualMap virtualMap;
+
+    /** Verification array for write-based benchmarks, or null when verify is false. */
+    protected long[] verificationMap;
 
     @Override
     String benchmarkName() {
-        return "VirtualMapBench";
+        return "VirtualMapEditBench";
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onInvocationSetup() {
+        super.onInvocationSetup();
+
+        verificationMap = verify ? new long[maxKey] : new long[0];
+        virtualMap = createMap(verificationMap);
+
+        if (getBenchmarkConfig().enableSnapshots()) {
+            enableSnapshots();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void onInvocationTearDown() throws Exception {
+        if (virtualMap != null) {
+            final VirtualMap finalMap = flushAndOptionallySaveMap(virtualMap);
+            if (verify) {
+                verifyMap(verificationMap, finalMap);
+            }
+            finalMap.release();
+            virtualMap = null;
+        }
+        verificationMap = null;
+
+        await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
+
+        super.onInvocationTearDown();
     }
 
     /**
      * [Read-update or create-write] cycle. Single-threaded.
      */
     @Benchmark
-    public void update() throws Exception {
+    public void update() {
         logger.info(RUN_DELIMITER);
-
-        final long[] map = new long[verify ? maxKey : 0];
-        VirtualMap virtualMap = createMap(map);
-
-        if (getBenchmarkConfig().enableSnapshots()) {
-            enableSnapshots();
-        }
 
         // Update values
         long start = System.currentTimeMillis();
@@ -60,16 +93,16 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 if (value != null) {
                     if ((val & 0xff) == 0) {
                         virtualMap.remove(key);
-                        if (verify) map[(int) id] = 0L;
+                        if (verify) verificationMap[(int) id] = 0L;
                     } else {
                         value = value.copyBuilder().update(l -> l + val).build();
                         virtualMap.put(key, value, BenchmarkValueCodec.INSTANCE);
-                        if (verify) map[(int) id] += val;
+                        if (verify) verificationMap[(int) id] += val;
                     }
                 } else {
                     value = new BenchmarkValue(val);
                     virtualMap.put(key, value, BenchmarkValueCodec.INSTANCE);
-                    if (verify) map[(int) id] = val;
+                    if (verify) verificationMap[(int) id] = val;
                 }
             }
 
@@ -77,25 +110,14 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         }
 
         logger.info("Updated {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
-
-        // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushAndOptionallySaveMap(virtualMap);
-
-        verifyMap(map, finalMap);
-
-        finalMap.release();
-        finalMap.getDataSource().close();
     }
 
     /**
      * [Create-write or replace] cycle. Single-threaded.
      */
     @Benchmark
-    public void create() throws Exception {
+    public void create() {
         logger.info(RUN_DELIMITER);
-
-        final long[] map = new long[verify ? maxKey : 0];
-        VirtualMap virtualMap = createMap(map);
 
         // Write files
         long start = System.currentTimeMillis();
@@ -107,7 +129,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 final BenchmarkValue value = new BenchmarkValue(val);
                 virtualMap.put(key, value, BenchmarkValueCodec.INSTANCE);
                 if (verify) {
-                    map[(int) id] = val;
+                    verificationMap[(int) id] = val;
                 }
             }
 
@@ -115,33 +137,18 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         }
 
         logger.info("Created {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
-
-        // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushAndOptionallySaveMap(virtualMap);
-
-        verifyMap(map, finalMap);
-
-        finalMap.release();
-        finalMap.getDataSource().close();
     }
 
     /**
      * [Read-update or create-write][Remove expired] cycle. Single-threaded.
      */
     @Benchmark
-    public void delete() throws Exception {
+    public void delete() {
         logger.info(RUN_DELIMITER);
-
-        final long[] map = new long[verify ? maxKey : 0];
-        VirtualMap virtualMap = createMap(map);
 
         final int EXPIRY_DELAY = 180_000;
         record Expirable(long time, long id) {}
         final ArrayDeque<Expirable> expirables = new ArrayDeque<>();
-
-        if (getBenchmarkConfig().enableSnapshots()) {
-            enableSnapshots();
-        }
 
         long start = System.currentTimeMillis();
         for (int i = 0; i < numFiles; i++) {
@@ -154,11 +161,11 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                 if (value != null) {
                     value = value.copyBuilder().update(l -> l + val).build();
                     virtualMap.put(key, value, BenchmarkValueCodec.INSTANCE);
-                    if (verify) map[(int) id] += val;
+                    if (verify) verificationMap[(int) id] += val;
                 } else {
                     value = new BenchmarkValue(val);
                     virtualMap.put(key, value, BenchmarkValueCodec.INSTANCE);
-                    if (verify) map[(int) id] = val;
+                    if (verify) verificationMap[(int) id] = val;
                 }
                 expirables.addLast(new Expirable(System.currentTimeMillis() + EXPIRY_DELAY, id));
             }
@@ -171,7 +178,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
                     break;
                 }
                 virtualMap.remove(longToKey(entry.id));
-                if (verify) map[(int) entry.id] = 0L;
+                if (verify) verificationMap[(int) entry.id] = 0L;
                 expirables.removeFirst();
             }
             logger.info("Copy {} done, map size {}", i, virtualMap.size());
@@ -180,66 +187,11 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         }
 
         logger.info("Updated {} copies in {} ms", numFiles, System.currentTimeMillis() - start);
-
-        // Ensure the map is done with hashing/merging/flushing
-        final var finalMap = flushAndOptionallySaveMap(virtualMap);
-
-        verifyMap(map, finalMap);
-
-        finalMap.release();
-        finalMap.getDataSource().close();
-    }
-
-    /**
-     * Read from a pre-created map. Parallel.
-     */
-    @Benchmark
-    public void read() {
-        logger.info(RUN_DELIMITER);
-
-        if (virtualMapP == null) {
-            virtualMapP = createEmptyMap();
-            final AtomicReference<VirtualMap> mapRef = new AtomicReference<>(virtualMapP);
-            final long recordsPerCopy = maxKey / numFiles;
-
-            final long start = System.currentTimeMillis();
-            new StateBuilder(BenchmarkKeyUtils::longToKey, i -> new BenchmarkValue(nextValue()))
-                    .populateState(
-                            0,
-                            maxKey,
-                            i -> {
-                                if (i > 0 && i % recordsPerCopy == 0) {
-                                    mapRef.set(virtualMapP = copyMap(virtualMapP));
-                                }
-                            },
-                            StateBuilder.buildVMPopulator(mapRef));
-            logger.info("Pre-created {} records in {} ms", maxKey, System.currentTimeMillis() - start);
-
-            virtualMapP = flushAndOptionallySaveMap(virtualMapP);
-        }
-
-        final long start = System.currentTimeMillis();
-        final AtomicLong total = new AtomicLong(0);
-        IntStream.range(0, numThreads).parallel().forEach(thread -> {
-            long sum = 0;
-            for (int i = 0; i < numRecords; ++i) {
-                final long id = Utils.randomLong(maxKey);
-                final BenchmarkValue value = virtualMapP.get(longToKey(id), BenchmarkValueCodec.INSTANCE);
-                sum += value.hashCode();
-            }
-            total.addAndGet(sum);
-        });
-
-        logger.info(
-                "Read {} records from {} threads in {} ms",
-                (long) numRecords * numThreads,
-                numThreads,
-                System.currentTimeMillis() - start);
     }
 
     static void main() throws Exception {
         new Runner(new OptionsBuilder()
-                        .include(VirtualMapBench.class.getSimpleName())
+                        .include(VirtualMapEditBench.class.getSimpleName())
                         .jvmArgs("-Xmx16g")
                         .build())
                 .run();

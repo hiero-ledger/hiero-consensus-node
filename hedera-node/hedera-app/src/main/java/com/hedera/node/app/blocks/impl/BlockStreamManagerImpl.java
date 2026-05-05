@@ -19,6 +19,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
@@ -37,6 +38,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -52,6 +54,7 @@ import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordInfoUtils;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -146,6 +149,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>();
     // The last non-empty (i.e., not skipped) round number that will eventually get a start-of-state hash
     private Bytes lastBlockHash;
+    // Cutover only: carries over the final original record hash until `startBlock()` is called for the first time. This
+    // should always be null except during cutover's gap between `init()` and the first call to `startBlock()`
+    private Bytes cutoverTrailingBlockHash;
     private long lastRoundOfPrevBlock;
     // A block's starting timestamp is defined as the consensus timestamp of the round's first transaction
     private Timestamp blockTimestamp;
@@ -249,9 +255,47 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @Override
     public void init(@NonNull final State state, @Nullable final Bytes lastBlockHash) {
         final Bytes effectiveLastBlockHash;
-        if (lastBlockHash != null) {
+        boolean previousBlockHashesUpdated = false;
+
+        // Cutover case
+        if (loadCutoverData(
+                configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockStreamConfig.class)
+                        .enableCutover(),
+                state)) {
+            log.info("Preview block stream overwrite executed; loading block stream info from cutover data");
+
+            // Initialize with the real cutover data. Note BlockHashManager.startBlock() will append prevBlockHash to
+            // trailingBlockHashes, so include all hashes <b>except the final record hash</b> to avoid an off-by-one
+            // error
+            final var lastBlockInfoEver = state.getReadableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                    .get();
+            final var fullBlockHashes = lastBlockInfoEver.blockHashes().toByteArray();
+            if (fullBlockHashes.length < HASH_SIZE) {
+                throw new IllegalStateException(
+                        "Cutover requires at least one record block hash in BlockInfo.blockHashes, but found "
+                                + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
+            }
+            final List<Bytes> wrappedPrevRecordBlockRootHashes =
+                    lastBlockInfoEver.wrappedIntermediatePreviousBlockRootHashes();
+            effectiveLastBlockHash = lastBlockInfoEver.previousWrappedRecordBlockRootHash();
+
+            // Update in-memory vars
+            this.cutoverTrailingBlockHash = Bytes.wrap(fullBlockHashes, fullBlockHashes.length - HASH_SIZE, HASH_SIZE);
+            this.previousBlockHashes = new IncrementalStreamingHasher(
+                    sha384DigestOrThrow(),
+                    wrappedPrevRecordBlockRootHashes.stream()
+                            .map(Bytes::toByteArray)
+                            .toList(),
+                    lastBlockInfoEver.wrappedIntermediateBlockRootsLeafCount());
+            this.previousBlockHashes.addNodeByHash(
+                    lastBlockInfoEver.previousWrappedRecordBlockRootHash().toByteArray());
+            previousBlockHashesUpdated = true;
+        } else if (Objects.equals(HASH_OF_ZERO, lastBlockHash)) {
+            // Genesis case
             effectiveLastBlockHash = lastBlockHash;
-            // (FUTURE) Adjust for non-genesis case of block stream cutover
             this.previousBlockHashes =
                     new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), new ArrayList<>(), 0);
         } else {
@@ -321,7 +365,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockRootHash();
         }
         this.lastBlockHash = effectiveLastBlockHash;
-        if (!Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
+        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
     }
@@ -349,7 +393,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
-            blockHashManager.startBlock(blockStreamInfo, lastBlockHash);
+            // During cutover, the trailing block hashes use the original record hash
+            // (not the wrapped record root hash stored in lastBlockHash).
+            final var trailingHash = cutoverTrailingBlockHash != null ? cutoverTrailingBlockHash : lastBlockHash;
+            cutoverTrailingBlockHash = null;
+            blockHashManager.startBlock(blockStreamInfo, trailingHash);
             runningHashManager.startBlock(blockStreamInfo);
 
             lifecycle.onOpenBlock(state);
@@ -550,6 +598,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
             final var prevBlockRootsHash = Bytes.wrap(previousBlockHashes.computeRootHash());
+
             final var rootAndSiblingHashes = combine(
                     lastBlockHash,
                     prevBlockRootsHash,
@@ -1308,5 +1357,51 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private static int maxReadBytesSize(@NonNull final Configuration config) {
         requireNonNull(config);
         return config.getConfigData(BlockStreamConfig.class).maxReadBytesSize();
+    }
+
+    /**
+     * Returns true iff the following conditions are met:
+     * <ul>
+     *     <li>The {@code enableCutover} flag is set to true</li>
+     *     <li>The preview {@code BlockStreamInfo} object has been overwritten with the real wrapped record
+     *     block hash (i.e. cutover) data from {@code BlockInfo}</li>
+     *     <li>{@code BlockInfo.previewStreamOverwritten} has been marked as true</li>
+     *     <li>No post-cutover blocks have been produced yet (i.e. {@code BlockStreamInfo.blockNumber}
+     *     is still equal to {@code BlockInfo.lastBlockNumber} following the schema overwrite)</li>
+     * </ul>
+     *
+     * If any of these conditions are not met this method returns false, indicating that cutover logic
+     * should not be executed and the block stream manager should proceed with normal initialization. If
+     * all of these conditions are met this method returns true, signaling that the block stream manager
+     * should initialize with the cutover data from state.
+     */
+    private static boolean loadCutoverData(final boolean cutoverEnabled, final @NonNull State state) {
+        if (!cutoverEnabled) {
+            log.info("Cutover not enabled, skipping cutover init logic");
+            return false;
+        }
+        final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
+                .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                .get();
+        if (blockInfo == null || !blockInfo.previewStreamOverwritten()) {
+            // This case also applies _after_ cutover, since future restarts shouldn't ever overwrite a preview block
+            // stream
+            log.info(
+                    "Preview block stream info not overwritten, skipping cutover init logic (previewStreamOverwritten={})",
+                    blockInfo != null ? false : "null");
+            return false;
+        }
+
+        final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
+                .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
+                .get();
+        if (blockStreamInfo == null || blockStreamInfo.blockNumber() != blockInfo.lastBlockNumber()) {
+            log.info(
+                    "Block streams cutover data already superseded (bsi#{} vs bi#{}), using normal init path",
+                    blockStreamInfo != null ? blockStreamInfo.blockNumber() : "null",
+                    blockInfo.lastBlockNumber());
+            return false;
+        }
+        return true;
     }
 }
