@@ -1,0 +1,15 @@
+ROUND:                               5370988480503572868
+HASH:                                1926222fa4c323843c9ed9d3d4e89c676704f148b01b00c1f5910a2ff25c6726b72a5a555d5e5b7dce140725ac2b1854
+HASH_MNEMONIC:                       cave-echo-guilt-identify
+NUMBER_OF_CONSENSUS_EVENTS:          5370988480503572868
+CONSENSUS_TIMESTAMP:                 1980-06-01T02:10:56.953Z
+LEGACY_RUNNING_EVENT_HASH:           991e02736e24ee5eb642c5cf350fb04934cd6474135a38540d51a9ee1f8d192db3880b0d89506739a08fe6c2b7eb6d8a
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  sword-example-setup-crowd
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     0
+SOFTWARE_VERSION:                    SemanticVersion[major=13, minor=0, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-05-05T17:41:39.591308Z
+NODE_ID:                             1234
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        4000
+FREEZE_STATE:                        false

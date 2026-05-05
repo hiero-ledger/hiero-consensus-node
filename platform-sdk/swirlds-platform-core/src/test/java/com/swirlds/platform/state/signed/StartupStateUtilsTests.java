@@ -89,9 +89,9 @@ public class StartupStateUtilsTests {
     @BeforeEach
     void beforeEach() throws IOException {
         FileUtils.deleteDirectory(savedStateDir);
-        signedStateFilePath = new SignedStateFilePath(savedStateDir);
-        currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
         fileSystemManager = new TestFileSystemManager(fileSystemManagerTempDir);
+        signedStateFilePath = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, swirldName);
+        currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
     }
 
     @AfterEach
@@ -141,7 +141,7 @@ public class StartupStateUtilsTests {
         state.release();
 
         final Path savedStateDirectory =
-                signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
+                signedStateFilePath.getSignedStateDirectory(round);
         writeSignedStateToDisk(
                 platformContext,
                 selfId,
@@ -322,7 +322,7 @@ public class StartupStateUtilsTests {
         }
 
         final Path savedStateDirectory = signedStateFilePath
-                .getSignedStateDirectory(mainClassName, selfId, swirldName, latestRound)
+                .getSignedStateDirectory(latestRound)
                 .getParent();
         int filesCount;
         try (Stream<Path> list = Files.list(savedStateDirectory)) {

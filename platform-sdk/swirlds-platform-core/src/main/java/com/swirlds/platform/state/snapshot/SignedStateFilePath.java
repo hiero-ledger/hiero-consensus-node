@@ -18,6 +18,7 @@ import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -25,25 +26,26 @@ import org.hiero.consensus.model.node.NodeId;
  * Utility methods for determining the path of signed states on disk.
  */
 public class SignedStateFilePath {
-    private static final Logger logger = LogManager.getLogger(SignedStateFilePath.class);
-    private final Path savedStateDir;
+    private static final Logger logger = LogManager.getLogger();
+    private final FileSystemManager fileSystemManager;
+    private final String mainClassName;
+    private final NodeId selfId;
+    private final String swirldName;
+
 
     /**
      * Create a new instance of this class.
      *
-     * @param pathsConfig the configuration containing the path to the saved state directory
+     * @param fileSystemManager the file system manager to use for writing signed states and associated data
      */
-    public SignedStateFilePath(@NonNull final PathsConfig pathsConfig) {
-        this.savedStateDir = pathsConfig.savedStateDir();
-    }
-
-    /**
-     * Create a new instance of this class.
-     *
-     * @param savedStateDir the location of the saved state directory
-     */
-    public SignedStateFilePath(@NonNull final Path savedStateDir) {
-        this.savedStateDir = savedStateDir;
+    public SignedStateFilePath(@NonNull final FileSystemManager fileSystemManager,
+            @NonNull final String mainClassName,
+            @NonNull final NodeId selfId,
+            @NonNull final String swirldName) {
+        this.fileSystemManager = fileSystemManager;
+        this.mainClassName = mainClassName;
+        this.selfId = selfId;
+        this.swirldName = swirldName;
     }
 
     /**
@@ -62,7 +64,7 @@ public class SignedStateFilePath {
      * @return the base directory for all signed state files
      */
     public @NonNull Path getSignedStatesBaseDirectory() {
-        return getAbsolutePath(savedStateDir);
+        return fileSystemManager.resolve(Path.of("."));
     }
 
     /**
@@ -80,10 +82,9 @@ public class SignedStateFilePath {
      *       states are saved
      * </pre>
      *
-     * @param mainClassName the name of the app
      * @return the path of a directory, may not exist
      */
-    public @NonNull Path getSignedStatesDirectoryForApp(final String mainClassName) {
+    private @NonNull Path getSignedStatesDirectoryForApp() {
         return getSignedStatesBaseDirectory().resolve(mainClassName);
     }
 
@@ -102,12 +103,10 @@ public class SignedStateFilePath {
      *       states are saved
      * </pre>
      *
-     * @param mainClassName the name of the app
-     * @param selfId        the ID of this node
      * @return the path of a directory, may not exist
      */
-    public @NonNull Path getSignedStatesDirectoryForNode(final String mainClassName, final NodeId selfId) {
-        return getSignedStatesDirectoryForApp(mainClassName).resolve(selfId.toString());
+    private @NonNull Path getSignedStatesDirectoryForNode() {
+        return getSignedStatesDirectoryForApp().resolve(selfId.toString());
     }
 
     /**
@@ -125,15 +124,11 @@ public class SignedStateFilePath {
      *       states are saved
      * </pre>
      *
-     * @param mainClassName the name of the app
-     * @param selfId        the ID of this node
-     * @param swirldName    the name of the swirld
      * @return the path of a directory, may not exist
      */
-    public @NonNull Path getSignedStatesDirectoryForSwirld(
-            final String mainClassName, final NodeId selfId, final String swirldName) {
+    public @NonNull Path getSignedStatesDirectoryForSwirld() {
 
-        return getSignedStatesDirectoryForNode(mainClassName, selfId).resolve(swirldName);
+        return getSignedStatesDirectoryForNode().resolve(swirldName);
     }
 
     /**
@@ -152,38 +147,22 @@ public class SignedStateFilePath {
      *
      * </pre>
      *
-     * @param mainClassName the name of the app
-     * @param selfId        the ID of this node
-     * @param swirldName    the name of the swirld
      * @param round         the round number of the state
      * @return the path of the signed state for the particular round
      */
-    public @NonNull Path getSignedStateDirectory(
-            final String mainClassName, final NodeId selfId, final String swirldName, final long round) {
-        // FUTURE WORK: mainClass, selfId and swirldName never change during a run, so they should be constructor
-        // parameters
-        return getSignedStatesDirectoryForSwirld(mainClassName, selfId, swirldName)
-                .resolve(Long.toString(round));
+    public @NonNull Path getSignedStateDirectory(final long round) {
+        return getSignedStatesDirectoryForSwirld().resolve(Long.toString(round));
     }
 
     /**
      * Looks for saved state files locally and returns a list of them sorted from newest to oldest
      *
-     * @param mainClassName
-     * 		the name of the main app class
-     * @param platformId
-     * 		the ID of the platform
-     * @param swirldName
-     * 		the swirld name
      * @return Information about saved states on disk, or null if none are found
      */
     @SuppressWarnings("resource")
     @NonNull
-    public List<SavedStateInfo> getSavedStateFiles(
-            final String mainClassName, final NodeId platformId, final String swirldName) {
-
-        final Path dir = getSignedStatesDirectoryForSwirld(mainClassName, platformId, swirldName);
-
+    public List<SavedStateInfo> getSavedStateFiles() {
+        final Path dir = getSignedStatesDirectoryForSwirld();
         return getSavedStateFiles(dir);
     }
 

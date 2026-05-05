@@ -1,0 +1,15 @@
+ROUND:                               8265472282979023047
+HASH:                                e12a152795fc4b16f534beb65e41dcec04a30dc1ddf64ff2279cbbe34b79100a3df20a65cb537a9a44a572e4ef1255d7
+HASH_MNEMONIC:                       suspect-pilot-dog-glare
+NUMBER_OF_CONSENSUS_EVENTS:          8265472282979023047
+CONSENSUS_TIMESTAMP:                 2024-08-21T12:00:26.570Z
+LEGACY_RUNNING_EVENT_HASH:           48cca630f1851c3c612fd0f7f0f52b3b587a9b31448282c45ed128803bc70f8ee76261bbb39b1505f9c11742a50e99fd
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  book-deliver-sorry-maple
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     0
+SOFTWARE_VERSION:                    SemanticVersion[major=51, minor=0, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-05-05T17:40:25.709068Z
+NODE_ID:                             1234
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        4000
+FREEZE_STATE:                        false

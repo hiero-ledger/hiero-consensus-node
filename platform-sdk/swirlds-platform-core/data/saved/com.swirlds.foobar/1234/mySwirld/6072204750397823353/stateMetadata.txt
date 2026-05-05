@@ -1,0 +1,15 @@
+ROUND:                               6072204750397823353
+HASH:                                2bd95901f3ecfa718bd6f3d1b64fe894070d776d1f1b16d9d88be86da25d6fe7b9b6f13d61310eb46c3de89933ec96d2
+HASH_MNEMONIC:                       kite-cage-little-rapid
+NUMBER_OF_CONSENSUS_EVENTS:          6072204750397823353
+CONSENSUS_TIMESTAMP:                 1980-01-27T09:51:06.031Z
+LEGACY_RUNNING_EVENT_HASH:           123749dcefe170fadad3ca020b42caed8e01592bd41442d34fcc9787ca16deb49b238e66cd6fb4bdaf557bdc81b1bab0
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  eight-describe-advance-butter
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     0
+SOFTWARE_VERSION:                    SemanticVersion[major=25, minor=0, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-05-05T17:41:39.670603Z
+NODE_ID:                             1234
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        4000
+FREEZE_STATE:                        false

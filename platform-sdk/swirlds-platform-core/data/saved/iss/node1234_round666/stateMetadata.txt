@@ -1,0 +1,15 @@
+ROUND:                               666
+HASH:                                ee552956353d5744936b01822030431f14857fafb32f465f6c5ae0bd6d023e95a21bd0527514ee353805b9e877ffaeb1
+HASH_MNEMONIC:                       cube-client-police-trigger
+NUMBER_OF_CONSENSUS_EVENTS:          666
+CONSENSUS_TIMESTAMP:                 2016-12-07T22:23:17.394Z
+LEGACY_RUNNING_EVENT_HASH:           bc3b7acdda52258555a0dc24e465cf37b6d448f97f4763f7e9d9e454fddbd5f181f6d5f7caaf87181bc2d932c7b9f1b6
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  judge-fluid-remind-radar
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     0
+SOFTWARE_VERSION:                    SemanticVersion[major=62, minor=0, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-05-05T17:32:56.586561Z
+NODE_ID:                             1234
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        4000
+FREEZE_STATE:                        false

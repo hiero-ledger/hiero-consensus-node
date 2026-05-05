@@ -51,6 +51,7 @@ import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.CompareTo;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.config.PathsConfig_;
@@ -65,6 +66,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -77,7 +79,10 @@ class StateFileManagerTests {
     private PlatformContext context;
     private SignedStateFilePath signedStateFilePath;
 
-    Path testDirectory;
+    @TempDir
+    private Path tmpDir;
+    private Path testDirectory;
+    private FileSystemManager fileSystemManager;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     @BeforeAll
@@ -87,14 +92,15 @@ class StateFileManagerTests {
 
     @BeforeEach
     void beforeEach() {
-        final TestConfigBuilder configBuilder =
-                new TestConfigBuilder().withValue(PathsConfig_.TMP_DIR, "SignedStateFileReadWriteTest");
+//        final TestConfigBuilder configBuilder =
+//                new TestConfigBuilder().withValue(PathsConfig_.TMP_DIR, "SignedStateFileReadWriteTest");
+        testDirectory = tmpDir.resolve("SignedStateFileReadWriteTest");
+        fileSystemManager = new FileSystemManager(testDirectory);
         context = TestPlatformContextBuilder.create()
-                .withConfiguration(configBuilder.getOrCreateConfig())
+//                .withConfiguration(configBuilder.getOrCreateConfig())
+                .withFileSystemManager(fileSystemManager)
                 .build();
-        testDirectory = FileUtils.getAbsolutePath().resolve("SignedStateFileReadWriteTest");
-        signedStateFilePath =
-                new SignedStateFilePath(context.getConfiguration().getConfigData(PathsConfig.class));
+        signedStateFilePath = new SignedStateFilePath(fileSystemManager, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
                 context.getMetrics(), context.getTime(), context.getConfiguration(), context.getFileSystemManager());
     }
@@ -110,8 +116,7 @@ class StateFileManagerTests {
      */
     private void validateSavingOfState(final SignedState originalState) throws IOException, ParseException {
 
-        final Path stateDirectory = signedStateFilePath.getSignedStateDirectory(
-                MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, originalState.getRound());
+        final Path stateDirectory = signedStateFilePath.getSignedStateDirectory(originalState.getRound());
 
         validateSavingOfState(originalState, stateDirectory);
     }
@@ -155,8 +160,7 @@ class StateFileManagerTests {
 
         if (!successExpected) {
             // To make the save fail, create a file with the name of the directory the state will try to be saved to
-            final Path savedDir = signedStateFilePath.getSignedStateDirectory(
-                    MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, signedState.getRound());
+            final Path savedDir = signedStateFilePath.getSignedStateDirectory(signedState.getRound());
             Files.createDirectories(savedDir.getParent());
             Files.createFile(savedDir);
         }
@@ -279,8 +283,8 @@ class StateFileManagerTests {
                 validateSavingOfState(signedState);
 
                 final List<SavedStateInfo> currentStatesOnDisk = new SignedStateFilePath(
-                                context.getConfiguration().getConfigData(PathsConfig.class))
-                        .getSavedStateFiles(MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+                                fileSystemManager, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME)
+                        .getSavedStateFiles();
 
                 final SavedStateMetadata oldestMetadata =
                         currentStatesOnDisk.getLast().metadata();
@@ -339,9 +343,11 @@ class StateFileManagerTests {
                 .withValue(StateConfig_.SIGNED_STATE_DISK, statesOnDisk)
                 .withValue(
                         StateCommonConfig_.SAVED_STATE_DIRECTORY,
-                        testDirectory.toFile().toString());
+                        testDirectory.toFile().toString())
+                .withValue(PathsConfig_.SAVED_STATE_DIR, testDirectory);
         final PlatformContext context = TestPlatformContextBuilder.create()
                 .withConfiguration(configBuilder.getOrCreateConfig())
+                .withFileSystemManager(fileSystemManager)
                 .build();
 
         final int count = 10;
@@ -350,7 +356,7 @@ class StateFileManagerTests {
                 new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
 
         final Path statesDirectory =
-                signedStateFilePath.getSignedStatesDirectoryForSwirld(MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
+                signedStateFilePath.getSignedStatesDirectoryForSwirld();
 
         // Simulate the saving of an ISS state
         final int issRound = 666;

@@ -5,6 +5,7 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestStat
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.HederaUtils.SWIRLD_NAME;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.internal.network.Network;
@@ -232,12 +233,10 @@ public class CrystalTransplantCommand extends AbstractCommand {
             final Hash newHash = signedState.getState().getHash();
 
             final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-            this.targetStateDir = new SignedStateFilePath(targetNodePath.resolve(pathsConfig.savedStateDir()))
-                    .getSignedStateDirectory(
-                            configuration.getValue("state.mainClassNameOverride"),
-                            selfId,
-                            SWIRLD_NAME,
-                            signedState.getRound());
+            final FileSystemManager fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+            final String mainClassName = requireNonNull(configuration.getValue("state.mainClassNameOverride"));
+            this.targetStateDir = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, SWIRLD_NAME)
+                    .getSignedStateDirectory(signedState.getRound());
 
             return new StateInformation(
                     signedState.getRound(), signedState.getRoster(), newHash, savedStateFiles.getFirst());

@@ -74,8 +74,7 @@ public final class StartupStateUtils {
         final String actualMainClassName = stateConfig.getMainClassName(mainClassName);
 
         final List<SavedStateInfo> savedStateFiles = new SignedStateFilePath(
-                        config.getConfigData(PathsConfig.class))
-                .getSavedStateFiles(actualMainClassName, selfId, swirldName);
+                platformContext.getFileSystemManager(), actualMainClassName, selfId, swirldName).getSavedStateFiles();
         logStatesFound(savedStateFiles);
 
         if (savedStateFiles.isEmpty()) {

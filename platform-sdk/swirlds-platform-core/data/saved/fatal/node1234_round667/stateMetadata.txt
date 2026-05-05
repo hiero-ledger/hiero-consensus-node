@@ -1,0 +1,15 @@
+ROUND:                               667
+HASH:                                6a2541588f923056be3f7e449579ebd951d6ee6578084d11951036815a918d9a7d12e55c658b92c3ea5d7d3f2eddc75a
+HASH_MNEMONIC:                       dwarf-climb-assist-approve
+NUMBER_OF_CONSENSUS_EVENTS:          667
+CONSENSUS_TIMESTAMP:                 2008-12-16T20:56:16.974Z
+LEGACY_RUNNING_EVENT_HASH:           2f5ec47d83e8935e511223d138e1f97fcb1ad9777556addaa572480d1d6ba7f3bf1afbaa02310ece5e5dbf76299db4f8
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  type-idea-loan-nephew
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     0
+SOFTWARE_VERSION:                    SemanticVersion[major=18, minor=0, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-05-05T17:32:56.681873Z
+NODE_ID:                             1234
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        4000
+FREEZE_STATE:                        false

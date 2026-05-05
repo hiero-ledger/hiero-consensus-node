@@ -1,0 +1,15 @@
+ROUND:                               2987793316437683029
+HASH:                                ba6f25fc770e6e72ebc0017729dfc02342716763ea6f72a13a75403e629dd016399e03ee8631eb6b91592376baf014c9
+HASH_MNEMONIC:                       rate-sauce-tide-soft
+NUMBER_OF_CONSENSUS_EVENTS:          2987793316437683029
+CONSENSUS_TIMESTAMP:                 1988-06-15T23:47:00.195Z
+LEGACY_RUNNING_EVENT_HASH:           7e5909523fb3763125d031b2eb19684eb5377029b226e3efc4ac934db29750fa2134981b883ef25542d5fcec4c582d6f
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  sleep-clean-wait-shiver
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     0
+SOFTWARE_VERSION:                    SemanticVersion[major=26, minor=0, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-05-05T17:51:08.925525Z
+NODE_ID:                             1234
+SIGNING_NODES:                       
+SIGNING_WEIGHT_SUM:                  0
+TOTAL_WEIGHT:                        4000
+FREEZE_STATE:                        false

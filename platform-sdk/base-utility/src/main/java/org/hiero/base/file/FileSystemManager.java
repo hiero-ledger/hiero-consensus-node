@@ -85,6 +85,18 @@ public class FileSystemManager {
      * @throws IllegalArgumentException if the path is "above" the root directory (e.g. resolve("../foo")
      */
     @NonNull
+    public Path resolve(@NonNull final String relativePath) {
+        return resolve(Path.of(relativePath));
+    }
+
+    /**
+     * Resolve a path relative to the {@code rootPath} of this file system manager.
+     *
+     * @param relativePath the path to resolve against the root directory
+     * @return the resolved path
+     * @throws IllegalArgumentException if the path is "above" the root directory (e.g. resolve("../foo")
+     */
+    @NonNull
     public Path resolve(@NonNull final Path relativePath) {
         return requireValidSubPathOf(rootPath, rootPath.resolve(relativePath));
     }
