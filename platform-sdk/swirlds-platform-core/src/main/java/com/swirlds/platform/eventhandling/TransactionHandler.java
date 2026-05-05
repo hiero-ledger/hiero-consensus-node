@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.eventhandling;
 
-import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.stream.RunningEventHashOverride;
 
 /**
  * Applies transactions from rounds that have reached consensus to the state

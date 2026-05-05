@@ -12,6 +12,7 @@ import static com.hedera.node.app.records.RecordTestData.STARTING_RUNNING_HASH_O
 import static com.hedera.node.app.records.RecordTestData.TEST_BLOCKS;
 import static com.hedera.node.app.records.RecordTestData.USER_PUBLIC_KEY;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.impl.BlockRecordManagerTestFixtures.NO_OP_BLOCK_HASH_SIGNER;
 import static com.hedera.node.app.records.impl.producers.formats.v6.RecordStreamV6Verifier.validateRecordStreamFiles;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
@@ -32,6 +33,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.NodeInfoImpl;
@@ -225,6 +227,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
+                () -> mock(BlockItemWriter.class),
+                NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART)) {
             if (!startMode.equals("GENESIS")) {
                 blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
@@ -323,6 +327,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 wrappedRecordHashesDiskWriter,
+                () -> mock(BlockItemWriter.class),
+                NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART)) {
             blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
@@ -514,6 +520,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
+                () -> mock(BlockItemWriter.class),
+                NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
@@ -540,6 +548,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform,
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
+                () -> mock(BlockItemWriter.class),
+                NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART);
 
         final var result = subject.consTimeOfLastHandledTxn();
@@ -630,6 +640,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                     quiescedHeartbeat,
                     platform,
                     diskWriter,
+                    () -> mock(BlockItemWriter.class),
+                    NO_OP_BLOCK_HASH_SIGNER,
                     trigger);
         }
 

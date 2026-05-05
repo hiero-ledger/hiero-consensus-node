@@ -5,11 +5,14 @@ import com.hedera.node.app.service.contract.impl.utils.TODO;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.Code;
+import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.account.Account;
+import org.hyperledger.besu.evm.code.CodeSection;
 
 // Bonneville Code.  Immutable bare byte array.  Cached, hashed and interned.
 // Cheap hash is used because the prior caching spends all its time on a

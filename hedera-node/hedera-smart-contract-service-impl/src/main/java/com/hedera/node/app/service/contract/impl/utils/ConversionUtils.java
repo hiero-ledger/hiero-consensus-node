@@ -37,6 +37,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOp
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
+import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
@@ -795,6 +796,7 @@ public class ConversionUtils {
      * @param outcome the outcome
      * @param handleContext the handle context
      * @param hederaOperations the Hedera operations
+     * @param streamBuilder the stream builder
      */
     public static void throwIfUnsuccessfulCall(
             @NonNull final CallOutcome outcome,
@@ -813,6 +815,7 @@ public class ConversionUtils {
     public static void throwIfUnsuccessfulCall(
             @NonNull final CallOutcome outcome, @NonNull final EthereumTransactionRollbackHandler rollbackHandler) {
         requireNonNull(outcome);
+        requireNonNull(hederaOperations);
         if (outcome.status() != SUCCESS) {
             throw new HandleException(outcome.status(), rollbackHandler);
         }

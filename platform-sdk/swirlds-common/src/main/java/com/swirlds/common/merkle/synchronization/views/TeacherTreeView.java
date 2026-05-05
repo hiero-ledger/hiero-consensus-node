@@ -9,7 +9,6 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 /**
  * A "view" into a merkle tree (or subtree) used to perform a reconnect operation. This view is used to access
  * the tree by the teacher.
- *
  */
 public interface TeacherTreeView extends AutoCloseable {
 
@@ -19,6 +18,7 @@ public interface TeacherTreeView extends AutoCloseable {
      * new custom tree views are encountered, they must be added to {@code subtrees}, although it isn't
      * currently supported by virtual tree views, as nested virtual maps are not supported.
      *
+     * @param time the wall clock time
      * @param workGroup the work group to run teaching task(s) in
      * @param in the input stream to read data from learner
      * @param out the output stream to write data to learner

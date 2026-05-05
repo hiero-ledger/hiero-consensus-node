@@ -58,7 +58,7 @@ public class NumericValidation16c {
                         .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_NFT_ID))));
     }
 
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("when using updateNFTsMetadata for specific NFT from NFT collection with empty serial numbers")
     public Stream<DynamicTest> failToUpdateNFTsMetadataWithEmptySerialNumbers() {
         return hapiTest(numericContract

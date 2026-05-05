@@ -24,7 +24,30 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERIALIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_CHAIN_ID;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.WEIBARS_IN_A_TINYBAR;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_DELETED_CONTRACT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CONSTRUCTOR_PARAMS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_ENTITIES_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HEDERA_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_HOOKS_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_LEDGER_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEV_CHAIN_ID_CONTRACTS_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_CALL_DATA;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.INITCODE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.INITCODE_FILE_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MAX_GAS_ALLOWANCE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_DURATION;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOME_MEMO;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -33,9 +56,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -74,7 +98,9 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Consumer;
+import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -148,28 +174,33 @@ class HevmTransactionFactoryTest {
     void fromHapiCallFailsWithGasBelowFixedLowerBound() {
         given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
-        assertCallFailsWith(INSUFFICIENT_GAS, b -> b.gas(20_999L));
+        assertCallFailsWith(
+                INSUFFICIENT_GAS, b -> b.contractID(CALLED_CONTRACT_ID).gas(20_999L));
     }
 
     @Test
     void fromHapiCallFailsWithGasBelowGasCalculatorIntrinsicCost() {
         given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.EMPTY, false, null, null))
                 .willReturn(TestHelpers.gasChargesFromIntrinsicGas(22_000L));
-        assertCallFailsWith(INSUFFICIENT_GAS, b -> b.gas(21_999L));
+        assertCallFailsWith(
+                INSUFFICIENT_GAS, b -> b.contractID(CALLED_CONTRACT_ID).gas(21_999L));
     }
 
     @Test
     void fromHapiCallFailsNegativeValue() {
         given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
-        assertCallFailsWith(CONTRACT_NEGATIVE_VALUE, b -> b.gas(30_000L).amount(-1L));
+        assertCallFailsWith(
+                CONTRACT_NEGATIVE_VALUE,
+                b -> b.contractID(CALLED_CONTRACT_ID).gas(30_000L).amount(-1L));
     }
 
     @Test
     void fromHapiCallFailsOverMaxGas() {
         given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
                 .willReturn(BASE_COST_CHARGING_RESULT);
-        assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
+        assertCallFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> b.contractID(CALLED_CONTRACT_ID)
+                .gas(DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1));
     }
 
     @Test
@@ -535,6 +566,16 @@ class HevmTransactionFactoryTest {
     void fromHapiEthFailsImmediatelyWithoutToAddressButNoCallData() {
         givenInsteadHydratedEthTxWithRightChainId(ETH_DATA_WITHOUT_TO_ADDRESS.replaceCallData(new byte[0]));
         assertEthTxFailsWith(INVALID_ETHEREUM_TRANSACTION, b -> {});
+    }
+
+    @Test
+    void fromHapiEthFailsImmediatelyWithTooHighGasLimit() {
+        final var txData = ETH_DATA_WITH_TO_ADDRESS.replaceGasLimit(16_000_000L);
+        final var sigs = mock(EthTxSigs.class);
+        when(sigs.address()).thenReturn(Hex.decode("00000000000000000000000000000000cafebabe"));
+        given(ethereumSignatures.computeIfAbsent(txData)).willReturn(sigs);
+        givenInsteadHydratedEthTxWithRightChainId(txData);
+        assertEthTxFailsWith(MAX_GAS_LIMIT_EXCEEDED, b -> {});
     }
 
     @Test

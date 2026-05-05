@@ -1,0 +1,44 @@
+{
+  "id": 19,
+  "status": "approved",
+  "status_url": "/api/v1/compute/allocation/2",
+  "namespace": "chewie-solo-sdlt-n2",
+  "cluster_fqdn": "k8s.pft.dal.lat.ope.eng.hashgraph.io",
+  "expires_at": "2027-04-17T12:00:00Z",
+  "instances": [
+    {
+      "group": "cn-nodes",
+      "spec": {
+        "quantity": 8,
+        "resources": { "cpu": 48, "memory": 393216 }
+      },
+      "labels": {
+        "solo.hashgraph.io/role": "consensus-node",
+        "solo.hashgraph.io/owner": "single-day-longevity-test",
+        "solo.hashgraph.io/network-id": "2"
+      },
+      "tolerations": [
+        { "key": "solo.hashgraph.io/role",       "operator": "Equal", "value": "consensus-node",            "effect": "NoSchedule" },
+        { "key": "solo.hashgraph.io/owner",      "operator": "Equal", "value": "single-day-longevity-test", "effect": "NoSchedule" },
+        { "key": "solo.hashgraph.io/network-id", "operator": "Equal", "value": "2",                         "effect": "NoSchedule" }
+      ]
+    },
+    {
+      "group": "aux-nodes",
+      "spec": {
+        "quantity": 1,
+        "resources": { "cpu": 48, "memory": 393216 }
+      },
+      "labels": {
+        "solo.hashgraph.io/role": "auxiliary-services",
+        "solo.hashgraph.io/owner": "single-day-longevity-test",
+        "solo.hashgraph.io/network-id": "2"
+      },
+      "tolerations": [
+        { "key": "solo.hashgraph.io/role",       "operator": "Equal", "value": "auxiliary-services",        "effect": "NoSchedule" },
+        { "key": "solo.hashgraph.io/owner",      "operator": "Equal", "value": "single-day-longevity-test", "effect": "NoSchedule" },
+        { "key": "solo.hashgraph.io/network-id", "operator": "Equal", "value": "2",                         "effect": "NoSchedule" }
+      ]
+    }
+  ]
+}

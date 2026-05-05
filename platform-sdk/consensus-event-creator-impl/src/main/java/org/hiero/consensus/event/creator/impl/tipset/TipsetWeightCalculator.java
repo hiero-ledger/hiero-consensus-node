@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -278,14 +278,14 @@ public class TipsetWeightCalculator {
             return 0;
         }
 
-        if (latestSelfEventTipset.getTipGenerationForNode(nodeId)
-                > snapshotHistory.getLast().getTipGenerationForNode(nodeId)) {
+        if (latestSelfEventTipset.getTipSequenceNumberForNode(nodeId)
+                > snapshotHistory.getLast().getTipSequenceNumberForNode(nodeId)) {
             // Special case: we have advanced this generation since the snapshot was taken.
             return 0;
         }
 
         int selfishness = 0;
-        final long latestGeneration = tipsetTracker.getLatestGenerationForNode(nodeId);
+        final long latestSeq = tipsetTracker.getLatestSequenceNumberForNode(nodeId);
 
         // Iterate backwards in time until we find an event from the node being added to our ancestry, or if
         // we find that there are no eligible nodes to be added to our ancestry.
@@ -295,10 +295,10 @@ public class TipsetWeightCalculator {
             final Tipset currentTipset = previousTipset;
             previousTipset = iterator.next();
 
-            final long previousGeneration = previousTipset.getTipGenerationForNode(nodeId);
-            final long currentGeneration = currentTipset.getTipGenerationForNode(nodeId);
+            final long previousSeq = previousTipset.getTipSequenceNumberForNode(nodeId);
+            final long currentSeq = currentTipset.getTipSequenceNumberForNode(nodeId);
 
-            if (currentGeneration == latestGeneration || previousGeneration < currentGeneration) {
+            if (currentSeq == latestSeq || previousSeq < currentSeq) {
                 // We stop increasing the selfishness score if we observe one of the two following events:
                 //
                 // 1) we find that the latest generation provided by a node matches a snapshot's generation

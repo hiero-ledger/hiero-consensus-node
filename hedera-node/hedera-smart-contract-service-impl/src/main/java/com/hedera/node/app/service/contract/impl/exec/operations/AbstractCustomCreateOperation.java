@@ -14,9 +14,9 @@ import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.account.MutableAccount;
+import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -43,14 +43,17 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
             new OperationResult(0L, ExceptionalHaltReason.INVALID_OPERATION);
     private static final Operation.OperationResult UNDERFLOW_RESPONSE =
             new Operation.OperationResult(0, ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS);
+    private final CodeFactory codeFactory;
 
     protected AbstractCustomCreateOperation(
             final int opcode,
             @NonNull final String name,
             final int stackItemsConsumed,
             final int stackItemsProduced,
-            @NonNull final GasCalculator gasCalculator) {
+            @NonNull final GasCalculator gasCalculator,
+            @NonNull final CodeFactory codeFactory) {
         super(opcode, name, stackItemsConsumed, stackItemsProduced, gasCalculator);
+        this.codeFactory = codeFactory;
     }
 
     /**
@@ -135,7 +138,7 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         final var inputOffset = clampedToLong(frame.getStackItem(1));
         final var inputSize = clampedToLong(frame.getStackItem(2));
         final var inputData = frame.readMemory(inputOffset, inputSize);
-        final var code = new Code(inputData);
+        final var code = codeFactory.createCode(inputData, false);
 
         final var childGasStipend = gasCalculator().gasAvailableForChildCreate(frame.getRemainingGas());
         frame.decrementRemainingGas(childGasStipend);

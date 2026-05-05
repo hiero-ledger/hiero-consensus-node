@@ -25,10 +25,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenPauseFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenPauseNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnpauseFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenUnpauseNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -175,14 +176,8 @@ public class TokenPauseSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenPause with large payer key - extra processing bytes fee")
         final Stream<DynamicTest> tokenPauseLargeKeyExtraProcessingBytesFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(
-                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     newKeyNamed(PAUSE_KEY),
@@ -191,10 +186,10 @@ public class TokenPauseSimpleFeesTest {
                             .pauseKey(PAUSE_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20))),
                     tokenPause(TOKEN)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .signedBy(PAYER, PAUSE_KEY)
                             .via(pauseTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -208,17 +203,8 @@ public class TokenPauseSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenPause with very large payer key below oversize - extra processing bytes fee")
         final Stream<DynamicTest> tokenPauseVeryLargeKeyBelowOversizeFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(sigs(
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(41)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     newKeyNamed(PAUSE_KEY),
@@ -227,10 +213,10 @@ public class TokenPauseSimpleFeesTest {
                             .pauseKey(PAUSE_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41))),
                     tokenPause(TOKEN)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41)))
                             .signedBy(PAYER, PAUSE_KEY)
                             .via(pauseTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -308,14 +294,8 @@ public class TokenPauseSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenUnpause with large payer key - extra processing bytes fee")
         final Stream<DynamicTest> tokenUnpauseLargeKeyExtraProcessingBytesFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(
-                    sigs(ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     newKeyNamed(PAUSE_KEY),
@@ -324,14 +304,14 @@ public class TokenPauseSimpleFeesTest {
                             .pauseKey(PAUSE_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20))),
                     tokenPause(TOKEN)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .signedBy(PAYER, PAUSE_KEY),
                     tokenUnpause(TOKEN)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .signedBy(PAYER, PAUSE_KEY)
                             .via(unpauseTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -345,17 +325,8 @@ public class TokenPauseSimpleFeesTest {
         @HapiTest
         @DisplayName("TokenUnpause with very large payer key below oversize - extra processing bytes fee")
         final Stream<DynamicTest> tokenUnpauseVeryLargeKeyBelowOversizeFee() {
-            KeyShape keyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
-            SigControl allSigned = keyShape.signedWith(sigs(
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON,
-                    ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON, ON));
-
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(41)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     newKeyNamed(PAUSE_KEY),
@@ -364,14 +335,14 @@ public class TokenPauseSimpleFeesTest {
                             .pauseKey(PAUSE_KEY)
                             .treasury(TREASURY)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned)),
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41))),
                     tokenPause(TOKEN)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41)))
                             .signedBy(PAYER, PAUSE_KEY),
                     tokenUnpause(TOKEN)
                             .payingWith(PAYER)
-                            .sigControl(forKey(PAYER_KEY, allSigned))
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41)))
                             .signedBy(PAYER, PAUSE_KEY)
                             .via(unpauseTxn),
                     validateChargedUsdWithinWithTxnSize(
@@ -693,7 +664,7 @@ public class TokenPauseSimpleFeesTest {
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                         validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                txnSize -> expectedTokenPauseNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(INNER_ID, "4"));
@@ -1023,7 +994,7 @@ public class TokenPauseSimpleFeesTest {
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                         validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                txnSize -> expectedTokenUnpauseNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1),
                         validateChargedAccount(INNER_ID, "4"));

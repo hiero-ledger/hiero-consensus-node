@@ -89,7 +89,7 @@ public abstract class CallManager {
         // Create2OperationSuite and so cannot just be changed yet.
 
         // {FF, [sender 20bytes], [salt 32bytes], [code hash, 32bytes] }
-        Bytes bytes = Bytes.concatenate(CREATE2_PREFIX, sender.getBytes(), salt, code.getCodeHash().getBytes());
+        Bytes bytes = Bytes.concatenate(CREATE2_PREFIX, sender, salt, code.getCodeHash());
         Bytes32 hash = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
         return Address.extract(hash);
     }
@@ -211,7 +211,7 @@ public abstract class CallManager {
         if( hasValue ) gas += bevm._gasCalc.callValueTransferGasCost();
         if( (contractAccount == null || contractAccount.isEmpty()) && hasValue )
             gas += bevm._gasCalc.newAccountGasCost();
-        if( (recipient == null || recipient.getBytes().isEmpty()) && hasValue )
+        if( (recipient == null || recipient.isEmpty()) && hasValue )
             throw new TODO();
         // Check the cold account cost but do not charge
         if( bevm._gas < gas + (isStatic ? bevm._gasCalc.getWarmStorageReadCost() : bevm._gasCalc.getColdAccountAccessCost()) )

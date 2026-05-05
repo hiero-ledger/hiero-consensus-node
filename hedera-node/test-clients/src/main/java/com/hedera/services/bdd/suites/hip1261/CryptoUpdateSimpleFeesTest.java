@@ -28,8 +28,10 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAcco
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
@@ -273,15 +275,13 @@ public class CryptoUpdateSimpleFeesTest {
         @DisplayName(
                 "CryptoUpdate - txn above NODE_INCLUDED_BYTES - Full fees with extra PROCESSING_BYTES fees charged")
         final Stream<DynamicTest> cryptoUpdateAboveProcessingBytesThresholdExtrasCharged() {
-            final KeyShape largeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     newKeyNamed(adminKey),
-                    newKeyNamed(NEW_KEY).shape(largeKeyShape),
+                    newKeyNamed(NEW_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(ACCOUNT).key(adminKey).payingWith(PAYER),
                     cryptoUpdate(ACCOUNT)
+                            .sigControl(forKey(NEW_KEY, allOnSigControl(20)))
                             .key(NEW_KEY)
                             .payingWith(PAYER)
                             .signedBy(PAYER, adminKey, NEW_KEY)
@@ -314,9 +314,10 @@ public class CryptoUpdateSimpleFeesTest {
                     SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
                     newKeyNamed(adminKey),
-                    newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(41)),
                     cryptoCreate(PAYER).key(adminKey).balance(ONE_HUNDRED_HBARS),
                     cryptoUpdate(PAYER)
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(41)))
                             .key(PAYER_KEY)
                             .payingWith(PAYER)
                             .signedBy(adminKey, PAYER_KEY)
@@ -545,15 +546,8 @@ public class CryptoUpdateSimpleFeesTest {
             @HapiTest
             @DisplayName("CryptoUpdate - very large txn (above 6KB) - fails on ingest")
             final Stream<DynamicTest> cryptoUpdateVeryLargeTxnAboveSixKBFailsOnIngest() {
-                // threshOf(1, 50×SIMPLE) — pushes serialized size above 6KB
-                final KeyShape veryLargeKeyShape = threshOf(
-                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE);
                 return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(50)),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoUpdate(PAYER)
                                 .key(PAYER_KEY)

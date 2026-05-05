@@ -8,10 +8,9 @@ import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -44,12 +43,6 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeView.class);
 
     /**
-     * The root node that is involved in reconnect. This would be the saved state for the teacher, and
-     * the new root node into which things are being serialized for the learner.
-     */
-    private final VirtualMap map;
-
-    /**
      * The state representing the original, unmodified tree on the learner. For simplicity, on the teacher,
      * this is the same as {@link #reconnectState}. For the learner, it is the state of the detached, unmodified
      * tree.
@@ -68,14 +61,9 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     private final ReconnectConfig reconnectConfig;
 
     /**
-     * Handles removal of old nodes.
+     * The reconnect helper that manages hashing and lifecycle for this learner reconnect operation.
      */
-    private final ReconnectNodeRemover nodeRemover;
-
-    /**
-     * A {@link RecordAccessor} for getting access to the original records.
-     */
-    private final RecordAccessor originalRecords;
+    private final VirtualMapLearner vmapLearner;
 
     /**
      * Node traversal order. Defines the order in which node requests will be sent to the teacher.
@@ -88,10 +76,10 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     private final CountDownLatch rootResponseReceived = new CountDownLatch(1);
 
     /**
-     * Indicates if no responses from the teacher have been received yet. The very first response
+     * Indicates if a response from the teacher has been received already. The very first response
      * must be for path 0 (root virtual node). Used in assertions only.
      */
-    private final AtomicBoolean firstNodeResponse = new AtomicBoolean(true);
+    private final AtomicBoolean rootNodeReceived = new AtomicBoolean(false);
 
     /**
      * Responses from teacher may come in a different order than they are sent by learner. The order
@@ -111,51 +99,37 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     /**
      * Create a new {@link LearnerPullVirtualTreeView}.
      *
-     * @param map
-     * 		The map node of the <strong>reconnect</strong> tree. Cannot be null.
-     * @param originalRecords
-     * 		A {@link RecordAccessor} for accessing records from the unmodified <strong>original</strong> tree.
-     * 		Cannot be null.
-     * @param originalState
-     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
-     * 		unmodified <strong>original</strong> tree. Cannot be null.
-     * @param reconnectState
-     * 		A {@link VirtualMapMetadata} for accessing state (first and last paths) from the
-     * 		modified <strong>reconnect</strong> tree. We only use first and last leaf path from this state.
-     * 		Cannot be null.
+     * @param reconnectConfig
+     *      the reconnect configuration
+     * @param vmapLearner
+     * 		The reconnect helper managing this learner reconnect operation. Cannot be null.
+     * @param traversalOrder
+     *      the traversal order defining which paths to request
      * @param mapStats
-     *      A ReconnectMapStats object to collect reconnect metrics
+     *      a ReconnectMapStats object to collect reconnect metrics
      */
     public LearnerPullVirtualTreeView(
             @NonNull final ReconnectConfig reconnectConfig,
-            @NonNull final VirtualMap map,
-            @NonNull final RecordAccessor originalRecords,
-            @NonNull final VirtualMapMetadata originalState,
-            @NonNull final VirtualMapMetadata reconnectState,
-            @NonNull final ReconnectNodeRemover nodeRemover,
+            @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final ReconnectMapStats mapStats) {
-        this.map = Objects.requireNonNull(map);
-        this.originalState = Objects.requireNonNull(originalState);
-        this.reconnectState = Objects.requireNonNull(reconnectState);
-        this.reconnectConfig = reconnectConfig;
-        this.originalRecords = Objects.requireNonNull(originalRecords);
-        this.nodeRemover = nodeRemover;
-        this.traversalOrder = traversalOrder;
-        this.mapStats = mapStats;
+        this.vmapLearner = Objects.requireNonNull(vmapLearner, "vmapLearner is null");
+        this.originalState = vmapLearner.getOriginalState();
+        this.reconnectState = vmapLearner.getReconnectState();
+        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig is null");
+        this.traversalOrder = Objects.requireNonNull(traversalOrder, "traversalOrder is null");
+        this.mapStats = Objects.requireNonNull(mapStats, "mapStats is null");
     }
 
+    /** {@inheritDoc} */
     @Override
     public void startLearnerTasks(
-            final StandardWorkGroup workGroup,
-            final AsyncInputStream in,
-            final AsyncOutputStream out,
-            final Runnable completeListener) {
+            final StandardWorkGroup workGroup, final AsyncInputStream in, final AsyncOutputStream out) {
         final AtomicLong expectedResponses = new AtomicLong(0);
         // FUTURE WORK: configurable number of tasks
         for (int i = 0; i < 16; i++) {
-            final LearnerPullVirtualTreeReceiveTask learnerReceiveTask = new LearnerPullVirtualTreeReceiveTask(
-                    reconnectConfig, workGroup, in, this, expectedResponses, completeListener);
+            final LearnerPullVirtualTreeReceiveTask learnerReceiveTask =
+                    new LearnerPullVirtualTreeReceiveTask(reconnectConfig, workGroup, in, this, expectedResponses);
             learnerReceiveTask.exec();
         }
 
@@ -177,8 +151,14 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
         }
     }
 
+    @Override
+    public void onSuccessfulComplete() {
+        vmapLearner.finish();
+    }
+
     /**
      * Determines if a given path refers to a leaf of the tree.
+     *
      * @param path a path
      * @return true if leaf, false if internal
      */
@@ -217,20 +197,17 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     // This method is called concurrently from multiple threads
     void responseReceived(final PullVirtualTreeResponse response) {
-        final long responsePath = response.getPath();
+        final long responsePath = response.path();
         if (responsePath == 0) {
             logger.info(RECONNECT.getMarker(), "Root response received from the teacher");
-            final long firstLeafPath = response.getFirstLeafPath();
-            final long lastLeafPath = response.getLastLeafPath();
-            assert firstNodeResponse.compareAndSet(true, false)
+            final long firstLeafPath = response.firstLeafPath();
+            final long lastLeafPath = response.lastLeafPath();
+            assert rootNodeReceived.compareAndSet(false, true)
                     : "Root node must be the first node received from the teacher";
-            reconnectState.setPaths(firstLeafPath, lastLeafPath);
             traversalOrder.start(
                     originalState.getFirstLeafPath(), originalState.getLastLeafPath(), firstLeafPath, lastLeafPath);
-            map.prepareReconnectHashing(firstLeafPath, lastLeafPath);
+            vmapLearner.init(firstLeafPath, lastLeafPath);
             rootResponseReceived.countDown();
-            // setPathInformation() below may take a while
-            nodeRemover.setPathInformation(firstLeafPath, lastLeafPath);
         }
         if ((responsePath == 0) || !isLeaf(responsePath)) {
             handleResponse(response);
@@ -250,11 +227,20 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
                 anticipatedLeafPaths.remove();
             }
         }
+
+        if (responsePath != Path.ROOT_PATH) {
+            final boolean isLeaf = isLeaf(responsePath);
+            if (isLeaf) {
+                mapStats.incrementLeafHashes(1, response.isClean() ? 1 : 0);
+            } else {
+                mapStats.incrementInternalHashes(1, response.isClean() ? 1 : 0);
+            }
+        }
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
-        assert !firstNodeResponse.get() : "Root node must be the first node received from the teacher";
-        final long path = response.getPath();
+        assert rootNodeReceived.get() : "Root node must be the first node received from the teacher";
+        final long path = response.path();
         if (reconnectState.getLastLeafPath() <= 0) {
             return;
         }
@@ -265,11 +251,10 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
         if (isLeaf) {
             if (!isClean) {
-                final VirtualLeafBytes<?> leaf = response.getLeafData();
+                final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null;
                 assert path == leaf.path();
-                nodeRemover.newLeafNode(path, leaf.keyBytes());
-                map.handleReconnectLeaf(leaf); // may block if hashing is slower than ingest
+                vmapLearner.onDirtyLeaf(leaf); // may block if hashing is slower than ingest
             }
             mapStats.incrementLeafData(1, isClean ? 1 : 0);
         } else {
@@ -279,7 +264,8 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
 
     /**
      * Returns the ReconnectMapStats object.
-     * @return the ReconnectMapStats object.
+     *
+     * @return the ReconnectMapStats object
      */
     @NonNull
     public ReconnectMapStats getMapStats() {
@@ -287,34 +273,28 @@ public final class LearnerPullVirtualTreeView implements LearnerTreeView {
     }
 
     /**
-     * {@inheritDoc}
+     * Get the hash of a node. If this view represents a tree that has null nodes within it, those nodes should cause
+     * this method to return a {@link Cryptography#NULL_HASH null hash}.
+     *
+     * @param originalNodePath the original node path
+     * @return the hash of the node
      */
-    @Override
-    public Hash getNodeHash(final Long originalChild) {
-        // The path given is the _ORIGINAL_ child. Each call to this
+    public Hash getNodeHash(final Long originalNodePath) {
+        // The path given is the _ORIGINAL_ node. Each call to this
         // method will be made only for the original state from the original tree.
 
         // Make sure the path is valid for the original state
-        if (originalChild > originalState.getLastLeafPath()) {
+        if (originalNodePath > originalState.getLastLeafPath()) {
             return Cryptography.NULL_HASH;
         }
 
-        final Hash hash = originalRecords.findHash(originalChild);
+        final Hash hash = vmapLearner.findHash(originalNodePath);
         // The hash must have been specified by this point. The original tree was hashed before
         // we started running on the learner, so either the hash is in cache or on disk, but it
         // definitely exists at this point. If it is null, something bad happened elsewhere.
         if (hash == null) {
-            throw new MerkleSynchronizationException("Node found, but hash was null. path=" + originalChild);
+            throw new MerkleSynchronizationException("Node found, but hash was null. path=" + originalNodePath);
         }
         return hash;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void close() {
-        nodeRemover.allNodesReceived();
-        map.endLearnerReconnect();
     }
 }

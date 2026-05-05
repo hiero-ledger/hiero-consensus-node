@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fra
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeNoFallback;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeWithFallback;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -34,9 +35,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenDeleteNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.allOnSigControl;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTokenFeeScheduleUpdateFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.signedTxnSizeFor;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.thresholdKeyWithPrimitives;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -196,11 +199,8 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
         @DisplayName(
                 "TokenFeeScheduleUpdate - large key txn above NODE_INCLUDED_BYTES threshold - extra PROCESSING_BYTES charged")
         final Stream<DynamicTest> tokenFeeScheduleUpdateLargeKeyExtraProcessingBytesFee() {
-            final KeyShape largeKeyShape = threshOf(
-                    1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                    SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
             return hapiTest(
-                    newKeyNamed(PAYER_KEY).shape(largeKeyShape),
+                    newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(20)),
                     cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                     cryptoCreate(TREASURY).balance(0L),
                     cryptoCreate(FEE_COLLECTOR).balance(0L),
@@ -211,6 +211,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             .treasury(TREASURY)
                             .payingWith(PAYER),
                     tokenFeeScheduleUpdate(TOKEN)
+                            .sigControl(forKey(PAYER_KEY, allOnSigControl(20)))
                             .withCustom(fixedHbarFee(1L, FEE_COLLECTOR))
                             .payingWith(PAYER)
                             .signedBy(PAYER, FEE_SCHEDULE_KEY)
@@ -351,6 +352,59 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                             txnSize -> expectedTokenFeeScheduleUpdateFullFeeUsd(
                                     Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                             0.1));
+        }
+
+        @HapiTest
+        @DisplayName(("TokenFeeScheduleUpdate - don't bypass the custom fee creation charge"))
+        final Stream<DynamicTest> tokenFeeScheduleUpdateBypassesCustomFeeCreationCharge() {
+            return hapiTest(
+                    newKeyNamed("feeScheduleKey"),
+                    cryptoCreate("payer").balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("feeCollector").balance(0L),
+
+                    // PATH A: Create token with 1 custom fee directly
+                    tokenCreate("tokenA")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(1_000L)
+                            .treasury("payer")
+                            .feeScheduleKey("feeScheduleKey")
+                            .withCustom(fixedHbarFee(1L, "feeCollector"))
+                            .payingWith("payer")
+                            .via("createWithFees"),
+
+                    // PATH B.1: Create the same token WITHOUT custom fees
+                    tokenCreate("tokenB")
+                            .tokenType(FUNGIBLE_COMMON)
+                            .initialSupply(1_000L)
+                            .treasury("payer")
+                            .feeScheduleKey("feeScheduleKey")
+                            .payingWith("payer")
+                            .via("createWithoutFees"),
+
+                    // PATH B.2: add the same custom fee via TokenFeeScheduleUpdate
+                    tokenFeeScheduleUpdate("tokenB")
+                            .withCustom(fixedHbarFee(1L, "feeCollector"))
+                            .payingWith("payer")
+                            .signedBy("payer", "feeScheduleKey")
+                            .via("feeScheduleUpdate"),
+                    assertionsHold((spec, log) -> {
+                        final var recA = getTxnRecord("createWithFees");
+                        final var recB = getTxnRecord("createWithoutFees");
+                        final var recBUpd = getTxnRecord("feeScheduleUpdate");
+                        allRunFor(spec, recA, recB, recBUpd);
+
+                        final long feeA = recA.getResponseRecord().getTransactionFee();
+                        final long feeB = recB.getResponseRecord().getTransactionFee();
+                        final long feeBUpd = recBUpd.getResponseRecord().getTransactionFee();
+                        final long feeBTotal = feeB + feeBUpd;
+                        final double ratio = (double) feeA / feeBTotal;
+
+                        assertTrue(
+                                (ratio > 0.999) && (ratio < 1.001),
+                                "BUG: Path A cost: " + feeA + "!= Path B cost: " + feeBTotal + " ratio (A/B): "
+                                        + String.format("%.2fx", ratio) + " —> Path B is "
+                                        + String.format("%.2fx", ratio) + " cheaper");
+                    }));
         }
 
         @HapiTest
@@ -679,15 +733,8 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
             @HapiTest
             @DisplayName("TokenFeeScheduleUpdate - very large txn fails on ingest - no fee charged")
             final Stream<DynamicTest> tokenFeeScheduleUpdateTransactionOversizeFailsOnIngest() {
-                final KeyShape veryLargeKeyShape = threshOf(
-                        1, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE,
-                        SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE, SIMPLE);
                 return hapiTest(
-                        newKeyNamed(PAYER_KEY).shape(veryLargeKeyShape),
+                        newKeyNamed(PAYER_KEY).shape(thresholdKeyWithPrimitives(70)),
                         cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(TREASURY).balance(0L),
                         cryptoCreate(FEE_COLLECTOR).balance(0L),
@@ -697,6 +744,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                                 .feeScheduleKey(FEE_SCHEDULE_KEY)
                                 .treasury(TREASURY),
                         tokenFeeScheduleUpdate(TOKEN)
+                                .sigControl(forKey(PAYER_KEY, allOnSigControl(70)))
                                 .withCustom(fixedHbarFee(1L, FEE_COLLECTOR))
                                 .payingWith(PAYER)
                                 .signedBy(PAYER, FEE_SCHEDULE_KEY)
@@ -854,7 +902,7 @@ public class TokenFeeScheduleUpdateSimpleFeesTest {
                         getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                         validateChargedUsdWithinWithTxnSize(
                                 INNER_ID,
-                                txnSize -> expectedTokenDeleteNetworkFeeOnlyUsd(
+                                txnSize -> expectedNetworkOnlyFeeUsd(
                                         Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                 0.1));
             }

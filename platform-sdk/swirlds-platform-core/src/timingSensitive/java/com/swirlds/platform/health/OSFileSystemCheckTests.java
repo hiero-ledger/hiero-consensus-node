@@ -11,12 +11,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermission;
+import java.time.Duration;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class OSFileSystemCheckTests {
+
+    // Use a longer timeout for tests to avoid test failures due to slow file system operations in CI environments
+    private static final long TEST_TIMEOUT = Duration.ofSeconds(5).toMillis();
 
     @TempDir
     private Path tmpDir;
@@ -39,18 +43,20 @@ class OSFileSystemCheckTests {
 
         // File not readable
         final Path unreadableFile = createUnreadableFile();
-        report = assertDoesNotThrow(() -> OSFileSystemCheck.execute(unreadableFile), "Check should not throw");
+        report = assertDoesNotThrow(
+                () -> OSFileSystemCheck.execute(unreadableFile, TEST_TIMEOUT), "Check should not throw");
         assertEquals(OSFileSystemCheck.TestResultCode.FILE_NOT_READABLE, report.code(), "Unexpected report code");
 
         // Empty file
         final Path emptyFile = createEmptyFile();
-        report = assertDoesNotThrow(() -> OSFileSystemCheck.execute(emptyFile), "Check should not throw");
+        report = assertDoesNotThrow(() -> OSFileSystemCheck.execute(emptyFile, TEST_TIMEOUT), "Check should not throw");
         assertEquals(OSFileSystemCheck.TestResultCode.FILE_EMPTY, report.code(), "Unexpected report code");
 
         // File with data
         final String toWrite = "read me";
         final Path fileWithData = createFileWithData(toWrite);
-        report = assertDoesNotThrow(() -> OSFileSystemCheck.execute(fileWithData), "Check should not throw");
+        report = assertDoesNotThrow(
+                () -> OSFileSystemCheck.execute(fileWithData, TEST_TIMEOUT), "Check should not throw");
         assertEquals(OSFileSystemCheck.TestResultCode.SUCCESS, report.code(), "Unexpected report code");
         assertNotNull(report.readNanos(), "Read nanos should not be null when the check succeeded");
         assertNotNull(report.data(), "Data read should not be null when the check succeeded");

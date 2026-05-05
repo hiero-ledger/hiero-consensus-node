@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.map;
 
-import com.swirlds.common.FastCopyable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import org.hiero.base.FastCopyable;
 
 /**
  * Holds the mutable map pair and immutable copies
