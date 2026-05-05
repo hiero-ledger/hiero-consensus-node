@@ -310,11 +310,48 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        if: false
         run: |
           npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
           # verify the installation
           solo --version
+
+      - name: Build Solo
+        run: |
+          set +x
+          set +e
+          curdir=`pwd`
+          echo "${curdir}"
+          ls
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+          export NVM_DIR="${HOME}/.nvm"
+          [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
+          nvm install v24.14.0
+
+          nvm use v24.14.0
+          export PATH="${HOME}"/:"${PATH}"
+
+          #solo script
+          echo '#!/usr/bin/sh -f' > "${HOME}"/solo
+          echo "node "${curdir}"/solo/dist/solo.js \$@" >> "${HOME}"/solo
+          chmod a+rx "${HOME}"/solo
+          sudo mv "${HOME}"/solo /usr/bin/solo
+
+          git clone https://github.com/hiero-ledger/solo.git solo
+          cd solo
+          git fetch origin dc6f06166804c20fbc9bfc5b65166210bbada721
+          git checkout dc6f06166804c20fbc9bfc5b65166210bbada721
+          echo > resources/templates/application.properties
+          echo > resources/templates/application.env
+          echo > resources/templates/settings.txt
+          task build:compile
+          #npm run build
+
+          which solo
+          solo --version
+
+          cd ..
 
       - name: Deploy with Solo
         env:
