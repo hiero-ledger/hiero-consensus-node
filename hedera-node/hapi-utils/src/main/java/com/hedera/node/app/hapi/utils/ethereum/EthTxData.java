@@ -51,8 +51,8 @@ public record EthTxData(
     static final int SECP256K1_EC_COMPRESSED = (SECP256K1_FLAGS_TYPE_COMPRESSION | SECP256K1_FLAGS_BIT_COMPRESSION);
 
     // EIP155 note support for v = 27|28 cases in unprotected transaction cases
-    static final BigInteger LEGACY_V_BYTE_SIGNATURE_0 = BigInteger.valueOf(27);
-    static final BigInteger LEGACY_V_BYTE_SIGNATURE_1 = BigInteger.valueOf(28);
+    static final long LEGACY_V_BYTE_SIGNATURE_0 = 27L;
+    static final long LEGACY_V_BYTE_SIGNATURE_1 = 28L;
 
     // The specific transaction bytes that are used to deploy the Deterministic Deployer contract
     // see -  https://github.com/Arachnid/deterministic-deployment-proxy?tab=readme-ov-file#deployment-transaction
@@ -336,9 +336,9 @@ public record EthTxData(
     }
 
     public boolean matchesChainId(final byte[] hederaChainId) {
-        // first two checks handle the unprotected ethereum transactions
+        // first check handles the unprotected ethereum transactions
         // before EIP155 - source: https://eips.ethereum.org/EIPS/eip-155
-        return chainId == null || chainId.length == 0 || Arrays.compare(chainId, hederaChainId) == 0;
+        return chainId.length == 0 || Arrays.compare(chainId, hederaChainId) == 0;
     }
 
     @VisibleForTesting
@@ -440,24 +440,10 @@ public record EthTxData(
             return null;
         }
 
-        byte[] chainId = null;
         final byte[] val = rlpList.get(6).asBytes();
         final BigInteger vBI = new BigInteger(1, val);
         final byte recId = vBI.testBit(0) ? (byte) 0 : 1;
-        // https://eips.ethereum.org/EIPS/eip-155
-        if (vBI.compareTo(BigInteger.valueOf(34)) > 0) {
-            // after EIP155 the chain id is equal to
-            // CHAIN_ID = (v - {0,1} - 35) / 2
-            // BigIntegers.asUnsignedByteArray method is used here to ensure no extra byte is added at the beginning
-            // of the byte array, which can happen in BigInteger.toByteArray when the highest bit
-            // in the result is already occupied by stored values. This issue is further explained
-            // in https://github.com/hashgraph/hedera-services/issues/15953
-            chainId = BigIntegers.asUnsignedByteArray(
-                    vBI.subtract(BigInteger.valueOf(35)).shiftRight(1));
-        } else if (isLegacyUnprotectedEtx(vBI)) {
-            // before EIP155 the chain id is considered equal to 0
-            chainId = new byte[0];
-        }
+        final byte[] chainId = deriveChainId(vBI);
 
         return new EthTxData(
                 rawTx,
@@ -558,8 +544,28 @@ public record EthTxData(
 
     // before EIP155 the value of v in
     // (unprotected) ethereum transactions is either 27 or 28
-    private static boolean isLegacyUnprotectedEtx(@NonNull final BigInteger vBI) {
-        return vBI.compareTo(LEGACY_V_BYTE_SIGNATURE_0) == 0 || vBI.compareTo(LEGACY_V_BYTE_SIGNATURE_1) == 0;
+    private static boolean isLegacyUnprotectedEtx(@NonNull final long vBI) {
+        return vBI == LEGACY_V_BYTE_SIGNATURE_0 || vBI == LEGACY_V_BYTE_SIGNATURE_1;
+    }
+
+    // Derives the chain id from the legacy `v` byte per EIP-155 (https://eips.ethereum.org/EIPS/eip-155).
+    // Fast path: real-world v (recId + chainId*2 + 35) fits in a signed long; primitive arithmetic avoids
+    // two BigInteger allocations (subtract + shiftRight) per ethereum tx parsed. Strict `<` (vs `<=`)
+    // keeps v within signed-long range, so longValueExact is provably safe — `<=` would admit values in
+    // [2^63, 2^64-1] that fit unsigned-64 but overflow signed-64 and would throw ArithmeticException.
+    // The else branch is a defensive fallback for oversized v in malformed RLP.
+    private static byte[] deriveChainId(@NonNull final BigInteger vBI) {
+        if (vBI.bitLength() < Long.SIZE) {
+            final long v = vBI.longValueExact();
+            if (isLegacyUnprotectedEtx(v)) {
+                return new byte[0];
+            }
+            // after EIP155 the chain id is equal to CHAIN_ID = (v - {0,1} - 35) / 2.
+            // asUnsignedByteArray avoids the leading sign byte BigInteger.toByteArray adds when the
+            // top bit is set — see https://github.com/hashgraph/hedera-services/issues/15953
+            return BigIntegers.asUnsignedByteArray(BigInteger.valueOf((v - 35) >> 1));
+        }
+        return BigIntegers.asUnsignedByteArray(vBI.subtract(BigInteger.valueOf(35)).shiftRight(1));
     }
 
     // `asByte` and `asLong` always return positive values by replacing out of range values with

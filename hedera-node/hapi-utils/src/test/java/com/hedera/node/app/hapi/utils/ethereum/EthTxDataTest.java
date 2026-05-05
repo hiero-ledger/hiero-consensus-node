@@ -765,4 +765,30 @@ class EthTxDataTest {
         final byte[] failingChainId = BigInteger.valueOf(11155111L).toByteArray();
         assertNotEquals(Hex.toHexString(subject.chainId()), Hex.toHexString(failingChainId));
     }
+
+    @Test
+    // Legacy `v` byte values that are neither EIP-155 protected (v >= 35, derived from
+    // v = chainId*2 + 35|36) nor pre-EIP-155 unprotected (v == 27 or 28) — i.e. v in
+    // {0..26} ∪ {29..34} — used to leave chainId() as null, which could NPE downstream.
+    void testChainIdCanNotBeNullForLegacyV() {
+        final byte[] nonce = Integers.toBytes(1);
+        final byte[] gasPrice = new byte[] {0x2f};
+        final byte[] gasLimit = Integers.toBytes(98_304L);
+        final byte[] to = Hex.decode("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
+        final byte[] value = new byte[0];
+        final byte[] callData = new byte[] {0x76, 0x53};
+        // v = 1 → not in {27, 28} and not > 34, so chainId stays null
+        final byte[] v = new byte[] {0x01};
+        final byte[] r = Hex.decode("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
+        final byte[] s = Hex.decode("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
+
+        final byte[] rawTx =
+                RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s));
+
+        final var subject = EthTxData.populateEthTxData(rawTx);
+        assertNotNull(subject);
+        assertEquals(EthTxData.EthTransactionType.LEGACY_ETHEREUM, subject.type());
+        assertNotNull(subject.chainId());
+
+    }
 }
