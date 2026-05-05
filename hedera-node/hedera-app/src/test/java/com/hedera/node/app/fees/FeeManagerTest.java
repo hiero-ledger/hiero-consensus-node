@@ -93,9 +93,7 @@ class FeeManagerTest {
                         .extras(makeExtraIncluded(Extra.SIGNATURES, 1))
                         .build())
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
-                .services(makeService(
-                        "Crypto",
-                        makeServiceFee(CRYPTO_CREATE, 100, makeExtraIncluded(Extra.KEYS, 1))))
+                .services(makeService("Crypto", makeServiceFee(CRYPTO_CREATE, 100, makeExtraIncluded(Extra.KEYS, 1))))
                 .build();
         final var bytes = org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(validSchedule);
 

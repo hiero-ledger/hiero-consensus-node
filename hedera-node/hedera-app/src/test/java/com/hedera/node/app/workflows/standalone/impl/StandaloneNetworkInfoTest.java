@@ -71,8 +71,14 @@ class StandaloneNetworkInfoTest {
         final var account2 = AccountID.newBuilder().accountNum(4).build();
         final var addressBook = NodeAddressBook.newBuilder()
                 .nodeAddress(
-                        NodeAddress.newBuilder().nodeId(0).nodeAccountId(account1).build(),
-                        NodeAddress.newBuilder().nodeId(1).nodeAccountId(account2).build())
+                        NodeAddress.newBuilder()
+                                .nodeId(0)
+                                .nodeAccountId(account1)
+                                .build(),
+                        NodeAddress.newBuilder()
+                                .nodeId(1)
+                                .nodeAccountId(account2)
+                                .build())
                 .build();
         givenNodeDetailsFile(NodeAddressBook.PROTOBUF.toBytes(addressBook));
 
@@ -110,7 +116,9 @@ class StandaloneNetworkInfoTest {
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.get(FILES_STATE_ID))
                 .willReturn(MapReadableKVState.builder(FILES_STATE_ID, FILES_STATE_LABEL)
-                        .value(NODE_DETAILS_FILE_ID, File.newBuilder().contents(contents).build())
+                        .value(
+                                NODE_DETAILS_FILE_ID,
+                                File.newBuilder().contents(contents).build())
                         .build());
     }
 }

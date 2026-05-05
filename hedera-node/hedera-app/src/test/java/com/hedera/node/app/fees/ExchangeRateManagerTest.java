@@ -107,8 +107,7 @@ class ExchangeRateManagerTest {
     @Test
     void exchangeRateInfoParsesExchangeRatesFromFileState() {
         final var exchangeRatesFileId = FileID.newBuilder().fileNum(112L).build();
-        final var exchangeRatesFile =
-                File.newBuilder().contents(validRateBytes).build();
+        final var exchangeRatesFile = File.newBuilder().contents(validRateBytes).build();
         final var state = new FakeState()
                 .addService(
                         FeeService.NAME,

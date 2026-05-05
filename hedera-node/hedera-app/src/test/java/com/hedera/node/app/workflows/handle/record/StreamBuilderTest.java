@@ -417,8 +417,7 @@ public class StreamBuilderTest {
         final var body = TransactionBody.newBuilder().memo("test-memo").build();
         final var bodyBytes = TransactionBody.PROTOBUF.toBytes(body);
         final var signedTx = SignedTransaction.newBuilder().bodyBytes(bodyBytes).build();
-        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
-                .signedTx(signedTx);
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER).signedTx(signedTx);
 
         assertEquals(body, builder.transactionBody());
     }
@@ -428,8 +427,7 @@ public class StreamBuilderTest {
         final var signedTx = SignedTransaction.newBuilder()
                 .bodyBytes(Bytes.wrap(new byte[] {0x06}))
                 .build();
-        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
-                .signedTx(signedTx);
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER).signedTx(signedTx);
 
         assertThatThrownBy(builder::transactionBody).isInstanceOf(IllegalStateException.class);
     }

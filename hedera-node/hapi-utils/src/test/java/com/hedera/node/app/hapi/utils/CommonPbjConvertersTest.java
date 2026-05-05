@@ -61,7 +61,9 @@ class CommonPbjConvertersTest {
 
         assertEquals(TransactionBody.class, pbjTxBody.getClass());
         assertEquals(7, pbjTxBody.transactionIDOrThrow().accountIDOrThrow().accountNum());
-        assertEquals(1_700_000_000L, pbjTxBody.transactionIDOrThrow().transactionValidStartOrThrow().seconds());
+        assertEquals(
+                1_700_000_000L,
+                pbjTxBody.transactionIDOrThrow().transactionValidStartOrThrow().seconds());
         assertEquals(1_000_000L, pbjTxBody.transactionFee());
         assertEquals("test-memo", pbjTxBody.memo());
     }

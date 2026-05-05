@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.embedded;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
@@ -11,12 +12,12 @@ class MutateTokenOpTest {
 
     @Test
     void tokenIdFromProtoToPbj() {
-        final var protoTokenId =
-                com.hederahashgraph.api.proto.java.TokenID.newBuilder().setTokenNum(42).build();
+        final var protoTokenId = com.hederahashgraph.api.proto.java.TokenID.newBuilder()
+                .setTokenNum(42)
+                .build();
         assertDoesNotThrow(() -> {
             final var pbjToken = protoToPbj(protoTokenId, TokenID.class);
             assertEquals(42, pbjToken.tokenNum());
         });
     }
-
 }

@@ -47,7 +47,8 @@ public class ThrottleParser {
     }
 
     public record ValidatedThrottles(
-            @NonNull ThrottleDefinitions throttleDefinitions, @NonNull ResponseCodeEnum successStatus) {
+            @NonNull ThrottleDefinitions throttleDefinitions,
+            @NonNull ResponseCodeEnum successStatus) {
         public ValidatedThrottles {
             requireNonNull(successStatus);
             requireNonNull(throttleDefinitions);

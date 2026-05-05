@@ -15,7 +15,7 @@ class HapiTxnOpTest {
 
     @Test
     void signatureMapFromProtoToPbj() {
-        final var pubKeyPrefix = ByteString.copyFrom(new byte[]{1, 2, 3, 4});
+        final var pubKeyPrefix = ByteString.copyFrom(new byte[] {1, 2, 3, 4});
         final var ed25519Sig = ByteString.copyFrom(new byte[64]);
         final var protoSigMap = com.hederahashgraph.api.proto.java.SignatureMap.newBuilder()
                 .addSigPair(com.hederahashgraph.api.proto.java.SignaturePair.newBuilder()
