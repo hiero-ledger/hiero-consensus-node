@@ -117,21 +117,25 @@ class V0740BlockRecordSchemaTest {
     void restartIsNoopWhenNotUpgrade() {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.appConfig()).willReturn(configuration);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
         given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
         given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(configuration.getConfigData(BlockStreamConfig.class)).willReturn(blockStreamConfig);
+        given(blockStreamConfig.enableCutover()).willReturn(false);
         given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 74, 0, "", ""));
         given(hederaConfig.configVersion()).willReturn(0);
         given(ctx.isUpgrade(any())).willReturn(false);
 
         subject.restart(ctx);
 
-        verify(ctx, never()).newStates();
         verifyNoInteractions(blockInfoState);
     }
 
     @Test
     void restartReinitializesVotingFieldsWhenJumpstartEnabled() {
         givenRestartPreconditions();
+        givenCutoverDisabled();
         given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
         given(blockStreamJumpstartConfig.blockNum()).willReturn(1L);
         given(ctx.newStates()).willReturn(writableStates);
