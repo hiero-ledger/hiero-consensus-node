@@ -64,7 +64,7 @@ public class TssSubmissions {
         final var config = appContext.configSupplier().get();
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
         final var hederaConfig = config.getConfigData(HederaConfig.class);
-        final var future = appContext
+        return appContext
                 .gossip()
                 .submitFuture(
                         selfId,
@@ -76,14 +76,6 @@ public class TssSubmissions {
                         adminConfig.distinctTxnIdsToTry(),
                         adminConfig.retryDelay(),
                         onFailure);
-        future.whenComplete((ignore, t) -> {
-            if (t == null) {
-                log.info("TSS submission task completed successfully");
-            } else {
-                log.warn("TSS submission task completed exceptionally", t);
-            }
-        });
-        return future;
     }
 
     /**

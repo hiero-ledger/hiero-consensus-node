@@ -231,16 +231,6 @@ public class TipsetEventCreator implements EventCreator {
                     LogMarker.STARTUP.getMarker(),
                     "Created quiescence breaking event ({})",
                     event.getDescriptor()::shortString);
-        } else {
-            logger.info(
-                    LogMarker.STARTUP.getMarker(),
-                    "Tipset event creator returned no event; quiescenceCommand={}, breakQuiescenceEventCreated={}, networkSize={}, eventWindowGenesis={}, lastSelfEventPresent={}, childlessOtherEventCount={}",
-                    quiescenceCommand,
-                    breakQuiescenceEventCreated,
-                    networkSize,
-                    eventWindow.isGenesis(),
-                    lastSelfEvent != null,
-                    childlessOtherEventTracker.getChildlessEvents().size());
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);
@@ -319,13 +309,6 @@ public class TipsetEventCreator implements EventCreator {
             // an event before and the current event window must have never been advanced.
             if (!eventWindow.isGenesis() || lastSelfEvent != null) {
                 // event creation isn't legal
-                logger.info(
-                        LogMarker.STARTUP.getMarker(),
-                        "Tipset normal event creation has no eligible parents; possibleOtherParents={}, bestParents={}, eventWindowGenesis={}, lastSelfEventPresent={}",
-                        possibleOtherParents.size(),
-                        bestParents.size(),
-                        eventWindow.isGenesis(),
-                        lastSelfEvent != null);
                 return null;
             }
 

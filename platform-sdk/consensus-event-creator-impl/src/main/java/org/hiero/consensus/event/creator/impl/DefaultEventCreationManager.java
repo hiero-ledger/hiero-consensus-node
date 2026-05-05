@@ -152,13 +152,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
         if (newEvent == null) {
             // The only reason why the event creator may choose not to create an event
             // is if there are no eligible parents.
-            logger.info(
-                    LogMarker.STARTUP.getMarker(),
-                    "Event creator returned no event despite permitted rules; platformStatus={}, quiescenceCommand={}, unhealthyDuration={}, syncRoundLag={}",
-                    platformStatus,
-                    quiescenceCommand,
-                    unhealthyDuration,
-                    getSyncRoundLag());
             phase.activatePhase(NO_ELIGIBLE_PARENTS);
         } else {
             eventCreationRules.eventWasCreated();

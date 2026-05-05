@@ -122,7 +122,7 @@ public class HintsSubmissions extends TssSubmissions {
                 "Attempting hinTS partial signature submission for construction #{} and message {}",
                 constructionId,
                 message);
-        final var future = submitIfActive(
+        return submitIfActive(
                 b -> {
                     final var signature = requireNonNull(keyAccessor.signWithBlsPrivateKey(constructionId, message));
                     logger.info(
@@ -134,21 +134,6 @@ public class HintsSubmissions extends TssSubmissions {
                             new HintsPartialSignatureTransactionBody(constructionId, message, signature));
                 },
                 onFailure);
-        future.whenComplete((ignore, t) -> {
-            if (t == null) {
-                logger.info(
-                        "hinTS partial signature submission attempt completed for construction #{} and message {}",
-                        constructionId,
-                        message);
-            } else {
-                logger.warn(
-                        "hinTS partial signature submission attempt failed for construction #{} and message {}",
-                        constructionId,
-                        message,
-                        t);
-            }
-        });
-        return future;
     }
 
     /**
