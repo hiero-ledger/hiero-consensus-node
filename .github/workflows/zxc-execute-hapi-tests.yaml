@@ -180,16 +180,6 @@ jobs:
             **/yahcli/build/test-results/**/TEST-*.xml
           retention-days: 7
 
-      - name: Check If Tests Executed (Misc)
-        id: check-tests-executed-hapi-misc
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/test-clients/build/test-executed/*.marker" -o -path "*/yahcli/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Misc) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && (steps.gradle-hapi-misc.conclusion == 'failure' || steps.gradle-yahcli-misc.conclusion == 'failure') }}
@@ -298,16 +288,6 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Check If Tests Executed (Misc Records, Crypto & Misc Serial)
-        id: check-tests-executed-hapi-misc-records-crypto-and-serial
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Misc Records, Crypto & Misc Serial) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-misc-records-crypto-and-serial.conclusion == 'failure' }}
@@ -408,16 +388,6 @@ jobs:
           name: HAPI Test (Token & Time Consuming) Reports
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
-
-      - name: Check If Tests Executed (Token & Time Consuming)
-        id: check-tests-executed-hapi-token-and-time-consuming
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Token & Time Consuming) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -520,16 +490,6 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Check If Tests Executed (Simple Fees & ND Reconnect)
-        id: check-tests-executed-hapi-simple-fees-and-nd-reconnect
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Simple Fees & ND Reconnect) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-simple-fees-and-nd-reconnect.conclusion == 'failure' }}
@@ -630,16 +590,6 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Check If Tests Executed (Smart Contracts & ISS)
-        id: check-tests-executed-hapi-smart-contract-and-iss
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Smart Contracts & ISS) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-smart-contract-and-iss.conclusion == 'failure' }}
@@ -723,16 +673,6 @@ jobs:
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
 
-      - name: Check If Tests Executed (Restart)
-        id: check-tests-executed-hapi-restart
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Restart) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-restart.conclusion == 'failure' }}
@@ -815,16 +755,6 @@ jobs:
           name: HAPI Test (Block Node Communication) Reports
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
-
-      - name: Check If Tests Executed (Block Node Communication)
-        id: check-tests-executed-hapi-bn-communication
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (Block Node Communication) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -924,16 +854,6 @@ jobs:
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Check If Tests Executed (Atomic Batch)
-        id: check-tests-executed-hapi-atomic-batch
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
       - name: Upload HAPI Test (Atomic Batch) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-atomic-batch.conclusion == 'failure' }}
@@ -1016,16 +936,6 @@ jobs:
           name: HAPI Test (State Throttling) Reports
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           retention-days: 7
-
-      - name: Check If Tests Executed (State Throttling)
-        id: check-tests-executed-hapi-state-throttling
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/test-clients/build/test-executed/*.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
 
       - name: Upload HAPI Test (State Throttling) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

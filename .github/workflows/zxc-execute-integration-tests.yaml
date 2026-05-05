@@ -88,16 +88,6 @@ jobs:
         id: gradle-integration-tests
         run: ${GRADLE_EXEC} testIntegration
 
-      - name: Check If Tests Executed
-        id: check-tests-executed
-        if: ${{ !cancelled() }}
-        run: |
-          tests_executed="false"
-          if find . -path "*/build/test-executed/testIntegration.marker" 2>/dev/null | grep -q .; then
-            tests_executed="true"
-          fi
-          echo "tests-executed=${tests_executed}" >> "${GITHUB_OUTPUT}"
-
       - name: Publish Integration Test Report
         id: publish-test-report
         uses: step-security/publish-unit-test-result-action@7dff603bf17ef13dee847147bef8d7cd1728b566 # v2.22.0
