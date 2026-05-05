@@ -199,7 +199,8 @@ public final class SignedStateFileWriter {
             // Keep this after snapshot creation. BestEffortPcesFileCopy only scans files currently visible
             // on disk and does not coordinate with the PCES writer; scanning before the snapshot has
             // previously raced with PCES writes and found no files to copy.
-            copyPcesFiles(selfId, directory, configuration, platformContext.getFileSystemManager(), pcesLowerBound, round);
+            copyPcesFiles(
+                    selfId, directory, configuration, platformContext.getFileSystemManager(), pcesLowerBound, round);
         } catch (final TimeoutException e) {
             logger.error(
                     EXCEPTION.getMarker(),

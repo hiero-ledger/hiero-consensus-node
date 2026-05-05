@@ -49,7 +49,6 @@ class ScratchpadTests {
     @BeforeEach
     void beforeEach() throws IOException {
         FileUtils.deleteDirectory(testDirectory);
-        Files.createDirectories(testDirectory);
         this.configuration = new TestConfigBuilder().getOrCreateConfig();
         this.fileSystemManager = new TestFileSystemManager(testDirectory);
     }

@@ -233,7 +233,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
             final Hash newHash = signedState.getState().getHash();
 
             final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-            final FileSystemManager fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+            final FileSystemManager fileSystemManager =
+                    new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
             final String mainClassName = requireNonNull(configuration.getValue("state.mainClassNameOverride"));
             this.targetStateDir = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, SWIRLD_NAME)
                     .getSignedStateDirectory(signedState.getRound());

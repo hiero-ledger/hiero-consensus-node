@@ -2,9 +2,7 @@
 package com.swirlds.common.context;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.internal.PlatformUncaughtExceptionHandler;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;

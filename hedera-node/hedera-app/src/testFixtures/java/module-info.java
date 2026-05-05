@@ -19,6 +19,7 @@ open module com.hedera.node.app.test.fixtures {
     requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
+    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires com.hedera.node.app.hapi.utils;
@@ -27,11 +28,9 @@ open module com.hedera.node.app.test.fixtures {
     requires com.hedera.node.app.service.token;
     requires com.hedera.node.config.test.fixtures;
     requires com.swirlds.base;
-    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.state.impl.test.fixtures;
-    requires org.hiero.base.utility;
     requires org.hiero.base.utility.test.fixtures;
     requires org.apache.logging.log4j;
     requires org.assertj.core;

@@ -18,15 +18,17 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 jmhModuleInfo {
     requires("jmh.core")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.extensions")
     runtimeOnly("com.swirlds.config.impl")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.utility")
+    requires("org.junit.jupiter.api")
 }
 
 testModuleInfo {
     requires("com.swirlds.common.test.fixtures")
+    requires("com.swirlds.common")
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.logging.test.fixtures")
@@ -44,7 +46,6 @@ testModuleInfo {
 }
 
 hammerModuleInfo {
-    requires("com.swirlds.common")
     requires("com.swirlds.merkledb")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.config.api")

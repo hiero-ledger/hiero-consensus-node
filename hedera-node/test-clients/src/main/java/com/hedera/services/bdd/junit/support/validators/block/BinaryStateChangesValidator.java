@@ -127,8 +127,8 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var metrics = new NoOpMetrics();
-        this.state = new VirtualMapStateImpl(platformConfig,
-                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir()), metrics);
+        this.state = new VirtualMapStateImpl(
+                platformConfig, new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir()), metrics);
     }
 
     @Override

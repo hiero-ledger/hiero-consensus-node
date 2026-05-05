@@ -4,9 +4,7 @@ package com.swirlds.platform.state.snapshot;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
-import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
-import com.swirlds.common.config.StateCommonConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -27,18 +25,21 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class SignedStateFilePath {
     private static final Logger logger = LogManager.getLogger();
+
     private final FileSystemManager fileSystemManager;
     private final String mainClassName;
     private final NodeId selfId;
     private final String swirldName;
 
-
     /**
      * Create a new instance of this class.
      *
-     * @param fileSystemManager the file system manager to use for writing signed states and associated data
+     * @param fileSystemManager the file system manager to use for writing signed states and associated data. The root
+     *                          location of the file system manager must be set to the location where signed states
+     *                          should be saved according to {@link PathsConfig#savedStateDir}.
      */
-    public SignedStateFilePath(@NonNull final FileSystemManager fileSystemManager,
+    public SignedStateFilePath(
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
             @NonNull final String swirldName) {
@@ -46,25 +47,6 @@ public class SignedStateFilePath {
         this.mainClassName = mainClassName;
         this.selfId = selfId;
         this.swirldName = swirldName;
-    }
-
-    /**
-     * <p>
-     * Get the base directory where all states will be stored.
-     * </p>
-     *
-     * <pre>
-     * e.g. data/saved/
-     *      |--------|
-     *          |
-     *       location where
-     *       states are saved
-     * </pre>
-     *
-     * @return the base directory for all signed state files
-     */
-    public @NonNull Path getSignedStatesBaseDirectory() {
-        return fileSystemManager.resolve(Path.of("."));
     }
 
     /**
@@ -85,7 +67,7 @@ public class SignedStateFilePath {
      * @return the path of a directory, may not exist
      */
     private @NonNull Path getSignedStatesDirectoryForApp() {
-        return getSignedStatesBaseDirectory().resolve(mainClassName);
+        return fileSystemManager.resolve(mainClassName);
     }
 
     /**
@@ -147,7 +129,7 @@ public class SignedStateFilePath {
      *
      * </pre>
      *
-     * @param round         the round number of the state
+     * @param round the round number of the state
      * @return the path of the signed state for the particular round
      */
     public @NonNull Path getSignedStateDirectory(final long round) {

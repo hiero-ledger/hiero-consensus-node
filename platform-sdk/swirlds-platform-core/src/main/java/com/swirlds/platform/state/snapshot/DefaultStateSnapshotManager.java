@@ -7,7 +7,6 @@ import static org.hiero.base.file.FileUtils.deleteDirectoryAndLog;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.UNKNOWN;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.InsufficientSignaturesPayload;
@@ -24,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.Threshold;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
@@ -167,8 +165,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         try {
             saveStateTask(
                     reservedSignedState,
-                    signedStateFilePath
-                            .getSignedStatesBaseDirectory()
+                    fileSystemManager
                             .resolve(getReason(signedState).getDescription())
                             .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
         } finally {

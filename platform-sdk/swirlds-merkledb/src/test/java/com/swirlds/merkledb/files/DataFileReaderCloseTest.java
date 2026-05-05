@@ -5,8 +5,6 @@ import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LE
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
@@ -20,6 +18,8 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;

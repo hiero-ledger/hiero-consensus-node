@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
 import com.swirlds.base.formatting.TextTable;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.scratchpad.ScratchpadType;
@@ -95,9 +94,7 @@ public class StandardScratchpad<K extends Enum<K> & ScratchpadType> implements S
             @NonNull final String id) {
         this.configuration = configuration;
         this.fileSystemManager = fileSystemManager;
-        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
-        scratchpadDirectory = stateConfig
-                .savedStateDirectory()
+        scratchpadDirectory = fileSystemManager
                 .resolve(SCRATCHPAD_DIRECTORY_NAME)
                 .resolve(Long.toString(selfId.id()))
                 .resolve(id);

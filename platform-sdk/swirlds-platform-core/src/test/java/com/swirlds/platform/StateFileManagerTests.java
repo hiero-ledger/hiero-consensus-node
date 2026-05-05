@@ -17,7 +17,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -52,8 +51,6 @@ import java.util.stream.Stream;
 import org.hiero.base.CompareTo;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.model.node.NodeId;
@@ -81,6 +78,7 @@ class StateFileManagerTests {
 
     @TempDir
     private Path tmpDir;
+
     private Path testDirectory;
     private FileSystemManager fileSystemManager;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
@@ -92,12 +90,9 @@ class StateFileManagerTests {
 
     @BeforeEach
     void beforeEach() {
-//        final TestConfigBuilder configBuilder =
-//                new TestConfigBuilder().withValue(PathsConfig_.TMP_DIR, "SignedStateFileReadWriteTest");
         testDirectory = tmpDir.resolve("SignedStateFileReadWriteTest");
         fileSystemManager = new FileSystemManager(testDirectory);
         context = TestPlatformContextBuilder.create()
-//                .withConfiguration(configBuilder.getOrCreateConfig())
                 .withFileSystemManager(fileSystemManager)
                 .build();
         signedStateFilePath = new SignedStateFilePath(fileSystemManager, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
@@ -218,6 +213,7 @@ class StateFileManagerTests {
                         testDirectory.toFile().toString());
         final PlatformContext context = TestPlatformContextBuilder.create()
                 .withConfiguration(configBuilder.getOrCreateConfig())
+                .withFileSystemManager(fileSystemManager)
                 .build();
 
         // Each state now has a VirtualMap for ROSTERS, and each VirtualMap consumes a lot of RAM.
@@ -355,15 +351,11 @@ class StateFileManagerTests {
         final StateSnapshotManager manager =
                 new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
 
-        final Path statesDirectory =
-                signedStateFilePath.getSignedStatesDirectoryForSwirld();
+        final Path statesDirectory = signedStateFilePath.getSignedStatesDirectoryForSwirld();
 
         // Simulate the saving of an ISS state
         final int issRound = 666;
-        final Path issDirectory = signedStateFilePath
-                .getSignedStatesBaseDirectory()
-                .resolve("iss")
-                .resolve("node" + SELF_ID + "_round" + issRound);
+        final Path issDirectory = fileSystemManager.resolve("iss").resolve("node" + SELF_ID + "_round" + issRound);
         final SignedState issState =
                 new RandomSignedStateGenerator(random).setRound(issRound).build();
         initLifecycleManagerAndMakeStateImmutable(issState);
@@ -374,10 +366,8 @@ class StateFileManagerTests {
 
         // Simulate the saving of a fatal state
         final int fatalRound = 667;
-        final Path fatalDirectory = signedStateFilePath
-                .getSignedStatesBaseDirectory()
-                .resolve("fatal")
-                .resolve("node" + SELF_ID + "_round" + fatalRound);
+        final Path fatalDirectory =
+                fileSystemManager.resolve("fatal").resolve("node" + SELF_ID + "_round" + fatalRound);
         final SignedState fatalState =
                 new RandomSignedStateGenerator(random).setRound(fatalRound).build();
         initLifecycleManagerAndMakeStateImmutable(fatalState);

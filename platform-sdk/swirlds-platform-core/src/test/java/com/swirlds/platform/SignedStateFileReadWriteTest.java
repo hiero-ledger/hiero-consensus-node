@@ -26,9 +26,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.file.FileUtils;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -49,7 +46,10 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
@@ -71,7 +71,6 @@ class SignedStateFileReadWriteTest {
 
     private static SemanticVersion platformVersion;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
-    private FileSystemManager fileSystemManager;
 
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
@@ -87,7 +86,7 @@ class SignedStateFileReadWriteTest {
             FileUtils.delete(testDirectory);
         }
         Files.createDirectories(testDirectory);
-        fileSystemManager = new TestFileSystemManager(testDirectory);
+        final FileSystemManager fileSystemManager = new TestFileSystemManager(testDirectory);
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
                 new NoOpMetrics(), new FakeTime(), CONFIGURATION, fileSystemManager);
     }

@@ -17,6 +17,8 @@ import org.hiero.consensus.config.PathsConfig;
  */
 @ConfigData("recycleBin")
 public record RecycleBinConfig(
-        @ConfigProperty(defaultValue = "swirlds-recycle-bin") Path dirName,
+        @ConfigProperty(defaultValue = "swirlds-recycle-bin")
+        Path dirName,
+
         @ConfigProperty(defaultValue = "7d") Duration maximumFileAge,
         @ConfigProperty(defaultValue = "1d") Duration collectionPeriod) {}

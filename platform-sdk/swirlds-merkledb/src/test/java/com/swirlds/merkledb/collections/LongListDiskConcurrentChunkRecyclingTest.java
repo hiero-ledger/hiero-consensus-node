@@ -5,8 +5,6 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,6 +17,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

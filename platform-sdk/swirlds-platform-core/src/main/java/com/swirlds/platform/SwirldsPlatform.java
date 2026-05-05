@@ -17,7 +17,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSo
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.utility.AutoCloseableWrapper;
@@ -59,7 +58,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
-import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -236,7 +234,8 @@ public class SwirldsPlatform implements Platform {
         final String actualMainClassName =
                 configuration.getConfigData(StateConfig.class).getMainClassName(blocks.mainClassName());
 
-        final SignedStateFilePath statePath = new SignedStateFilePath(platformContext.getFileSystemManager(), actualMainClassName, selfId, blocks.swirldName());
+        final SignedStateFilePath statePath = new SignedStateFilePath(
+                platformContext.getFileSystemManager(), actualMainClassName, selfId, blocks.swirldName());
         final List<SavedStateInfo> savedStates = statePath.getSavedStateFiles();
         if (!savedStates.isEmpty()) {
             // The minimum generation of non-ancient events for the oldest state snapshot on disk.

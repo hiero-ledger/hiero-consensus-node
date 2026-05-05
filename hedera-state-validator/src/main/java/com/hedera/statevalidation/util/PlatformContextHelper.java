@@ -2,9 +2,7 @@
 package com.hedera.statevalidation.util;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -56,8 +54,7 @@ public final class PlatformContextHelper {
                 if (fileSystemManager == null) {
                     final PathsConfig pathsConfig =
                             ConfigUtils.getConfiguration().getConfigData(PathsConfig.class);
-                    fileSystemManager = new FileSystemManager(
-                            pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+                    fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
                 }
                 return fileSystemManager;
             }
