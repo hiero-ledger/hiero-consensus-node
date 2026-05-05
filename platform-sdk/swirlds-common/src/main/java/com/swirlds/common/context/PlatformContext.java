@@ -12,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.Thread.UncaughtExceptionHandler;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
@@ -37,10 +38,9 @@ public interface PlatformContext {
     @NonNull
     static PlatformContext create(@NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();
-        final StateCommonConfig scConfig = configuration.getConfigData(StateCommonConfig.class);
-        final TemporaryFileConfig tfConfig = configuration.getConfigData(TemporaryFileConfig.class);
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
         final FileSystemManager fileSystemManager =
-                new FileSystemManager(scConfig.savedStateDirectory(), tfConfig.temporaryFilePath());
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         final Time time = Time.getCurrent();
         return create(configuration, time, metrics, fileSystemManager, new NoOpRecycleBin());
     }

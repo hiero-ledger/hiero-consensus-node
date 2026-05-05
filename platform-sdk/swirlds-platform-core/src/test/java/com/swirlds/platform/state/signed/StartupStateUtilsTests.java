@@ -21,7 +21,6 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBinImpl;
-import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
@@ -45,6 +44,7 @@ import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBin;
@@ -89,10 +89,7 @@ public class StartupStateUtilsTests {
     @BeforeEach
     void beforeEach() throws IOException {
         FileUtils.deleteDirectory(savedStateDir);
-        signedStateFilePath = new SignedStateFilePath(new TestConfigBuilder()
-                .withValue("state.savedStateDirectory", savedStateDir.toString())
-                .getOrCreateConfig()
-                .getConfigData(StateCommonConfig.class));
+        signedStateFilePath = new SignedStateFilePath(savedStateDir);
         currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
         fileSystemManager = new TestFileSystemManager(fileSystemManagerTempDir);
     }

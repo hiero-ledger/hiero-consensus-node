@@ -30,6 +30,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.config.StateConfig;
@@ -73,7 +74,7 @@ public final class StartupStateUtils {
         final String actualMainClassName = stateConfig.getMainClassName(mainClassName);
 
         final List<SavedStateInfo> savedStateFiles = new SignedStateFilePath(
-                        config.getConfigData(StateCommonConfig.class))
+                        config.getConfigData(PathsConfig.class))
                 .getSavedStateFiles(actualMainClassName, selfId, swirldName);
         logStatesFound(savedStateFiles);
 

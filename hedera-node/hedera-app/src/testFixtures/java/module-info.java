@@ -32,6 +32,7 @@ open module com.hedera.node.app.test.fixtures {
     requires com.swirlds.merkledb.test.fixtures;
     requires com.swirlds.state.impl.test.fixtures;
     requires org.hiero.base.utility;
+    requires org.hiero.base.utility.test.fixtures;
     requires org.apache.logging.log4j;
     requires org.assertj.core;
     requires org.junit.jupiter.api;

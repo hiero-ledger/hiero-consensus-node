@@ -39,7 +39,7 @@ public final class FileUtils {
         requireNonNull(configuration);
 
         final TemporaryFileConfig config = configuration.getConfigData(TemporaryFileConfig.class);
-        final Path tempDir = fileSystemManager.resolveNewTemp(config.temporaryFilePath());
+        final Path tempDir = fileSystemManager.resolveNewTemp();
         if (!exists(tempDir)) {
             Files.createDirectories(tempDir);
         }

@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.Threshold;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
@@ -107,7 +108,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         this.swirldName = Objects.requireNonNull(swirldName);
         configuration = platformContext.getConfiguration();
         this.stateLifecycleManager = stateLifecycleManager;
-        signedStateFilePath = new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
+        signedStateFilePath = new SignedStateFilePath(configuration.getConfigData(PathsConfig.class));
         metrics = new StateSnapshotManagerMetrics(platformContext);
     }
 

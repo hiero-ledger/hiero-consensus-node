@@ -231,9 +231,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
             final var signedState = reservedState.get();
             final Hash newHash = signedState.getState().getHash();
 
-            final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
-            this.targetStateDir = new SignedStateFilePath(
-                            new StateCommonConfig(targetNodePath.resolve(stateConfig.savedStateDirectory())))
+            final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+            this.targetStateDir = new SignedStateFilePath(targetNodePath.resolve(pathsConfig.savedStateDir()))
                     .getSignedStateDirectory(
                             configuration.getValue("state.mainClassNameOverride"),
                             selfId,

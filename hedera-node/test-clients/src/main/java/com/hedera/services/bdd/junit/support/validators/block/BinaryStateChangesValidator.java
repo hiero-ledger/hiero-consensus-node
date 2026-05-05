@@ -39,16 +39,18 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Mnemonics;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A validator that replays {@link StateChanges} through the {@link BinaryState} API,
- * without going through service-specific writable state adapters.
+ * A validator that replays {@link StateChanges} through the {@link BinaryState} API, without going through
+ * service-specific writable state adapters.
  *
  * <p>After applying all state changes from the block stream, the resulting root hash is compared
- * to the expected hash from the latest saved state. This validates that the block stream contains
- * a complete and correct record of all state mutations.
+ * to the expected hash from the latest saved state. This validates that the block stream contains a complete and
+ * correct record of all state mutations.
  */
 public class BinaryStateChangesValidator implements BlockStreamValidator {
 
@@ -93,8 +95,8 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     };
 
     /**
-     * Constructs a validator that will replay the state changes in the block stream through
-     * the {@link BinaryState} API and compare the resulting root hash to the latest saved state hash.
+     * Constructs a validator that will replay the state changes in the block stream through the {@link BinaryState} API
+     * and compare the resulting root hash to the latest saved state hash.
      *
      * @param spec the spec
      * @return the validator
@@ -123,8 +125,10 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
 
         final var platformConfig = ServicesMain.buildPlatformConfig();
+        final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var metrics = new NoOpMetrics();
-        this.state = new VirtualMapStateImpl(platformConfig, metrics);
+        this.state = new VirtualMapStateImpl(platformConfig,
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir()), metrics);
     }
 
     @Override
@@ -176,9 +180,9 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
      * Parses binary protobuf {@link StateChanges} and applies mutations through the {@link BinaryState} API.
      *
      * <p>The parser manually reads the protobuf wire format to extract state change operations
-     * (singleton updates, map updates/deletes, queue pushes/pops) and delegates them to the
-     * corresponding {@link BinaryState} methods, which handle key composition, value wrapping,
-     * and queue state management internally.
+     * (singleton updates, map updates/deletes, queue pushes/pops) and delegates them to the corresponding
+     * {@link BinaryState} methods, which handle key composition, value wrapping, and queue state management
+     * internally.
      */
     private static final class BinaryStateChangeParser {
         private static void applyStateChanges(
@@ -367,9 +371,9 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
 
         /**
-         * Most block-stream key payloads are already byte-compatible with the state key bytes stored in the
-         * VirtualMap. Token relationship keys are the important exception: block stream uses TokenAssociation
-         * while state stores EntityIDPair, whose field ordering is different.
+         * Most block-stream key payloads are already byte-compatible with the state key bytes stored in the VirtualMap.
+         * Token relationship keys are the important exception: block stream uses TokenAssociation while state stores
+         * EntityIDPair, whose field ordering is different.
          */
         private static Bytes readMapKeyPayload(@NonNull final ReadableSequentialData input, final long endPosition) {
             Bytes payload = null;

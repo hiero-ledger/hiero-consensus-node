@@ -22,6 +22,7 @@ jmhModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.extensions")
     runtimeOnly("com.swirlds.config.impl")
+    requires("org.hiero.base.utility.test.fixtures")
 }
 
 testModuleInfo {

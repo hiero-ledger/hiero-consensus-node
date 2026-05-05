@@ -20,8 +20,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.config.FileSystemManagerConfig_;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.components.DefaultSavedStateController;
@@ -53,6 +51,9 @@ import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.CompareTo;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.config.PathsConfig_;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.state.StateSavingResult;
@@ -87,13 +88,13 @@ class StateFileManagerTests {
     @BeforeEach
     void beforeEach() {
         final TestConfigBuilder configBuilder =
-                new TestConfigBuilder().withValue(FileSystemManagerConfig_.TMP_DIR, "SignedStateFileReadWriteTest");
+                new TestConfigBuilder().withValue(PathsConfig_.TMP_DIR, "SignedStateFileReadWriteTest");
         context = TestPlatformContextBuilder.create()
                 .withConfiguration(configBuilder.getOrCreateConfig())
                 .build();
         testDirectory = FileUtils.getAbsolutePath().resolve("SignedStateFileReadWriteTest");
         signedStateFilePath =
-                new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
+                new SignedStateFilePath(context.getConfiguration().getConfigData(PathsConfig.class));
         stateLifecycleManager = new VirtualMapStateLifecycleManager(
                 context.getMetrics(), context.getTime(), context.getConfiguration(), context.getFileSystemManager());
     }
@@ -278,7 +279,7 @@ class StateFileManagerTests {
                 validateSavingOfState(signedState);
 
                 final List<SavedStateInfo> currentStatesOnDisk = new SignedStateFilePath(
-                                context.getConfiguration().getConfigData(StateCommonConfig.class))
+                                context.getConfiguration().getConfigData(PathsConfig.class))
                         .getSavedStateFiles(MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
 
                 final SavedStateMetadata oldestMetadata =

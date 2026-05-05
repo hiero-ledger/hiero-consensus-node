@@ -8,8 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.test.fixtures.TestFileSystemManager;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.StateLifecycleManager;

@@ -18,6 +18,7 @@ import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -25,15 +26,24 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class SignedStateFilePath {
     private static final Logger logger = LogManager.getLogger(SignedStateFilePath.class);
-    final StateCommonConfig stateConfig;
+    private final Path savedStateDir;
 
     /**
      * Create a new instance of this class.
      *
-     * @param stateConfig the config that contains the location of the saved state directory
+     * @param pathsConfig the configuration containing the path to the saved state directory
      */
-    public SignedStateFilePath(@NonNull final StateCommonConfig stateConfig) {
-        this.stateConfig = stateConfig;
+    public SignedStateFilePath(@NonNull final PathsConfig pathsConfig) {
+        this.savedStateDir = pathsConfig.savedStateDir();
+    }
+
+    /**
+     * Create a new instance of this class.
+     *
+     * @param savedStateDir the location of the saved state directory
+     */
+    public SignedStateFilePath(@NonNull final Path savedStateDir) {
+        this.savedStateDir = savedStateDir;
     }
 
     /**
@@ -52,7 +62,7 @@ public class SignedStateFilePath {
      * @return the base directory for all signed state files
      */
     public @NonNull Path getSignedStatesBaseDirectory() {
-        return getAbsolutePath(stateConfig.savedStateDirectory());
+        return getAbsolutePath(savedStateDir);
     }
 
     /**

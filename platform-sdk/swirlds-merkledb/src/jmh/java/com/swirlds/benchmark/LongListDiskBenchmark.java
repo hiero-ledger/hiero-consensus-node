@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.swirlds.common.io.config.FileSystemManagerConfig;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -14,6 +11,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.config.PathsConfig;
 import org.junit.jupiter.api.io.TempDir;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
@@ -50,7 +50,7 @@ public class LongListDiskBenchmark {
         final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(FileSystemManagerConfig.class)
+                .withConfigDataType(PathsConfig.class)
                 .withSource(new SimpleConfigSource("merkleDb.longListChunkSize", "" + chunkSize));
         configuration = configurationBuilder.build();
         fileSystemManager = new TestFileSystemManager(tempDir);

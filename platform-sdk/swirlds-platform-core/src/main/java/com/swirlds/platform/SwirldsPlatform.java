@@ -59,6 +59,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -235,7 +236,7 @@ public class SwirldsPlatform implements Platform {
         final String actualMainClassName =
                 configuration.getConfigData(StateConfig.class).getMainClassName(blocks.mainClassName());
         final SignedStateFilePath statePath =
-                new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
+                new SignedStateFilePath(configuration.getConfigData(PathsConfig.class));
         final List<SavedStateInfo> savedStates =
                 statePath.getSavedStateFiles(actualMainClassName, selfId, blocks.swirldName());
         if (!savedStates.isEmpty()) {

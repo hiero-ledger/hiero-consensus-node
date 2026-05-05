@@ -95,6 +95,20 @@ public class FileSystemManager {
      * different path even if {@code tag} is not set. A separate instance pointing to the same {@code rootPath} can
      * create the same paths and should be managed outside this class.
      *
+     * @return the resolved path
+     * @throws IllegalArgumentException if the path is "above" the root directory (e.g. resolve("../foo")
+     */
+    @NonNull
+    public Path resolveNewTemp() {
+        return resolveNewTemp(null);
+    }
+
+    /**
+     * Creates a path relative to the {@code tempPath} directory of the file system manager. There is no file or
+     * directory actually being created after the invocation of this method. All calls to this method will return a
+     * different path even if {@code tag} is not set. A separate instance pointing to the same {@code rootPath} can
+     * create the same paths and should be managed outside this class.
+     *
      * @param tag if indicated, will be suffixed to the returned path
      * @return the resolved path
      * @throws IllegalArgumentException if the path is "above" the root directory (e.g. resolve("../foo")
