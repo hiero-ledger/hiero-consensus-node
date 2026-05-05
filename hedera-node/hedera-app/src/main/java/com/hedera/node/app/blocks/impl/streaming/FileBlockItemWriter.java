@@ -310,7 +310,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     private static Block parseBlock(final byte[] bytes, final int maxReadDepth, final int maxReadSize)
             throws ParseException {
-        // parse the block strictly. We can't use the `parseStrict` version as we also want to validate the max depth here.
+        // parseStrict shorthand omitted: we also need to validate max depth, requiring the multi-arg overload.
         return Block.PROTOBUF.parse(
                 Bytes.wrap(bytes).toReadableSequentialData(), false, false, maxReadDepth, maxReadSize);
     }

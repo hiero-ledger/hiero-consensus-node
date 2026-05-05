@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 class MutateTokenOpTest {
 
     @Test
-    public void tokenIdFromProtoToPbj() {
+    void tokenIdFromProtoToPbj() {
         final var protoTokenId =
                 com.hederahashgraph.api.proto.java.TokenID.newBuilder().setTokenNum(42).build();
         assertDoesNotThrow(() -> {

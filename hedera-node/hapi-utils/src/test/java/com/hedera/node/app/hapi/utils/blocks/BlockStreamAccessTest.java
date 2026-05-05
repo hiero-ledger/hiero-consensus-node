@@ -41,8 +41,8 @@ class BlockStreamAccessTest {
     void blockFrom_withGzippedBlockFile_returnsBlock() throws IOException {
         final var blockBytes = Block.PROTOBUF.toBytes(SAMPLE_BLOCK).toByteArray();
         final var gzippedFile = tempDir.resolve("000000000000000000042.blk.gz");
-        try (final var baos = new ByteArrayOutputStream();
-                final var gzip = new GZIPOutputStream(baos)) {
+        try (var baos = new ByteArrayOutputStream();
+                var gzip = new GZIPOutputStream(baos)) {
             gzip.write(blockBytes);
             gzip.finish();
             Files.write(gzippedFile, baos.toByteArray());
