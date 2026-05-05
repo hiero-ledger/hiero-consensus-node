@@ -118,20 +118,11 @@ public class HintsSubmissions extends TssSubmissions {
     public CompletableFuture<Void> submitPartialSignature(@NonNull final Bytes message) {
         requireNonNull(message);
         final long constructionId = context.constructionIdOrThrow();
-        logger.info(
-                "Attempting hinTS partial signature submission for construction #{} and message {}",
-                constructionId,
-                message);
         return submitIfActive(
                 b -> {
-                    final var signature = requireNonNull(keyAccessor.signWithBlsPrivateKey(constructionId, message));
-                    logger.info(
-                            "Built hinTS partial signature transaction for construction #{} and message {}; signatureLength={}",
-                            constructionId,
-                            message,
-                            signature.length());
-                    b.hintsPartialSignature(
-                            new HintsPartialSignatureTransactionBody(constructionId, message, signature));
+                    final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);
+                    b.hintsPartialSignature(new HintsPartialSignatureTransactionBody(
+                            constructionId, message, requireNonNull(signature)));
                 },
                 onFailure);
     }

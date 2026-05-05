@@ -241,13 +241,6 @@ public class HintsContext {
             this.partyIds = requireNonNull(partyIds);
             this.nodeWeights = requireNonNull(nodeWeights);
             this.verificationKey = requireNonNull(verificationKey);
-            log.info(
-                    "Started hinTS signing for block hash {}; thresholdWeight={}, totalKnownWeight={}, thresholdDenominator={}, validatingAggregate={}",
-                    blockHash,
-                    thresholdWeight,
-                    nodeWeights.values().stream().mapToLong(Long::longValue).sum(),
-                    thresholdDenominator,
-                    validateSignature);
             executor.schedule(
                     () -> {
                         if (!future.isDone()) {
@@ -307,10 +300,6 @@ public class HintsContext {
             // For block hash signing, always require strictly greater than threshold
             final boolean reachedThreshold = totalWeight > thresholdWeight;
             if (reachedThreshold && completed.compareAndSet(false, true)) {
-                log.info(
-                        "hinTS signing threshold reached for block hash {}; aggregating {} partial signatures",
-                        blockHash,
-                        signatures.size());
                 final var aggregatedSignature =
                         library.aggregateSignatures(crs, aggregationKey, verificationKey, signatures);
                 final boolean valid = !validateSignature
@@ -318,11 +307,9 @@ public class HintsContext {
                                 aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator);
                 if (valid) {
                     future.complete(aggregatedSignature);
-                    log.info("Completed hinTS signing for block hash {}", blockHash);
                     final long elapsedNanos = System.nanoTime() - startNanos;
                     signingMetrics.recordSignatureProduced(elapsedNanos / 1_000_000L);
                 } else {
-                    log.error("Invalid hinTS aggregate signature for block hash {}", blockHash);
                     future.completeExceptionally(new IllegalStateException(INVALID_AGGREGATE_SIGNATURE_MESSAGE));
                 }
             }

@@ -105,17 +105,12 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
-        final boolean existingSigning = component.signings().containsKey(blockHash);
-        logger.info("Requesting hinTS signature for block hash {}; existingSigning={}", blockHash, existingSigning);
         final var signing = component.signings().computeIfAbsent(blockHash, b -> component
                 .signingContext()
                 .newSigning(b, () -> component.signings().remove(blockHash)));
-        component.submissions().submitPartialSignature(blockHash).whenComplete((ignore, t) -> {
-            if (t == null) {
-                logger.info("Completed local hinTS partial signature submission attempt for block hash {}", blockHash);
-            } else {
-                logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
-            }
+        component.submissions().submitPartialSignature(blockHash).exceptionally(t -> {
+            logger.warn("Failed to submit partial signature for block hash {}", blockHash, t);
+            return null;
         });
         return signing;
     }

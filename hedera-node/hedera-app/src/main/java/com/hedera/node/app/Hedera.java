@@ -931,10 +931,6 @@ public final class Hedera
             }
             final var payload = SignedTransaction.PROTOBUF.toBytes(nodeSignedTxWith(body));
             // Always use priority=true for node gossip submissions
-            logger.info(
-                    "Submitting node transaction {} via priority gossip while platformStatus={}",
-                    function,
-                    daggerApp.currentPlatformStatus().get());
             daggerApp.submissionManager().submit(body, payload, true);
             if (quiescenceEnabled && isRelevantTransaction(body)) {
                 daggerApp.txPipelineTracker().incrementInFlight();
@@ -958,13 +954,10 @@ public final class Hedera
     @Override
     public boolean isAvailable() {
         if (daggerApp == null) {
-            logger.info("Node transaction gossip unavailable because daggerApp is null");
             return false;
         }
         final var status = daggerApp.currentPlatformStatus().get();
-        final boolean available = isGossipAvailableForNodeTransactions(status);
-        logger.info("Node transaction gossip availability={} while platformStatus={}", available, status);
-        return available;
+        return isGossipAvailableForNodeTransactions(status);
     }
 
     static boolean isGossipAvailableForNodeTransactions(@NonNull final PlatformStatus platformStatus) {
@@ -1319,14 +1312,7 @@ public final class Hedera
      */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
-        final var transactions = transactionPool.getTransactionsForEvent();
-        if (platformStatus == FREEZING && !transactions.isEmpty()) {
-            logger.info(
-                    "Providing {} transaction(s) for event creation while platformStatus={}",
-                    transactions.size(),
-                    platformStatus);
-        }
-        return transactions;
+        return transactionPool.getTransactionsForEvent();
     }
 
     /**
