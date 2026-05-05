@@ -93,7 +93,7 @@ class JumpstartFileSuite implements LifecycleTest {
                 new HashMap<>(Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"));
 
         // A 48-byte hash that will not match any real entry computed by buildDynamicJumpstartConfig
-        final var corruptedHash = "aa".repeat(48);
+        final var corruptedHash = "deadc0de".repeat(12);
         final AtomicReference<HashMap<String, String>> corruptedEnvOverridesRef = new AtomicReference<>();
 
         return hapiTest(
@@ -119,7 +119,9 @@ class JumpstartFileSuite implements LifecycleTest {
                         corruptedEnvOverridesRef.get(),
                         assertHgcaaLogContainsPattern(
                                 NodeSelector.exceptNodeIds(LATER_NODE_IDS),
-                                "Jumpstart currentBlockConsensusTimestampHash for block \\d+ does not match wrapped record hashes file entry",
+                                "Jumpstart currentBlockConsensusTimestampHash for block \\d+ does not match wrapped record hashes file entry \\("
+                                        + corruptedHash
+                                        + " vs [0-9a-f]+\\)\\. Resuming calculation of wrapped record file hashes until next attempt",
                                 Duration.ofSeconds(30)))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 logIt("Phase 3: Restarting with valid jumpstart config"),
