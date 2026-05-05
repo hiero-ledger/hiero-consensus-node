@@ -18,8 +18,8 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.completedFuture;
-import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
@@ -1250,7 +1250,11 @@ public final class Hedera
         if (!result.freezeState() || daggerApp == null) {
             return completedFuture(null);
         }
-        return daggerApp.blockStreamManager().pendingBlockProofsFuture();
+        final var blockStreamFuture = daggerApp.blockStreamManager().pendingBlockProofsFuture();
+        final var blockRecordManager = daggerApp.blockRecordManager();
+        final var wrbWritersFuture =
+                blockRecordManager == null ? completedFuture(null) : blockRecordManager.noOpenWrbWritersFuture();
+        return allOf(blockStreamFuture, wrbWritersFuture);
     }
 
     /**

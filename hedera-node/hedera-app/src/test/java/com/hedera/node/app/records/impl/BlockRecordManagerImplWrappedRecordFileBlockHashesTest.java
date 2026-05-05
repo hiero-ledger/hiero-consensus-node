@@ -12,6 +12,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -75,6 +76,7 @@ import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
@@ -1917,6 +1919,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 blockHashSigner,
                 InitTrigger.RECONNECT);
 
+        assertTrue(mgr.noOpenWrbWritersFuture().isDone());
         final var t0 = InstantUtils.instant(10, 1);
         mgr.startUserTransaction(t0, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -1924,9 +1927,12 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         mgr.startUserTransaction(t1, state);
 
         assertEquals(1, handedOutWriters.size(), "one writer should have been handed out");
+        final var noOpenWrbWritersFuture = mgr.noOpenWrbWritersFuture();
+        assertFalse(noOpenWrbWritersFuture.isDone());
         verify(blockHashSigner, never()).sign(any(), eq(LIST_OF_PARTIAL_SIGNATURES));
         recordFileHashFuture.complete(LEGACY_RECORD_FILE_HASH);
         verify(blockHashSigner, timeout(1_000)).sign(eq(LEGACY_RECORD_FILE_HASH), eq(LIST_OF_PARTIAL_SIGNATURES));
+        assertFalse(noOpenWrbWritersFuture.isDone());
 
         final var signatureBytes = Bytes.wrap("node-3-signature");
         final var rosterSignatures =
@@ -1935,6 +1941,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
 
         final var writer = handedOutWriters.getFirst();
         verify(writer, timeout(1_000)).closeCompleteBlock();
+        assertDoesNotThrow(() -> noOpenWrbWritersFuture.get(1, TimeUnit.SECONDS));
 
         final var captor = ArgumentCaptor.forClass(BlockItem.class);
         verify(writer, times(4)).writePbjItem(captor.capture());
@@ -2061,11 +2068,14 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         mgr.startUserTransaction(t1, state);
 
         assertEquals(1, handedOutWriters.size(), "one writer should have been handed out");
+        final var noOpenWrbWritersFuture = mgr.noOpenWrbWritersFuture();
+        assertFalse(noOpenWrbWritersFuture.isDone());
 
         // Closing the manager must drain the parked writer via flushPendingBlock(PendingProof.DEFAULT)
         mgr.close();
 
         verify(handedOutWriters.get(0)).flushPendingBlock(PendingProof.DEFAULT);
+        assertTrue(noOpenWrbWritersFuture.isDone());
     }
 
     private void seedRequiredState(final AppTestBase.App app) {

@@ -502,21 +502,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private void addPendingBlock(@NonNull final PendingBlock pendingBlock) {
         pendingBlocks.add(requireNonNull(pendingBlock));
-        pendingBlockProofCount.incrementAndGet();
+        synchronized (pendingBlockProofsFutureLock) {
+            final int previousPendingBlocks = pendingBlockProofCount.getAndIncrement();
+            if (previousPendingBlocks == 0 || pendingBlockProofsFuture == null || pendingBlockProofsFuture.isDone()) {
+                pendingBlockProofsFuture = new CompletableFuture<>();
+            }
+        }
     }
 
     private void markPendingBlockProofComplete() {
-        final int remainingPendingBlocks = pendingBlockProofCount.decrementAndGet();
-        if (remainingPendingBlocks < 0) {
-            log.warn("Pending block proof count went below zero; resetting to zero");
-            pendingBlockProofCount.set(0);
-        }
-        completePendingBlockProofsFutureIfDone();
-    }
-
-    private void completePendingBlockProofsFutureIfDone() {
         final CompletableFuture<Void> futureToComplete;
         synchronized (pendingBlockProofsFutureLock) {
+            final int remainingPendingBlocks = pendingBlockProofCount.decrementAndGet();
+            if (remainingPendingBlocks < 0) {
+                log.warn("Pending block proof count went below zero; resetting to zero");
+                pendingBlockProofCount.set(0);
+            }
             if (pendingBlockProofCount.get() != 0
                     || pendingBlockProofsFuture == null
                     || pendingBlockProofsFuture.isDone()) {
@@ -1251,9 +1252,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public @NonNull CompletableFuture<Void> pendingBlockProofsFuture() {
-        if (pendingBlockProofCount.get() == 0) {
-            return CompletableFuture.completedFuture(null);
-        }
         synchronized (pendingBlockProofsFutureLock) {
             if (pendingBlockProofCount.get() == 0) {
                 return CompletableFuture.completedFuture(null);
