@@ -59,12 +59,12 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     /**
      * Constructor
      *
-     * @param configuration      the configuration
-     * @param metrics            the metrics registry
-     * @param time               the time source
-     * @param roster             the current roster
-     * @param selfId             the ID of the node
-     * @param freezeChecker      checks if the consensus time has reached the freeze period
+     * @param configuration the configuration
+     * @param metrics the metrics registry
+     * @param time the time source
+     * @param roster the current roster
+     * @param selfId the ID of the node
+     * @param freezeChecker checks if the consensus time has reached the freeze period
      */
     public DefaultConsensusEngine(
             @NonNull final Configuration configuration,
