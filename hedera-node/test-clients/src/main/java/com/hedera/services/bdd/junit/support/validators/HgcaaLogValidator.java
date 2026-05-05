@@ -74,6 +74,7 @@ public class HgcaaLogValidator {
         private static final int LINES_AFTER_NON_CATASTROPHIC_PROBLEM_TO_REPORT = 10;
         private static final int LINES_AFTER_CATASTROPHIC_PROBLEM_TO_REPORT = 30;
         private static final String PROBLEM_DELIMITER = "\n========================================\n";
+        private static final String CORRUPTED_HASH = "deadc0de".repeat(12);
 
         private static final List<List<String>> PROBLEM_PATTERNS_TO_IGNORE = List.of(
                 List.of("NodeMetadataHelper"),
@@ -117,7 +118,7 @@ public class HgcaaLogValidator {
                 List.of(
                         "Jumpstart currentBlockConsensusTimestampHash for block",
                         "does not match wrapped record hashes file entry",
-                        "deadc0dedeadc0dedeadc0dedeadc0dedeadc0dedeadc0dedeadc0dedeadc0dedeadc0dedeadc0dedeadc0dedeadc0de",
+                        CORRUPTED_HASH,
                         "Resuming calculation of wrapped record file hashes until next attempt"));
 
         private int numProblems = 0;
