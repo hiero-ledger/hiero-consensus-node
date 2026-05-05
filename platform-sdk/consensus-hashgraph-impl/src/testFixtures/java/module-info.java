@@ -17,7 +17,6 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     requires transitive org.assertj.core;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.base.test.fixtures;
-    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.platform.core;
     requires org.hiero.base.crypto.test.fixtures;
