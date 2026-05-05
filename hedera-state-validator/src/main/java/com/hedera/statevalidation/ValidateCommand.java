@@ -45,13 +45,15 @@ public class ValidateCommand implements Callable<Integer> {
 
     @Option(
             names = {"-io", "--io-threads"},
-            description = "Number of IO threads for reading from disk. Default: 4.")
-    private int ioThreads = 4;
+            description = "Number of IO threads for reading from disk. Default: 4.",
+            converter = CpuCountConverter.class)
+    private Integer ioThreads = 4;
 
     @Option(
             names = {"-p", "--process-threads"},
-            description = "Number of CPU threads for processing segments. Default: 6.")
-    private int processThreads = 6;
+            description = "Number of CPU threads for processing segments. Default: 6.",
+            converter = CpuCountConverter.class)
+    private Integer processThreads = 6;
 
     @Option(
             names = {"-q", "--queue-capacity"},
