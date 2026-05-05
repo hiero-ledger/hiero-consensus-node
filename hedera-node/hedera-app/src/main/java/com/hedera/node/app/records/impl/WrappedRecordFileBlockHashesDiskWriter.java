@@ -184,7 +184,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
             // protobuf message. Using "parse" method with strict validation allows us to peform that check.
             final var log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
                     com.hedera.pbj.runtime.io.buffer.Bytes.wrap(allBytes).toReadableSequentialData(),
-                    false,
+                    true,
                     false,
                     512,
                     allBytes.length);
