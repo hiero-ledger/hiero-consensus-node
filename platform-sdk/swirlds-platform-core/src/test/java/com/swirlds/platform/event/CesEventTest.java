@@ -3,10 +3,10 @@ package com.swirlds.platform.event;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.test.fixtures.io.InputOutputStream;
 import java.io.IOException;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.utility.test.fixtures.io.InputOutputStream;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
