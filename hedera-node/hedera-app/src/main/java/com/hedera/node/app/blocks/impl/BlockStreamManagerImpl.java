@@ -91,6 +91,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -169,6 +170,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Blocks awaiting proof via ledger signature on their block hash (or a subsequent block hash).
      */
     private final Queue<PendingBlock> pendingBlocks = new ConcurrentLinkedQueue<>();
+    /**
+     * The number of blocks awaiting proof via ledger signature on their block hash (or a subsequent block hash).
+     */
+    private final AtomicInteger pendingBlockProofCount = new AtomicInteger(0);
+    /**
+     * Guards the future returned to callers waiting for all pending block proofs to complete.
+     */
+    private final Object pendingBlockProofsFutureLock = new Object();
+    /**
+     * A future that completes when there are no blocks awaiting proof.
+     */
+    @Nullable
+    private CompletableFuture<Void> pendingBlockProofsFuture = null;
     /**
      * Futures that resolve when the end-of-round state hash is available for a given round number.
      */
@@ -420,7 +434,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     block.items()
                             .forEach(
                                     item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
-                    pendingBlocks.add(new PendingBlock(
+                    addPendingBlock(new PendingBlock(
                             block.number(),
                             block.contentsPath(),
                             block.blockHash(),
@@ -437,6 +451,33 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         } catch (Exception e) {
             log.warn("Failed to load pending blocks", e);
         }
+    }
+
+    private void addPendingBlock(@NonNull final PendingBlock pendingBlock) {
+        pendingBlocks.add(requireNonNull(pendingBlock));
+        pendingBlockProofCount.incrementAndGet();
+    }
+
+    private void markPendingBlockProofComplete() {
+        final int remainingPendingBlocks = pendingBlockProofCount.decrementAndGet();
+        if (remainingPendingBlocks < 0) {
+            log.warn("Pending block proof count went below zero; resetting to zero");
+            pendingBlockProofCount.set(0);
+        }
+        completePendingBlockProofsFutureIfDone();
+    }
+
+    private void completePendingBlockProofsFutureIfDone() {
+        final CompletableFuture<Void> futureToComplete;
+        synchronized (pendingBlockProofsFutureLock) {
+            if (pendingBlockProofCount.get() != 0
+                    || pendingBlockProofsFuture == null
+                    || pendingBlockProofsFuture.isDone()) {
+                return;
+            }
+            futureToComplete = pendingBlockProofsFuture;
+        }
+        futureToComplete.complete(null);
     }
 
     @Override
@@ -581,7 +622,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
             // Create a pending block, waiting to be signed
             final var blockProofBuilder = BlockProof.newBuilder().block(blockNumber);
-            pendingBlocks.add(new PendingBlock(
+            addPendingBlock(new PendingBlock(
                     blockNumber,
                     null,
                     finalBlockRootHash,
@@ -596,84 +637,74 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             previousBlockHashes.addNodeByHash(lastBlockHash.toByteArray());
             writer = null;
 
-            // Special case when signing with hinTS and this is the freeze round; we have to wait
-            // until after restart to gossip partial signatures and sign any pending blocks
-            if (hintsEnabled && roundNum == freezeRoundNumber) {
-                // In case the id of the next hinTS construction changed since a block ended
-                pendingBlocks.forEach(block -> {
-                    final var pendingProof = block.asPendingProof();
-                    block.writer().flushPendingBlock(pendingProof);
-                });
-            } else {
-                final var attempt = blockHashSigner.sign(finalBlockRootHash);
-                attempt.signatureFuture()
-                        .thenAcceptAsync(signature -> {
-                            if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
-                                log.debug(
-                                        "Signature future completed with empty signature for block num {}, final block hash {}",
-                                        blockNumber,
-                                        finalBlockRootHash);
-                            } else {
-                                finishProofWithSignature(
-                                        finalBlockRootHash,
-                                        signature,
-                                        attempt.verificationKey(),
-                                        attempt.chainOfTrustProof());
-                            }
-                            if (quiescenceEnabled) {
-                                final var lastCommand = lastQuiescenceCommand.get();
-                                final var commandNow = quiescenceController.getQuiescenceStatus();
-                                if (commandNow != lastCommand
-                                        && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
-                                    log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
-                                    platform.quiescenceCommand(commandNow);
-                                    if (commandNow == QUIESCE) {
-                                        final var config = configProvider.getConfiguration();
-                                        final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
-                                        quiescedHeartbeat.start(
-                                                blockStreamConfig.quiescedHeartbeatInterval(),
-                                                new TctProbe(
-                                                        blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
-                                                        config.getConfigData(StakingConfig.class)
-                                                                .periodMins(),
-                                                        state));
-                                    }
+            final var attempt = blockHashSigner.sign(finalBlockRootHash);
+            attempt.signatureFuture()
+                    .thenAcceptAsync(signature -> {
+                        if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
+                            log.debug(
+                                    "Signature future completed with empty signature for block num {}, final block hash {}",
+                                    blockNumber,
+                                    finalBlockRootHash);
+                        } else {
+                            finishProofWithSignature(
+                                    finalBlockRootHash,
+                                    signature,
+                                    attempt.verificationKey(),
+                                    attempt.chainOfTrustProof());
+                        }
+                        if (quiescenceEnabled) {
+                            final var lastCommand = lastQuiescenceCommand.get();
+                            final var commandNow = quiescenceController.getQuiescenceStatus();
+                            if (commandNow != lastCommand
+                                    && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
+                                log.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
+                                platform.quiescenceCommand(commandNow);
+                                if (commandNow == QUIESCE) {
+                                    final var config = configProvider.getConfiguration();
+                                    final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+                                    quiescedHeartbeat.start(
+                                            blockStreamConfig.quiescedHeartbeatInterval(),
+                                            new TctProbe(
+                                                    blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                                                    config.getConfigData(StakingConfig.class)
+                                                            .periodMins(),
+                                                    state));
                                 }
                             }
-                        })
-                        .exceptionally(t -> {
-                            if (t.getCause() instanceof IllegalStateException illegalStateException) {
-                                if (HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE.equals(
-                                        illegalStateException.getMessage())) {
-                                    log.error(
-                                            "Invalid signature detected on block #{} ({})",
-                                            blockNumber,
-                                            finalBlockRootHash,
-                                            t);
-                                    return null;
-                                }
-                            }
-                            final boolean alreadyClosed = t instanceof CompletionException completionException
-                                    && completionException.getCause() instanceof IllegalStateException e
-                                    && Optional.ofNullable(e.getMessage())
-                                            .filter(m -> m.startsWith(
-                                                    "Cannot write to a FileBlockItemWriter that is not open"))
-                                            .isPresent();
-                            if (alreadyClosed) {
-                                log.info(
-                                        "Block #{} with hash {} already closed, skipping direct proof",
-                                        blockNumber,
-                                        finalBlockRootHash);
-                            } else {
-                                log.warn(
-                                        "Unhandled exception while signing block #{} with hash {}",
+                        }
+                    })
+                    .exceptionally(t -> {
+                        if (t.getCause() instanceof IllegalStateException illegalStateException) {
+                            if (HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE.equals(
+                                    illegalStateException.getMessage())) {
+                                log.error(
+                                        "Invalid signature detected on block #{} ({})",
                                         blockNumber,
                                         finalBlockRootHash,
                                         t);
+                                return null;
                             }
-                            return null;
-                        });
-            }
+                        }
+                        final boolean alreadyClosed = t instanceof CompletionException completionException
+                                && completionException.getCause() instanceof IllegalStateException e
+                                && Optional.ofNullable(e.getMessage())
+                                        .filter(m -> m.startsWith(
+                                                "Cannot write to a FileBlockItemWriter that is not open"))
+                                        .isPresent();
+                        if (alreadyClosed) {
+                            log.info(
+                                    "Block #{} with hash {} already closed, skipping direct proof",
+                                    blockNumber,
+                                    finalBlockRootHash);
+                        } else {
+                            log.warn(
+                                    "Unhandled exception while signing block #{} with hash {}",
+                                    blockNumber,
+                                    finalBlockRootHash,
+                                    t);
+                        }
+                        return null;
+                    });
 
             final var exportNetworkToDisk =
                     switch (diskNetworkExport) {
@@ -866,6 +897,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (currentPendingBlock.contentsPath() != null) {
                 cleanUpPendingBlock(currentPendingBlock.contentsPath());
             }
+            markPendingBlockProofComplete();
         }
     }
 
@@ -1175,6 +1207,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .completeOnTimeout(null, timeout.toSeconds(), TimeUnit.SECONDS)
                 .join();
         log.fatal("Block stream fatal shutdown complete");
+    }
+
+    @Override
+    public @NonNull CompletableFuture<Void> pendingBlockProofsFuture() {
+        if (pendingBlockProofCount.get() == 0) {
+            return CompletableFuture.completedFuture(null);
+        }
+        synchronized (pendingBlockProofsFutureLock) {
+            if (pendingBlockProofCount.get() == 0) {
+                return CompletableFuture.completedFuture(null);
+            }
+            if (pendingBlockProofsFuture == null || pendingBlockProofsFuture.isDone()) {
+                pendingBlockProofsFuture = new CompletableFuture<>();
+            }
+            return pendingBlockProofsFuture;
+        }
     }
 
     @Override

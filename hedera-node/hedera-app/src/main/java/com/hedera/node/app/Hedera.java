@@ -166,6 +166,7 @@ import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
@@ -877,7 +878,7 @@ public final class Hedera
     @Override
     public void submit(@NonNull final TransactionBody body) {
         requireNonNull(body);
-        if (platformStatus != ACTIVE) {
+        if (daggerApp == null) {
             throw new IllegalStateException("" + PLATFORM_NOT_ACTIVE);
         }
         final HederaFunctionality function;
@@ -895,7 +896,7 @@ public final class Hedera
             }
             final var payload = SignedTransaction.PROTOBUF.toBytes(nodeSignedTxWith(body));
             // Always use priority=true for node gossip submissions
-            requireNonNull(daggerApp).submissionManager().submit(body, payload, true);
+            daggerApp.submissionManager().submit(body, payload, true);
             if (quiescenceEnabled && isRelevantTransaction(body)) {
                 daggerApp.txPipelineTracker().incrementInFlight();
             }
@@ -917,7 +918,16 @@ public final class Hedera
 
     @Override
     public boolean isAvailable() {
-        return daggerApp != null && daggerApp.currentPlatformStatus().get() == ACTIVE;
+        return daggerApp != null && isGossipAvailableForNodeTransactions(daggerApp.currentPlatformStatus().get());
+    }
+
+    static boolean isGossipAvailableForNodeTransactions(@NonNull final PlatformStatus platformStatus) {
+        requireNonNull(platformStatus);
+        return switch (platformStatus) {
+            case ACTIVE, CHECKING, FREEZING -> true;
+            case BEHIND, CATASTROPHIC_FAILURE, FREEZE_COMPLETE, OBSERVING, RECONNECT_COMPLETE, REPLAYING_EVENTS,
+                    STARTING_UP -> false;
+        };
     }
 
     /**
@@ -1195,6 +1205,18 @@ public final class Hedera
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull CompletableFuture<Void> getFreezeCompleteFuture(@NonNull final StateSavingResult result) {
+        requireNonNull(result);
+        if (!result.freezeState() || daggerApp == null) {
+            return completedFuture(null);
+        }
+        return daggerApp.blockStreamManager().pendingBlockProofsFuture();
     }
 
     /**

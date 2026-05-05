@@ -8,6 +8,7 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.WireFilter;
+import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
@@ -37,10 +38,13 @@ import com.swirlds.platform.system.status.PlatformStatusConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Queue;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
+import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
@@ -49,6 +53,8 @@ import org.hiero.consensus.state.signed.StateGarbageCollector;
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
  */
 public class PlatformWiring {
+
+    private static final Logger logger = LogManager.getLogger(PlatformWiring.class);
 
     /**
      * Wire the components together.
@@ -303,10 +309,16 @@ public class PlatformWiring {
                 .getTransformedOutput(StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk)
                 .solderTo(components.pcesModule().minimumBirthRoundInputWire(), INJECT);
 
+        final InputWire<StateSavingResult> stateWrittenToDiskInputWire =
+                components.platformMonitorWiring().getInputWire(PlatformMonitor::stateWrittenToDisk);
         components
                 .stateSnapshotManagerWiring()
                 .getOutputWire()
-                .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::stateWrittenToDisk));
+                .solderTo(
+                        "ApplicationFreezeCompletionGate",
+                        "state saving results",
+                        result -> submitStateWrittenToDiskAfterApplicationIsReady(
+                                execution, stateWrittenToDiskInputWire, result));
 
         components
                 .runningEventHashOverrideWiring()
@@ -422,5 +434,44 @@ public class PlatformWiring {
         components.branchReporterWiring().getInputWire(BranchReporter::clear);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);
+    }
+
+    static void submitStateWrittenToDiskAfterApplicationIsReady(
+            @NonNull final ExecutionLayer execution,
+            @NonNull final InputWire<StateSavingResult> stateWrittenToDiskInputWire,
+            @NonNull final StateSavingResult result) {
+        Objects.requireNonNull(execution);
+        Objects.requireNonNull(stateWrittenToDiskInputWire);
+        Objects.requireNonNull(result);
+
+        if (!result.freezeState()) {
+            stateWrittenToDiskInputWire.put(result);
+            return;
+        }
+
+        try {
+            Objects.requireNonNull(execution.getFreezeCompleteFuture(result))
+                    .whenComplete((ignore, throwable) -> {
+                        if (throwable != null) {
+                            logger.error(
+                                    """
+                                            Application freeze completion future failed for freeze state round {}.
+                                            Continuing the platform transition to FREEZE_COMPLETE.
+                                            """,
+                                    result.round(),
+                                    throwable);
+                        }
+                        stateWrittenToDiskInputWire.inject(result);
+                    });
+        } catch (final RuntimeException e) {
+            logger.error(
+                    """
+                            Application failed to provide a freeze completion future for freeze state round {}.
+                            Continuing the platform transition to FREEZE_COMPLETE.
+                            """,
+                    result.round(),
+                    e);
+            stateWrittenToDiskInputWire.inject(result);
+        }
     }
 }
