@@ -42,6 +42,8 @@ class JumpstartFileSuite implements LifecycleTest {
 
     // For excluding any of the 'non-core' nodes that are expected to be added, reconnected, or removed
     private static final long[] LATER_NODE_IDS = new long[] {4, 5, 6, 7, 8};
+    // 48-byte hex hash intentionally chosen as a recognizable test-only marker for mismatch-path validation.
+    private static final String INTENTIONAL_MISMATCH_MARKER_HASH = "deadc0de".repeat(12);
 
     @SuppressWarnings("DuplicatedCode")
     @LeakyHapiTest(
@@ -148,8 +150,9 @@ class JumpstartFileSuite implements LifecycleTest {
 
         final var envOverrides =
                 new HashMap<>(Map.of("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", "true"));
-        // A 48-byte hash that will not match any real entry computed by buildDynamicJumpstartConfig
-        final var corruptedHash = "aa".repeat(48);
+        // A 48-byte hash that will not match any real entry computed by buildDynamicJumpstartConfig.
+        // Uses a stable marker value so log validation can ignore only this intentional mismatch scenario.
+        final var corruptedHash = INTENTIONAL_MISMATCH_MARKER_HASH;
 
         return hapiTest(
                 logIt("Phase 1: Writing wrapped record hashes to disk"),
