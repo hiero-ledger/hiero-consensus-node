@@ -9,29 +9,22 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_M
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
-import static com.swirlds.state.merkle.StateKeyUtils.kvKey;
-import static com.swirlds.state.merkle.StateKeyUtils.queueKey;
-import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
-import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.state.binary.QueueState;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.BinaryState;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -50,14 +43,17 @@ import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A validator that replays {@link StateChanges} by mutating a raw {@link VirtualMap} directly,
+ * A validator that replays {@link StateChanges} through the {@link BinaryState} API,
  * without going through service-specific writable state adapters.
+ *
+ * <p>After applying all state changes from the block stream, the resulting root hash is compared
+ * to the expected hash from the latest saved state. This validates that the block stream contains
+ * a complete and correct record of all state mutations.
  */
 public class BinaryStateChangesValidator implements BlockStreamValidator {
 
     private static final Logger logger = LogManager.getLogger(BinaryStateChangesValidator.class);
     private static final int HASH_SIZE = 48;
-    private static final int QUEUE_STATE_VALUE_ID = 8001;
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
     private final Bytes expectedRootHash;
@@ -65,7 +61,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
 
     private Instant lastStateChangesTime;
-    private VirtualMap state;
+    private final VirtualMapState state;
 
     static void main() {
         final var node0Dir = Paths.get("hedera-node/test-clients")
@@ -97,8 +93,8 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
     };
 
     /**
-     * Constructs a validator that will replay the state changes in the block stream directly into a
-     * raw {@link VirtualMap} and compare the resulting root hash to the latest saved state hash.
+     * Constructs a validator that will replay the state changes in the block stream through
+     * the {@link BinaryState} API and compare the resulting root hash to the latest saved state hash.
      *
      * @param spec the spec
      * @return the validator
@@ -128,10 +124,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
 
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var metrics = new NoOpMetrics();
-        final var merkleDbConfig = platformConfig.getConfigData(MerkleDbConfig.class);
-        final var dsBuilder = new MerkleDbDataSourceBuilder(platformConfig, merkleDbConfig.initialCapacity());
-        this.state = new VirtualMap(dsBuilder, platformConfig);
-        this.state.registerMetrics(metrics);
+        this.state = new VirtualMapStateImpl(platformConfig, metrics);
     }
 
     @Override
@@ -154,14 +147,16 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
         logger.info("Summary of binary-applied changes by state:\n{}", stateChangesSummary);
 
-        final var stateToHash = state;
-        state = state.copy();
-        final var rootHash = requireNonNull(stateToHash.getHash()).getBytes();
+        // Make the underlying VirtualMap immutable by creating a mutable copy, then hash the original
+        final var virtualMap = state.getRoot();
+        final var mutableCopy = virtualMap.copy();
+        mutableCopy.registerMetrics(new NoOpMetrics());
+        final var rootHash = requireNonNull(virtualMap.getHash()).getBytes();
         logger.info("Validating binary replay root hash {}", rootHash);
 
         if (!expectedRootHash.equals(rootHash)) {
             final var expectedRootMnemonic = getMaybeLastHashMnemonics(pathToNode0SwirldsLog);
-            final var actualRootMnemonic = Mnemonics.generateMnemonic(stateToHash.getHash());
+            final var actualRootMnemonic = Mnemonics.generateMnemonic(virtualMap.getHash());
             final var errorMsg = new StringBuilder("Binary replay hash mismatch");
             errorMsg.append("\n    * root hash - expected ")
                     .append(expectedRootHash)
@@ -177,9 +172,17 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
     }
 
+    /**
+     * Parses binary protobuf {@link StateChanges} and applies mutations through the {@link BinaryState} API.
+     *
+     * <p>The parser manually reads the protobuf wire format to extract state change operations
+     * (singleton updates, map updates/deletes, queue pushes/pops) and delegates them to the
+     * corresponding {@link BinaryState} methods, which handle key composition, value wrapping,
+     * and queue state management internally.
+     */
     private static final class BinaryStateChangeParser {
         private static void applyStateChanges(
-                @NonNull final VirtualMap virtualMap,
+                @NonNull final BinaryState binaryState,
                 @NonNull final Bytes stateChangesBytes,
                 @NonNull final StateChangesSummary stateChangesSummary) {
             final ReadableSequentialData input = stateChangesBytes.toReadableSequentialData();
@@ -193,7 +196,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
                             final long endPosition = input.position() + messageLength;
-                            processStateChange(virtualMap, input, endPosition, stateChangesSummary);
+                            processStateChange(binaryState, input, endPosition, stateChangesSummary);
                         }
                     }
                     default -> skipField(input, tag);
@@ -202,7 +205,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
 
         private static void processStateChange(
-                @NonNull final VirtualMap virtualMap,
+                @NonNull final BinaryState binaryState,
                 @NonNull final ReadableSequentialData input,
                 final long endPosition,
                 @NonNull final StateChangesSummary stateChangesSummary) {
@@ -220,7 +223,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
                             processSingletonUpdateChange(
-                                    virtualMap, requireStateId(stateId), input, input.position() + messageLength);
+                                    binaryState, requireStateId(stateId), input, input.position() + messageLength);
                             stateChangesSummary.countSingletonPut(stateId);
                         }
                     }
@@ -229,7 +232,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
                             processMapUpdateChange(
-                                    virtualMap, requireStateId(stateId), input, input.position() + messageLength);
+                                    binaryState, requireStateId(stateId), input, input.position() + messageLength);
                             stateChangesSummary.countMapUpdate(stateId);
                         }
                     }
@@ -238,7 +241,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
                             processMapDeleteChange(
-                                    virtualMap, requireStateId(stateId), input, input.position() + messageLength);
+                                    binaryState, requireStateId(stateId), input, input.position() + messageLength);
                             stateChangesSummary.countMapDelete(stateId);
                         }
                     }
@@ -247,14 +250,14 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
                             processQueuePushChange(
-                                    virtualMap, requireStateId(stateId), input, input.position() + messageLength);
+                                    binaryState, requireStateId(stateId), input, input.position() + messageLength);
                             stateChangesSummary.countQueuePush(stateId);
                         }
                     }
                     // queue_pop:        field 8, message       => (8 << 3) | 2 = 66
                     case 66 -> {
                         skipMessage(input);
-                        processQueuePopChange(virtualMap, requireStateId(stateId));
+                        processQueuePopChange(binaryState, requireStateId(stateId));
                         stateChangesSummary.countQueuePop(stateId);
                     }
                     default -> skipField(input, tag);
@@ -263,22 +266,21 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
         }
 
         private static void processSingletonUpdateChange(
-                @NonNull final VirtualMap virtualMap,
+                @NonNull final BinaryState binaryState,
                 final int stateId,
                 @NonNull final ReadableSequentialData input,
                 final long endPosition) {
-            final Bytes key = getStateKeyForSingleton(stateId);
             final Bytes rawValue = readOneOfPayload(input, endPosition, "SingletonUpdateChange");
-            virtualMap.putBytes(key, wrapStateValue(stateId, rawValue));
+            binaryState.updateSingleton(stateId, rawValue);
         }
 
         private static void processMapUpdateChange(
-                @NonNull final VirtualMap virtualMap,
+                @NonNull final BinaryState binaryState,
                 final int stateId,
                 @NonNull final ReadableSequentialData input,
                 final long endPosition) {
-            Bytes mapKeyAsStateKey = null;
-            Bytes mapValueAsStateValue = null;
+            Bytes rawKey = null;
+            Bytes rawValue = null;
             while (input.position() < endPosition) {
                 final int tag = input.readVarInt(false);
                 switch (tag) {
@@ -286,34 +288,31 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                     case 10 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
-                            final Bytes rawKey = readMapKeyPayload(input, input.position() + messageLength);
-                            mapKeyAsStateKey = kvKey(stateId, rawKey);
+                            rawKey = readMapKeyPayload(input, input.position() + messageLength);
                         }
                     }
                     // value: field 2, message => (2 << 3) | 2 = 18
                     case 18 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
-                            final Bytes rawValue =
-                                    readOneOfPayload(input, input.position() + messageLength, "MapChangeValue");
-                            mapValueAsStateValue = wrapStateValue(stateId, rawValue);
+                            rawValue = readOneOfPayload(input, input.position() + messageLength, "MapChangeValue");
                         }
                     }
                     default -> skipField(input, tag);
                 }
             }
-            if (mapKeyAsStateKey == null || mapValueAsStateValue == null) {
+            if (rawKey == null || rawValue == null) {
                 throw new IllegalStateException("MapChangeKey or MapChangeValue missing");
             }
-            virtualMap.putBytes(mapKeyAsStateKey, mapValueAsStateValue);
+            binaryState.updateKv(stateId, rawKey, rawValue);
         }
 
         private static void processMapDeleteChange(
-                @NonNull final VirtualMap virtualMap,
+                @NonNull final BinaryState binaryState,
                 final int stateId,
                 @NonNull final ReadableSequentialData input,
                 final long endPosition) {
-            Bytes mapKeyAsStateKey = null;
+            Bytes rawKey = null;
             while (input.position() < endPosition) {
                 final int tag = input.readVarInt(false);
                 switch (tag) {
@@ -321,54 +320,29 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                     case 10 -> {
                         final int messageLength = input.readVarInt(false);
                         if (messageLength > 0) {
-                            final Bytes rawKey = readMapKeyPayload(input, input.position() + messageLength);
-                            mapKeyAsStateKey = kvKey(stateId, rawKey);
+                            rawKey = readMapKeyPayload(input, input.position() + messageLength);
                         }
                     }
                     default -> skipField(input, tag);
                 }
             }
-            if (mapKeyAsStateKey == null) {
+            if (rawKey == null) {
                 throw new IllegalStateException("MapChangeKey missing in MapDeleteChange");
             }
-            virtualMap.remove(mapKeyAsStateKey);
+            binaryState.removeKv(stateId, rawKey);
         }
 
         private static void processQueuePushChange(
-                @NonNull final VirtualMap virtualMap,
+                @NonNull final BinaryState binaryState,
                 final int stateId,
                 @NonNull final ReadableSequentialData input,
                 final long endPosition) {
-            final QueueState queueState = readQueueState(virtualMap, stateId).orElse(new QueueState(1, 1));
             final Bytes rawElement = readOneOfPayload(input, endPosition, "QueuePushChange");
-            virtualMap.putBytes(queueKey(stateId, queueState.tail()), wrapStateValue(stateId, rawElement));
-            virtualMap.putBytes(getStateKeyForSingleton(stateId), wrapQueueStateValue(queueState.elementAdded()));
+            binaryState.pushQueue(stateId, rawElement);
         }
 
-        private static void processQueuePopChange(@NonNull final VirtualMap virtualMap, final int stateId) {
-            final QueueState queueState = readQueueState(virtualMap, stateId)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Cannot pop from queue - queue state not found for stateId: " + stateId));
-            if (queueState.head() >= queueState.tail()) {
-                throw new IllegalStateException("Cannot pop from empty queue for stateId: " + stateId);
-            }
-
-            virtualMap.remove(queueKey(stateId, queueState.head()));
-            virtualMap.putBytes(getStateKeyForSingleton(stateId), wrapQueueStateValue(queueState.elementRemoved()));
-        }
-
-        private static @NonNull java.util.Optional<QueueState> readQueueState(
-                @NonNull final VirtualMap virtualMap, final int stateId) {
-            final Bytes existingQueueStateBytes = virtualMap.getBytes(getStateKeyForSingleton(stateId));
-            if (existingQueueStateBytes == null) {
-                return java.util.Optional.empty();
-            }
-            try {
-                return java.util.Optional.of(
-                        QueueState.QueueStateCodec.INSTANCE.parse(unwrapStateValue(existingQueueStateBytes)));
-            } catch (ParseException e) {
-                throw new IllegalStateException("Failed to parse QueueState for stateId: " + stateId, e);
-            }
+        private static void processQueuePopChange(@NonNull final BinaryState binaryState, final int stateId) {
+            binaryState.popQueue(stateId);
         }
 
         private static Bytes readOneOfPayload(
@@ -413,32 +387,6 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
                 throw new IllegalStateException("MapChangeKey payload missing");
             }
             return payload;
-        }
-
-        private static Bytes wrapQueueStateValue(@NonNull final QueueState queueState) {
-            return wrapStateValue(QUEUE_STATE_VALUE_ID, QueueState.QueueStateCodec.INSTANCE.toBytes(queueState));
-        }
-
-        private static Bytes wrapStateValue(final int stateId, @NonNull final Bytes rawValue) {
-            final int tag =
-                    (stateId << ProtoParserTools.TAG_FIELD_OFFSET) | ProtoConstants.WIRE_TYPE_DELIMITED.ordinal();
-            final int valueLength = (int) rawValue.length();
-            final int tagSize = ProtoWriterTools.sizeOfVarInt32(tag);
-            final int valueSize = ProtoWriterTools.sizeOfVarInt32(valueLength);
-            final int totalSize = tagSize + valueSize + valueLength;
-            final byte[] buffer = new byte[totalSize];
-            final BufferedData out = BufferedData.wrap(buffer);
-            out.writeVarInt(tag, false);
-            out.writeVarInt(valueLength, false);
-            rawValue.writeTo(buffer, (int) out.position());
-            return Bytes.wrap(buffer);
-        }
-
-        private static Bytes unwrapStateValue(@NonNull final Bytes stateValueBytes) {
-            final ReadableSequentialData input = stateValueBytes.toReadableSequentialData();
-            input.readVarInt(false);
-            final int valueLength = input.readVarInt(false);
-            return input.readBytes(valueLength);
         }
 
         private static int requireStateId(final int stateId) {

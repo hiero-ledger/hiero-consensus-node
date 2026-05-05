@@ -2,7 +2,6 @@
 package com.swirlds.platform;
 
 import static com.swirlds.base.test.fixtures.util.DataUtils.randomUtf8Bytes;
-import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME;
@@ -15,6 +14,7 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSig
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
+import static org.hiero.base.file.FileUtils.throwIfFileExists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -25,7 +25,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.config.StateCommonConfig_;
-import com.swirlds.common.constructable.ConstructableRegistration;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -48,6 +47,7 @@ import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.signed.SigSet;
@@ -95,7 +95,7 @@ class SignedStateFileReadWriteTest {
                 .setSoftwareVersion(platformVersion)
                 .build();
         final VirtualMapState state = signedState.getState();
-        writeHashInfoFile(platformContext, testDirectory, state);
+        writeHashInfoFile(testDirectory, state);
 
         final Path hashInfoFile = testDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
         assertTrue(exists(hashInfoFile), "file should exist");

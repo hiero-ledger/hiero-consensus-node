@@ -14,8 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.constructable.ConstructableRegistration;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.platform.recovery.internal.ObjectStreamIterator;
 import java.io.ByteArrayInputStream;
@@ -28,7 +26,9 @@ import java.util.NoSuchElementException;
 import java.util.Random;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.SelfSerializable;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.junit.jupiter.api.BeforeAll;
