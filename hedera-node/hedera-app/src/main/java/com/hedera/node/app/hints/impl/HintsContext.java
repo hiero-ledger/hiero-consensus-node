@@ -295,35 +295,17 @@ public class HintsContext {
             requireNonNull(crs);
             requireNonNull(signature);
             if (completed.get()) {
-                log.info(
-                        "Ignoring hinTS partial signature for already completed block hash {} from node {}",
-                        blockHash,
-                        nodeId);
                 return;
             }
             final var partyId = partyIds.get(nodeId);
             if (signatures.put(partyId, signature) != null) {
                 // Each valid signature should only accumulate weight once, so abort on duplicates
-                log.info(
-                        "Ignoring duplicate hinTS partial signature for block hash {} from node {} party {}",
-                        blockHash,
-                        nodeId,
-                        partyId);
                 return;
             }
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
             // For block hash signing, always require strictly greater than threshold
             final boolean reachedThreshold = totalWeight > thresholdWeight;
-            log.info(
-                    "Incorporated hinTS partial signature for block hash {} from node {} party {}; weight={}, totalWeight={}, thresholdWeight={}, signatures={}",
-                    blockHash,
-                    nodeId,
-                    partyId,
-                    weight,
-                    totalWeight,
-                    thresholdWeight,
-                    signatures.keySet());
             if (reachedThreshold && completed.compareAndSet(false, true)) {
                 log.info(
                         "hinTS signing threshold reached for block hash {}; aggregating {} partial signatures",

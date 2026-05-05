@@ -514,13 +514,6 @@ public class TipsetEventCreator implements EventCreator {
                 transactions.stream().map(TimestampedTransaction::transaction).toList(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
-        logger.info(
-                LogMarker.STARTUP.getMarker(),
-                "Tipset assembled unsigned event {}; transactionCount={}, parentCount={}, otherParentCount={}",
-                event.getDescriptor().shortString(),
-                transactions.size(),
-                allParentDescriptors.size(),
-                otherParents.length);
 
         return event;
     }

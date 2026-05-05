@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
@@ -1319,10 +1320,12 @@ public final class Hedera
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         final var transactions = transactionPool.getTransactionsForEvent();
-        logger.info(
-                "Providing {} transaction(s) for event creation while platformStatus={}",
-                transactions.size(),
-                platformStatus);
+        if (platformStatus == FREEZING && !transactions.isEmpty()) {
+            logger.info(
+                    "Providing {} transaction(s) for event creation while platformStatus={}",
+                    transactions.size(),
+                    platformStatus);
+        }
         return transactions;
     }
 
@@ -1341,13 +1344,7 @@ public final class Hedera
     public boolean shouldCreateEventsInFreeze() {
         final var hasBufferedSignatureTransactions = transactionPool.hasBufferedSignatureTransactions();
         final var freezeGatePending = freezeCompletionRequiresEventCreation.get();
-        final var shouldCreateEvents = hasBufferedSignatureTransactions || freezeGatePending;
-        logger.info(
-                "Freeze event creation check: shouldCreateEvents={}, bufferedSignatureTransactions={}, freezeGatePending={}",
-                shouldCreateEvents,
-                hasBufferedSignatureTransactions,
-                freezeGatePending);
-        return shouldCreateEvents;
+        return hasBufferedSignatureTransactions || freezeGatePending;
     }
 
     /**

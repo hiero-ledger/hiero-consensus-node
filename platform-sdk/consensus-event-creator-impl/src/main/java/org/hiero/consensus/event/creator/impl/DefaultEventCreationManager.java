@@ -142,14 +142,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
     public PlatformEvent maybeCreateEvent() {
         if (!eventCreationRules.isEventCreationPermitted()) {
             final var status = eventCreationRules.getEventCreationStatus();
-            logger.info(
-                    LogMarker.STARTUP.getMarker(),
-                    "Event creation not permitted; eventCreationStatus={}, platformStatus={}, quiescenceCommand={}, unhealthyDuration={}, syncRoundLag={}",
-                    status,
-                    platformStatus,
-                    quiescenceCommand,
-                    unhealthyDuration,
-                    getSyncRoundLag());
             phase.activatePhase(status);
             return null;
         }
@@ -169,13 +161,6 @@ public class DefaultEventCreationManager implements EventCreationManager {
                     getSyncRoundLag());
             phase.activatePhase(NO_ELIGIBLE_PARENTS);
         } else {
-            logger.info(
-                    LogMarker.STARTUP.getMarker(),
-                    "Event creator produced event {}; transactionCount={}, parentCount={}, otherParentCount={}",
-                    newEvent.getDescriptor().shortString(),
-                    newEvent.getTransactionCount(),
-                    newEvent.getAllParents().size(),
-                    newEvent.getOtherParents().size());
             eventCreationRules.eventWasCreated();
             // After an event was created we check the status to update the right phase
             if (!eventCreationRules.isEventCreationPermitted()) {
