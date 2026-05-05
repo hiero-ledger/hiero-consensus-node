@@ -76,7 +76,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.stream.LinkedObjectStreamUtilities;
-import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.WritablePlatformStateStore;
@@ -879,17 +878,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     @Override
-    public boolean endRound(@NonNull final State state, @NonNull final Instant roundConsensusTimestamp) {
-        endRound(state);
-        return false;
-    }
-
-    @Override
-    public void startRound(@NonNull final Round round, @NonNull final State state) {
-        // Intentionally no-op: record files are opened only on user-transaction boundaries.
-    }
-
-    @Override
     public boolean closeCurrentRecordFileIfOpen(@NonNull final State state) {
         requireNonNull(state);
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
@@ -1183,6 +1171,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 lastBlockInfo.previewStreamOverwritten());
     }
 
+    /** Produces a {@code BlockInfo} object containing the information of the last closed block, but without updating other properties that imply a new block has opened */
     private BlockInfo infoOfJustFinishedWithoutOpening(
             @NonNull final BlockInfo lastBlockInfo,
             final long justFinishedBlockNumber,

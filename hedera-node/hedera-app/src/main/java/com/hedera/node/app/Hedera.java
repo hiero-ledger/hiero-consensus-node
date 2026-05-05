@@ -1480,7 +1480,7 @@ public final class Hedera
             if (closesBlock) {
                 closedRecordFile = daggerApp.blockRecordManager().closeCurrentRecordFileIfOpen(state);
             }
-            final var closedBlock = daggerApp.blockStreamManager().endRound(state, round.getRoundNum(), closesBlock);
+            final var closedBlock = daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
             return closedRecordFile && closedBlock;
         }
         return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
