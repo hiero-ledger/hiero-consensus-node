@@ -538,8 +538,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
         final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
-        final var shouldClose = shouldCloseBlock(roundNum, freezeRoundNumber);
-        if (shouldClose) {
+        final boolean closesBlock = shouldCloseBlock(roundNum, freezeRoundNumber);
+        if (closesBlock) {
             lifecycle.onCloseBlock(state);
             // No-op if quiescence is disabled
             quiescenceController.finishHandlingInProgressBlock();
@@ -768,7 +768,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             requireNonNull(fatalShutdownFuture).complete(null);
         }
-        return shouldClose;
+        return closesBlock;
     }
 
     @Override
