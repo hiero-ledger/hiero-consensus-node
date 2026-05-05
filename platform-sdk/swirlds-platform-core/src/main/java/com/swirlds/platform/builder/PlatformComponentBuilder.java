@@ -648,8 +648,7 @@ public class PlatformComponentBuilder {
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
                     blocks.consensusStateEventHandler(),
-                    blocks.selfId(),
-                    0L); // FUTURE WORK (#24984): replace with computed userTxnOffsetNanos
+                    blocks.selfId());
         }
         return transactionHandler;
     }

@@ -82,14 +82,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
         consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
 
         // Create and bind components
-        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
-                configuration,
-                metrics,
-                time,
-                roster,
-                selfId,
-                freezeChecker,
-                0L); // FUTURE WORK (#24984): replace with computed userTxnOffsetNanos
+        final ConsensusEngine consensusEngine =
+                new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, freezeChecker);
         consensusEngineWiring.bind(consensusEngine);
 
         if (pipelineTracker != null) {

@@ -138,7 +138,6 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param stateLifecycleManager the swirld state manager to send events to
      * @param statusActionSubmitter enables submitting of platform status actions
      * @param softwareVersion       the current version of the software
-     * @param userTxnOffsetNanos    nanoseconds to offset user transactions from the event consensus timestamp
      */
     public DefaultTransactionHandler(
             @NonNull final PlatformContext platformContext,
@@ -146,8 +145,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final StatusActionSubmitter statusActionSubmitter,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
-            @NonNull final NodeId selfId,
-            final long userTxnOffsetNanos) {
+            @NonNull final NodeId selfId) {
 
         this.platformContext = requireNonNull(platformContext);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
@@ -155,7 +153,10 @@ public class DefaultTransactionHandler implements TransactionHandler {
         this.softwareVersion = requireNonNull(softwareVersion);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
         this.selfId = requireNonNull(selfId);
-        this.userTxnOffsetNanos = userTxnOffsetNanos;
+        this.userTxnOffsetNanos = platformContext
+                .getConfiguration()
+                .getConfigData(ConsensusConfig.class)
+                .userTxnOffsetNanos();
 
         this.roundsNonAncient = platformContext
                 .getConfiguration()

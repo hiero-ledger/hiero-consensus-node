@@ -183,7 +183,7 @@ public class ConsensusImpl implements Consensus {
 
     /**
      * Nanoseconds to add to an event's consensus timestamp before the first user transaction, reserving
-     * space for preceding and system records. Injected at construction time from the application layer.
+     * space for preceding and system records. Read from {@link ConsensusConfig#userTxnOffsetNanos()}.
      */
     private final long userTxnOffsetNanos;
 
@@ -194,16 +194,14 @@ public class ConsensusImpl implements Consensus {
      * @param time               the time source
      * @param consensusMetrics   metrics related to consensus
      * @param roster             the global address book, which never changes
-     * @param userTxnOffsetNanos nanoseconds to offset user transactions from the event consensus timestamp
      */
     public ConsensusImpl(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final ConsensusMetrics consensusMetrics,
-            @NonNull final Roster roster,
-            final long userTxnOffsetNanos) {
+            @NonNull final Roster roster) {
         this.config = requireNonNull(configuration).getConfigData(ConsensusConfig.class);
-        this.userTxnOffsetNanos = userTxnOffsetNanos;
+        this.userTxnOffsetNanos = this.config.userTxnOffsetNanos();
         this.time = time;
         this.consensusMetrics = consensusMetrics;
 

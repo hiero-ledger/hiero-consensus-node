@@ -140,7 +140,10 @@ public final class EventRecoveryWorkflow {
                     eventStreamDirectory,
                     initialState.get().getRound() + 1,
                     allowPartialRounds,
-                    0L); // FUTURE WORK (#24984): replace with computed userTxnOffsetNanos
+                    platformContext
+                            .getConfiguration()
+                            .getConfigData(ConsensusConfig.class)
+                            .userTxnOffsetNanos());
 
             logger.info(STARTUP.getMarker(), "Reapplying transactions");
 

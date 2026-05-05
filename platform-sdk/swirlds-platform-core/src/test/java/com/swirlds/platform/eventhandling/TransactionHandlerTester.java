@@ -79,8 +79,7 @@ public class TransactionHandlerTester implements AutoCloseable {
                 statusActionSubmitter,
                 mock(SemanticVersion.class),
                 consensusStateEventHandler,
-                NodeId.of(1),
-                0L);
+                NodeId.of(1));
     }
 
     /**
