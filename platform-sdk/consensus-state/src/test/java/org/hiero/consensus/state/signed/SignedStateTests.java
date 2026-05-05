@@ -15,8 +15,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -31,6 +29,8 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.base.exceptions.ReferenceCountException;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.roster.RosterStateUtils;

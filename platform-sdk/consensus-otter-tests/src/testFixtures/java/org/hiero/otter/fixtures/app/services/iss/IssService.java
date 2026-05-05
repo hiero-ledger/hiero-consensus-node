@@ -4,7 +4,7 @@ package org.hiero.otter.fixtures.app.services.iss;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import org.hiero.base.file.FileSystemManager;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;

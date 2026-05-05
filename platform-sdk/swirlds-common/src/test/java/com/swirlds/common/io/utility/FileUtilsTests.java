@@ -12,7 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.File;
@@ -25,6 +24,7 @@ import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

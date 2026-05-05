@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -32,7 +30,9 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.SignatureVerifier;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
 import org.hiero.consensus.state.signed.SignedState;

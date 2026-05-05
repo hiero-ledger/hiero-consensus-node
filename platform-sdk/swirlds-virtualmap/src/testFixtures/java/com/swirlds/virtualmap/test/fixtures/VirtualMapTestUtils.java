@@ -4,7 +4,7 @@ package com.swirlds.virtualmap.test.fixtures;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualMap;

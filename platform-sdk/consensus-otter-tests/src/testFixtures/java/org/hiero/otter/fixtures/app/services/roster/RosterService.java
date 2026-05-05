@@ -3,7 +3,7 @@ package org.hiero.otter.fixtures.app.services.roster;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import org.hiero.base.file.FileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;

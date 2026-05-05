@@ -18,7 +18,7 @@ import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import org.hiero.base.file.FileSystemManager;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
