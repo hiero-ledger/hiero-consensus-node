@@ -280,7 +280,6 @@ jobs:
           wait: 120s
 
       - name: Install Solo
-        if: false
         run: |
           npm install -g "@hashgraph/solo@${{ inputs.solo-version || 'latest' }}"
 
@@ -288,6 +287,7 @@ jobs:
           solo --version
 
       - name: Build Solo
+        if: false
         run: |
           set +x
           set +e
