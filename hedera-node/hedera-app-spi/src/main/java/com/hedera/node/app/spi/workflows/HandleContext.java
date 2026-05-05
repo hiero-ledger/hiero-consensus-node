@@ -185,7 +185,7 @@ public interface HandleContext {
             /**
              * A consumer of a callback to be invoked when a previously successful transaction is to be reverted because
              * a following transaction failed inside a batch.
-             * This is used to ensure that all needed side effects (fees, nonce updates) are kept.
+             * This is used to ensure that all needed side effects (nonce updates, code delegations) are kept.
              */
             BATCH_ROLLBACK_CALLBACK_CONSUMER,
             /**

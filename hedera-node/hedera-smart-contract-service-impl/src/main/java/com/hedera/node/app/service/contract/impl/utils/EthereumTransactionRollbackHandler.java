@@ -15,7 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class EthereumTransactionRollbackHandler implements HandleException.OnRollback {
+public final class EthereumTransactionRollbackHandler implements HandleException.OnRollback {
 
     private final CallOutcome outcome;
     private final List<HederaOperations.GasChargingEvent> gasChargingEvents;

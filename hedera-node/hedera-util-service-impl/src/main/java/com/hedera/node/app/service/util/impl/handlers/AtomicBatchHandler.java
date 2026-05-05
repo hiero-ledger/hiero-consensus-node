@@ -200,7 +200,7 @@ public class AtomicBatchHandler implements TransactionHandler {
 
             final var streamBuilder = context.dispatch(dispatchOptions);
 
-            /* Let's collect the recorded fees and add a replay action to the queue. */
+            /* Let's collect the recorded fees and add a replay action to the rollback queue. */
             final var recordedCharges = List.copyOf(recordedFeeCharging.charges());
             rollbackQueue.add((ctx, _) -> {
                 final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
