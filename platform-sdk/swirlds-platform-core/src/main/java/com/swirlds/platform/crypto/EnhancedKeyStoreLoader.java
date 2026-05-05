@@ -18,8 +18,8 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -30,12 +30,11 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.security.interfaces.RSAPrivateCrtKey;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.RSAPublicKeySpec;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -701,56 +700,103 @@ public class EnhancedKeyStoreLoader {
      * embedded in the signing certificate loaded from the roster. The node is allowed to continue
      * starting — this is a diagnostic warning, not a hard failure.
      *
-     * <p>Signing keys are always RSA in CRT form ({@link RSAPrivateCrtKey}). CRT form exposes the
-     * public exponent, which is required to reconstruct the corresponding public key for comparison.
+     * <p>Delegates the keypair check to {@link #keyPairMatches(PrivateKey, PublicKey)}, which works
+     * for any keypair algorithm supported by {@link #signatureAlgorithm(PrivateKey)}.
      *
      * @param nodeId the {@link NodeId} whose key/cert pair should be checked.
      */
     private void warnIfSigKeyMismatch(@NonNull final NodeId nodeId) {
-        final RSAPrivateCrtKey rsaKey = (RSAPrivateCrtKey) sigPrivateKeys.get(nodeId);
+        final PrivateKey privateKey = sigPrivateKeys.get(nodeId);
         final Certificate cert = sigCertificates.get(nodeId);
+        if (privateKey == null || cert == null) {
+            return;
+        }
 
         try {
-            // RSAPrivateCrtKey contains the public exponent, allowing us to reconstruct the public key.
-            final RSAPublicKeySpec pubSpec = new RSAPublicKeySpec(rsaKey.getModulus(), rsaKey.getPublicExponent());
-            final KeyFactory kf = KeyFactory.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
-            final PublicKey derivedPublicKey = kf.generatePublic(pubSpec);
-
-            // Compare DER-encoded SubjectPublicKeyInfo bytes rather than using PublicKey.equals().
-            // equals() is not specified by the JCA contract and can return false for mathematically
-            // identical keys when the derived key (BouncyCastle provider) and the cert's key
-            // (JDK SunRsaSign provider) are from different providers.
-            if (!Arrays.equals(
-                    derivedPublicKey.getEncoded(), cert.getPublicKey().getEncoded())) {
+            if (!keyPairMatches(privateKey, cert.getPublicKey())) {
                 logger.warn(
                         STARTUP.getMarker(),
                         "Signing private key does not match certificate public key for nodeId {} "
-                                + "[ purpose = {}, certFingerprint = {}, rosterPubKeyFingerprint = {},"
-                                + " diskPubKeyFingerprint = {} ]"
+                                + "[ purpose = {}, certFingerprint = {}, rosterPubKeyFingerprint = {} ]"
                                 + " — node may fail to establish gossip connections",
                         nodeId,
                         KeyCertPurpose.SIGNING,
                         certFingerprint(cert),
-                        keyFingerprint(cert.getPublicKey()),
-                        keyFingerprint(derivedPublicKey));
+                        keyFingerprint(cert.getPublicKey()));
             }
-        } catch (
-                // NoSuchAlgorithmException / NoSuchProviderException: KeyFactory.getInstance() if RSA
-                //   or BouncyCastle unavailable
-                // InvalidKeySpecException: kf.generatePublic() if the private key's CRT params are corrupt
-                // RuntimeException: cert.getPublicKey() declares no checked throws but can throw
-                //   unchecked on malformed certs
-                final NoSuchAlgorithmException
+        } catch (final NoSuchAlgorithmException
                 | NoSuchProviderException
-                | InvalidKeySpecException
-                | RuntimeException e) {
+                | InvalidKeyException
+                | SignatureException
+                | RuntimeException cause) {
             logger.warn(
                     STARTUP.getMarker(),
-                    "Unable to verify signing key/cert correspondence for nodeId {} [ purpose = {} ]",
+                    "Unable to verify signing key/cert correspondence for nodeId {} [ purpose = {} ]: {}",
                     nodeId,
                     KeyCertPurpose.SIGNING,
-                    e);
+                    cause.getMessage(),
+                    cause);
         }
+    }
+
+    /**
+     * Returns {@code true} iff the private key and public key form a matching keypair, determined
+     * by signing a random nonce with the private key and verifying the signature with the public
+     * key. Type-agnostic: works for any keypair whose JCA algorithm is recognized by
+     * {@link #signatureAlgorithm(PrivateKey)}.
+     *
+     * <p>Package-private for direct testing — no production callers outside this class.
+     *
+     * <p>Implementation note: DER byte-comparison was considered as a simpler/faster alternative
+     * (derive the public key from the private key via BouncyCastle, then {@code Arrays.equals} on
+     * encoded SubjectPublicKeyInfo bytes). It fails in practice — BC's
+     * {@code SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(...)} produces RSA SPKI bytes
+     * that are not byte-identical to {@code cert.getPublicKey().getEncoded()}, so matching keys
+     * compare unequal. Sign-and-verify depends on the math, not the encoding, and is robust to
+     * provider differences.
+     *
+     * @param privateKey the private key to probe.
+     * @param publicKey the public key to verify against.
+     * @return {@code true} if the keys pair, {@code false} otherwise
+     * @throws NoSuchAlgorithmException if the JCA signature algorithm isn't installed
+     * @throws NoSuchProviderException if {@link CryptoConstants#SIG_PROVIDER} isn't installed
+     * @throws InvalidKeyException if either key is structurally invalid for the algorithm
+     * @throws SignatureException if the sign/verify operation fails for non-key reasons
+     */
+    static boolean keyPairMatches(@NonNull final PrivateKey privateKey, @NonNull final PublicKey publicKey)
+            throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
+        // Random nonce, not a fixed test vector: prevents any hypothetical attack
+        // where a malformed key is crafted to pass verification for a known plaintext.
+        final byte[] nonce = new byte[32];
+        new SecureRandom().nextBytes(nonce);
+
+        final String sigAlg = signatureAlgorithm(privateKey);
+        final Signature signer = Signature.getInstance(sigAlg, CryptoConstants.SIG_PROVIDER);
+        signer.initSign(privateKey);
+        signer.update(nonce);
+        final byte[] signature = signer.sign();
+
+        final Signature verifier = Signature.getInstance(sigAlg, CryptoConstants.SIG_PROVIDER);
+        verifier.initVerify(publicKey);
+        verifier.update(nonce);
+        return verifier.verify(signature);
+    }
+
+    /**
+     * Returns the JCA {@link Signature} algorithm name for a given signing private key.
+     *
+     * <p>Package-private for direct testing — no production callers outside this class.
+     *
+     * @param key the signing private key.
+     * @return the JCA signature algorithm name
+     * @throws IllegalArgumentException if the key algorithm is not supported.
+     */
+    @NonNull
+    static String signatureAlgorithm(@NonNull final PrivateKey key) {
+        return switch (key.getAlgorithm()) {
+            case "RSA" -> "SHA384withRSA";
+            default -> throw new IllegalArgumentException("Unsupported signing key algorithm: " + key.getAlgorithm());
+        };
     }
 
     /**
