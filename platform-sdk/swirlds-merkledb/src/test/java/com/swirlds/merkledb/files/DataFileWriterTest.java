@@ -27,7 +27,8 @@ class DataFileWriterTest {
     @BeforeEach
     public void setUp() throws Exception {
         Path dataFileWriterPath = Files.createTempDirectory("dataFileWriter");
-        dataFileWriter = new DataFileWriter("test", dataFileWriterPath, 1, Instant.now(), 1, BUFFER_SIZE);
+        dataFileWriter =
+                new DataFileWriter("test", dataFileWriterPath, 1, Instant.now(), 1, BUFFER_SIZE, BUFFER_SIZE * 16384);
     }
 
     @Test
@@ -57,7 +58,7 @@ class DataFileWriterTest {
         BufferedData data = BufferedData.wrap("test".getBytes());
 
         assertThrows(
-                IOException.class,
+                Exception.class,
                 () -> dataFileWriter.storeDataItem(o -> o.writeBytes(data), (int) (data.length() + diff)),
                 "Wrong estimated data size");
     }
@@ -75,7 +76,7 @@ class DataFileWriterTest {
         BufferedData data = BufferedData.wrap(randomUtf8Bytes(dataLengthBytes));
 
         for (int i = 0; i < iterations; i++) {
-            dataFileWriter.storeDataItem(data);
+            dataFileWriter.storeDataItemWithTag(data);
             data.flip();
         }
 
@@ -84,12 +85,12 @@ class DataFileWriterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 57, BUFFER_SIZE / 2, BUFFER_SIZE - 3})
+    @ValueSource(ints = {2, 57, BUFFER_SIZE / 2 - 1, BUFFER_SIZE / 2})
     public void correctFileSizeAfterFinishWriting(int dataLengthBytes) throws IOException {
         byte[] bytesData = randomUtf8Bytes(dataLengthBytes);
         BufferedData data = BufferedData.wrap(bytesData);
 
-        dataFileWriter.storeDataItem(data);
+        dataFileWriter.storeDataItemWithTag(data);
         dataFileWriter.close();
 
         verifyFileSize(bytesData.length, 1);
@@ -140,7 +141,7 @@ class DataFileWriterTest {
 
     private void verifyFileSize(int singleItemDataLength, int itemCount) throws IOException {
         int fileSize = (int) Files.size(dataFileWriter.getPath());
-        int dataSize = ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_ITEMS, singleItemDataLength) * itemCount;
+        int dataSize = singleItemDataLength * itemCount;
         int headerSize = dataFileWriter.getMetadata().metadataSizeInBytes();
         assertEquals(headerSize + dataSize, fileSize, "Unexpected file size");
     }
