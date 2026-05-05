@@ -205,6 +205,10 @@ public class TipsetEventCreator implements EventCreator {
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
+        logger.info(
+                LogMarker.STARTUP.getMarker(),
+                "Tipset event creator quiescence command updated to {}",
+                quiescenceCommand);
     }
 
     /**
@@ -214,6 +218,7 @@ public class TipsetEventCreator implements EventCreator {
     @Override
     public PlatformEvent maybeCreateEvent() {
         if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
+            logger.info(LogMarker.STARTUP.getMarker(), "Tipset event creator is quiesced and will not create an event");
             return null;
         }
         UnsignedEvent event = maybeCreateUnsignedEvent();
@@ -226,6 +231,16 @@ public class TipsetEventCreator implements EventCreator {
                     LogMarker.STARTUP.getMarker(),
                     "Created quiescence breaking event ({})",
                     event.getDescriptor()::shortString);
+        } else {
+            logger.info(
+                    LogMarker.STARTUP.getMarker(),
+                    "Tipset event creator returned no event; quiescenceCommand={}, breakQuiescenceEventCreated={}, networkSize={}, eventWindowGenesis={}, lastSelfEventPresent={}, childlessOtherEventCount={}",
+                    quiescenceCommand,
+                    breakQuiescenceEventCreated,
+                    networkSize,
+                    eventWindow.isGenesis(),
+                    lastSelfEvent != null,
+                    childlessOtherEventTracker.getChildlessEvents().size());
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);
@@ -304,10 +319,18 @@ public class TipsetEventCreator implements EventCreator {
             // an event before and the current event window must have never been advanced.
             if (!eventWindow.isGenesis() || lastSelfEvent != null) {
                 // event creation isn't legal
+                logger.info(
+                        LogMarker.STARTUP.getMarker(),
+                        "Tipset normal event creation has no eligible parents; possibleOtherParents={}, bestParents={}, eventWindowGenesis={}, lastSelfEventPresent={}",
+                        possibleOtherParents.size(),
+                        bestParents.size(),
+                        eventWindow.isGenesis(),
+                        lastSelfEvent != null);
                 return null;
             }
 
             // we are creating a genesis event, so we can use a null other parent
+            logger.info(LogMarker.STARTUP.getMarker(), "Tipset creating genesis event with no other parents");
             return buildAndProcessEvent();
         }
 
@@ -491,6 +514,13 @@ public class TipsetEventCreator implements EventCreator {
                 transactions.stream().map(TimestampedTransaction::transaction).toList(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
+        logger.info(
+                LogMarker.STARTUP.getMarker(),
+                "Tipset assembled unsigned event {}; transactionCount={}, parentCount={}, otherParentCount={}",
+                event.getDescriptor().shortString(),
+                transactions.size(),
+                allParentDescriptors.size(),
+                otherParents.length);
 
         return event;
     }

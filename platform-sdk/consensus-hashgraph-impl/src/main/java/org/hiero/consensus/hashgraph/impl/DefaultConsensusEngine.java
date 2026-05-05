@@ -103,8 +103,13 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         Objects.requireNonNull(event);
 
         if (freezeRoundController.isFrozen()) {
-            // If we are frozen, ignore all events
-            return ConsensusEngineOutput.emptyInstance();
+            // Once the freeze round has been reached, no further rounds should reach consensus. But the platform may
+            // still need post-freeze events to be pre-handled, for example to collect freeze-state signatures or other
+            // application-controlled freeze-completion work.
+            final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
+            return nonFutureEvent == null
+                    ? ConsensusEngineOutput.emptyInstance()
+                    : new ConsensusEngineOutput(List.of(), List.of(nonFutureEvent), List.of());
         }
 
         final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);

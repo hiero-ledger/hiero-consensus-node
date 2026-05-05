@@ -300,11 +300,17 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     public @NonNull CompletableFuture<Void> noOpenWrbWritersFuture() {
         synchronized (noOpenWrbWritersFutureLock) {
             if (openWrbWriters.isEmpty()) {
+                logger.info("noOpenWrbWritersFuture requested with no open WRB writers");
                 return CompletableFuture.completedFuture(null);
             }
             if (noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
                 noOpenWrbWritersFuture = new CompletableFuture<>();
+                logger.info("Recreated noOpenWrbWritersFuture with open WRB writers {}", openWrbWriters.keySet());
             }
+            logger.info(
+                    "noOpenWrbWritersFuture requested; openWrbWriters={}, futureDone={}",
+                    openWrbWriters.keySet(),
+                    noOpenWrbWritersFuture.isDone());
             return noOpenWrbWritersFuture;
         }
     }
@@ -316,7 +322,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             openWrbWriters.put(blockNumber, writer);
             if (wasEmpty) {
                 noOpenWrbWritersFuture = new CompletableFuture<>();
+                logger.info("Created noOpenWrbWritersFuture after opening WRB writer for block #{}", blockNumber);
             }
+            logger.info("Opened WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
         }
     }
 
@@ -325,11 +333,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final CompletableFuture<Void> futureToComplete;
         synchronized (noOpenWrbWritersFutureLock) {
             openWrbWriters.remove(blockNumber, writer);
+            logger.info("Removed WRB writer for block #{}; openWrbWriters={}", blockNumber, openWrbWriters.keySet());
             if (!openWrbWriters.isEmpty() || noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
                 return;
             }
             futureToComplete = noOpenWrbWritersFuture;
         }
+        logger.info("Completing noOpenWrbWritersFuture after closing WRB writer for block #{}", blockNumber);
         futureToComplete.complete(null);
     }
 
@@ -337,11 +347,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final CompletableFuture<Void> futureToComplete;
         synchronized (noOpenWrbWritersFutureLock) {
             openWrbWriters.clear();
+            logger.info("Cleared all WRB writers during close");
             if (noOpenWrbWritersFuture == null || noOpenWrbWritersFuture.isDone()) {
                 return;
             }
             futureToComplete = noOpenWrbWritersFuture;
         }
+        logger.info("Completing noOpenWrbWritersFuture after clearing WRB writers");
         futureToComplete.complete(null);
     }
 

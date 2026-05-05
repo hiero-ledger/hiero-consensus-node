@@ -17,4 +17,17 @@ public interface SignatureTransactionCheck {
      * @return true if there are any buffered signature transactions
      */
     boolean hasBufferedSignatureTransactions();
+
+    /**
+     * Check if the platform should continue creating events while in the FREEZING state.
+     * <p>
+     * By default this preserves the legacy behavior of creating freeze events only while signature transactions are
+     * waiting to be put into self-events. Applications may override this method if other application-controlled freeze
+     * completion work also requires continued event creation.
+     *
+     * @return true if events should continue to be created while freezing
+     */
+    default boolean shouldCreateEventsInFreeze() {
+        return hasBufferedSignatureTransactions();
+    }
 }

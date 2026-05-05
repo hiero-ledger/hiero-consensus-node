@@ -507,11 +507,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final int previousPendingBlocks = pendingBlockProofCount.getAndIncrement();
             if (previousPendingBlocks == 0 || pendingBlockProofsFuture == null || pendingBlockProofsFuture.isDone()) {
                 pendingBlockProofsFuture = new CompletableFuture<>();
+                log.info(
+                        "Created pendingBlockProofsFuture after adding pending block #{} with hash {}",
+                        pendingBlock.number(),
+                        pendingBlock.blockHash());
             }
+            log.info(
+                    "Added pending block #{} with hash {}; pendingProofCount={}, pendingBlocks={}",
+                    pendingBlock.number(),
+                    pendingBlock.blockHash(),
+                    pendingBlockProofCount.get(),
+                    pendingBlockProofsSummary());
         }
     }
 
-    private void markPendingBlockProofComplete() {
+    private void markPendingBlockProofComplete(@NonNull final PendingBlock completedBlock) {
+        requireNonNull(completedBlock);
         final CompletableFuture<Void> futureToComplete;
         synchronized (pendingBlockProofsFutureLock) {
             final int remainingPendingBlocks = pendingBlockProofCount.decrementAndGet();
@@ -519,6 +530,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 log.warn("Pending block proof count went below zero; resetting to zero");
                 pendingBlockProofCount.set(0);
             }
+            log.info(
+                    "Marked pending block #{} proof complete; pendingProofCount={}, pendingBlocks={}",
+                    completedBlock.number(),
+                    pendingBlockProofCount.get(),
+                    pendingBlockProofsSummary());
             if (pendingBlockProofCount.get() != 0
                     || pendingBlockProofsFuture == null
                     || pendingBlockProofsFuture.isDone()) {
@@ -526,7 +542,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             futureToComplete = pendingBlockProofsFuture;
         }
+        log.info("Completing pendingBlockProofsFuture after pending block #{} proof", completedBlock.number());
         futureToComplete.complete(null);
+    }
+
+    private @NonNull String pendingBlockProofsSummary() {
+        return pendingBlocks.stream()
+                .map(block -> "#" + block.number() + "[" + block.blockHash() + "]")
+                .toList()
+                .toString();
     }
 
     @Override
@@ -688,14 +712,25 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             writer = null;
 
             final var attempt = blockHashSigner.sign(finalBlockRootHash, SUCCINCT_SIGNATURE);
+            log.info(
+                    "Requested succinct signature for pending block #{} with hash {}; verificationKeyPresent={}, chainOfTrustProofPresent={}",
+                    blockNumber,
+                    finalBlockRootHash,
+                    attempt.verificationKey() != null,
+                    attempt.chainOfTrustProof() != null);
             attempt.signatureFuture()
                     .thenAcceptAsync(signature -> {
                         if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
-                            log.debug(
+                            log.info(
                                     "Signature future completed with empty signature for block num {}, final block hash {}",
                                     blockNumber,
                                     finalBlockRootHash);
                         } else {
+                            log.info(
+                                    "Signature future completed for block #{} with hash {}; signatureLength={}",
+                                    blockNumber,
+                                    finalBlockRootHash,
+                                    signature.length());
                             finishProofWithSignature(
                                     finalBlockRootHash,
                                     signature,
@@ -864,10 +899,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
         }
         if (signedBlock == null) {
-            log.debug("Ignoring signature on already proven block hash '{}'", blockHash);
+            log.info(
+                    "Ignoring signature on already proven block hash {}; pendingBlocks={}",
+                    blockHash,
+                    pendingBlockProofsSummary());
             return;
         }
         final long blockNumber = signedBlock.number();
+        log.info(
+                "Finishing proof with signature for block #{} with hash {}; pendingBlocks={}, verificationKeyPresent={}, chainOfTrustProofPresent={}",
+                blockNumber,
+                blockHash,
+                pendingBlockProofsSummary(),
+                verificationKey != null,
+                chainOfTrustProof != null);
 
         final Bytes effectiveSignature;
         if (verificationKey != null && chainOfTrustProof != null) {
@@ -894,9 +939,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var currentPendingBlock = pendingBlocks.poll();
             final BlockProof.Builder proof;
             if (currentPendingBlock.number() == blockNumber) {
+                log.info("Writing direct signed proof for pending block #{}", currentPendingBlock.number());
                 // Block signatures on the current block will always produce a TssSignedBlockProof
                 proof = currentPendingBlock.proofBuilder().signedBlockProof(latestSignedBlockProof);
             } else {
+                log.info(
+                        "Writing indirect proof for pending block #{} using signature from block #{}",
+                        currentPendingBlock.number(),
+                        blockNumber);
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
                 if (configProvider
@@ -939,7 +989,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (currentPendingBlock.contentsPath() != null) {
                 cleanUpPendingBlock(currentPendingBlock.contentsPath());
             }
-            markPendingBlockProofComplete();
+            markPendingBlockProofComplete(currentPendingBlock);
         }
     }
 
@@ -1255,11 +1305,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     public @NonNull CompletableFuture<Void> pendingBlockProofsFuture() {
         synchronized (pendingBlockProofsFutureLock) {
             if (pendingBlockProofCount.get() == 0) {
+                log.info("pendingBlockProofsFuture requested with no pending block proofs");
                 return CompletableFuture.completedFuture(null);
             }
             if (pendingBlockProofsFuture == null || pendingBlockProofsFuture.isDone()) {
                 pendingBlockProofsFuture = new CompletableFuture<>();
+                log.info(
+                        "Recreated pendingBlockProofsFuture while pendingProofCount={}, pendingBlocks={}",
+                        pendingBlockProofCount.get(),
+                        pendingBlockProofsSummary());
             }
+            log.info(
+                    "pendingBlockProofsFuture requested; pendingProofCount={}, futureDone={}, pendingBlocks={}",
+                    pendingBlockProofCount.get(),
+                    pendingBlockProofsFuture.isDone(),
+                    pendingBlockProofsSummary());
             return pendingBlockProofsFuture;
         }
     }

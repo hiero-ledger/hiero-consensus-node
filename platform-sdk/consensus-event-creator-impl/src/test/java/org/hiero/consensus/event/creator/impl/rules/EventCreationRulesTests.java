@@ -20,6 +20,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
@@ -125,6 +126,29 @@ class EventCreationRulesTests {
 
         assertFalse(rule.isEventCreationPermitted());
         numSignatureTransactions.set(1);
+        assertTrue(rule.isEventCreationPermitted());
+    }
+
+    @Test
+    void freezingCanBePermittedByApplicationFreezeWork() {
+        final AtomicBoolean applicationFreezeWorkPending = new AtomicBoolean(false);
+        final SignatureTransactionCheck signatureTransactionCheck = new SignatureTransactionCheck() {
+            @Override
+            public boolean hasBufferedSignatureTransactions() {
+                return false;
+            }
+
+            @Override
+            public boolean shouldCreateEventsInFreeze() {
+                return applicationFreezeWorkPending.get();
+            }
+        };
+
+        final PlatformStatusRule rule = new PlatformStatusRule(signatureTransactionCheck);
+        rule.setPlatformStatus(PlatformStatus.FREEZING);
+
+        assertFalse(rule.isEventCreationPermitted());
+        applicationFreezeWorkPending.set(true);
         assertTrue(rule.isEventCreationPermitted());
     }
 

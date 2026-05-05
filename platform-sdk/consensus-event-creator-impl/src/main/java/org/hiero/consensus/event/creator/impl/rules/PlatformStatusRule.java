@@ -38,7 +38,7 @@ public class PlatformStatusRule implements EventCreationRule {
         final PlatformStatus currentStatus = this.platformStatus;
 
         if (currentStatus == PlatformStatus.FREEZING) {
-            return signatureTransactionCheck.hasBufferedSignatureTransactions();
+            return signatureTransactionCheck.shouldCreateEventsInFreeze();
         }
 
         return currentStatus == PlatformStatus.ACTIVE || currentStatus == PlatformStatus.CHECKING;

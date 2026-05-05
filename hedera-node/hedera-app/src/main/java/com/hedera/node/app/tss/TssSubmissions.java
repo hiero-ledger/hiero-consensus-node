@@ -53,7 +53,9 @@ public class TssSubmissions {
             @NonNull final BiConsumer<TransactionBody, String> onFailure) {
         // All submissions are best-effort in the TSS protocol, but in particular we never want to try to
         // submit anything if node gossip is unavailable (e.g. because we are REPLAYING_EVENTS).
-        if (!appContext.gossip().isAvailable()) {
+        final boolean gossipAvailable = appContext.gossip().isAvailable();
+        log.info("TSS submission gossip availability={}", gossipAvailable);
+        if (!gossipAvailable) {
             log.info("Skipping TSS submission because gossip is unavailable");
             return CompletableFuture.completedFuture(null);
         }
@@ -62,7 +64,7 @@ public class TssSubmissions {
         final var config = appContext.configSupplier().get();
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
         final var hederaConfig = config.getConfigData(HederaConfig.class);
-        return appContext
+        final var future = appContext
                 .gossip()
                 .submitFuture(
                         selfId,
@@ -74,6 +76,14 @@ public class TssSubmissions {
                         adminConfig.distinctTxnIdsToTry(),
                         adminConfig.retryDelay(),
                         onFailure);
+        future.whenComplete((ignore, t) -> {
+            if (t == null) {
+                log.info("TSS submission task completed successfully");
+            } else {
+                log.warn("TSS submission task completed exceptionally", t);
+            }
+        });
+        return future;
     }
 
     /**

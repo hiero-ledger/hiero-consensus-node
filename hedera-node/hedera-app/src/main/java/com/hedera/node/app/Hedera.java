@@ -20,6 +20,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.completedFuture;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
@@ -336,6 +337,12 @@ public final class Hedera
     private final TransactionLimits transactionLimits;
     /** the transaction pool, stores transactions that should be submitted to the network */
     private final TransactionPoolNexus transactionPool;
+
+    /**
+     * True while the application freeze completion gate is waiting on work that needs continued FREEZING event
+     * creation to make progress.
+     */
+    private final AtomicBoolean freezeCompletionRequiresEventCreation = new AtomicBoolean(false);
 
     /**
      * The wrapped record block hash migration instance, shared between ServicesMain (compute) and
@@ -923,6 +930,10 @@ public final class Hedera
             }
             final var payload = SignedTransaction.PROTOBUF.toBytes(nodeSignedTxWith(body));
             // Always use priority=true for node gossip submissions
+            logger.info(
+                    "Submitting node transaction {} via priority gossip while platformStatus={}",
+                    function,
+                    daggerApp.currentPlatformStatus().get());
             daggerApp.submissionManager().submit(body, payload, true);
             if (quiescenceEnabled && isRelevantTransaction(body)) {
                 daggerApp.txPipelineTracker().incrementInFlight();
@@ -945,9 +956,14 @@ public final class Hedera
 
     @Override
     public boolean isAvailable() {
-        return daggerApp != null
-                && isGossipAvailableForNodeTransactions(
-                        daggerApp.currentPlatformStatus().get());
+        if (daggerApp == null) {
+            logger.info("Node transaction gossip unavailable because daggerApp is null");
+            return false;
+        }
+        final var status = daggerApp.currentPlatformStatus().get();
+        final boolean available = isGossipAvailableForNodeTransactions(status);
+        logger.info("Node transaction gossip availability={} while platformStatus={}", available, status);
+        return available;
     }
 
     static boolean isGossipAvailableForNodeTransactions(@NonNull final PlatformStatus platformStatus) {
@@ -1248,13 +1264,53 @@ public final class Hedera
     public @NonNull CompletableFuture<Void> getFreezeCompleteFuture(@NonNull final StateSavingResult result) {
         requireNonNull(result);
         if (!result.freezeState() || daggerApp == null) {
+            freezeCompletionRequiresEventCreation.set(false);
+            logger.info(
+                    "Freeze complete future requested with freezeState={}, daggerAppPresent={}; returning completed future",
+                    result.freezeState(),
+                    daggerApp != null);
             return completedFuture(null);
         }
         final var blockStreamFuture = daggerApp.blockStreamManager().pendingBlockProofsFuture();
         final var blockRecordManager = daggerApp.blockRecordManager();
         final var wrbWritersFuture =
                 blockRecordManager == null ? completedFuture(null) : blockRecordManager.noOpenWrbWritersFuture();
-        return allOf(blockStreamFuture, wrbWritersFuture);
+        logger.info(
+                "Freeze complete future requested; blockStreamFutureDone={}, wrbWritersFutureDone={}, blockRecordManagerPresent={}",
+                blockStreamFuture.isDone(),
+                wrbWritersFuture.isDone(),
+                blockRecordManager != null);
+        blockStreamFuture.whenComplete((ignore, t) -> {
+            if (t == null) {
+                logger.info("Block stream pending proofs future completed for freeze gate");
+            } else {
+                logger.warn("Block stream pending proofs future completed exceptionally for freeze gate", t);
+            }
+        });
+        wrbWritersFuture.whenComplete((ignore, t) -> {
+            if (t == null) {
+                logger.info("WRB writers future completed for freeze gate");
+            } else {
+                logger.warn("WRB writers future completed exceptionally for freeze gate", t);
+            }
+        });
+        final var compositeFuture = allOf(blockStreamFuture, wrbWritersFuture);
+        final var keepCreatingFreezeEvents = !compositeFuture.isDone();
+        freezeCompletionRequiresEventCreation.set(keepCreatingFreezeEvents);
+        if (keepCreatingFreezeEvents) {
+            logger.info("Application freeze gate is pending; continuing FREEZING event creation until it completes");
+            logger.info("Breaking quiescence while application freeze gate is pending");
+            platform.quiescenceCommand(BREAK_QUIESCENCE);
+        }
+        compositeFuture.whenComplete((ignore, t) -> {
+            freezeCompletionRequiresEventCreation.set(false);
+            if (t == null) {
+                logger.info("Composite freeze complete future completed");
+            } else {
+                logger.warn("Composite freeze complete future completed exceptionally", t);
+            }
+        });
+        return compositeFuture;
     }
 
     /**
@@ -1262,7 +1318,12 @@ public final class Hedera
      */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
-        return transactionPool.getTransactionsForEvent();
+        final var transactions = transactionPool.getTransactionsForEvent();
+        logger.info(
+                "Providing {} transaction(s) for event creation while platformStatus={}",
+                transactions.size(),
+                platformStatus);
+        return transactions;
     }
 
     /**
@@ -1271,6 +1332,22 @@ public final class Hedera
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return transactionPool.hasBufferedSignatureTransactions();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean shouldCreateEventsInFreeze() {
+        final var hasBufferedSignatureTransactions = transactionPool.hasBufferedSignatureTransactions();
+        final var freezeGatePending = freezeCompletionRequiresEventCreation.get();
+        final var shouldCreateEvents = hasBufferedSignatureTransactions || freezeGatePending;
+        logger.info(
+                "Freeze event creation check: shouldCreateEvents={}, bufferedSignatureTransactions={}, freezeGatePending={}",
+                shouldCreateEvents,
+                hasBufferedSignatureTransactions,
+                freezeGatePending);
+        return shouldCreateEvents;
     }
 
     /**

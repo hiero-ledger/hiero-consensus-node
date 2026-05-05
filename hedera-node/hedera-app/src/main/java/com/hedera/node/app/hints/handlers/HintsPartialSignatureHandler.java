@@ -97,6 +97,11 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         try {
             op = context.body().hintsPartialSignatureOrThrow();
             tssConfig = context.configuration().getConfigData(TssConfig.class);
+            log.info(
+                    "Pre-handle received hints partial signature from node {} for construction #{} and message {}",
+                    creatorId,
+                    op.constructionId(),
+                    op.message());
             if (op.constructionId() == RsaContext.CONSTRUCTION_ID) {
                 if (!tssConfig.useDeterministicHintsSignatures()) {
                     incorporateRsaIfValid(op, creatorId);
@@ -117,6 +122,12 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
             } else {
                 final boolean isValid = hintsContext.validate(
                         partialSignature.nodeId(), partialSignature.crs(), partialSignature.body());
+                log.info(
+                        "Pre-handle validated hinTS partial signature from node {} for message {}; isValid={}, deterministic={}",
+                        creatorId,
+                        op.message(),
+                        isValid,
+                        tssConfig.useDeterministicHintsSignatures());
                 if (isValid) {
                     signings.computeIfAbsent(
                                     op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
@@ -134,6 +145,11 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         final var op = context.body().hintsPartialSignatureOrThrow();
         final var creatorId = context.creatorInfo().nodeId();
         final var tssConfig = context.configuration().getConfigData(TssConfig.class);
+        log.info(
+                "Handle received hints partial signature from node {} for construction #{} and message {}",
+                creatorId,
+                op.constructionId(),
+                op.message());
         if (op.constructionId() == RsaContext.CONSTRUCTION_ID) {
             if (tssConfig.useDeterministicHintsSignatures()) {
                 incorporateRsaIfValid(op, creatorId);
@@ -154,11 +170,22 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
                                 op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
                         .incorporateValid(crs, creatorId, op.partialSignature());
             }
+            log.info(
+                    "Handle validated deterministic hinTS partial signature from node {} for message {}; isValid={}",
+                    creatorId,
+                    op.message(),
+                    isValid);
         }
     }
 
     private void incorporateRsaIfValid(@NonNull final HintsPartialSignatureTransactionBody op, final long creatorId) {
-        if (rsaContext.validate(creatorId, op)) {
+        final boolean isValid = rsaContext.validate(creatorId, op);
+        log.info(
+                "Validated RSA partial signature from node {} for message {}; isValid={}",
+                creatorId,
+                op.message(),
+                isValid);
+        if (isValid) {
             rsaSignings
                     .computeIfAbsent(
                             op.message(), b -> rsaContext.newSigning(b, () -> rsaSignings.remove(op.message())))

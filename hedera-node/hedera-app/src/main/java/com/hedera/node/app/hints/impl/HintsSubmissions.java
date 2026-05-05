@@ -118,13 +118,37 @@ public class HintsSubmissions extends TssSubmissions {
     public CompletableFuture<Void> submitPartialSignature(@NonNull final Bytes message) {
         requireNonNull(message);
         final long constructionId = context.constructionIdOrThrow();
-        return submitIfActive(
+        logger.info(
+                "Attempting hinTS partial signature submission for construction #{} and message {}",
+                constructionId,
+                message);
+        final var future = submitIfActive(
                 b -> {
-                    final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, message);
-                    b.hintsPartialSignature(new HintsPartialSignatureTransactionBody(
-                            constructionId, message, requireNonNull(signature)));
+                    final var signature = requireNonNull(keyAccessor.signWithBlsPrivateKey(constructionId, message));
+                    logger.info(
+                            "Built hinTS partial signature transaction for construction #{} and message {}; signatureLength={}",
+                            constructionId,
+                            message,
+                            signature.length());
+                    b.hintsPartialSignature(
+                            new HintsPartialSignatureTransactionBody(constructionId, message, signature));
                 },
                 onFailure);
+        future.whenComplete((ignore, t) -> {
+            if (t == null) {
+                logger.info(
+                        "hinTS partial signature submission attempt completed for construction #{} and message {}",
+                        constructionId,
+                        message);
+            } else {
+                logger.warn(
+                        "hinTS partial signature submission attempt failed for construction #{} and message {}",
+                        constructionId,
+                        message,
+                        t);
+            }
+        });
+        return future;
     }
 
     /**
