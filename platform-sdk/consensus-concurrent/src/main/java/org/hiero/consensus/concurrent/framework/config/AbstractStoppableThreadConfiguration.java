@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.concurrent.framework.internal;
+package org.hiero.consensus.concurrent.framework.config;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
@@ -111,7 +111,7 @@ public abstract class AbstractStoppableThreadConfiguration<
      * @param stoppableThread the stoppable thread to build a seed from
      * @return an injectable seed
      */
-    protected ThreadSeed buildStoppableThreadSeed(final StoppableThreadImpl<T> stoppableThread) {
+    ThreadSeed buildStoppableThreadSeed(final StoppableThreadImpl<T> stoppableThread) {
         stoppableThread.setInjected();
         return () -> {
             stoppableThread.markAsStarted(Thread.currentThread());

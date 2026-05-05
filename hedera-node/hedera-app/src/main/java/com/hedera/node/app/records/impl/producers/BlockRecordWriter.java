@@ -3,6 +3,7 @@ package com.hedera.node.app.records.impl.producers;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.streams.HashObject;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.UncheckedIOException;
 import java.time.Instant;
@@ -54,8 +55,9 @@ public interface BlockRecordWriter {
      * {@link #init(SemanticVersion, HashObject, Instant, long)}.
      *
      * @param endRunningHash  the ending running hash after the last record stream item
+     * @return the record file hash signed by this writer
      * @throws IllegalStateException if called before {@link #init(SemanticVersion, HashObject, Instant, long)}.
      * @throws UncheckedIOException if there is an error writing to the destination
      */
-    void close(@NonNull HashObject endRunningHash);
+    Bytes close(@NonNull HashObject endRunningHash);
 }

@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.io.streams;
+package org.hiero.base.utility.test.fixtures.io.internal;
 
 import com.swirlds.base.function.CheckedFunction;
-import com.swirlds.common.io.streams.internal.SerializationOperation;
-import com.swirlds.common.io.streams.internal.SerializationStack;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
