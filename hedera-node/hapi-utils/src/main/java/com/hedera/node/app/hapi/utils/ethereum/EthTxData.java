@@ -38,6 +38,12 @@ public record EthTxData(
         byte[] r,
         byte[] s) {
 
+    // Enforce the parser invariant at the type level: chainId is always a byte[] (possibly empty),
+    // never null. matchesChainId() and downstream callers can rely on this without re-guarding.
+    public EthTxData {
+        Objects.requireNonNull(chainId, "chainId");
+    }
+
     /**
      * A "wiebar" is 10⁻¹⁸ of an hbar.  The relationship is weibar : hbar as wei : ether.  Ethereum
      * transactions come in with transfer amounts in units of weibar.  Elsewhere in Hedera we use
