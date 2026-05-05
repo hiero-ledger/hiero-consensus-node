@@ -28,6 +28,7 @@ jmhModuleInfo {
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.reconnect")
+    requires("org.hiero.consensus.utility")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
     requiresStatic("com.github.spotbugs.annotations")

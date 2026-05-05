@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.test.fixtures.io;
+package org.hiero.base.utility.test.fixtures.io;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

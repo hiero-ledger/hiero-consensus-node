@@ -5,5 +5,7 @@ open module org.hiero.base.utility.test.fixtures {
     exports org.hiero.base.utility.test.fixtures.tags;
 
     requires transitive org.hiero.base.utility;
+    requires com.swirlds.base;
+    requires org.junit.jupiter.api;
     requires static transitive com.github.spotbugs.annotations;
 }
