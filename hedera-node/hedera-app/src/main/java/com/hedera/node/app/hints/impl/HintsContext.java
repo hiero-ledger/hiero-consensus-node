@@ -157,7 +157,7 @@ public class HintsContext {
      * @param onCompletion a callback to run when the signing process completes
      * @return the signing process
      */
-    public @NonNull Signing newSigning(@NonNull final Bytes blockHash, @NonNull final Runnable onCompletion) {
+    public @NonNull BlockHashSigning newSigning(@NonNull final Bytes blockHash, @NonNull final Runnable onCompletion) {
         requireNonNull(blockHash);
         requireNonNull(onCompletion);
         throwIfNotReady();
@@ -206,7 +206,7 @@ public class HintsContext {
     /**
      * A signing process spawned from this context.
      */
-    public class Signing {
+    public non-sealed class Signing implements BlockHashSigning {
         private final long startNanos;
         private final long thresholdWeight;
         private final long thresholdDenominator;
@@ -283,6 +283,7 @@ public class HintsContext {
          * @param nodeId the node ID
          * @param signature the pre-validated partial signature
          */
+        @Override
         public void incorporateValid(@NonNull final Bytes crs, final long nodeId, @NonNull final Bytes signature) {
             requireNonNull(crs);
             requireNonNull(signature);

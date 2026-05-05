@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.FileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,6 +22,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.pces.impl.PcesTestFilesGenerator;
 import org.hiero.consensus.pces.impl.PcesTestFilesGenerator.Range;
 import org.junit.jupiter.api.AfterEach;

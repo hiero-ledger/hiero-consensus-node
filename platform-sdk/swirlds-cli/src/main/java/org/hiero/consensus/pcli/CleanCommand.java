@@ -4,7 +4,6 @@ package org.hiero.consensus.pcli;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
@@ -12,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
+import org.hiero.base.file.FileUtils;
 import org.hiero.consensus.config.EventConfig;
 import picocli.CommandLine;
 

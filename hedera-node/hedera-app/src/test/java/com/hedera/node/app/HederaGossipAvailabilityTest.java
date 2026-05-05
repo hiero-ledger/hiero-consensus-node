@@ -10,7 +10,9 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 class HederaGossipAvailabilityTest {
     @ParameterizedTest
-    @EnumSource(value = PlatformStatus.class, names = {"ACTIVE", "CHECKING", "FREEZING"})
+    @EnumSource(
+            value = PlatformStatus.class,
+            names = {"ACTIVE", "CHECKING", "FREEZING"})
     void gossipAvailableForStatusesThatCanCreatePriorityEvents(final PlatformStatus status) {
         assertTrue(Hedera.isGossipAvailableForNodeTransactions(status));
     }

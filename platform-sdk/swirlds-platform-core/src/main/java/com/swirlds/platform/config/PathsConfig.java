@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -23,7 +23,10 @@ public record PathsConfig(
         @ConfigProperty(defaultValue = ".") String settingsUsedDir,
         @ConfigProperty(defaultValue = "data/keys") String keysDirPath,
         @ConfigProperty(defaultValue = "data/apps") String appsDirPath,
-        @ConfigProperty(defaultValue = "data/saved/marker_files") String markerFilesDir,
+
+        @ConfigProperty(defaultValue = "data/saved/marker_files")
+        String markerFilesDir,
+
         @ConfigProperty(defaultValue = "false") boolean writePlatformMarkerFiles) {
 
     /**

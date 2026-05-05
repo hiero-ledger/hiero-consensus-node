@@ -7,7 +7,10 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
+import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.HintsModule;
+import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -22,6 +25,7 @@ import java.time.Duration;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import javax.inject.Inject;
+import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,9 +35,14 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(HintsPartialSignatureHandler.class);
 
     @NonNull
-    private final ConcurrentMap<Bytes, HintsContext.Signing> signings;
+    private final ConcurrentMap<Bytes, BlockHashSigning> signings;
+
+    @NonNull
+    private final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings;
 
     private final HintsContext hintsContext;
+
+    private final RsaContext rsaContext;
 
     private final LoadingCache<PartialSignature, Boolean> cache;
 
@@ -59,10 +68,14 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     @Inject
     public HintsPartialSignatureHandler(
             @NonNull final Duration blockPeriod,
-            @NonNull final ConcurrentMap<Bytes, HintsContext.Signing> signings,
-            @NonNull final HintsContext context) {
+            @Named(HintsModule.HINTS_SIGNINGS) @NonNull final ConcurrentMap<Bytes, BlockHashSigning> signings,
+            @Named(HintsModule.RSA_SIGNINGS) @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+            @NonNull final HintsContext context,
+            @NonNull final RsaContext rsaContext) {
         this.signings = requireNonNull(signings);
+        this.rsaSignings = requireNonNull(rsaSignings);
         this.hintsContext = requireNonNull(context);
+        this.rsaContext = requireNonNull(rsaContext);
         // Only used when waiting for consensus to construct deterministic signatures
         cache = Caffeine.newBuilder()
                 .expireAfterAccess(Math.max(1, 2 * blockPeriod.getSeconds()), TimeUnit.SECONDS)
@@ -78,13 +91,26 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
+        final var creatorId = context.creatorInfo().nodeId();
+        final HintsPartialSignatureTransactionBody op;
+        final TssConfig tssConfig;
+        try {
+            op = context.body().hintsPartialSignatureOrThrow();
+            tssConfig = context.configuration().getConfigData(TssConfig.class);
+            if (op.constructionId() == RsaContext.CONSTRUCTION_ID) {
+                if (!tssConfig.useDeterministicHintsSignatures()) {
+                    incorporateRsaIfValid(op, creatorId);
+                }
+                return;
+            }
+        } catch (Exception e) {
+            log.debug("Ignoring partial signature in pre-handle for node {}", creatorId, e);
+            return;
+        }
         final var hintsStore = context.createStore(ReadableHintsStore.class);
         final var crs = requireNonNull(hintsStore.crsIfKnown());
-        final var creatorId = context.creatorInfo().nodeId();
         try {
-            final var op = context.body().hintsPartialSignatureOrThrow();
             final var partialSignature = new PartialSignature(hintsContext.constructionIdOrThrow(), crs, creatorId, op);
-            final var tssConfig = context.configuration().getConfigData(TssConfig.class);
             if (tssConfig.useDeterministicHintsSignatures()) {
                 //noinspection ResultOfMethodCallIgnored
                 cache.get(partialSignature);
@@ -107,9 +133,15 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().hintsPartialSignatureOrThrow();
         final var creatorId = context.creatorInfo().nodeId();
+        final var tssConfig = context.configuration().getConfigData(TssConfig.class);
+        if (op.constructionId() == RsaContext.CONSTRUCTION_ID) {
+            if (tssConfig.useDeterministicHintsSignatures()) {
+                incorporateRsaIfValid(op, creatorId);
+            }
+            return;
+        }
         final var hintsStore = context.storeFactory().readableStore(ReadableHintsStore.class);
         final var crs = requireNonNull(hintsStore.crsIfKnown());
-        final var tssConfig = context.configuration().getConfigData(TssConfig.class);
         // Only something to do at handle if using deterministic hinTS signatures
         if (tssConfig.useDeterministicHintsSignatures()) {
             final boolean isValid = Boolean.TRUE.equals(cache.get(new PartialSignature(
@@ -122,6 +154,15 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
                                 op.message(), b -> hintsContext.newSigning(b, () -> signings.remove(op.message())))
                         .incorporateValid(crs, creatorId, op.partialSignature());
             }
+        }
+    }
+
+    private void incorporateRsaIfValid(@NonNull final HintsPartialSignatureTransactionBody op, final long creatorId) {
+        if (rsaContext.validate(creatorId, op)) {
+            rsaSignings
+                    .computeIfAbsent(
+                            op.message(), b -> rsaContext.newSigning(b, () -> rsaSignings.remove(op.message())))
+                    .incorporateValid(Bytes.EMPTY, creatorId, op.partialSignature());
         }
     }
 

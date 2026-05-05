@@ -17,7 +17,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
@@ -40,6 +39,7 @@ import java.util.Objects;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -450,27 +450,20 @@ public class PlatformWiring {
         }
 
         try {
-            Objects.requireNonNull(execution.getFreezeCompleteFuture(result))
-                    .whenComplete((ignore, throwable) -> {
-                        if (throwable != null) {
-                            logger.error(
-                                    """
+            Objects.requireNonNull(execution.getFreezeCompleteFuture(result)).whenComplete((ignore, throwable) -> {
+                if (throwable != null) {
+                    logger.error("""
                                             Application freeze completion future failed for freeze state round {}.
                                             Continuing the platform transition to FREEZE_COMPLETE.
-                                            """,
-                                    result.round(),
-                                    throwable);
-                        }
-                        stateWrittenToDiskInputWire.inject(result);
-                    });
+                                            """, result.round(), throwable);
+                }
+                stateWrittenToDiskInputWire.inject(result);
+            });
         } catch (final RuntimeException e) {
-            logger.error(
-                    """
+            logger.error("""
                             Application failed to provide a freeze completion future for freeze state round {}.
                             Continuing the platform transition to FREEZE_COMPLETE.
-                            """,
-                    result.round(),
-                    e);
+                            """, result.round(), e);
             stateWrittenToDiskInputWire.inject(result);
         }
     }

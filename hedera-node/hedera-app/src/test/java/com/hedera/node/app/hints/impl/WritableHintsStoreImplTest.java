@@ -477,7 +477,9 @@ class WritableHintsStoreImplTest {
                 ForkJoinPool.commonPool(),
                 appContext,
                 library,
-                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                new RsaContext(appContext.configSupplier()),
+                new java.util.concurrent.ConcurrentHashMap<>());
         Set.of(new EntityIdServiceImpl(), hintsServiceImpl).forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
         final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();

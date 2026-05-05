@@ -157,4 +157,8 @@ public final class ConfigUtils {
         }
         return configuration;
     }
+
+    public static int getVirtualMapValueParseMaxSizeBytes() {
+        return getConfiguration().getConfigData(VirtualMapConfig.class).valueParseMaxSizeBytes();
+    }
 }

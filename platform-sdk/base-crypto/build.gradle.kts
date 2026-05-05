@@ -11,7 +11,6 @@ description = "Base Crypto"
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("com.swirlds.logging.test.fixtures")
     requires("org.hiero.base.crypto")
