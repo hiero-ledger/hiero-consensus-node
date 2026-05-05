@@ -60,7 +60,6 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @Order(Integer.MAX_VALUE - 2)
 class JumpstartFileSuite implements LifecycleTest {
-
     // For excluding any of the 'non-core' nodes that are expected to be added, reconnected, or removed
     private static final long[] LATER_NODE_IDS = new long[] {4, 5, 6, 7, 8};
 

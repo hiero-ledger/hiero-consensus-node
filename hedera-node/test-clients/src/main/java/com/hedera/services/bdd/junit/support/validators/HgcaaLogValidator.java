@@ -114,7 +114,7 @@ public class HgcaaLogValidator {
                 List.of("Downloaded WRAPS proving key hash mismatch"),
                 List.of("WRAPS proving key download did not complete"),
                 List.of("Failed to initiate async download of WRAPS proving key (from URL "),
-                // Expected in JumpstartFileSuite.skipsMigrationWhenJumpstartConsensusTimestampHashMismatches
+                // Expected in JumpstartFileSuite intentional corrupted-hash restart phase
                 List.of(
                         "Jumpstart currentBlockConsensusTimestampHash for block",
                         "does not match wrapped record hashes file entry",
