@@ -13,7 +13,6 @@ defaults:
 permissions:
   id-token: write
   actions: read
-  issues: write
   pull-requests: write
   statuses: write
   checks: write

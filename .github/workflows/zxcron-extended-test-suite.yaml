@@ -20,7 +20,6 @@ on:
 permissions:
   id-token: write
   actions: write
-  issues: write
   pull-requests: write
   statuses: write
   checks: write
