@@ -7,7 +7,6 @@ import static com.swirlds.platform.crypto.CryptoStatic.loadKeys;
 
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.config.PathsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -69,6 +68,7 @@ import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.KeyGeneratingException;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
