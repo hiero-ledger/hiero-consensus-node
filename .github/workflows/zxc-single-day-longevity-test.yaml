@@ -423,7 +423,7 @@ jobs:
         run: |
           set +x
           set +e
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}"/NLG.tar /tmp/NLG.tar
+          gcloud --no-user-output-enabled storage cp "${{ env.GS_ROOT_DIR }}"/NLG.tar /tmp/NLG.tar
 
       - name: Prepare NLG parameters
         env:
