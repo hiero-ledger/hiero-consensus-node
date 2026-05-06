@@ -70,6 +70,7 @@ public interface V067Module {
     @Singleton
     @ServicesV067
     static TransactionProcessor provideTransactionProcessor(
+            @ServicesV067 @NonNull final HEVM evm,
             @NonNull final FrameBuilder frameBuilder,
             @NonNull final FrameRunner frameRunner,
             @ServicesV067 @NonNull final CustomMessageCallProcessor messageCallProcessor,
@@ -85,7 +86,7 @@ public interface V067Module {
                 contractCreationProcessor,
                 featureFlags,
                 gasCalculator,
-                null);
+                evm);
     }
 
     @Provides
@@ -111,7 +112,6 @@ public interface V067Module {
                 evm, featureFlags, registry, addressChecks, systemContracts, contractMetrics);
     }
 
-    // spotless:off
     @Provides
     @Singleton
     @ServicesV067
@@ -132,12 +132,17 @@ public interface V067Module {
         customOperations.forEach(operationRegistry::put);
         customOps.forEach(operationRegistry::put);
         if (contractsConfigSupplier.get().useBonnevilleEVM()) {
-            return new BonnevilleEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN, featureFlags, addressChecks);
+            return new BonnevilleEVM(
+                    operationRegistry,
+                    gasCalculator,
+                    evmConfiguration,
+                    EvmSpecVersion.CANCUN,
+                    featureFlags,
+                    addressChecks);
         } else {
-            return new     HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
+            return new HederaEVM(operationRegistry, gasCalculator, evmConfiguration, EvmSpecVersion.CANCUN);
         }
     }
-    // spotless:on
 
     @Provides
     @Singleton

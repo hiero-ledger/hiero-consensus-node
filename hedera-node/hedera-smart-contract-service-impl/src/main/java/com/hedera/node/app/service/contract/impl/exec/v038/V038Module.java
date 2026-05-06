@@ -121,7 +121,7 @@ public interface V038Module {
             @NonNull final EvmConfiguration evmConfiguration,
             @NonNull final GasCalculator gasCalculator,
             @CustomOps @NonNull final Set<Operation> customOps) {
-        // Use Shanghai EVM with 0.38 custom operations and 0x00 chain id (set at runtime)
+        // Use Paris EVM with 0.38 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
         HederaOperationsRegistry.forVersion(EvmSpecVersion.SHANGHAI)
                 .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);

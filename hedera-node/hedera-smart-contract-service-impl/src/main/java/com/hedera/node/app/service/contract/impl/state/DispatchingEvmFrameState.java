@@ -77,7 +77,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
 
     private final HederaNativeOperations nativeOperations;
-    final ContractStateStore contractStateStore;
+    private final ContractStateStore contractStateStore;
 
     /**
      * @param nativeOperations   the Hedera native operation
@@ -352,6 +352,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
         return HOLLOW_ACCOUNT_KEY.equals(account.key());
     }
+
     /**
      * {@inheritDoc}
      */

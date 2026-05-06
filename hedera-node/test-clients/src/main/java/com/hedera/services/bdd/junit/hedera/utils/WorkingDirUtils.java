@@ -84,7 +84,19 @@ public class WorkingDirUtils {
     }
 
     /**
+     * System property key whose value, when set, is inserted as a subdirectory
+     * beneath the scope-level directory so that each Gradle subtask writes its
+     * logs into an isolated location (e.g. {@code build/hapi-test/hapiTestMisc/node0}).
+     */
+    public static final String SUBTASK_NAME_PROPERTY = "hapi.spec.subtask.name";
+
+    /**
      * Returns the path to the working directory for the given node ID.
+     *
+     * <p>When the {@value #SUBTASK_NAME_PROPERTY} system property is set, the
+     * subtask name is inserted as an intermediate directory between the scope
+     * and the node directory, giving every Gradle subtask its own isolated log
+     * directory.
      *
      * @param nodeId the ID of the node
      * @param scope if non-null, an additional scope to use for the working directory
@@ -92,10 +104,16 @@ public class WorkingDirUtils {
      */
     public static Path workingDirFor(final long nodeId, @Nullable String scope) {
         scope = scope == null ? DEFAULT_SCOPE : scope;
-        return BASE_WORKING_LOC
-                .resolve(scope + "-test")
-                .resolve("node" + nodeId)
-                .normalize();
+        Path base = BASE_WORKING_LOC.resolve(scope + "-test");
+        final String subtask = System.getProperty(SUBTASK_NAME_PROPERTY);
+        if (subtask != null && !subtask.isBlank()) {
+            // Guard against path traversal; subtask names must be simple directory names
+            if (subtask.contains("/") || subtask.contains("\\") || subtask.contains("..")) {
+                throw new IllegalArgumentException("Invalid subtask name: " + subtask);
+            }
+            base = base.resolve(subtask);
+        }
+        return base.resolve("node" + nodeId).normalize();
     }
 
     /**

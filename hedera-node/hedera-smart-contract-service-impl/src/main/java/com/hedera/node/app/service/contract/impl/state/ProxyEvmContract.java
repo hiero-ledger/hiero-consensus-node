@@ -8,7 +8,8 @@ import org.hyperledger.besu.datatypes.Hash;
 
 /**
  * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a contract account.
- * Responsible for retrieving the contract byte code from the {@link EvmFrameState}.
+ * <p>
+ * Responsible for retrieving the contract byte code from the {@link EvmFrameState}
  */
 public class ProxyEvmContract extends AbstractProxyEvmAccount {
 

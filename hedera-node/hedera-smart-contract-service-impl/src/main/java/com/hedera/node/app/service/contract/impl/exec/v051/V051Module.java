@@ -134,7 +134,7 @@ public interface V051Module {
 
         oneTimeEVMModuleInitialization();
 
-        // Use Cancun EVM with 0.51 custom operations and 0x00 chain id (set at runtime)
+        // Use Cancun EVM with 0.50 custom operations and 0x00 chain id (set at runtime)
         final var operationRegistry = new OperationRegistry();
         HederaOperationsRegistry.forVersion(EvmSpecVersion.CANCUN)
                 .register(operationRegistry, gasCalculator, BigInteger.ZERO, evmConfiguration);

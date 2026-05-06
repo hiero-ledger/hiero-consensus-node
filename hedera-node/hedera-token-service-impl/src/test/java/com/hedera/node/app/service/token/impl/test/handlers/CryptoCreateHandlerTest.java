@@ -918,11 +918,12 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         private long shardId = 0;
         private long realmId = 0;
         private int maxAutoAssociations = -1;
-        private Bytes delegationAddress = null;
 
         private Key key = otherKey;
 
         private String memo = null;
+
+        private Bytes delegationAddress;
 
         private CryptoCreateBuilder() {}
 
