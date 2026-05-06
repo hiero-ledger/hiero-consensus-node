@@ -9,8 +9,7 @@ import static org.hiero.base.file.FileUtils.rethrowIO;
 
 import com.swirlds.base.state.Stoppable;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
-import com.swirlds.common.io.filesystem.FileSystemManager;
+import com.swirlds.common.io.config.RecycleBinConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
@@ -29,6 +28,7 @@ import org.hiero.base.CompareTo;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.Locked;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
@@ -117,17 +117,17 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
             @NonNull final Time time,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final NodeId nodeId) {
-        final FileSystemManagerConfig fsmConfig = configuration.getConfigData(FileSystemManagerConfig.class);
+        final RecycleBinConfig recycleBinConfig = configuration.getConfigData(RecycleBinConfig.class);
         final Path recycleBinPath =
-                fileSystemManager.resolve(Path.of(fsmConfig.recycleBinDir())).resolve(nodeId.toString());
+                fileSystemManager.resolve(recycleBinConfig.dirName()).resolve(nodeId.toString());
 
         return new RecycleBinImpl(
                 metrics,
                 threadManager,
                 time,
                 recycleBinPath,
-                fsmConfig.recycleBinMaximumFileAge(),
-                fsmConfig.recycleBinCollectionPeriod());
+                recycleBinConfig.maximumFileAge(),
+                recycleBinConfig.collectionPeriod());
     }
 
     /**

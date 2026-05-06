@@ -39,9 +39,11 @@ jmhModuleInfo {
 fun listProperty(value: String) = objects.listProperty<String>().value(listOf(value))
 
 // ── Benchmark run configurations ─────────────────────────────────────
+// Gradle JMH tasks are intended for regular benchmark runs.
+// Keep normal JMH forking for cleaner measurements; pass heap settings to the forked benchmark JVM.
 
 tasks.register<JMHTask>("jmhCrypto") {
-    includes.set(listOf("CryptoBench"))
+    includes.set(listOf("CryptoBench.transferPrefetch"))
     jvmArgs.set(listOf("-Xmx16g"))
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-crypto.txt"))
 }

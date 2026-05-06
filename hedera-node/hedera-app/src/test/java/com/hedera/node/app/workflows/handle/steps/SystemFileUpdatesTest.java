@@ -61,7 +61,6 @@ class SystemFileUpdatesTest implements TransactionFactory {
     private long SHARD;
     private long REALM;
     private EntityIdFactory idFactory;
-    private final CompletableFuture<Void> completed = CompletableFuture.completedFuture(null);
 
     @Mock(strictness = Strictness.LENIENT)
     private ConfigProviderImpl configProvider;
@@ -372,7 +371,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
             mocked.when(() -> CompletableFuture.runAsync(any(Runnable.class))).thenAnswer(inv -> {
                 final Runnable r = inv.getArgument(0);
                 r.run();
-                return completed;
+                return CompletableFuture.completedFuture(null);
             });
 
             // when
@@ -427,7 +426,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
             mocked.when(() -> CompletableFuture.runAsync(any(Runnable.class))).thenAnswer(inv -> {
                 final Runnable r = inv.getArgument(0);
                 r.run();
-                return completed;
+                return CompletableFuture.completedFuture(null);
             });
 
             // when

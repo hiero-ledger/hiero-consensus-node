@@ -89,8 +89,6 @@ class SignedStateFileReadWriteTest {
     @Test
     @DisplayName("writeHashInfoFile() Test")
     void writeHashInfoFileTest() throws IOException {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
         final SignedState signedState = new RandomSignedStateGenerator()
                 .setSoftwareVersion(platformVersion)
                 .build();
