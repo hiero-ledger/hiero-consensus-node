@@ -28,9 +28,7 @@ public class CodeV2 extends OutputStream implements Code {
 
     private static final ArrayList<CodeV2> FREE = new ArrayList<>();
 
-    public static final CodeV2 EMPTY = make(new byte[0],null);
-
-    static int PROBES, HITS;
+    public static final CodeV2 EMPTY = make(new byte[0]);
 
     // EVM bytecodes.  This array is commonly shared and must be immutable
     byte[] _codes;
@@ -50,9 +48,7 @@ public class CodeV2 extends OutputStream implements Code {
     }
 
     // Put an unused CodeV2 back to the FREE list and return the winner
-    private CodeV2 atomicPutFree(CodeV2 winner, PrintStream stdOut) {
-        if( stdOut!=null )
-            HITS++;        // Not atomic, lossy
+    private CodeV2 atomicPutFree( CodeV2 winner ) {
         // Mark it as obviously freed (_codes=null, _hash=0)
         _codes = null;
         _hash = 0;
@@ -63,7 +59,7 @@ public class CodeV2 extends OutputStream implements Code {
 
     // Attempt to intern: if we've seen this before, use the old one.
     // If not, and interning, atomic record as the next "old one".
-    private CodeV2 atomicIntern(boolean intern, PrintStream stdOut) {
+    private CodeV2 atomicIntern(boolean intern) {
         assert _hash==0;
         // Set the hash.  Yea Olde String Hash for us.
         int hash = 0;
@@ -72,15 +68,9 @@ public class CodeV2 extends OutputStream implements Code {
         if( hash == 0 ) hash = 0xDEADBEEF; // Avoid the appearance of a not-set zero hash
         _hash = hash;
 
-        // probe the concurrent hash table
-        if( stdOut != null ) {
-            PROBES++;               // Not atomic, lossy
-            if( (PROBES & 1023)==0 )
-                stdOut.println("PROBES="+PROBES+", RATIO="+((double)HITS/PROBES));
-        }
         CodeV2 old = CODES.get(this);
         if( old != null )
-            return atomicPutFree(old,stdOut); // Got a Winner!
+            return atomicPutFree(old); // Got a Winner!
         // No prior, so do expensive setup.
         setUp();
         // If backing memory has scoped lifetime and will eventually get
@@ -93,12 +83,12 @@ public class CodeV2 extends OutputStream implements Code {
         if( old == null )       // We win?
             return this;        // Expected winner: return fresh code
         // Unexpected lost race, return old winner and return this to the free list
-        return atomicPutFree(old,stdOut);
+        return atomicPutFree(old);
     }
 
     // When called from an internal BEVM Memory array, the backing data will
     // recycle so do not save this array when interning.
-    public static CodeV2 make(byte[] codes, int off, int len, boolean intern, PrintStream stdOut) {
+    public static CodeV2 make(byte[] codes, int off, int len, boolean intern) {
         CodeV2 code = atomicGetFree();
 
         // Fill in codes fields
@@ -106,25 +96,25 @@ public class CodeV2 extends OutputStream implements Code {
         code._off  = off;
         code._len  = len;
 
-        return code.atomicIntern(intern, stdOut);
+        return code.atomicIntern(intern);
     }
 
-    public static CodeV2 make(byte[] codes, PrintStream stdOut) {
+    public static CodeV2 make(byte[] codes) {
         // Since exact size, assumed immutable and no copy will be made.
-        return make(codes, 0, codes.length, true, stdOut);
+        return make(codes, 0, codes.length, true);
     }
 
     // Pull the code from an Account withOUT a copy by having CodeV2 mimic an
     // OutputStream, and PBJ Bytes will (without a copy) inject the raw bytes
     // for us.
-    public static CodeV2 make(AbstractMutableEvmAccount act, PrintStream stdOut) {
+    public static CodeV2 make(AbstractMutableEvmAccount act) {
         if( act == null ) return EMPTY;
         CodeV2 code = atomicGetFree();
 
         // Fill in codes fields - Look Ma!  No Copy!
         act.getCodePBJ().writeTo(code);
 
-        return code.atomicIntern(true, stdOut);
+        return code.atomicIntern(true);
     }
 
     private BitSet _jmpDest; // Set if we are keeping "this"

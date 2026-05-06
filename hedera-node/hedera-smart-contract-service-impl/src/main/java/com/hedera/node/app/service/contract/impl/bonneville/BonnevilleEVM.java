@@ -200,7 +200,7 @@ public class BonnevilleEVM extends HEVM {
 
     @Override
     public void runToHalt(MessageFrame frame, OperationTracer tracer) {
-        CodeV2 code = CodeV2.make(frame.getCode().getBytes().toArrayUnsafe(), _stdOut);
+        CodeV2 code = CodeV2.make(frame.getCode().getBytes().toArrayUnsafe());
         if( code != null && frame.getCode() == null )
             throw new TODO("Failed validation");
         if(!(tracer instanceof ActionSidecarContentTracer scTracer) )
