@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.system.address;
+package org.hiero.consensus.roster;
 
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,7 +16,6 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
 import org.hiero.consensus.test.fixtures.Randotron;

@@ -4,6 +4,7 @@ package com.swirlds.common.io.config;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import java.nio.file.Path;
 
 /**
  * Settings for temporary files
@@ -13,7 +14,7 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("temporaryFiles")
 public record TemporaryFileConfig(
-        @ConfigProperty(defaultValue = "swirlds-tmp") String temporaryFilePath) {
+        @ConfigProperty(defaultValue = "swirlds-tmp") Path temporaryFilePath) {
 
     /**
      * Returns the real path to the temporary files that depends on the {@link StateCommonConfig#savedStateDirectory()}
