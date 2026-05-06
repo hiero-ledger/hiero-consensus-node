@@ -65,7 +65,7 @@ class SealRoundRecordClosureTest extends AppTestBase {
         assertThat(ctx.manager.startUserTransaction(firstCons, ctx.state)).isTrue();
 
         assertThat(ctx.manager.closeCurrentRecordFileIfIdleAtSeal(ctx.state, firstCons.plusSeconds(1)))
-                .isTrue();
+                .isFalse();
         verify(ctx.producer, times(0)).finishCurrentBlock();
 
         assertThat(ctx.manager.closeCurrentRecordFileIfIdleAtSeal(ctx.state, firstCons.plusSeconds(2)))

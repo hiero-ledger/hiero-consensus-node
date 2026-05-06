@@ -948,7 +948,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 .logPeriod()))) {
             return closeCurrentRecordFileIfOpen(state);
         }
-        return true;
+        return false;
     }
 
     public long lastBlockNo() {

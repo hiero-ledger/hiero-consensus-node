@@ -171,10 +171,6 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * {@link BlockInfo} to the closed-file state ({@code firstConsTimeOfCurrentBlock = EPOCH}).
      * Otherwise it leaves the file open.
      *
-     * <p>This method must be idempotent for seal handling and return {@code true} in all cases.
-     * The return value represents successful evaluation/application of policy, not necessarily that
-     * a close occurred.
-     *
      * <p>The purpose is to allow closure of an open record file that would otherwise remain open
      * until another user transaction is handled, so that at seal time
      * {@code Hedera#onSealConsensusRound(...)} can accurately signal to the platform that a signed
@@ -182,7 +178,7 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      *
      * @param state the mutable state to update
      * @param roundConsensusTimestamp the sealed round consensus timestamp
-     * @return true
+     * @return true if a record file was not open or was closed
      */
     boolean closeCurrentRecordFileIfIdleAtSeal(@NonNull State state, @NonNull Instant roundConsensusTimestamp);
 
