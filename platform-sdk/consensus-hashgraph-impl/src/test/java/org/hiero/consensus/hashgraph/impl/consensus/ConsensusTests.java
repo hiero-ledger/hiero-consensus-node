@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createPlatformContext;
-
-import com.swirlds.common.context.PlatformContext;
-import java.util.List;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.test.fixtures.PlatformTestUtils;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestParams;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestRunner;
@@ -22,13 +20,7 @@ class ConsensusTests {
      */
     private final int NUM_ITER = 1;
 
-    /**
-     * Create a list of platform contexts to use for testing.
-     * @return a list of platform contexts
-     */
-    private List<PlatformContext> contexts() {
-        return List.of(createPlatformContext(null, null));
-    }
+    private static final Configuration CONFIGURATION = PlatformTestUtils.createConfigurationWithMarkerFilesDir();
 
     @ParameterizedTest
     @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#orderInvarianceTests")
@@ -39,7 +31,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::orderInvarianceTests)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -53,7 +45,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::reconnect)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -67,7 +59,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::stale)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -81,7 +73,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::branchingTests)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -95,7 +87,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::partitionTests)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -109,7 +101,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::subQuorumPartitionTests)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -123,7 +115,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::cliqueTests)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -137,7 +129,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::variableRateTests)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -151,7 +143,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::usesStaleOtherParents)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -165,7 +157,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::providesStaleOtherParents)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -179,7 +171,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::quorumOfNodesGoDown)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -193,7 +185,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::subQuorumOfNodesGoDown)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -207,7 +199,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::repeatedTimestampTest)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -221,7 +213,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::ancient)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -235,7 +227,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::restart)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -249,7 +241,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::removeNode)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -263,7 +255,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::genesisSnapshotTest)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
@@ -277,7 +269,7 @@ class ConsensusTests {
         ConsensusTestRunner.create()
                 .setTest(ConsensusTestDefinitions::consensusFreezeTests)
                 .setParams(params)
-                .setContexts(contexts())
+                .setConfiguration(CONFIGURATION)
                 .setIterations(NUM_ITER)
                 .run();
     }
