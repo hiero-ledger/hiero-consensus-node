@@ -154,9 +154,9 @@ jobs:
       add-settings: "${{ inputs.add-settings }}"
       reconnect-uptime: "${{ inputs.reconnect-uptime }}"
       delete-namespace: ${{ inputs.delete-namespace }}
-      perf_ghp: ${{ inputs.perf_ghp }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      perf_ghp: "${{ inputs.perf_ghp }}"
 
   tag-sdlt-result:
     name: Tag SDLT Result
