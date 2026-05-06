@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event;
+package org.hiero.consensus.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -11,8 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -21,7 +19,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
-import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -33,7 +30,6 @@ import org.junit.jupiter.api.Test;
 
 class FutureEventBufferTests {
     public static final Metrics METRICS = new NoOpMetrics();
-    public static final Configuration CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
     public static final String FEB_NAME = "test";
 
     /**
