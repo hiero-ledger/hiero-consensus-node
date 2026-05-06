@@ -13,10 +13,12 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 public interface TeacherTreeView extends AutoCloseable {
 
     /**
-     * For this tree view, start all required reconnect tasks in the given work group. Teaching synchronizer
-     * will then wait for all tasks in the work group to complete before proceeding to the next tree view. If
-     * new custom tree views are encountered, they must be added to {@code subtrees}, although it isn't
-     * currently supported by virtual tree views, as nested virtual maps are not supported.
+     * Perform a synchronous root-node (path 0) request/response handshake, then start all
+     * required parallel reconnect tasks in the given work group. The root exchange must complete
+     * before any worker tasks are forked, so the teacher processes the root request and sends the
+     * root response (including the teacher's first/last leaf path range) before the learner begins
+     * sending non-root node requests. The teaching synchronizer will wait for all tasks in the
+     * work group to complete before proceeding.
      *
      * @param time the wall clock time
      * @param workGroup the work group to run teaching task(s) in
