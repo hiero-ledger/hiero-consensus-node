@@ -296,6 +296,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     private final AtomicReference<Thread> currentModifyingThreadRef = new AtomicReference<>(null);
 
+    private final boolean inMemory = true;
+
     /**
      * Create a new {@link VirtualMap}.
      *
@@ -317,7 +319,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         final int hashChunkHeight = this.dataSource.getHashChunkHeight();
         this.hasher = new VirtualHasher(virtualMapConfig);
-        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, this.dataSource::loadHashChunk);
+        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, this.dataSource::loadHashChunk, inMemory);
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
         this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
         this.pipeline.registerCopy(this);
@@ -422,7 +424,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         final int hashChunkHeight = this.dataSource.getHashChunkHeight();
         this.hasher = requireNonNull(hasher);
-        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, this.dataSource::loadHashChunk);
+        this.cache = new VirtualNodeCache(virtualMapConfig, hashChunkHeight, this.dataSource::loadHashChunk, inMemory);
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
         this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
         this.pipeline.registerCopy(this);
@@ -1046,6 +1048,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     }
 
     private void flush(VirtualNodeCache cacheToFlush, VirtualMapMetadata stateToUse, VirtualDataSource ds) {
+        if (inMemory) {
+            return;
+        }
         try {
             // Get the leaves that were changed and sort them by path so that lower paths come first
             final Stream<VirtualLeafBytes> dirtyLeaves =

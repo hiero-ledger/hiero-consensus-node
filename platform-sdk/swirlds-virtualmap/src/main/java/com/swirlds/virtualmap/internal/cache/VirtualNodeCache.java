@@ -272,6 +272,8 @@ public final class VirtualNodeCache implements FastCopyable {
     @NonNull
     private final VirtualMapConfig virtualMapConfig;
 
+    private final boolean inMemory;
+
     /**
      * Create a new VirtualNodeCache. The cache will be the first in the chain. It will get a
      * fastCopyVersion of zero, and create the shared data structures.
@@ -285,6 +287,14 @@ public final class VirtualNodeCache implements FastCopyable {
             final int hashChunkHeight,
             final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader) {
         this(virtualMapConfig, hashChunkHeight, hashChunkLoader, 0);
+    }
+
+    public VirtualNodeCache(
+            final @NonNull VirtualMapConfig virtualMapConfig,
+            final int hashChunkHeight,
+            final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
+            final boolean inMemory) {
+        this(virtualMapConfig, hashChunkHeight, hashChunkLoader, inMemory, 0);
     }
 
     /**
@@ -301,6 +311,15 @@ public final class VirtualNodeCache implements FastCopyable {
             final int hashChunkHeight,
             final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
             final long fastCopyVersion) {
+        this(virtualMapConfig, hashChunkHeight, hashChunkLoader, false, fastCopyVersion);
+    }
+
+    private VirtualNodeCache(
+            final @NonNull VirtualMapConfig virtualMapConfig,
+            final int hashChunkHeight,
+            final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
+            final boolean inMemory,
+            final long fastCopyVersion) {
         this.hashChunkHeight = hashChunkHeight;
         this.hashChunkLoader = requireNonNull(hashChunkLoader);
         this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
@@ -310,6 +329,8 @@ public final class VirtualNodeCache implements FastCopyable {
         this.lastReleased = new AtomicLong(-1L);
         this.fastCopyVersion.set(fastCopyVersion);
         this.virtualMapConfig = requireNonNull(virtualMapConfig);
+
+        this.inMemory = inMemory;
 
         if (Boolean.getBoolean("syncCleaningPool")) {
             cleaningPool = Runnable::run;
@@ -358,6 +379,8 @@ public final class VirtualNodeCache implements FastCopyable {
         this.virtualMapConfig = source.virtualMapConfig;
         this.cleaningPool = source.cleaningPool;
 
+        this.inMemory = source.inMemory;
+
         // The source now has immutable leaves and mutable internals
         source.prepareForHashing();
 
@@ -387,6 +410,8 @@ public final class VirtualNodeCache implements FastCopyable {
         this.fastCopyVersion.set(fastCopyVersion);
         this.virtualMapConfig = requireNonNull(virtualMapConfig);
         this.cleaningPool = requireNonNull(cleaningPool);
+
+        this.inMemory = false;
     }
 
     /**
@@ -464,11 +489,13 @@ public final class VirtualNodeCache implements FastCopyable {
             releaseLock.unlock();
         }
 
-        // Fire off the cleaning threads to go and clear out data in the indexes that doesn't need
-        // to be there anymore.
-        purge(dirtyLeaves, keyToDirtyLeafIndex);
-        purge(dirtyLeafPaths, pathToDirtyKeyIndex);
-        purge(dirtyHashChunks, idToDirtyHashChunkIndex);
+        if (!inMemory) {
+            // Fire off the cleaning threads to go and clear out data in the indexes that doesn't need
+            // to be there anymore.
+            purge(dirtyLeaves, keyToDirtyLeafIndex);
+            purge(dirtyLeafPaths, pathToDirtyKeyIndex);
+            purge(dirtyHashChunks, idToDirtyHashChunkIndex);
+        }
 
         estimatedLeavesSizeInBytes.set(0);
         estimatedHashesSizeInBytes.set(0);
@@ -518,17 +545,23 @@ public final class VirtualNodeCache implements FastCopyable {
                 throw new IllegalStateException("You can only merge caches that are sealed");
             }
 
-            // Merge my mutations into the previous (newer) cache's arrays.
-            // This operation has a high probability of producing override mutations. That is, two mutations
-            // for the same key/path but with different versions. Before returning to a caller a stream of
-            // dirty leaves or dirty hashes, the stream must be sorted (which we had to do anyway) and
-            // deduplicated. But it makes for a _VERY FAST_ merge operation.
-            p.dirtyLeaves.merge(dirtyLeaves);
-            p.dirtyLeafPaths.merge(dirtyLeafPaths);
-            p.dirtyHashChunks.merge(dirtyHashChunks);
-            // Estimated sizes include both mutations and concurrent array overheads
-            p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
-            p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
+            if (inMemory) {
+                purgeOnMerge(p.dirtyLeaves);
+                purgeOnMerge(p.dirtyLeafPaths);
+                purgeOnMerge(p.dirtyHashChunks);
+            } else {
+                // Merge my mutations into the previous (newer) cache's arrays.
+                // This operation has a high probability of producing override mutations. That is, two mutations
+                // for the same key/path but with different versions. Before returning to a caller a stream of
+                // dirty leaves or dirty hashes, the stream must be sorted (which we had to do anyway) and
+                // deduplicated. But it makes for a _VERY FAST_ merge operation.
+                p.dirtyLeaves.merge(dirtyLeaves);
+                p.dirtyLeafPaths.merge(dirtyLeafPaths);
+                p.dirtyHashChunks.merge(dirtyHashChunks);
+                // Estimated sizes include both mutations and concurrent array overheads
+                p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
+                p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
+            }
             p.mergedCopy.set(true);
 
             // Remove this cache from the chain and wire the prev and next caches together.
@@ -546,6 +579,17 @@ public final class VirtualNodeCache implements FastCopyable {
                         dirtyHashChunks.size());
             }
         }
+    }
+
+    private <K, V> void purgeOnMerge(final ConcurrentArray<Mutation<K, V>> array) {
+        array.parallelTraverse(cleaningPool, (_, m) -> {
+            final Mutation<K, V> next = m.next;
+            if (next != null) {
+                m.next = next.next;
+            } else {
+                m.next = null;
+            }
+        });
     }
 
     /**
@@ -783,6 +827,9 @@ public final class VirtualNodeCache implements FastCopyable {
      *      A stream of dirty leaves for flushes
      */
     public Stream<VirtualLeafBytes> dirtyLeavesForFlush(final long firstLeafPath, final long lastLeafPath) {
+        if (inMemory) {
+            throw new UnsupportedOperationException("No flushes in inMemory mode");
+        }
         return dirtyLeaves(firstLeafPath, lastLeafPath, true);
     }
 
@@ -846,6 +893,10 @@ public final class VirtualNodeCache implements FastCopyable {
     public Stream<VirtualLeafBytes> deletedLeaves() {
         if (!dirtyLeaves.isImmutable()) {
             throw new MutabilityException("Cannot call on a cache that is still mutable for dirty leaves");
+        }
+
+        if (inMemory) {
+            throw new UnsupportedOperationException("No flushes in inMemory mode");
         }
 
         final Map<Bytes, VirtualLeafBytes> leaves = new ConcurrentHashMap<>();
@@ -934,6 +985,9 @@ public final class VirtualNodeCache implements FastCopyable {
     public Stream<VirtualHashChunk> dirtyHashesForFlush(final long lastLeafPath) {
         if (!dirtyHashChunks.isImmutable()) {
             throw new MutabilityException("Cannot get the dirty internal records for a non-sealed cache.");
+        }
+        if (inMemory) {
+            throw new UnsupportedOperationException("No flushes in inMemory mode");
         }
         // Mark obsolete mutations to filter later
         filterMutations(dirtyHashChunks);

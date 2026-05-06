@@ -193,18 +193,18 @@ public class CryptoBench extends VirtualMapEditBench {
         // Use a custom queue and executor for warmups. It may happen that some warmup jobs
         // aren't complete by the end of the round, so they will start piling up. To fix it,
         // clear the queue in the end of each round
-        final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
-        final ExecutorService prefetchPool = new ThreadPoolExecutor(
-                numThreads,
-                numThreads,
-                1,
-                TimeUnit.SECONDS,
-                queue,
-                new ThreadConfiguration(getStaticThreadManager())
-                        .setComponent("benchmark")
-                        .setThreadName("prefetch")
-                        .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
-                        .buildFactory());
+//        final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
+//        final ExecutorService prefetchPool = new ThreadPoolExecutor(
+//                numThreads,
+//                numThreads,
+//                1,
+//                TimeUnit.SECONDS,
+//                queue,
+//                new ThreadConfiguration(getStaticThreadManager())
+//                        .setComponent("benchmark")
+//                        .setThreadName("prefetch")
+//                        .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
+//                        .buildFactory());
 
         long startTime = System.currentTimeMillis();
         long prevTime = startTime;
@@ -214,18 +214,18 @@ public class CryptoBench extends VirtualMapEditBench {
             generateKeySet(keys);
 
             // Warm keys in parallel asynchronously
-            final VirtualMap currentMap = virtualMap;
-            for (int j = 0; j < keys.length; j += KEYS_PER_RECORD) {
-                final int key = j;
-                prefetchPool.execute(() -> {
-                    try {
-                        currentMap.warm(longToKey(keys[key]));
-                        currentMap.warm(longToKey(keys[key + 1]));
-                    } catch (final Exception e) {
-                        logger.error("Warmup exception", e);
-                    }
-                });
-            }
+//            final VirtualMap currentMap = virtualMap;
+//            for (int j = 0; j < keys.length; j += KEYS_PER_RECORD) {
+//                final int key = j;
+//                prefetchPool.execute(() -> {
+//                    try {
+//                        currentMap.warm(longToKey(keys[key]));
+//                        currentMap.warm(longToKey(keys[key + 1]));
+//                    } catch (final Exception e) {
+//                        logger.error("Warmup exception", e);
+//                    }
+//                });
+//            }
 
             // Update values in order
             for (int j = 0; j < numRecords; ++j) {
@@ -269,7 +269,7 @@ public class CryptoBench extends VirtualMapEditBench {
                 }
             }
 
-            queue.clear();
+//            queue.clear();
 
             virtualMap = copyMap(virtualMap);
 
@@ -279,7 +279,7 @@ public class CryptoBench extends VirtualMapEditBench {
             prevTime = curTime;
         }
         totalTPS(System.currentTimeMillis() - startTime);
-        prefetchPool.close();
+//        prefetchPool.close();
     }
 
     static class WarmupTask extends AbstractTask {
