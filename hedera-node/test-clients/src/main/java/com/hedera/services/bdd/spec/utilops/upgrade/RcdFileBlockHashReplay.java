@@ -104,6 +104,13 @@ public final class RcdFileBlockHashReplay {
                     sidecarsByTime.size());
         }
 
+        log.info(
+                "[RcdFileBlockHashReplay] Starting replay: startBlockExclusive={} endBlockInclusive={} initialPrevHash={} initialHasherLeafCount={}",
+                startBlockExclusive,
+                endBlockInclusive,
+                initialPrevHash,
+                initialHasher.leafCount());
+
         // 3. Process each record file
         final var entriesByBlock = new LinkedHashMap<Long, WrappedRecordFileBlockHashes>();
         var prevWrappedBlockHash = initialPrevHash;
