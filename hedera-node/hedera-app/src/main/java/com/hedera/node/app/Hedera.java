@@ -20,7 +20,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.allOf;
 import static java.util.concurrent.CompletableFuture.completedFuture;
-import static org.hiero.consensus.model.quiescence.QuiescenceCommand.BREAK_QUIESCENCE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
@@ -1283,12 +1282,6 @@ public final class Hedera
             }
         });
         final var compositeFuture = allOf(blockStreamFuture, wrbWritersFuture);
-        final var keepCreatingFreezeEvents = !compositeFuture.isDone();
-        if (keepCreatingFreezeEvents) {
-            logger.info("Application freeze gate is pending; continuing FREEZING event creation until it completes");
-            logger.info("Breaking quiescence while application freeze gate is pending");
-            platform.quiescenceCommand(BREAK_QUIESCENCE);
-        }
         compositeFuture.whenComplete((ignore, t) -> {
             if (t == null) {
                 logger.info("Composite freeze complete future completed");
