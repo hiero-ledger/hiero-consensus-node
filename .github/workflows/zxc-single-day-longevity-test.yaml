@@ -53,9 +53,7 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDLT outputs notifications"
-      perf_ghp:
-        required: true
-        description: "Algorithmic analysis GHP"
+
     outputs:
       result:
         description: "Result of the SDLT Run"
@@ -422,17 +420,10 @@ jobs:
         run: cd "${{ github.workspace }}"
 
       - name: Build NLG test
-        env:
-          GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
         run: |
           set +x
           set +e
-          git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/network-load-generator network-load-generator
-          cd network-load-generator
-          git checkout 00410-inconsistent-account-funding
-          ./gradlew --no-daemon clean assemble
-          cd build/libs
-          tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/NLG.tar /tmp/NLG.tar
 
       - name: Prepare NLG parameters
         env:

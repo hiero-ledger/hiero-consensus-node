@@ -81,11 +81,7 @@ on:
         default: true
         type: boolean
         description: "If true, automatically delete namespace when done"
-      perf_ghp:
-        required: true
-        default: "MUST_BE_SET_BY_CALL"
-        type: string
-        description: "Algorithmic analysis GHP"
+
 defaults:
   run:
     shell: bash
@@ -156,7 +152,6 @@ jobs:
       delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      perf_ghp: "${{ inputs.perf_ghp }}"
 
   tag-sdlt-result:
     name: Tag SDLT Result
