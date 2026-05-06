@@ -204,6 +204,14 @@ The bandwidth-delay-product calculation is:
 These values are MVP defaults, not calibrated production truth. They are best understood as a constrained-window
 baseline, not as a universal data-center or mainnet profile.
 
+The in-flight cap is not a provider setting. It is the benchmark's proxy for the effective amount of data a sender can
+keep outstanding before network, socket, TCP window, receiver buffering, or application read behavior applies
+backpressure. Providers such as Latitude expose topology and bandwidth characteristics, not a single "in-flight bytes"
+number. A Kubernetes deployment on Latitude therefore does not determine this parameter by itself: same-node, same
+location, paired-location, and cross-region runs can all have different RTT and effective window behavior. For cluster
+calibration, use measured pod-to-pod RTT, sustained throughput, and, if possible, TCP diagnostics such as `ss -ti` to
+derive or validate the cap.
+
 Calibration on a `50M` saved state showed that the `128 KiB` in-flight cap can strongly affect traversal ordering.
 With the same latency and bandwidth but a `16 MiB` in-flight cap, `pullTopToBottom` moved much closer to loopback time.
 This means `networkInflightBytesLimit` is not just a harmless implementation detail. It models the amount of data the
@@ -565,13 +573,65 @@ Interpretation:
   in flight, and `200ms` RTT implies about `25 MiB`. A `128 KiB` cap on those paths would model a severe window
   bottleneck, not a well-tuned WAN link.
 
+Additional mainnet-style bandwidth-delay-product checks used the same `50M` saved state and `1 Gbps` bandwidth. These
+runs swept `100ms` and `200ms` RTT with `13 MiB` and `25 MiB` in-flight caps:
+
+```text
+Profile                         pullTopToBottom   pullParallelSync   Result
+100ms RTT, 13 MiB in-flight       189.255 s/op      161.473 s/op     parallel by 14.7%
+100ms RTT, 25 MiB in-flight       195.280 s/op      172.962 s/op     parallel by 11.4%
+200ms RTT, 13 MiB in-flight       204.070 s/op      208.892 s/op     top-to-bottom by 2.3%
+200ms RTT, 25 MiB in-flight       184.598 s/op      205.666 s/op     top-to-bottom by 10.2%
+```
+
+The traversal work pattern stayed stable across these runs. `pullTopToBottom` consistently transferred about
+`1.175 GB` teacher-to-learner and `2.176 GB` learner-to-teacher, with `34.535M` transfers in each direction.
+`pullParallelSync` consistently transferred about `1.166 GB` teacher-to-learner and `2.164 GB` learner-to-teacher,
+with `34.357M` transfers in each direction. The difference was therefore not explained by one traversal sending much
+less data.
+
+The in-flight diagnostics showed a more useful distinction:
+
+- `pullTopToBottom` is more window-sensitive. It reached the learner-to-teacher cap in the `100ms/13 MiB`,
+  `200ms/13 MiB`, and `200ms/25 MiB` runs, and came close in the `100ms/25 MiB` run.
+- `pullParallelSync` did not reach the learner-to-teacher cap in these runs. Its maximum learner-to-teacher in-flight
+  bytes stayed around `11.6-12.4 MiB`.
+- RTT changed the relative ordering more strongly than the cap did in this sample: `pullParallelSync` won both `100ms`
+  runs, while `pullTopToBottom` won both `200ms` runs.
+
+These runs suggest the benchmark needs a sweep of mainnet-style RTT/window profiles instead of a single `REALISTIC`
+default. The crossover point between traversal modes is itself calibration evidence.
+
+An additional diagnostic run used the same `50M` saved state and `1 Gbps` bandwidth, but raised
+`networkInflightBytesLimit` to `128 MiB` (`134217728` bytes). This cap is intentionally much larger than the
+bandwidth-delay product for both `100ms` and `200ms` RTT at `1 Gbps`, so it is useful for testing whether the cap is
+driving the result. It should be treated as a diagnostic profile, not as a realistic default.
+
+```text
+Profile                          pullTopToBottom   pullParallelSync   Result
+100ms RTT, 128 MiB in-flight       184.095 s/op      176.284 s/op     parallel by 4.2%
+200ms RTT, 128 MiB in-flight       196.519 s/op      215.287 s/op     top-to-bottom by 8.7%
+```
+
+All channels in these runs reported `capacityWaitCount=0`, and maximum in-flight bytes stayed far below the
+`128 MiB` cap. Maximum learner-to-teacher in-flight was about `26.5 MiB` for `pullTopToBottom` and `12.5 MiB` for
+`pullParallelSync` at `100ms`, and about `31.4 MiB` for `pullTopToBottom` and `14.7 MiB` for `pullParallelSync` at
+`200ms`.
+
+This disproves the simpler hypothesis that making the cap effectively non-binding makes `pullTopToBottom` always win.
+For this state shape, `pullParallelSync` still wins at `100ms` RTT without capacity waits, while `pullTopToBottom` wins
+clearly at `200ms` RTT. The current best hypothesis is that traversal ordering is primarily RTT-driven for this
+divergence shape; an undersized in-flight cap can amplify or distort the ordering, but it is not the only cause of the
+observed crossover.
+
 Follow-up calibration guidance:
 
 - Treat `128 KiB` as a constrained-window profile.
-- Treat `16 MiB` as a better first serious WAN/data-center comparison profile for `1 Gbps` links with tens to low
-  hundreds of milliseconds RTT.
-- For cross-continent or faster-than-1Gbps studies, sweep `networkInflightBytesLimit` with bandwidth-delay-product
-  values instead of guessing one number.
-- Keep `LOOPBACK` as the storage/traversal baseline.
+- Use `LOOPBACK` only as the no-network storage/traversal baseline. To diagnose latency while removing cap effects, use
+  `REALISTIC` with the target RTT, target bandwidth, and a large diagnostic cap such as `128 MiB`.
+- For mainnet-style comparisons, sweep RTT and in-flight cap together. At `1 Gbps`, start with `100ms` RTT /
+  `13 MiB`, `150ms` RTT / `19 MiB`, and `200ms` RTT / `25 MiB`, then add intermediate RTTs around the observed
+  traversal crossover.
+- If cluster data is available, use measured RTT and effective TCP window or `ss -ti` samples to narrow the sweep.
 - If the temporary wait counters are useful, convert them into optional permanent diagnostics; otherwise remove them
   before finalizing the implementation.

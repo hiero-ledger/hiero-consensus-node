@@ -26,6 +26,15 @@ public class SimulatedNetworkChannel {
     private long bytesRead;
     private long inflightBytes;
     private long maxInflightBytes;
+    private long writeCalls;
+    private long writeRanges;
+    private long readCalls;
+    private long capacityWaitCount;
+    private long capacityWaitNanos;
+    private long emptyReadWaitCount;
+    private long emptyReadWaitNanos;
+    private long arrivalWaitCount;
+    private long arrivalWaitNanos;
     private long nextTransmissionAvailableAtNanos;
     private boolean closed;
     private boolean disconnected;
@@ -45,7 +54,19 @@ public class SimulatedNetworkChannel {
     public SimulatedNetworkStats snapshotStats() {
         lock.lock();
         try {
-            return new SimulatedNetworkStats(bytesWritten, bytesRead, maxInflightBytes);
+            return new SimulatedNetworkStats(
+                    bytesWritten,
+                    bytesRead,
+                    maxInflightBytes,
+                    writeCalls,
+                    writeRanges,
+                    readCalls,
+                    capacityWaitCount,
+                    capacityWaitNanos,
+                    emptyReadWaitCount,
+                    emptyReadWaitNanos,
+                    arrivalWaitCount,
+                    arrivalWaitNanos);
         } finally {
             lock.unlock();
         }
@@ -77,6 +98,13 @@ public class SimulatedNetworkChannel {
         @Override
         public void write(final byte[] b, final int off, final int len) throws IOException {
             Objects.checkFromIndexSize(off, len, b.length);
+            lock.lock();
+            try {
+                writeCalls++;
+            } finally {
+                lock.unlock();
+            }
+
             int offset = off;
             int remaining = len;
             while (remaining > 0) {
@@ -104,11 +132,15 @@ public class SimulatedNetworkChannel {
                 ensureConnected();
                 ensureOpenForWrite();
                 while (inflightBytes + bytes.length > config.inflightBytesLimit()) {
+                    final long waitStart = System.nanoTime();
                     try {
                         stateChanged.await();
                     } catch (final InterruptedException e) {
                         Thread.currentThread().interrupt();
                         throw new IOException("Interrupted while waiting for simulated network capacity", e);
+                    } finally {
+                        capacityWaitCount++;
+                        capacityWaitNanos += System.nanoTime() - waitStart;
                     }
                     ensureConnected();
                     ensureOpenForWrite();
@@ -119,6 +151,7 @@ public class SimulatedNetworkChannel {
                 final long sendEnd = sendStart + transmitDurationNanos(bytes.length);
                 ranges.add(new ByteRange(bytes, sendStart + config.latencyNanos(), sendEnd + config.latencyNanos()));
                 nextTransmissionAvailableAtNanos = sendEnd;
+                writeRanges++;
                 bytesWritten += bytes.length;
                 inflightBytes += bytes.length;
                 maxInflightBytes = Math.max(maxInflightBytes, inflightBytes);
@@ -160,6 +193,7 @@ public class SimulatedNetworkChannel {
 
             lock.lock();
             try {
+                readCalls++;
                 while (true) {
                     ensureConnected();
                     final ByteRange range = ranges.peek();
@@ -194,20 +228,28 @@ public class SimulatedNetworkChannel {
         }
 
         private void awaitStateChange() throws IOException {
+            final long waitStart = System.nanoTime();
             try {
                 stateChanged.await();
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IOException("Interrupted while waiting for simulated network data", e);
+            } finally {
+                emptyReadWaitCount++;
+                emptyReadWaitNanos += System.nanoTime() - waitStart;
             }
         }
 
         private void awaitNanos(final long nanos) throws IOException {
+            final long waitStart = System.nanoTime();
             try {
                 stateChanged.awaitNanos(nanos);
             } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IOException("Interrupted while waiting for simulated network timing", e);
+            } finally {
+                arrivalWaitCount++;
+                arrivalWaitNanos += System.nanoTime() - waitStart;
             }
         }
     }
