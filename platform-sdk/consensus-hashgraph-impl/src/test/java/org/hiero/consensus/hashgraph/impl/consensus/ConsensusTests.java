@@ -2,7 +2,7 @@
 package org.hiero.consensus.hashgraph.impl.consensus;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.test.fixtures.PlatformTestUtils;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestParams;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestRunner;
@@ -20,7 +20,7 @@ class ConsensusTests {
      */
     private final int NUM_ITER = 1;
 
-    private static final Configuration CONFIGURATION = PlatformTestUtils.createConfigurationWithMarkerFilesDir();
+    private static final Configuration CONFIGURATION = new TestConfigBuilder().getOrCreateConfig();
 
     @ParameterizedTest
     @MethodSource("org.hiero.consensus.hashgraph.impl.consensus.ConsensusTestArgs#orderInvarianceTests")

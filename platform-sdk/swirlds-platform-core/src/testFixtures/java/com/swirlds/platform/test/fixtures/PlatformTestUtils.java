@@ -7,7 +7,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -80,28 +79,6 @@ public class PlatformTestUtils {
             platformContextModifier.apply(platformContextBuilder);
         }
         return platformContextBuilder.build();
-    }
-
-    /**
-     * Generates a configuration with the temp directory for marker files set.
-     *
-     * @return the configuration
-     */
-    @NonNull
-    public static Configuration createConfigurationWithMarkerFilesDir() {
-        final Path tmpDir;
-        try {
-            tmpDir = Files.createTempDirectory("");
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-
-        return new TestConfigBuilder()
-                .withValue(
-                        PathsConfig_.MARKER_FILES_DIR,
-                        tmpDir.resolve(TEST_MARKER_FILE_DIRECTORY).toString())
-                .withValue(PathsConfig_.WRITE_PLATFORM_MARKER_FILES, true)
-                .getOrCreateConfig();
     }
 
     /**
