@@ -3,6 +3,7 @@ name: "080: [FLOW] Auto Unapprove PR"
 on:
   pull_request:
     types:
+      - opened
       - ready_for_review
       - reopened
       - synchronize

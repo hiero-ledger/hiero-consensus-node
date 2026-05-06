@@ -42,7 +42,7 @@ public abstract class BaseBench {
      * {@code numFiles × numRecords} is the total number of operations.
      * Full-population benchmarks also use this product as the map size.
      */
-    @Param({"100"})
+    @Param({"500"})
     public int numFiles;
 
     /**
@@ -50,7 +50,7 @@ public abstract class BaseBench {
      *
      * @see #numFiles
      */
-    @Param({"100000"})
+    @Param({"10000"})
     public int numRecords;
 
     /**
@@ -72,13 +72,13 @@ public abstract class BaseBench {
      * Not used by {@code ReconnectBench}, which derives map size
      * from {@code numFiles × numRecords}.
      */
-    @Param({"1000000"})
+    @Param({"10000000"})
     public int maxKey;
 
-    @Param({"8"})
+    @Param({"32"})
     public int keySize;
 
-    @Param({"128"})
+    @Param({"1024"})
     public int recordSize;
 
     @Param({"32"})
