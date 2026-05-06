@@ -572,9 +572,9 @@ public class LongListDisk extends AbstractLongList<Long> {
     /** {@inheritDoc} */
     @Override
     protected Long createChunk() {
-        Long chunkOffset = freeChunks.poll();
-        if (chunkOffset == null) {
-            final long chunk = (long) numAllocatedChunks.getAndIncrement() * memoryChunkSize;
+        Long chunk = freeChunks.poll();
+        if (chunk == null) {
+            chunk = (long) numAllocatedChunks.getAndIncrement() * memoryChunkSize;
             try {
                 // Append the full chunk to the end of the backing file
                 final ByteBuffer tmp = initOrGetTransferBuffer();
@@ -583,10 +583,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);
             }
-            return chunk;
-        } else {
-            return chunkOffset;
         }
+        return chunk;
     }
 
     // exposed for test purposes only - DO NOT USE IN PROD CODE
