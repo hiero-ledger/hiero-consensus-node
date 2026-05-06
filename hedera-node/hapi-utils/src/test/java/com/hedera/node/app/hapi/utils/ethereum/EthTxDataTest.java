@@ -776,24 +776,52 @@ class EthTxDataTest {
     // real Hedera network, so matchesChainId returns false and HevmTransactionFactory
     // rejects with WRONG_CHAIN_ID instead of NPE'ing.
     void testChainIdCanNotBeNullForLegacyV(final int vInt) {
+        // RLP canonical encoding of zero is the empty byte string
+        final byte[] v = (vInt == 0) ? new byte[0] : new byte[] {(byte) vInt};
+        EthTxData legacyTxData = EthTxData.populateEthTxData(legacyRawTxWithV(v));
+        assertChainIdInEthTxDataDoesNotMatchHedera(legacyTxData);
+    }
+
+    @Test
+    // When `v` exceeds a signed long (bitLength >= Long.SIZE), deriveChainId falls back to
+    // BigInteger arithmetic. Exercises the defensive else branch — malformed RLP with an
+    // oversized `v` must not NPE and must not pass chainId validation.
+    void oversizedVUsesBigIntegerFallbackAndDoesNotMatchHedera() {
+        // 9 bytes of 0xFF → bitLength = 72, exceeding Long.SIZE; forces the BigInteger fallback.
+        final byte[] v = new byte[] {
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF,
+            (byte) 0xFF
+        };
+        EthTxData legacyTxData = EthTxData.populateEthTxData(legacyRawTxWithV(v));
+        assertChainIdInEthTxDataDoesNotMatchHedera(legacyTxData);
+    }
+
+    // Builds a 9-element legacy ethereum tx RLP with a fixed fixture, varying only the `v` byte field.
+    private static byte[] legacyRawTxWithV(final byte[] v) {
         final byte[] nonce = Integers.toBytes(1);
         final byte[] gasPrice = new byte[] {0x2f};
         final byte[] gasLimit = Integers.toBytes(98_304L);
         final byte[] to = Hex.decode("7e3a9eaf9bcc39e2ffa38eb30bf7a93feacbc181");
         final byte[] value = new byte[0];
         final byte[] callData = new byte[] {0x76, 0x53};
-        // RLP canonical encoding of zero is the empty byte string
-        final byte[] v = (vInt == 0) ? new byte[0] : new byte[] {(byte) vInt};
         final byte[] r = Hex.decode("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
         final byte[] s = Hex.decode("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
+        return RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s));
+    }
 
-        final byte[] rawTx = RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s));
-
-        final var subject = EthTxData.populateEthTxData(rawTx);
+    // Asserts the parsed legacy tx has a phantom chainId that doesn't match any Hedera network
+    // (HIP-26: 295 mainnet, 296 testnet, 297 previewnet) — i.e. matchesChainId returns false,
+    // which means HevmTransactionFactory rejects it as WRONG_CHAIN_ID rather than NPE'ing.
+    private static void assertChainIdInEthTxDataDoesNotMatchHedera(final EthTxData subject) {
         assertNotNull(subject);
         assertEquals(EthTxData.EthTransactionType.LEGACY_ETHEREUM, subject.type());
-        // Per HIP-26: 295 mainnet, 296 testnet, 297 previewnet.
-        // Whatever phantom chainId was derived, it must not match any Hedera network.
         for (final long hederaChainId : new long[] {295L, 296L, 297L}) {
             assertFalse(
                     subject.matchesChainId(Integers.toBytes(hederaChainId)),
