@@ -53,7 +53,7 @@ class TokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TOKEN_INFO_167
                         .getOutputs()
@@ -80,7 +80,7 @@ class TokenInfoCallTest extends CallTestBase {
                                         Bytes.wrap(expectedLedgerId.toByteArray())
                                                 .toString())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -99,7 +99,7 @@ class TokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TOKEN_INFO_16C
                         .getOutputs()
@@ -128,7 +128,7 @@ class TokenInfoCallTest extends CallTestBase {
                                         Bytes.wrap(expectedLedgerId.toByteArray())
                                                 .toString())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -142,7 +142,7 @@ class TokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TOKEN_INFO_167
                         .getOutputs()
@@ -169,7 +169,7 @@ class TokenInfoCallTest extends CallTestBase {
                                         Bytes.wrap(expectedLedgerId.toByteArray())
                                                 .toString())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -182,8 +182,8 @@ class TokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
@@ -196,7 +196,7 @@ class TokenInfoCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 }

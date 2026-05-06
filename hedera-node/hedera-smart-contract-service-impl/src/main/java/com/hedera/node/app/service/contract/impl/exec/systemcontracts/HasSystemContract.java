@@ -14,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCal
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
@@ -29,6 +30,20 @@ public class HasSystemContract extends AbstractNativeSystemContract implements H
     public static final ContractID HAS_CONTRACT_ID = ContractID.newBuilder()
             .contractNum(numberOfLongZero(Address.fromHexString(HAS_EVM_ADDRESS)))
             .build();
+
+    /**
+     * A set of call data prefixes (i.e. function selectors in the realm of Solidity)
+     * that are eligible for proxy redirection to the Hedera Account Service system contract.
+     */
+    private static final Set<Integer> HAS_PROXY_ELIGIBLE_CALL_DATA_PREFIXES = Set.of(
+            0xbbee989e, // hbarAllowance(address spender)
+            0x86aff07c, // hbarApprove(address spender, int256 amount)
+            0xf5677e99); // setUnlimitedAutomaticAssociations(bool enableAutoAssociations)
+
+    public static boolean isPayloadEligibleForHasProxyRedirect(Bytes payload) {
+        final int prefix = payload.size() >= FUNCTION_SELECTOR_LENGTH ? payload.getInt(0) : 0;
+        return HAS_PROXY_ELIGIBLE_CALL_DATA_PREFIXES.contains(prefix);
+    }
 
     @Inject
     public HasSystemContract(

@@ -14,6 +14,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -21,7 +22,6 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
  * A factory that creates a {@link HederaEvmTransaction} for static calls.
@@ -30,19 +30,18 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
  */
 @QueryScope
 public class HevmStaticTransactionFactory {
-    private static final long INTRINSIC_GAS_LOWER_BOUND = 21_000L;
     private final ContractsConfig contractsConfig;
-    private final GasCalculator gasCalculator;
+    private final HederaGasCalculator gasCalculator;
     private final QueryContext context;
     private final AccountID payerId;
 
     /**
-     * @param context the context of this query
+     * @param context       the context of this query
      * @param gasCalculator the gas calculator for this query
      */
     @Inject
     public HevmStaticTransactionFactory(
-            @NonNull final QueryContext context, @NonNull final GasCalculator gasCalculator) {
+            @NonNull final QueryContext context, @NonNull final HederaGasCalculator gasCalculator) {
         this.context = requireNonNull(context);
         this.contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
         this.gasCalculator = requireNonNull(gasCalculator);
@@ -75,6 +74,8 @@ public class HevmStaticTransactionFactory {
                 0L,
                 null,
                 null,
+                null,
+                null,
                 null);
     }
 
@@ -82,7 +83,7 @@ public class HevmStaticTransactionFactory {
      * Given a {@link Query} and an {@link Exception},
      * create and return a {@link HederaEvmTransaction} containing the exception and gas limit
      *
-     * @param query the {@link ContractCallLocalQuery} to convert
+     * @param query     the {@link ContractCallLocalQuery} to convert
      * @param exception the {@link Exception} to wrap
      * @return the implied {@link HederaEvmTransaction}
      */
@@ -105,15 +106,16 @@ public class HevmStaticTransactionFactory {
                 1L,
                 0L,
                 null,
+                null,
+                null,
                 exception,
                 null);
     }
 
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
-        // TODO: Revisit baselineGas with Pectra support epic
-        final var minGasLimit =
-                Math.max(INTRINSIC_GAS_LOWER_BOUND, gasCalculator.transactionIntrinsicGasCost(EMPTY, false, 0L));
-        validateTrue(body.gas() >= minGasLimit, INSUFFICIENT_GAS);
+        // accessLists and codeDelegations are null because both are not supported for 'ContractCallLocal'
+        final var gasRequirements = gasCalculator.transactionGasRequirements(EMPTY, false, null, null);
+        validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         validateTrue(body.gas() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
     }
 }

@@ -29,6 +29,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.contract.Bytecode;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
@@ -37,7 +38,6 @@ import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerifi
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -54,7 +54,7 @@ import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeFactory;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -77,21 +77,17 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
 
     private final HederaNativeOperations nativeOperations;
-    final ContractStateStore contractStateStore;
-    private final CodeFactory codeFactory;
+    private final ContractStateStore contractStateStore;
 
     /**
      * @param nativeOperations   the Hedera native operation
      * @param contractStateStore the contract store that manages the key/value states
-     * @param codeFactory the
      */
     public DispatchingEvmFrameState(
             @NonNull final HederaNativeOperations nativeOperations,
-            @NonNull final ContractStateStore contractStateStore,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull final ContractStateStore contractStateStore) {
         this.nativeOperations = requireNonNull(nativeOperations);
         this.contractStateStore = requireNonNull(contractStateStore);
-        this.codeFactory = codeFactory;
     }
 
     /**
@@ -100,6 +96,8 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     @Override
     public void setStorageValue(
             @NonNull final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
+        requireNonNull(contractID);
+
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
         final var oldSlotValue = contractStateStore.getSlotValue(slotKey);
         if (oldSlotValue == null && value.isZero()) {
@@ -122,6 +120,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public @NonNull UInt256 getStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
+        requireNonNull(contractID);
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
         return valueOrZero(contractStateStore.getSlotValue(slotKey));
     }
@@ -131,6 +130,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public @NonNull UInt256 getOriginalStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
+        requireNonNull(contractID);
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
         return valueOrZero(contractStateStore.getOriginalSlotValue(slotKey));
     }
@@ -197,6 +197,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     @Override
     public @NonNull Bytes getCode(@NonNull final ContractID contractID) {
         requireNonNull(contractID);
+
         final var numberedBytecode = contractStateStore.getBytecode(contractID);
         if (numberedBytecode == null) {
             return Bytes.EMPTY;
@@ -210,71 +211,15 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull Hash getCodeHash(@NonNull final ContractID contractID, @NonNull final CodeFactory codeFactory) {
+    public @NonNull Hash getCodeHash(@NonNull final ContractID contractID) {
         requireNonNull(contractID);
 
         final var numberedBytecode = contractStateStore.getBytecode(contractID);
         if (numberedBytecode == null) {
             return Hash.EMPTY;
         } else {
-            return codeFactory
-                    .createCode(pbjToTuweniBytes(numberedBytecode.code()), false)
-                    .getCodeHash();
+            return new Code(pbjToTuweniBytes(numberedBytecode.code())).getCodeHash();
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull Bytes getTokenRedirectCode(@NonNull final Address address) {
-        return RedirectBytecodeUtils.tokenProxyBytecodeFor(address);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull Hash getTokenRedirectCodeHash(@NonNull final Address address) {
-        return codeFactory
-                .createCode(RedirectBytecodeUtils.tokenProxyBytecodeFor(address), false)
-                .getCodeHash();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull Bytes getAccountRedirectCode(@Nullable final Address address) {
-        return RedirectBytecodeUtils.accountProxyBytecodeFor(address);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull Hash getAccountRedirectCodeHash(@Nullable final Address address) {
-        return codeFactory
-                .createCode(RedirectBytecodeUtils.accountProxyBytecodeFor(address), false)
-                .getCodeHash();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull Bytes getScheduleRedirectCode(@Nullable final Address address) {
-        return RedirectBytecodeUtils.scheduleProxyBytecodeFor(address);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public @NonNull Hash getScheduleRedirectCodeHash(@Nullable final Address address) {
-        return codeFactory
-                .createCode(RedirectBytecodeUtils.scheduleProxyBytecodeFor(address), false)
-                .getCodeHash();
     }
 
     /**
@@ -319,6 +264,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public void setCode(final ContractID contractID, @NonNull final Bytes code) {
+        requireNonNull(contractID);
         contractStateStore.putBytecode(contractID, new Bytecode(tuweniToPbjBytes(requireNonNull(code))));
     }
 
@@ -412,7 +358,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public void finalizeHollowAccount(@NonNull final Address address) {
-        nativeOperations.finalizeHollowAccountAsContract(tuweniToPbjBytes(address));
+        nativeOperations.finalizeHollowAccountAsContract(tuweniToPbjBytes(address.getBytes()));
     }
 
     @Override
@@ -446,7 +392,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 to.hederaId(),
                 new ActiveContractVerificationStrategy(
                         from.hederaContractId(),
-                        tuweniToPbjBytes(from.getAddress()),
+                        tuweniToPbjBytes(from.getAddress().getBytes()),
                         delegateCall,
                         UseTopLevelSigs.YES));
         if (status != OK) {
@@ -467,6 +413,34 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public Optional<ExceptionalHaltReason> tryLazyCreation(@NonNull final Address address) {
+        final var maybeValidationError = validateAccountCreation(address);
+        if (maybeValidationError.isPresent()) {
+            return maybeValidationError;
+        }
+        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address.getBytes()));
+        return accountCreationStatusToResult(status);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Optional<ExceptionalHaltReason> tryCreateAccountWithKeyAndCodeDelegation(
+            @NonNull final Address address, @NonNull byte[] ecdsaPublicKey, @NonNull Address delegationAddress) {
+        final var maybeValidationError = validateAccountCreation(address);
+        if (maybeValidationError.isPresent()) {
+            return maybeValidationError;
+        }
+        final var status = nativeOperations.createAccountWithKeyAndCodeDelegation(
+                tuweniToPbjBytes(address.getBytes()),
+                Key.newBuilder()
+                        .ecdsaSecp256k1(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(ecdsaPublicKey))
+                        .build(),
+                tuweniToPbjBytes(delegationAddress.getBytes()));
+        return accountCreationStatusToResult(status);
+    }
+
+    private Optional<ExceptionalHaltReason> validateAccountCreation(@NonNull final Address address) {
         if (isLongZero(address)) {
             return Optional.of(INVALID_ALIAS_KEY);
         }
@@ -484,7 +458,10 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 }
             }
         }
-        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address));
+        return Optional.empty();
+    }
+
+    private Optional<ExceptionalHaltReason> accountCreationStatusToResult(ResponseCodeEnum status) {
         if (status != SUCCESS) {
             return status == MAX_CHILD_RECORDS_EXCEEDED
                     ? Optional.of(INSUFFICIENT_CHILD_RECORDS)
@@ -562,9 +539,9 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 return null;
             }
             if (account.smartContract()) {
-                return new ProxyEvmContract(account.accountId(), this, codeFactory);
+                return new ProxyEvmContract(account.accountId(), this);
             } else {
-                return new ProxyEvmAccount(account.accountId(), this);
+                return new ProxyEvmAccount(account, this);
             }
         }
         final var token = nativeOperations.getToken(entityIdFactory().newTokenId(number));

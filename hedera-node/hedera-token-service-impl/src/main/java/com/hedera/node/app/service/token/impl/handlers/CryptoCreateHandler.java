@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_INITIAL_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -77,6 +78,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -87,6 +89,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.base.utility.ByteUtils;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_CREATE}. A
@@ -129,8 +132,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         requireNonNull(context);
         final var txn = context.body();
         final var op = txn.cryptoCreateAccountOrThrow();
-        // HIP-1340 isn't supported yet
-        validateTruePreCheck(op.delegationAddress().length() == 0, NOT_SUPPORTED);
+
         // Note: validation lives here for now but should take place in handle in the future
         validateTruePreCheck(op.hasAutoRenewPeriod(), INVALID_RENEWAL_PERIOD);
         validateTruePreCheck(op.autoRenewPeriodOrThrow().seconds() >= 0, INVALID_RENEWAL_PERIOD);
@@ -175,6 +177,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         }
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
         validateHookDuplicates(op.hookCreationDetails());
+        // If a delegation address is set, it must be of EVM address size
+        validateTruePreCheck(
+                op.delegationAddress().length() == 0 || isOfEvmAddressSize(op.delegationAddress()),
+                INVALID_CONTRACT_ID);
     }
 
     @Override
@@ -341,6 +347,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
+        final var contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
         final var alias = op.alias();
 
         final var txn = context.body();
@@ -418,6 +425,11 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                     accountStore,
                     context.networkInfo());
         }
+
+        validateTrue(
+                contractsConfig.codeDelegationsEnabled()
+                        || op.delegationAddress().length() == 0,
+                NOT_SUPPORTED);
     }
 
     /**
@@ -453,6 +465,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var autoRenewPeriod = op.autoRenewPeriodOrThrow().seconds();
         final var consensusTime = handleContext.consensusNow().getEpochSecond();
         final var expiry = consensusTime + autoRenewPeriod;
+
         var builder = Account.newBuilder()
                 .memo(op.memo())
                 .expirationSecond(expiry)
@@ -469,6 +482,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());
             builder.numberEvmHookStorageSlots(updatedSlots);
+        }
+
+        if (!ByteUtils.isEmptyOrAllZeros(op.delegationAddress())) {
+            builder.delegationAddress(op.delegationAddress());
         }
 
         // We do this separately because we want to let the protobuf object remain UNSET for the staked ID if neither

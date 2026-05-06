@@ -8,12 +8,12 @@ import static org.hyperledger.besu.evm.internal.Words.clampedToLong;
 
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.datatypes.LogTopic;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogTopic;
 import org.hyperledger.besu.evm.operation.AbstractOperation;
 
 /**
@@ -37,8 +37,8 @@ public class CustomLogOperation extends AbstractOperation {
                     case 2 -> LOG2.opcode();
                     case 3 -> LOG3.opcode();
                     case 4 -> LOG4.opcode();
-                    default -> throw new IllegalArgumentException(
-                            "No EVM log operation supports " + numTopics + " topics");
+                    default ->
+                        throw new IllegalArgumentException("No EVM log operation supports " + numTopics + " topics");
                 },
                 "LOG" + numTopics,
                 numTopics + 2,

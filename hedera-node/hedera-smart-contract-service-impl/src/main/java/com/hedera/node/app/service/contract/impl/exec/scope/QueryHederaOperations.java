@@ -12,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
-import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.HederaConfig;
@@ -259,9 +258,12 @@ public class QueryHederaOperations implements HederaOperations {
         throw new UnsupportedOperationException("Queries cannot get original slot usage");
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void replayGasChargingIn(@NonNull final FeeCharging.Context feeChargingContext) {
-        throw new UnsupportedOperationException("Queries cannot get original slot usage");
+    public List<GasChargingEvent> gasChargingEvents() {
+        return List.of();
     }
 
     @Override
@@ -286,5 +288,10 @@ public class QueryHederaOperations implements HederaOperations {
     public ContractMetrics contractMetrics() {
         // As we do not have throttle adviser it makes no sense to use the metrics
         return null;
+    }
+
+    @Override
+    public boolean setAccountCodeDelegation(@NonNull AccountID accountID, @NonNull Address delegationAddress) {
+        throw new UnsupportedOperationException("Queries cannot set code delegation");
     }
 }

@@ -184,7 +184,7 @@ class AtomicEthereumSuite {
                                 .bytecode(TOKEN_CREATE_CONTRACT)
                                 .gasPrice(10L)
                                 .maxGasAllowance(ONE_HUNDRED_HBARS)
-                                .gasLimit(5_000_000L)
+                                .gasLimit(4_001_000L)
                                 .hasKnownStatusFrom(SUCCESS)
                                 .via("deployTokenCreateContract")
                                 .batchKey(BATCH_OPERATOR))
@@ -842,16 +842,25 @@ class AtomicEthereumSuite {
                     final var thirdChildContractId = CommonUtils.hex(asEvmAddress(thirdChildId.getContractNum()));
 
                     final var parentContractInfo = getContractInfo(parentContractId)
-                            .has(contractWith().addressOrAlias(expectedParentContractAddress.toUnprefixedHexString()));
+                            .has(contractWith()
+                                    .addressOrAlias(expectedParentContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var firstChildContractInfo = getContractInfo(firstChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedFirstChildContractAddress.toUnprefixedHexString()));
+                                    .addressOrAlias(expectedFirstChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var secondChildContractInfo = getContractInfo(secondChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedSecondChildContractAddress.toUnprefixedHexString()));
+                                    .addressOrAlias(expectedSecondChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var thirdChildContractInfo = getContractInfo(thirdChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedThirdChildContractAddress.toUnprefixedHexString()))
+                                    .addressOrAlias(expectedThirdChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()))
                             .logged();
 
                     allRunFor(

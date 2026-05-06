@@ -5,21 +5,18 @@ import com.hedera.node.app.service.contract.impl.utils.TODO;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.Code;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.account.Account;
-import org.hyperledger.besu.evm.code.CodeSection;
 
 // Bonneville Code.  Immutable bare byte array.  Cached, hashed and interned.
 // Cheap hash is used because the prior caching spends all its time on a
 // crypto-secure hash...  which is strictly not-needed for this perf hack.
 // Caches the validation as well.
 // spotless:off
-public class CodeV2 implements Code {
+public class CodeV2 extends Code {
 
     private static final ConcurrentHashMap<CodeV2, CodeV2> CODES = new ConcurrentHashMap<>();
 
@@ -35,12 +32,20 @@ public class CodeV2 implements Code {
     // "Good enough" non-secure fast Hashcode, computed once
     private int _hash;
 
+    public CodeV2(Bytes byteCode) {
+        super(byteCode);
+    }
+
+    public CodeV2(Bytes byteCode, Hash codeHash) {
+        super(byteCode, codeHash);
+    }
+
     // Return a CodeV2 of these bytes
     public static CodeV2 make(byte[] codes, int off, int len) {
         CodeV2 code;
         synchronized (FREE) {
             // Under lock, pull from free-list, do the cheap-init
-            code = (FREE.isEmpty() ? new CodeV2() : FREE.removeLast()).init(codes, off, len);
+            code = (FREE.isEmpty() ? new CodeV2(null, null) : FREE.removeLast()).init(codes, off, len);
             // probe the hash table
             PROBES++;
             CodeV2 old = CODES.get(code);
@@ -148,15 +153,6 @@ public class CodeV2 implements Code {
 
     @Override public int hashCode() { return _hash; }
 
-    // --------------------------------------
-    // CodeV2 objects not used if they are not also valid (check is made upon
-    // construction).  However, I am trying to avoid implementing all things
-    // about Code, and the MessageFrame.Builder constructor calls isValid, and
-    // if valid ALSO calls getCodeSection.  If not valid, it sets a PC of 0.
-    // Since the PC (and Code) objects are ignored here, the path of least
-    // resistance is to return False for a perfectly valid CodeV2.
-    @Override public boolean isValid() { return false; }
-
     // Called at least by CustomContractCreationProcessor for CODE_SUCCESS with
     // side-car support.  This usage can probably be removed with a rewriting
     // of CCCP (which is already on my TODO-list)
@@ -179,17 +175,6 @@ public class CodeV2 implements Code {
         // return !jumpValid(dst); // Obvious execution strat, but still hoping never called
         throw new TODO();
     }
-    @Override public int getDataSize() { throw new TODO(); }
-    @Override public int getDeclaredDataSize() { throw new TODO(); }
-    @Override public CodeSection getCodeSection(int section) { throw new TODO(); }
-    @Override public int getCodeSectionCount() { throw new TODO(); }
-    @Override public int getEofVersion() { throw new TODO(); }
-    @Override public int getSubcontainerCount() { throw new TODO(); }
-    @Override public Optional<Code> getSubContainer(int index, Bytes auxData, EVM evm) { throw new TODO(); }
-    @Override public Bytes getData(int offset, int length) { throw new TODO(); }
-    @Override public int readBigEndianI16(int startIndex) { throw new TODO(); }
-    @Override public int readBigEndianU16(int startIndex) { throw new TODO(); }
-    @Override public int readU8(int startIndex) { throw new TODO(); }
     @Override public String prettyPrint() { throw new TODO(); }
 }
 // spotless:on

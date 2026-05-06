@@ -11,6 +11,7 @@ import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractAction;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
@@ -48,7 +49,8 @@ public record CallOutcome(
         @NonNull EvmTransactionResult txResult,
         @Nullable Long newSenderNonce,
         @Nullable Bytes createdEvmAddress,
-        @Nullable TxStorageUsage txStorageUsage) {
+        @Nullable TxStorageUsage txStorageUsage,
+        @Nullable CodeDelegationResult codeDelegationResult) {
 
     /**
      * Returns whether there is a new sender nonce after the call.
@@ -148,7 +150,8 @@ public record CallOutcome(
                 txResult,
                 hevmResult.signerNonce(),
                 evmAddress,
-                hevmResult.txStorageUsage());
+                hevmResult.txStorageUsage(),
+                hevmResult.codeDelegationResult());
     }
 
     /**
@@ -178,6 +181,7 @@ public record CallOutcome(
                 txResult,
                 hevmResult.signerNonce(),
                 evmAddress,
+                null,
                 null);
     }
 

@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.has;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_EOA_ID;
@@ -101,6 +102,7 @@ class HasCallFactoryTest extends CallTestBase {
         given(frame.getWorldUpdater()).willReturn(updater);
         given(updater.enhancement()).willReturn(mockEnhancement());
         given(frame.getSenderAddress()).willReturn(EIP_1014_ADDRESS);
+        given(frame.getRecipientAddress()).willReturn(Address.fromHexString(HAS_EVM_ADDRESS));
         given(addressChecks.hasParentDelegateCall(frame)).willReturn(true);
         given(syntheticIds.converterFor(nativeOperations)).willReturn(idConverter);
         given(idConverter.convert(asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS)))
@@ -130,6 +132,7 @@ class HasCallFactoryTest extends CallTestBase {
         given(frame.getWorldUpdater()).willReturn(updater);
         given(updater.enhancement()).willReturn(mockEnhancement());
         given(frame.getSenderAddress()).willReturn(Address.ALTBN128_ADD);
+        given(frame.getRecipientAddress()).willReturn(Address.fromHexString(HAS_EVM_ADDRESS));
         given(idConverter.convertSender(Address.ALTBN128_ADD)).willReturn(A_NEW_ACCOUNT_ID);
         given(addressChecks.hasParentDelegateCall(frame)).willReturn(true);
         given(syntheticIds.converterFor(nativeOperations)).willReturn(idConverter);

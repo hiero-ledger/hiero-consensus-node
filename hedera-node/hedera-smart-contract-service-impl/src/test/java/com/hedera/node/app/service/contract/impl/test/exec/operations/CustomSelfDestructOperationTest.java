@@ -87,7 +87,7 @@ class CustomSelfDestructOperationTest {
     void rejectsSystemBeneficiaryAsMissing(
             @NonNull final CustomSelfDestructOperation.UseEIP6780Semantics useEIP6780Semantics) {
         createSubject(useEIP6780Semantics);
-        given(frame.popStackItem()).willReturn(BENEFICIARY);
+        given(frame.popStackItem()).willReturn(BENEFICIARY.getBytes());
         given(frame.getRecipientAddress()).willReturn(TBD);
         given(frame.getRemainingGas()).willReturn(123L);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
@@ -107,7 +107,7 @@ class CustomSelfDestructOperationTest {
     void respectsHederaCustomHaltReason(
             @NonNull final CustomSelfDestructOperation.UseEIP6780Semantics useEIP6780Semantics) {
         createSubject(useEIP6780Semantics);
-        given(frame.popStackItem()).willReturn(BENEFICIARY);
+        given(frame.popStackItem()).willReturn(BENEFICIARY.getBytes());
         given(frame.getRecipientAddress()).willReturn(TBD);
         given(frame.getRemainingGas()).willReturn(123L);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
@@ -127,7 +127,7 @@ class CustomSelfDestructOperationTest {
     void rejectSelfDestructIfContractBeneficiaryIsTreasury(
             @NonNull final CustomSelfDestructOperation.UseEIP6780Semantics useEIP6780Semantics) {
         createSubject(useEIP6780Semantics);
-        given(frame.popStackItem()).willReturn(BENEFICIARY);
+        given(frame.popStackItem()).willReturn(BENEFICIARY.getBytes());
         given(frame.getRecipientAddress()).willReturn(TBD);
         given(frame.getRemainingGas()).willReturn(123L);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
@@ -146,7 +146,7 @@ class CustomSelfDestructOperationTest {
     void rejectSelfDestructIfContractBeneficiaryStillOwnsTokens(
             @NonNull final CustomSelfDestructOperation.UseEIP6780Semantics useEIP6780Semantics) {
         createSubject(useEIP6780Semantics);
-        given(frame.popStackItem()).willReturn(BENEFICIARY);
+        given(frame.popStackItem()).willReturn(BENEFICIARY.getBytes());
         given(frame.getRecipientAddress()).willReturn(TBD);
         given(frame.getRemainingGas()).willReturn(123L);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
@@ -264,7 +264,7 @@ class CustomSelfDestructOperationTest {
     }
 
     private void givenRunnableSelfDestruct() {
-        given(frame.popStackItem()).willReturn(BENEFICIARY);
+        given(frame.popStackItem()).willReturn(BENEFICIARY.getBytes());
         given(frame.getRecipientAddress()).willReturn(TBD);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(proxyWorldUpdater.get(TBD)).willReturn(account).willReturn(proxyEvmAccount);

@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"address","name":"target","type":"address"}],"name":"call","outputs":[{"internalType":"uint256","name":"response","type":"uint256"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"callDelegation","outputs":[{"internalType":"uint256","name":"response","type":"uint256"}],"stateMutability":"nonpayable","type":"function"}]

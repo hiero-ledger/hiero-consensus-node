@@ -4,12 +4,16 @@ package com.hedera.node.app.service.contract.impl.exec.scope;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
@@ -34,6 +38,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Map;
 import java.util.SortedSet;
 import javax.inject.Inject;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -129,20 +134,16 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
      */
     @Override
     public @NonNull ResponseCodeEnum createHollowAccount(@NonNull final Bytes evmAddress) {
-        final boolean unlimitedAutoAssociations =
-                context.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-        final var synthTxn = TransactionBody.newBuilder()
-                .cryptoCreateAccount(synthHollowAccountCreation(evmAddress, unlimitedAutoAssociations))
-                .build();
-
+        final var dispatchOpts = setupDispatch(
+                context.payer(),
+                TransactionBody.newBuilder()
+                        .cryptoCreateAccount(synthHollowAccountCreation(evmAddress, unlimitedAutoAssociationsEnabled()))
+                        .build(),
+                CryptoCreateStreamBuilder.class,
+                DISPATCH_ONLY_NOOP_FEE_CHARGING,
+                HandleContext.ConsensusThrottling.ON);
         try {
-            return context.dispatch(setupDispatch(
-                            context.payer(),
-                            synthTxn,
-                            CryptoCreateStreamBuilder.class,
-                            DISPATCH_ONLY_NOOP_FEE_CHARGING,
-                            HandleContext.ConsensusThrottling.ON))
-                    .status();
+            return context.dispatch(dispatchOpts).status();
         } catch (HandleException e) {
             // It is critically important we don't let HandleExceptions propagate to the workflow because
             // it doesn't rollback for contract operations so we can commit gas charges; that is, the
@@ -150,6 +151,36 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
             // failure like an IllegalArgumentException---but not a HandleException!
             return e.getStatus();
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
+            @NonNull Bytes evmAddress, @NonNull Key key, @NonNull Bytes delegationAddress) {
+        final var dispatchOpts = stepDispatch(
+                context.payer(),
+                TransactionBody.newBuilder()
+                        .cryptoCreateAccount(synthAccountCreationWithKeyAndCodeDelegation(
+                                evmAddress, key, delegationAddress, unlimitedAutoAssociationsEnabled()))
+                        .build(),
+                CryptoCreateStreamBuilder.class,
+                NOOP_SIGNED_TX_CUSTOMIZER,
+                new HandleContext.DispatchMetadata(Map.of()));
+        try {
+            return context.dispatch(dispatchOpts).status();
+        } catch (HandleException e) {
+            // It is critically important we don't let HandleExceptions propagate to the workflow because
+            // it doesn't rollback for contract operations so we can commit gas charges; that is, the
+            // EVM transaction should always either run to completion or (if it must) throw an internal
+            // failure like an IllegalArgumentException---but not a HandleException!
+            return e.getStatus();
+        }
+    }
+
+    private boolean unlimitedAutoAssociationsEnabled() {
+        return context.configuration().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
     }
 
     /**
@@ -233,5 +264,14 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public Configuration configuration() {
         return context.configuration();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public <T> T createNewChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality) {
+        return context.savepointStack().addChildRecordBuilder(recordBuilderClass, functionality);
     }
 }

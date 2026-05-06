@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
-import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCreate;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -19,6 +19,7 @@ import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -53,7 +54,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
     @Inject
     public ContractCreateHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
         super(provider, gasCalculator, entityIdFactory, component);
@@ -70,7 +71,7 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCreateStreamBuilder.class);
         outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
 
-        throwIfUnsuccessfulCreate(outcome, component.hederaOperations());
+        throwIfUnsuccessfulCall(outcome, context, component.rootProxyWorldUpdater(), component.hederaOperations());
 
         createHooksIfAny(context, requireNonNull(outcome.recipientIdIfCreated()));
     }
@@ -82,9 +83,10 @@ public class ContractCreateHandler extends AbstractContractTransactionHandler {
             final var txn = context.body();
             final var op = txn.contractCreateInstanceOrThrow();
 
-            // TODO: Revisit baselineGas with Pectra support epic
-            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(Bytes.wrap(new byte[0]), true, 0L);
-            validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            // baselineCost is 0 for ContractCreate as neither access list nor EIP-7702 authorizations are supported
+            final var gasRequirements =
+                    gasCalculator.transactionGasRequirements(Bytes.wrap(new byte[0]), true, null, null);
+            validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
             validateHookDuplicates(op.hookCreationDetails());
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CREATE, e);

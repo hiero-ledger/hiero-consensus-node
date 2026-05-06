@@ -9,12 +9,6 @@ import org.junit.jupiter.api.Test;
 
 class HederaEvmTransactionTest {
     @Test
-    void gasAvailableIsLimitMinusIntrinsic() {
-        final var subject = TestHelpers.wellKnownHapiCall();
-        assertEquals(GAS_LIMIT - INTRINSIC_GAS, subject.gasAvailable(INTRINSIC_GAS));
-    }
-
-    @Test
     void computesUpfrontCostWithoutOverflowConcern() {
         final var subject = TestHelpers.wellKnownHapiCall();
         assertEquals(VALUE + 123L * GAS_LIMIT, subject.upfrontCostGiven(123L));

@@ -121,7 +121,7 @@ public class ContractMetricsTest {
         when(contractsConfig.metricsSmartContractPrimaryEnabled()).thenReturn(true);
         final var subject = getSubject();
         subject.recordProcessedTransaction(
-                new ContractMetrics.TransactionProcessingSummary(10, 10, 10, OptionalLong.of(10L), true));
+                new ContractMetrics.TransactionProcessingSummary(10, 10, 10, OptionalLong.of(10L), true, 0, 0));
         assertThat(subject.getProcessedTransactionCount()).isEqualTo(1L);
     }
 

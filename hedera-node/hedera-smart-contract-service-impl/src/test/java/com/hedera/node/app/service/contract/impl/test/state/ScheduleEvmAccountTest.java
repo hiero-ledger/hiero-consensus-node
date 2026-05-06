@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,11 +15,10 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,9 +29,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ScheduleEvmAccountTest {
     private static final Address SCHEDULE_ADDRESS = Address.fromHexString("0000000000000000000000000000ffffffffffff");
     private static final Bytes SOME_PRETEND_CODE = Bytes.wrap("<NOT-REALLY-CODE>");
-    private static final Hash SOME_PRETEND_CODE_HASH =
-            Hash.wrap(Bytes32.wrap("<NOT-REALLY-BYTECODE-HASH-12345>".getBytes()));
-    private static final String SIGN_SCHEDULE_FUNCTION_SELECTOR = "06d15889";
 
     @Mock
     private EvmFrameState state;
@@ -79,29 +73,8 @@ class ScheduleEvmAccountTest {
     }
 
     @Test
-    void usesCodeFromState() {
-        final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
-
-        given(state.getScheduleRedirectCode(SCHEDULE_ADDRESS)).willReturn(code);
-
-        assertSame(code, subject.getCode());
-    }
-
-    @Test
-    void returnsEvmCode() {
-        final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
-        given(state.getScheduleRedirectCode(SCHEDULE_ADDRESS)).willReturn(code);
-        assertEquals(
-                CODE_FACTORY.createCode(code, false),
-                subject.getEvmCode(
-                        org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR), CODE_FACTORY));
-    }
-
-    @Test
-    void usesHashFromState() {
-        given(state.getScheduleRedirectCodeHash(SCHEDULE_ADDRESS)).willReturn(SOME_PRETEND_CODE_HASH);
-
-        assertSame(SOME_PRETEND_CODE_HASH, subject.getCodeHash());
+    void returnsEip7702DelegationIndicatorCode() {
+        assertTrue(CodeDelegationHelper.hasCodeDelegation(subject.getCode()));
     }
 
     @Test
@@ -138,22 +111,5 @@ class ScheduleEvmAccountTest {
     @Test
     void neverRegularAccount() {
         assertFalse(subject.isRegularAccount());
-    }
-
-    @Test
-    void returnEvmCodeWhenCalledWithExpectedFunctionSelectorBytes() {
-        final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
-        given(state.getScheduleRedirectCode(SCHEDULE_ADDRESS)).willReturn(code);
-        assertEquals(
-                CODE_FACTORY.createCode(code, false),
-                subject.getEvmCode(
-                        org.apache.tuweni.bytes.Bytes.fromHexString(SIGN_SCHEDULE_FUNCTION_SELECTOR), CODE_FACTORY));
-    }
-
-    @Test
-    void returnEmptyEvmCodeWhenCalledWithUnexpectedFunctionSelectorBytes() {
-        assertEquals(
-                CODE_FACTORY.createCode(org.apache.tuweni.bytes.Bytes.EMPTY, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector()), CODE_FACTORY));
     }
 }

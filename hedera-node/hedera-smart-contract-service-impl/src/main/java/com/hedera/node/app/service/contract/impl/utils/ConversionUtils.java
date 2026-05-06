@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.utils;
 
 import static com.esaulpaugh.headlong.abi.Address.toChecksumAddress;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
@@ -12,6 +11,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.hasN
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static java.math.BigInteger.ZERO;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.ByteUtils.leftPad32;
 import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -37,13 +37,14 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOp
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
-import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -57,10 +58,10 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
+import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.datatypes.LogTopic;
+import org.hyperledger.besu.datatypes.LogsBloomFilter;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogTopic;
-import org.hyperledger.besu.evm.log.LogsBloomFilter;
 
 /**
  * Some utility methods for converting between PBJ and Besu types and the various kinds of addresses and ids.
@@ -81,6 +82,16 @@ public class ConversionUtils {
     private ConversionUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
+
+    /**
+     * Pair of PBJ structures derived from the same {@link StorageAccesses} list in one pass.
+     *
+     * @param stateChanges contract storage sidecar payload, or null if not built
+     * @param slotUsages block-stream slot usage trace, or null if not built
+     */
+    public record StateChangesAndSlotUsages(
+            @Nullable ContractStateChanges stateChanges,
+            @Nullable List<ContractSlotUsage> slotUsages) {}
 
     /**
      * Given a list of {@link com.esaulpaugh.headlong.abi.Address}, returns their implied token ids.
@@ -325,21 +336,8 @@ public class ConversionUtils {
         if (storageAccesses == null) {
             return null;
         }
-        final List<ContractStateChange> allStateChanges = new ArrayList<>();
-        for (final var storageAccess : storageAccesses) {
-            final List<StorageChange> changes = new ArrayList<>();
-            for (final var access : storageAccess.accesses()) {
-                changes.add(new StorageChange(
-                        tuweniToPbjBytes(access.key().trimLeadingZeros()),
-                        tuweniToPbjBytes(access.value().trimLeadingZeros()),
-                        access.isReadOnly()
-                                ? null
-                                : tuweniToPbjBytes(
-                                        requireNonNull(access.writtenValue()).trimLeadingZeros())));
-            }
-            allStateChanges.add(new ContractStateChange(storageAccess.contractID(), changes));
-        }
-        return new ContractStateChanges(allStateChanges);
+        return requireNonNull(convertStorageAccessesToPbj(storageAccesses, false, true, false))
+                .stateChanges();
     }
 
     /**
@@ -353,43 +351,146 @@ public class ConversionUtils {
         if (storageAccesses == null) {
             return null;
         }
-        final List<ContractSlotUsage> slotUsages = new ArrayList<>();
-        for (final var storageAccess : storageAccesses) {
-            final List<SlotRead> reads = new ArrayList<>();
-            final List<com.hedera.pbj.runtime.io.buffer.Bytes> writes = traceExplicitWrites ? new ArrayList<>() : null;
-            for (final var access : storageAccess.accesses()) {
-                if (!access.isReadOnly()) {
-                    if (writes != null) {
-                        writes.add(access.trimmedKeyBytes());
-                        reads.add(SlotRead.newBuilder()
-                                .index(writes.size() - 1)
-                                .readValue(access.trimmedValueBytes())
-                                .build());
-                    } else {
-                        // The block stream builder replaces the key with its index in the writes list once known
-                        reads.add(SlotRead.newBuilder()
-                                .key(tuweniToPbjBytes(access.key()))
-                                .readValue(access.trimmedValueBytes())
-                                .build());
-                    }
-                } else {
-                    reads.add(SlotRead.newBuilder()
-                            .key(access.trimmedKeyBytes())
-                            .readValue(access.trimmedValueBytes())
-                            .build());
-                }
-            }
-            if (traceExplicitWrites) {
-                slotUsages.add(ContractSlotUsage.newBuilder()
-                        .contractId(storageAccess.contractID())
-                        .writtenSlotKeys(new WrittenSlotKeys(writes))
-                        .slotReads(reads)
-                        .build());
-            } else {
-                slotUsages.add(new ContractSlotUsage(storageAccess.contractID(), null, reads));
-            }
+        return requireNonNull(convertStorageAccessesToPbj(storageAccesses, traceExplicitWrites, false, true))
+                .slotUsages();
+    }
+
+    /**
+     * Converts {@link StorageAccesses} to both {@link ContractStateChanges} and {@link ContractSlotUsage}s in one pass.
+     *
+     * @param storageAccesses the accesses to convert
+     * @param traceExplicitWrites whether slot usage writes should be traced explicitly
+     * @return both structures, or {@code null} if {@code storageAccesses} is null
+     */
+    public static @Nullable StateChangesAndSlotUsages asPbjStateChangesAndSlotUsages(
+            @Nullable final List<StorageAccesses> storageAccesses, final boolean traceExplicitWrites) {
+        if (storageAccesses == null) {
+            return null;
         }
-        return slotUsages;
+        return convertStorageAccessesToPbj(storageAccesses, traceExplicitWrites, true, true);
+    }
+
+    /**
+     * Shared implementation for {@link #asPbjStateChanges}, {@link #asPbjSlotUsages}, and
+     * {@link #asPbjStateChangesAndSlotUsages}.
+     */
+    private static StateChangesAndSlotUsages convertStorageAccessesToPbj(
+            @NonNull final List<StorageAccesses> storageAccesses,
+            final boolean traceExplicitWrites,
+            final boolean emitStateChanges,
+            final boolean emitSlotUsages) {
+        if (!emitStateChanges && !emitSlotUsages) {
+            throw new IllegalArgumentException("At least one of emitStateChanges or emitSlotUsages must be true");
+        }
+        List<ContractStateChange> allStateChanges = null;
+        if (emitStateChanges) {
+            allStateChanges = new ArrayList<>(storageAccesses.size());
+        }
+        List<ContractSlotUsage> slotUsages = null;
+        if (emitSlotUsages) {
+            slotUsages = new ArrayList<>(storageAccesses.size());
+        }
+        for (final var storageAccess : storageAccesses) {
+            appendConvertedStorageAccessScope(
+                    storageAccess, traceExplicitWrites, emitStateChanges, emitSlotUsages, allStateChanges, slotUsages);
+        }
+        ContractStateChanges stateChanges = null;
+        if (emitStateChanges) {
+            stateChanges = new ContractStateChanges(requireNonNull(allStateChanges));
+        }
+        return new StateChangesAndSlotUsages(stateChanges, slotUsages);
+    }
+
+    private static void appendConvertedStorageAccessScope(
+            @NonNull final StorageAccesses storageAccess,
+            final boolean traceExplicitWrites,
+            final boolean emitStateChanges,
+            final boolean emitSlotUsages,
+            @Nullable final List<ContractStateChange> allStateChanges,
+            @Nullable final List<ContractSlotUsage> slotUsages) {
+        final var accesses = storageAccess.accesses();
+        List<StorageChange> changes = null;
+        if (emitStateChanges) {
+            changes = new ArrayList<>(accesses.size());
+        }
+        List<SlotRead> reads = null;
+        if (emitSlotUsages) {
+            reads = new ArrayList<>(accesses.size());
+        }
+        List<com.hedera.pbj.runtime.io.buffer.Bytes> explicitWriteKeys = null;
+        if (emitSlotUsages && traceExplicitWrites) {
+            explicitWriteKeys = new ArrayList<>(accesses.size());
+        }
+        for (final var access : accesses) {
+            accumulatePbjStorageAccessIntoScope(
+                    access, emitStateChanges, changes, emitSlotUsages, reads, explicitWriteKeys);
+        }
+        if (emitStateChanges) {
+            requireNonNull(allStateChanges)
+                    .add(new ContractStateChange(storageAccess.contractID(), requireNonNull(changes)));
+        }
+        if (emitSlotUsages) {
+            requireNonNull(slotUsages)
+                    .add(pbjContractSlotUsageFrom(
+                            storageAccess.contractID(), requireNonNull(reads), explicitWriteKeys, traceExplicitWrites));
+        }
+    }
+
+    private static void accumulatePbjStorageAccessIntoScope(
+            @NonNull final StorageAccess access,
+            final boolean emitStateChanges,
+            @Nullable final List<StorageChange> changes,
+            final boolean emitSlotUsages,
+            @Nullable final List<SlotRead> reads,
+            @Nullable final List<com.hedera.pbj.runtime.io.buffer.Bytes> explicitWriteKeys) {
+        if (emitStateChanges) {
+            requireNonNull(changes)
+                    .add(new StorageChange(
+                            access.trimmedKeyBytes(), access.trimmedValueBytes(), access.trimmedWrittenValueBytes()));
+        }
+        if (emitSlotUsages) {
+            appendPbjSlotReadForStorageAccess(requireNonNull(reads), explicitWriteKeys, access);
+        }
+    }
+
+    private static void appendPbjSlotReadForStorageAccess(
+            @NonNull final List<SlotRead> reads,
+            @Nullable final List<com.hedera.pbj.runtime.io.buffer.Bytes> explicitWriteKeys,
+            @NonNull final StorageAccess access) {
+        if (access.isReadOnly()) {
+            reads.add(SlotRead.newBuilder()
+                    .key(access.trimmedKeyBytes())
+                    .readValue(access.trimmedValueBytes())
+                    .build());
+            return;
+        }
+        if (explicitWriteKeys != null) {
+            explicitWriteKeys.add(access.trimmedKeyBytes());
+            reads.add(SlotRead.newBuilder()
+                    .index(explicitWriteKeys.size() - 1)
+                    .readValue(access.trimmedValueBytes())
+                    .build());
+            return;
+        }
+        // The block stream builder replaces the key with its index in the writes list once known
+        reads.add(SlotRead.newBuilder()
+                .key(tuweniToPbjBytes(access.key()))
+                .readValue(access.trimmedValueBytes())
+                .build());
+    }
+
+    private static ContractSlotUsage pbjContractSlotUsageFrom(
+            @NonNull final ContractID contractId,
+            @NonNull final List<SlotRead> reads,
+            @Nullable final List<com.hedera.pbj.runtime.io.buffer.Bytes> explicitWriteKeys,
+            final boolean traceExplicitWrites) {
+        return traceExplicitWrites
+                ? ContractSlotUsage.newBuilder()
+                        .contractId(contractId)
+                        .writtenSlotKeys(new WrittenSlotKeys(requireNonNull(explicitWriteKeys)))
+                        .slotReads(reads)
+                        .build()
+                : new ContractSlotUsage(contractId, null, reads);
     }
 
     /**
@@ -402,7 +503,7 @@ public class ConversionUtils {
         final var loggerNumber = numberOfLongZero(log.getLogger());
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> loggedTopics = new ArrayList<>();
         for (final var topic : log.getTopics()) {
-            loggedTopics.add(tuweniToPbjBytes(topic));
+            loggedTopics.add(tuweniToPbjBytes(topic.getBytes()));
         }
         return ContractLoginfo.newBuilder()
                 .contractID(entityIdFactory.newContractId(loggerNumber))
@@ -440,7 +541,7 @@ public class ConversionUtils {
         final List<com.hedera.pbj.runtime.io.buffer.Bytes> topics =
                 new ArrayList<>(log.getTopics().size());
         for (final var topic : log.getTopics()) {
-            topics.add(tuweniToPbjBytes(topic.trimLeadingZeros()));
+            topics.add(tuweniToPbjBytes(topic.getBytes().trimLeadingZeros()));
         }
         return new EvmTransactionLog(
                 entityIdFactory.newContractId(numberOfLongZero(log.getLogger())),
@@ -533,7 +634,7 @@ public class ConversionUtils {
      */
     public static long maybeMissingNumberOf(
             @NonNull final Address address, @NonNull final HederaNativeOperations nativeOperations) {
-        return maybeMissingNumberOf(address.toArrayUnsafe(), nativeOperations);
+        return maybeMissingNumberOf(address.getBytes().toArrayUnsafe(), nativeOperations);
     }
 
     /**
@@ -544,7 +645,7 @@ public class ConversionUtils {
      */
     @SuppressWarnings("java:S2201")
     public static long numberOfLongZero(@NonNull final Address address) {
-        return numberOfLongZero(address.toArray());
+        return numberOfLongZero(address.getBytes().toArray());
     }
 
     /**
@@ -554,7 +655,7 @@ public class ConversionUtils {
      * @return whether it is long-zero
      */
     public static boolean isLongZero(@NonNull final Address address) {
-        return isLongZeroAddress(address.toArrayUnsafe());
+        return isLongZeroAddress(address.getBytes().toArrayUnsafe());
     }
 
     /**
@@ -591,7 +692,7 @@ public class ConversionUtils {
      * @return the PBJ bytes alias
      */
     public static com.hedera.pbj.runtime.io.buffer.Bytes aliasFrom(@NonNull final Address address) {
-        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(address.toArrayUnsafe());
+        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(address.getBytes().toArrayUnsafe());
     }
 
     /**
@@ -632,7 +733,7 @@ public class ConversionUtils {
      */
     public static ContractID asEvmContractId(
             @NonNull final EntityIdFactory entityIdFactory, @NonNull final Address address) {
-        return entityIdFactory.newContractIdWithEvmAddress(tuweniToPbjBytes(address));
+        return entityIdFactory.newContractIdWithEvmAddress(tuweniToPbjBytes(address.getBytes()));
     }
 
     /**
@@ -692,37 +793,28 @@ public class ConversionUtils {
     /**
      * Throws a {@link HandleException} if the given outcome did not succeed for a call.
      * @param outcome the outcome
+     * @param handleContext the handle context
      * @param hederaOperations the Hedera operations
-     * @param streamBuilder the stream builder
      */
     public static void throwIfUnsuccessfulCall(
             @NonNull final CallOutcome outcome,
-            @NonNull final HederaOperations hederaOperations,
-            @NonNull final ContractCallStreamBuilder streamBuilder) {
+            @NonNull final HandleContext handleContext,
+            @NonNull RootProxyWorldUpdater rootProxyWorldUpdater,
+            @NonNull final HederaOperations hederaOperations) {
         requireNonNull(outcome);
+        requireNonNull(handleContext);
         requireNonNull(hederaOperations);
-        requireNonNull(streamBuilder);
-        if (outcome.status() != SUCCESS) {
-            throw new HandleException(outcome.status(), (feeChargingContext, ignored) -> {
-                hederaOperations.replayGasChargingIn(feeChargingContext);
-                outcome.addCalledContractIfNotAborted(streamBuilder);
-            });
-        }
+        throwIfUnsuccessfulCall(
+                outcome,
+                new EthereumTransactionRollbackHandler(
+                        outcome, rootProxyWorldUpdater, hederaOperations.gasChargingEvents(), handleContext));
     }
 
-    /**
-     * Throws a {@link HandleException} if the given outcome did not succeed for a call.
-     * @param outcome the outcome
-     * @param hederaOperations the Hedera operations
-     */
-    public static void throwIfUnsuccessfulCreate(
-            @NonNull final CallOutcome outcome, @NonNull final HederaOperations hederaOperations) {
+    public static void throwIfUnsuccessfulCall(
+            @NonNull final CallOutcome outcome, @NonNull final EthereumTransactionRollbackHandler rollbackHandler) {
         requireNonNull(outcome);
-        requireNonNull(hederaOperations);
         if (outcome.status() != SUCCESS) {
-            throw new HandleException(
-                    outcome.status(),
-                    (feeChargingContext, ignored) -> hederaOperations.replayGasChargingIn(feeChargingContext));
+            throw new HandleException(outcome.status(), rollbackHandler);
         }
     }
 
@@ -737,6 +829,16 @@ public class ConversionUtils {
             return Bytes.EMPTY;
         }
         return Bytes.wrap(clampedBytes(bytes, 0, Integer.MAX_VALUE));
+    }
+
+    /**
+     * Converts a PBJ bytes to Tuweni bytes 32.
+     *
+     * @param bytes the PBJ bytes
+     * @return the Tuweni bytes 32
+     */
+    public static @NonNull Bytes32 pbjToTuweniBytes32(@NonNull final com.hedera.pbj.runtime.io.buffer.Bytes bytes) {
+        return Bytes32.leftPad(pbjToTuweniBytes(bytes));
     }
 
     /**
@@ -796,7 +898,7 @@ public class ConversionUtils {
      */
     public static com.hedera.pbj.runtime.io.buffer.Bytes bloomForAll(@NonNull final List<Log> logs) {
         return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
-                LogsBloomFilter.builder().insertLogs(logs).build().toArray());
+                LogsBloomFilter.builder().insertLogs(logs).build().getBytes().toArray());
     }
 
     private static byte[] clampedBytes(
@@ -895,7 +997,7 @@ public class ConversionUtils {
     public static com.hedera.pbj.runtime.io.buffer.Bytes bloomFor(@NonNull final Log log) {
         requireNonNull(log);
         return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
-                LogsBloomFilter.builder().insertLog(log).build().toArray());
+                LogsBloomFilter.builder().insertLog(log).build().getBytes().toArray());
     }
 
     private static Address longZeroAddressIn(@NonNull final MessageFrame frame, @NonNull final Address address) {
@@ -1124,7 +1226,7 @@ public class ConversionUtils {
                 asLongZeroAddress(log.contractIdOrThrow().contractNumOrThrow()),
                 pbjToTuweniBytes(log.data()),
                 paddedTopics.stream()
-                        .map(ConversionUtils::pbjToTuweniBytes)
+                        .map(ConversionUtils::pbjToTuweniBytes32)
                         .map(LogTopic::create)
                         .toList());
     }
@@ -1139,7 +1241,7 @@ public class ConversionUtils {
      *     entering the EVM); and,</li>
      *     <li>A {@link StorageAccessTracker} capturing the transaction's <i>read</i> storage slots.</li>
      * </ol>
-     * If no context is available, returns null. Otherwise returns a {@link TxStorageUsage} with at least the read
+     * If no context is available, returns null. Otherwise, returns a {@link TxStorageUsage} with at least the read
      * usage; and, if the updater is available and {@code checkForWrites} is true, also the write usage.
      * @param updater the proxy world updater to extract write accesses from
      * @param accessTracker the access tracker to extract reads from
