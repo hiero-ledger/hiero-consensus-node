@@ -154,7 +154,7 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * with block/seal boundaries so {@code Hedera#onSealConsensusRound(...)} can accurately signal to
      * the platform when a signed state may be created from the sealed round.
      */
-    boolean closeCurrentRecordFileIfOpen(@NonNull State state);
+    void closeCurrentRecordFileIfOpen(@NonNull State state);
 
     /**
      * Seal-time variant of {@link #closeCurrentRecordFileIfOpen(State)} used by {@code RECORDS} mode.

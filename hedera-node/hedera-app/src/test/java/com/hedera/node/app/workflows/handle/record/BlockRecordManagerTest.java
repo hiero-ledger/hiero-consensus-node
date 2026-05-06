@@ -257,13 +257,12 @@ final class BlockRecordManagerTest extends AppTestBase {
                         blockRecordManager.endRound(merkleState);
                     }
                 }
-                assertThat(block - 1).isEqualTo(blockRecordManager.lastBlockNo());
-                // check block hashes
-                if (endOfBlockHashes.size() > 1) {
-                    assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
-                            .isEqualTo(blockRecordManager.lastBlockHash().toHex());
-                }
-                endOfBlockHashes.add(blockRecordManager.getRunningHash());
+                blockRecordManager.closeCurrentRecordFileIfOpen(merkleState);
+                assertThat(block).isEqualTo(blockRecordManager.lastBlockNo());
+                final var closedBlockHash = blockRecordManager.getRunningHash();
+                endOfBlockHashes.add(closedBlockHash);
+                assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
+                        .isEqualTo(blockRecordManager.lastBlockHash().toHex());
             }
             // end the last round
             blockRecordManager.endRound(merkleState);
@@ -338,8 +337,6 @@ final class BlockRecordManagerTest extends AppTestBase {
             Bytes runningHashNMinus2 = null;
             Bytes runningHashNMinus3;
             final List<Bytes> endOfBlockHashes = new ArrayList<>();
-            endOfBlockHashes.add(runningHash);
-            Instant lastBlockFirstTransactionTimestamp = null;
             for (int i = 0; i < TEST_BLOCKS.size(); i++) {
                 final var blockData = TEST_BLOCKS.get(i);
                 final var block = BLOCK_NUM + i;
@@ -375,38 +372,31 @@ final class BlockRecordManagerTest extends AppTestBase {
                         blockRecordManager.endRound(merkleState);
                     }
                 }
+                blockRecordManager.closeCurrentRecordFileIfOpen(merkleState);
                 // VALIDATE BLOCK INFO METHODS
                 // check last block number
-                assertThat(block - 1).isEqualTo(blockRecordManager.lastBlockNo());
+                assertThat(block).isEqualTo(blockRecordManager.lastBlockNo());
                 // check last block first transaction timestamp
-                if (lastBlockFirstTransactionTimestamp != null) {
-                    assertThat(lastBlockFirstTransactionTimestamp)
-                            .isEqualTo(blockRecordManager.firstConsTimeOfLastBlock());
-                }
-                lastBlockFirstTransactionTimestamp =
-                        fromTimestamp(blockData.get(0).transactionRecord().consensusTimestamp());
+                assertThat(fromTimestamp(blockData.get(0).transactionRecord().consensusTimestamp()))
+                        .isEqualTo(blockRecordManager.firstConsTimeOfLastBlock());
                 // check block hashes we have in history
-                if (endOfBlockHashes.size() > 0) {
-                    // trim endOfBlockHashes to NUM_BLOCK_HASHES_TO_KEEP
-                    while (endOfBlockHashes.size() > NUM_BLOCK_HASHES_TO_KEEP) {
-                        endOfBlockHashes.remove(0);
-                    }
-                    assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
-                            .isEqualTo(blockRecordManager.lastBlockHash().toHex());
-                    assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
-                            .isEqualTo(blockRecordManager
-                                    .blockHashByBlockNumber(block - 1)
-                                    .toHex());
-                    final int numBlockHashesToCheck = Math.min(NUM_BLOCK_HASHES_TO_KEEP, endOfBlockHashes.size());
-                    for (int k = (numBlockHashesToCheck - 1); k >= 0; k--) {
-                        var blockNumToCheck = block - (numBlockHashesToCheck - k);
-                        assertThat(endOfBlockHashes.get(k).toHex())
-                                .isEqualTo(blockRecordManager
-                                        .blockHashByBlockNumber(blockNumToCheck)
-                                        .toHex());
-                    }
-                }
                 endOfBlockHashes.add(blockRecordManager.getRunningHash());
+                while (endOfBlockHashes.size() > NUM_BLOCK_HASHES_TO_KEEP) {
+                    endOfBlockHashes.remove(0);
+                }
+                assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
+                        .isEqualTo(blockRecordManager.lastBlockHash().toHex());
+                assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
+                        .isEqualTo(
+                                blockRecordManager.blockHashByBlockNumber(block).toHex());
+                final int numBlockHashesToCheck = endOfBlockHashes.size();
+                for (int k = 0; k < numBlockHashesToCheck; k++) {
+                    final var blockNumToCheck = block - (numBlockHashesToCheck - 1L - k);
+                    assertThat(endOfBlockHashes.get(k).toHex())
+                            .isEqualTo(blockRecordManager
+                                    .blockHashByBlockNumber(blockNumToCheck)
+                                    .toHex());
+                }
             }
             // end the last round
             blockRecordManager.endRound(merkleState);
@@ -653,6 +643,11 @@ final class BlockRecordManagerTest extends AppTestBase {
             }
         }
 
+        private void processAndCloseBlock(BlockRecordManagerImpl manager, State state, int blockIndex) {
+            processBlock(manager, state, blockIndex);
+            manager.closeCurrentRecordFileIfOpen(state);
+        }
+
         private BlockInfo readBlockInfo(State state) {
             return state.getWritableStates(BlockRecordService.NAME)
                     .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
@@ -663,9 +658,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         void wrappedRootHashIsPopulatedAfterFirstBlockBoundary() {
             final var state = liveApp.workingStateAccessor().getState();
             try (final var manager = createGenesisManager(liveApp, state)) {
-                // Process block 0, then block 1 (first tx of block 1 triggers boundary)
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
+                processAndCloseBlock(manager, state, 0);
 
                 final var blockInfo = readBlockInfo(state);
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(Bytes.EMPTY);
@@ -678,8 +671,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         void intermediateHashStateIsNonEmptyAfterBlockBoundary() {
             final var state = liveApp.workingStateAccessor().getState();
             try (final var manager = createGenesisManager(liveApp, state)) {
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
+                processAndCloseBlock(manager, state, 0);
 
                 final var blockInfo = readBlockInfo(state);
                 assertThat(blockInfo.wrappedIntermediatePreviousBlockRootHashes())
@@ -691,10 +683,8 @@ final class BlockRecordManagerTest extends AppTestBase {
         void leafCountIncrementsWithEachBlockBoundary() {
             final var state = liveApp.workingStateAccessor().getState();
             try (final var manager = createGenesisManager(liveApp, state)) {
-                // Process blocks 0, 1, 2 — two block boundaries fire (block 0 and block 1 complete)
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
-                processBlock(manager, state, 2);
+                processAndCloseBlock(manager, state, 0);
+                processAndCloseBlock(manager, state, 1);
 
                 final var blockInfo = readBlockInfo(state);
                 assertThat(blockInfo.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(2);
@@ -705,13 +695,10 @@ final class BlockRecordManagerTest extends AppTestBase {
         void wrappedRootHashDiffersBetweenConsecutiveBlocks() {
             final var state = liveApp.workingStateAccessor().getState();
             try (final var manager = createGenesisManager(liveApp, state)) {
-                // Complete block 0 (boundary fires at start of block 1)
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
+                processAndCloseBlock(manager, state, 0);
                 final var hashAfterBlock0 = readBlockInfo(state).previousWrappedRecordBlockRootHash();
 
-                // Complete block 1 (boundary fires at start of block 2)
-                processBlock(manager, state, 2);
+                processAndCloseBlock(manager, state, 1);
                 final var hashAfterBlock1 = readBlockInfo(state).previousWrappedRecordBlockRootHash();
 
                 assertThat(hashAfterBlock0).isNotEqualTo(Bytes.EMPTY);
@@ -722,49 +709,26 @@ final class BlockRecordManagerTest extends AppTestBase {
 
         @Test
         void restartContinuityPreservesWrappedHashState() {
-            // Process blocks 0, 1 through genesis manager — one boundary fires (block 0 completes), leaf count = 1
             final var state = liveApp.workingStateAccessor().getState();
             final Bytes rootHashFromGenesis;
             final long leafCountFromGenesis;
             try (final var manager = createGenesisManager(liveApp, state)) {
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
+                processAndCloseBlock(manager, state, 0);
+                processAndCloseBlock(manager, state, 1);
 
                 final var blockInfo = readBlockInfo(state);
                 rootHashFromGenesis = blockInfo.previousWrappedRecordBlockRootHash();
                 leafCountFromGenesis = blockInfo.wrappedIntermediateBlockRootsLeafCount();
-                assertThat(leafCountFromGenesis).isEqualTo(1);
+                assertThat(leafCountFromGenesis).isEqualTo(2);
                 assertThat(rootHashFromGenesis).isNotEqualTo(Bytes.EMPTY);
             }
 
-            // Simulate restart: new manager with RESTART trigger reads the persisted state.
-            // The first boundary after restart has currentBlockStartRunningHash==null so it
-            // can't compute wrapped hashes for the in-progress block — but it should preserve
-            // the restored hasher state. The second boundary has tracking set up and computes
-            // a new wrapped hash leaf using the restored hasher.
             try (final var restartManager = createManager(
                     liveApp, state, mock(WrappedRecordFileBlockHashesDiskWriter.class), InitTrigger.RESTART)) {
-                processBlock(restartManager, state, 1);
-                processBlock(restartManager, state, 2);
-
-                // After the first boundary on restart (currentBlockStartRunningHash is null),
-                // the BlockInfo should preserve the restored hasher state — not zero it out.
-                // The leaf count must still equal the genesis value (not reset to 0).
-                final var blockInfoAfterFirstBoundary = readBlockInfo(state);
-                assertThat(blockInfoAfterFirstBoundary.wrappedIntermediateBlockRootsLeafCount())
-                        .as("First restart boundary should preserve restored leaf count")
-                        .isEqualTo(leafCountFromGenesis);
-                assertThat(blockInfoAfterFirstBoundary.previousWrappedRecordBlockRootHash())
-                        .as("First restart boundary should preserve a non-empty root hash")
-                        .isNotEqualTo(Bytes.EMPTY);
-
-                processBlock(restartManager, state, 3);
+                processAndCloseBlock(restartManager, state, 2);
 
                 final var blockInfo = readBlockInfo(state);
-                // The restored leaf count (1) should be carried forward and incremented.
-                // After the first real computation boundary, leaf count = restored (1) + 1 = 2.
                 assertThat(blockInfo.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(leafCountFromGenesis + 1);
-                // The root hash should differ from the genesis value (a new block was incorporated)
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(rootHashFromGenesis);
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash().length())
                         .isEqualTo(HASH_SIZE);
@@ -776,10 +740,8 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var state = liveApp.workingStateAccessor().getState();
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
             try (final var manager = createManager(liveApp, state, diskWriter, InitTrigger.GENESIS)) {
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
+                processAndCloseBlock(manager, state, 0);
             }
-            // Live mode no longer suppresses disk writing when that feature is enabled.
             verify(diskWriter, atLeastOnce()).appendAsync(notNull());
         }
 
@@ -825,8 +787,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var state = liveOnlyApp.workingStateAccessor().getState();
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
             try (final var manager = createManager(liveOnlyApp, state, diskWriter, InitTrigger.RESTART)) {
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
+                processAndCloseBlock(manager, state, 0);
 
                 // BlockInfo should still have wrapped hash data (live mode is on)
                 final var blockInfo = readBlockInfo(state);
@@ -840,8 +801,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         void freezeBlockUpdatesWrappedHashState() {
             final var state = liveApp.workingStateAccessor().getState();
             try (final var manager = createGenesisManager(liveApp, state)) {
-                // Process blocks 0 and 1. One boundary fires (block 0 completes at start of block 1).
-                processBlock(manager, state, 0);
+                processAndCloseBlock(manager, state, 0);
                 processBlock(manager, state, 1);
 
                 final var blockInfoBefore = readBlockInfo(state);
@@ -849,27 +809,19 @@ final class BlockRecordManagerTest extends AppTestBase {
                         .isEqualTo(1);
                 final var rootHashBefore = blockInfoBefore.previousWrappedRecordBlockRootHash();
 
-                // Call freeze with state — computes wrapped hash for the in-progress block 1
-                // and persists the updated BlockInfo to state (leaf count → 2).
                 manager.writeFreezeBlockWrappedRecordFileBlockHashesToState(state);
 
                 final var blockInfoAfterFreeze = readBlockInfo(state);
-                // Freeze persisted the updated wrapped hash state
                 assertThat(blockInfoAfterFreeze.wrappedIntermediateBlockRootsLeafCount())
                         .isEqualTo(2);
                 assertThat(blockInfoAfterFreeze.previousWrappedRecordBlockRootHash())
                         .isNotEqualTo(rootHashBefore);
 
-                // Now process block 2; boundary fires completing block 1 (items are re-computed
-                // since freeze didn't clear them — this is expected for orderly shutdown).
-                // The boundary uses the hasher that already has the freeze leaf, so leaf count → 3.
-                processBlock(manager, state, 2);
+                processAndCloseBlock(manager, state, 2);
 
                 final var blockInfoAfter = readBlockInfo(state);
-                // The leaf count increased: 1 (pre-freeze) + 1 (freeze) + 1 (boundary) = 3
                 assertThat(blockInfoAfter.wrappedIntermediateBlockRootsLeafCount())
                         .isEqualTo(3);
-                // Root hash should have changed from the pre-freeze state
                 assertThat(blockInfoAfter.previousWrappedRecordBlockRootHash()).isNotEqualTo(rootHashBefore);
             }
         }
@@ -914,8 +866,7 @@ final class BlockRecordManagerTest extends AppTestBase {
 
             final var state = disabledApp.workingStateAccessor().getState();
             try (final var manager = createGenesisManager(disabledApp, state)) {
-                processBlock(manager, state, 0);
-                processBlock(manager, state, 1);
+                processAndCloseBlock(manager, state, 0);
 
                 final var blockInfo = readBlockInfo(state);
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isEqualTo(Bytes.EMPTY);
