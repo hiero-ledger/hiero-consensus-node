@@ -118,6 +118,19 @@ class SimulatedNetworkChannelTest {
     }
 
     @Test
+    void failedWriteDoesNotIncrementWriteCallDiagnostics() throws Exception {
+        final SimulatedNetworkChannel channel =
+                new SimulatedNetworkChannel(NetworkSimulationConfig.resolve(NetworkProfile.LOOPBACK, 0, 1, 1));
+
+        final OutputStream out = channel.outputStream();
+        out.close();
+
+        assertThrows(IOException.class, () -> out.write(1));
+        assertEquals(0, channel.snapshotStats().writeCalls());
+        assertEquals(0, channel.snapshotStats().writeRanges());
+    }
+
+    @Test
     void disconnectWakesBlockedReader() throws Exception {
         final SimulatedNetworkChannel channel = new SimulatedNetworkChannel(
                 NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 1_000_000, 1, 1024));
@@ -137,6 +150,62 @@ class SimulatedNetworkChannelTest {
         reader.join(5_000);
 
         assertFalse(reader.isAlive());
+        assertTrue(thrown.get() instanceof IOException);
+    }
+
+    @Test
+    void disconnectWakesBlockedWriter() throws Exception {
+        final SimulatedNetworkChannel channel =
+                new SimulatedNetworkChannel(NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 0, 1_000, 16));
+        final AtomicReference<Throwable> thrown = new AtomicReference<>();
+        final Thread writer = new Thread(() -> {
+            try {
+                channel.outputStream().write(new byte[64]);
+            } catch (final Throwable t) {
+                thrown.set(t);
+            }
+        });
+
+        try {
+            writer.setDaemon(true);
+            writer.start();
+            awaitThreadState(writer, Thread.State.WAITING);
+            channel.disconnect();
+            writer.join(5_000);
+        } finally {
+            channel.disconnect();
+            writer.join(5_000);
+        }
+
+        assertFalse(writer.isAlive());
+        assertTrue(thrown.get() instanceof IOException);
+    }
+
+    @Test
+    void inputCloseWakesBlockedWriter() throws Exception {
+        final SimulatedNetworkChannel channel =
+                new SimulatedNetworkChannel(NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 0, 1_000, 16));
+        final AtomicReference<Throwable> thrown = new AtomicReference<>();
+        final Thread writer = new Thread(() -> {
+            try {
+                channel.outputStream().write(new byte[64]);
+            } catch (final Throwable t) {
+                thrown.set(t);
+            }
+        });
+
+        try {
+            writer.setDaemon(true);
+            writer.start();
+            awaitThreadState(writer, Thread.State.WAITING);
+            channel.inputStream().close();
+            writer.join(5_000);
+        } finally {
+            channel.disconnect();
+            writer.join(5_000);
+        }
+
+        assertFalse(writer.isAlive());
         assertTrue(thrown.get() instanceof IOException);
     }
 
@@ -167,6 +236,21 @@ class SimulatedNetworkChannelTest {
         assertEquals(payload.length, received.length);
         assertEquals(payload.length, channel.snapshotStats().bytesRead());
         assertTrue(elapsedNanos >= 150_000_000L, "250 KB at 1 MB/s should take noticeable time");
+    }
+
+    @Test
+    void bandwidthLimitedReadsDoNotFragmentIntoTinyReads() throws Exception {
+        final SimulatedNetworkChannel channel =
+                new SimulatedNetworkChannel(NetworkSimulationConfig.resolve(NetworkProfile.REALISTIC, 0, 8, 500_000));
+        final byte[] payload = new byte[250_000];
+
+        channel.outputStream().write(payload);
+        final byte[] received = channel.inputStream().readNBytes(payload.length);
+
+        assertEquals(payload.length, received.length);
+        assertTrue(
+                channel.snapshotStats().readCalls() < 6_000,
+                "bandwidth-limited delivery should not require a tiny read per few bytes");
     }
 
     @Test

@@ -635,3 +635,49 @@ Follow-up calibration guidance:
 - If cluster data is available, use measured RTT and effective TCP window or `ss -ti` samples to narrow the sweep.
 - If the temporary wait counters are useful, convert them into optional permanent diagnostics; otherwise remove them
   before finalizing the implementation.
+
+### 2026-05-06
+
+Additional `50M` saved-state runs compared `pullTopToBottom` and `pullParallelSync` at `50ms` and `200ms` RTT using
+bandwidth-delay-product-sized in-flight caps for `1 Gbps`. These runs used the same saved state under
+`platform-sdk/swirlds-benchmarks/data/ReconnectBench`, `numFiles=5000`, `numRecords=10000`, `keySize=32`,
+`recordSize=128`, `benchmark.verifyResult=false`, and `-Xms24g -Xmx24g -XX:+AlwaysPreTouch`. The current worktree also
+included the `SimulatedNetworkChannel` input-close, failed-write diagnostic, and progressive-read coalescing fixes.
+
+Commands:
+
+```bash
+./gradlew :swirlds-benchmarks:jmhReconnect -PnetworkProfile=REALISTIC -PnetworkLatencyMicroseconds=25000 -PnetworkBandwidthMegabitsPerSecond=1000 -PnetworkInflightBytesLimit=6553600 --no-daemon
+./gradlew :swirlds-benchmarks:jmhReconnect -PnetworkProfile=REALISTIC -PnetworkLatencyMicroseconds=100000 -PnetworkBandwidthMegabitsPerSecond=1000 -PnetworkInflightBytesLimit=26214400 --no-daemon
+```
+
+The traversal mode was changed in `platform-sdk/swirlds-benchmarks/settings.txt` between runs.
+
+```text
+Profile                         pullTopToBottom   pullParallelSync   Result
+50ms RTT, 6.25 MiB in-flight      195.919 s/op      173.976 s/op     parallel by 11.2%
+200ms RTT, 25 MiB in-flight       196.529 s/op      220.312 s/op     top-to-bottom by 10.8%
+```
+
+Reconnect stats and bytes were stable within each traversal:
+
+```text
+Traversal          Transfers each direction   Teacher->learner bytes   Learner->teacher bytes
+pullTopToBottom             34.535787M             1.175008844 GB           2.175754589 GB
+pullParallelSync            34.356617M             1.165671114 GB           2.164466879 GB
+```
+
+In-flight and capacity-wait diagnostics:
+
+```text
+Profile / Traversal             T->L max in-flight   L->T max in-flight   Capacity waits
+50ms / pullTopToBottom               1,673,419 bytes      6,553,575 bytes   L->T 11295 waits, 5.951s
+50ms / pullParallelSync              2,273,011 bytes      6,553,575 bytes   L->T 828 waits, 0.712s
+200ms / pullTopToBottom              3,716,507 bytes     20,416,221 bytes   none
+200ms / pullParallelSync             4,179,302 bytes     12,246,331 bytes   none
+```
+
+These runs reinforce the observed crossover behavior. With a BDP-sized `50ms` profile, `pullParallelSync` remained
+faster, even though both traversals moved nearly the same total bytes. With a BDP-sized `200ms` profile,
+`pullTopToBottom` was faster. The `50ms` results also show that a nominal BDP cap can still be binding on the
+learner-to-teacher direction for this workload shape, especially for `pullTopToBottom`.

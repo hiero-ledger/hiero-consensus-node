@@ -14,6 +14,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class SimulatedNetworkChannel {
 
     private static final int DEFAULT_RANGE_SIZE = 8192;
+    private static final int MIN_PROGRESSIVE_READ_BYTES = 64;
 
     private final NetworkSimulationConfig config;
     private final ReentrantLock lock = new ReentrantLock();
@@ -37,6 +38,7 @@ public class SimulatedNetworkChannel {
     private long arrivalWaitNanos;
     private long nextTransmissionAvailableAtNanos;
     private boolean closed;
+    private boolean inputClosed;
     private boolean disconnected;
 
     public SimulatedNetworkChannel(final NetworkSimulationConfig config) {
@@ -100,6 +102,9 @@ public class SimulatedNetworkChannel {
             Objects.checkFromIndexSize(off, len, b.length);
             lock.lock();
             try {
+                ensureConnected();
+                ensureOpenForWrite();
+                ensureReceiverOpen();
                 writeCalls++;
             } finally {
                 lock.unlock();
@@ -131,6 +136,7 @@ public class SimulatedNetworkChannel {
             try {
                 ensureConnected();
                 ensureOpenForWrite();
+                ensureReceiverOpen();
                 while (inflightBytes + bytes.length > config.inflightBytesLimit()) {
                     final long waitStart = System.nanoTime();
                     try {
@@ -144,6 +150,7 @@ public class SimulatedNetworkChannel {
                     }
                     ensureConnected();
                     ensureOpenForWrite();
+                    ensureReceiverOpen();
                 }
 
                 final long now = System.nanoTime();
@@ -164,6 +171,12 @@ public class SimulatedNetworkChannel {
         private void ensureOpenForWrite() throws IOException {
             if (closed) {
                 throw new IOException("Simulated network channel output is closed");
+            }
+        }
+
+        private void ensureReceiverOpen() throws IOException {
+            if (inputClosed) {
+                throw new IOException("Simulated network channel input is closed");
             }
         }
     }
@@ -193,9 +206,11 @@ public class SimulatedNetworkChannel {
 
             lock.lock();
             try {
+                ensureOpenForRead();
                 readCalls++;
                 while (true) {
                     ensureConnected();
+                    ensureOpenForRead();
                     final ByteRange range = ranges.peek();
                     if (range == null) {
                         if (closed) {
@@ -212,6 +227,13 @@ public class SimulatedNetworkChannel {
                         continue;
                     }
 
+                    final int targetAvailable =
+                            Math.min(len, Math.min(range.remainingBytes(), MIN_PROGRESSIVE_READ_BYTES));
+                    if (available < targetAvailable) {
+                        awaitNanos(Math.max(1, range.readableAtNanos(targetAvailable) - now));
+                        continue;
+                    }
+
                     final int toRead = Math.min(len, available);
                     range.readInto(b, off, toRead);
                     bytesRead += toRead;
@@ -224,6 +246,23 @@ public class SimulatedNetworkChannel {
                 }
             } finally {
                 lock.unlock();
+            }
+        }
+
+        @Override
+        public void close() {
+            lock.lock();
+            try {
+                inputClosed = true;
+                stateChanged.signalAll();
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private void ensureOpenForRead() throws IOException {
+            if (inputClosed) {
+                throw new IOException("Simulated network channel input is closed");
             }
         }
 
@@ -287,6 +326,19 @@ public class SimulatedNetworkChannel {
             }
             final double nextByteFraction = (double) (readOffset + 1) / bytes.length;
             return arrivalStartNanos + (long) Math.ceil(nextByteFraction * (arrivalEndNanos - arrivalStartNanos));
+        }
+
+        private long readableAtNanos(final int additionalReadableBytes) {
+            final int targetOffset = Math.min(bytes.length, readOffset + additionalReadableBytes);
+            if (targetOffset <= 1 || arrivalEndNanos <= arrivalStartNanos) {
+                return arrivalStartNanos;
+            }
+            final double targetFraction = (double) targetOffset / bytes.length;
+            return arrivalStartNanos + (long) Math.ceil(targetFraction * (arrivalEndNanos - arrivalStartNanos));
+        }
+
+        private int remainingBytes() {
+            return bytes.length - readOffset;
         }
 
         private void readInto(final byte[] destination, final int destinationOffset, final int count) {
