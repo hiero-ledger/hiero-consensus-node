@@ -75,10 +75,12 @@ public final class BestEffortPcesFileCopy {
         while (triesRemaining > 0) {
             triesRemaining--;
             try {
+                final Path pcesSourceDirectory =
+                        PcesUtilities.getDatabaseDirectory(configuration, fileSystemManager, selfId);
                 executeAndRename(
                         pcesDestination,
                         fileSystemManager.resolveNewTemp(),
-                        temporaryDirectory -> copyPcesFiles(configuration, selfId, temporaryDirectory, lowerBound));
+                        temporaryDirectory -> copyPcesFiles(pcesSourceDirectory, temporaryDirectory, lowerBound));
 
                 return;
             } catch (final IOException | UncheckedIOException e) {
@@ -110,20 +112,17 @@ public final class BestEffortPcesFileCopy {
      * real production states and streams, in the short term. In the longer term we should consider alternate and
      * cleaner strategies.
      *
-     * @param configuration the platform configuration
-     * @param selfId the id of this node
+     * @param preconsensusEventStreamDirectory the directory where the PCES files are stored on disk
      * @param destinationDirectory the directory where the PCES files should be written
      * @param lowerBound the lower bound of events that are not ancient, with respect to the state that is being
      * written
      */
     private static void copyPcesFiles(
-            @NonNull final Configuration configuration,
-            @NonNull final NodeId selfId,
+            @NonNull final Path preconsensusEventStreamDirectory,
             @NonNull final Path destinationDirectory,
             final long lowerBound)
             throws IOException {
-
-        final List<PcesFile> allFiles = gatherPcesFilesOnDisk(selfId, configuration);
+        final List<PcesFile> allFiles = gatherPcesFilesOnDisk(preconsensusEventStreamDirectory);
         if (allFiles.isEmpty()) {
             return;
         }
@@ -153,7 +152,7 @@ public final class BestEffortPcesFileCopy {
     private static List<PcesFile> getRequiredPcesFiles(@NonNull final List<PcesFile> allFiles, final long lowerBound) {
 
         final List<PcesFile> filesToCopy = new ArrayList<>();
-        final PcesFile lastFile = allFiles.get(allFiles.size() - 1);
+        final PcesFile lastFile = allFiles.getLast();
         for (final PcesFile file : allFiles) {
             if (file.getOrigin() == lastFile.getOrigin() && file.getUpperBound() >= lowerBound) {
                 filesToCopy.add(file);
@@ -174,7 +173,7 @@ public final class BestEffortPcesFileCopy {
                                 File: {}
                             """,
                     lowerBound,
-                    filesToCopy.get(0).getPath());
+                    filesToCopy.getFirst().getPath());
         } else {
             logger.info(
                     STATE_TO_DISK.getMarker(),
@@ -186,8 +185,8 @@ public final class BestEffortPcesFileCopy {
                             """,
                     filesToCopy.size(),
                     lowerBound,
-                    filesToCopy.get(0).getPath(),
-                    filesToCopy.get(filesToCopy.size() - 1).getPath());
+                    filesToCopy.getFirst().getPath(),
+                    filesToCopy.getLast().getPath());
         }
 
         return filesToCopy;
@@ -196,15 +195,13 @@ public final class BestEffortPcesFileCopy {
     /**
      * Gather all PCES files on disk.
      *
-     * @param selfId the id of this node
-     * @param configuration the platform configuration
+     * @param preconsensusEventStreamDirectory the directory where PCES files are stored
      * @return a list of all PCES files on disk
      */
     @NonNull
-    private static List<PcesFile> gatherPcesFilesOnDisk(
-            @NonNull final NodeId selfId, @NonNull final Configuration configuration) throws IOException {
+    private static List<PcesFile> gatherPcesFilesOnDisk(@NonNull final Path preconsensusEventStreamDirectory)
+            throws IOException {
         final List<PcesFile> allFiles = new ArrayList<>();
-        final Path preconsensusEventStreamDirectory = PcesUtilities.getDatabaseDirectory(configuration, selfId);
         try (final Stream<Path> stream = Files.walk(preconsensusEventStreamDirectory)) {
             stream.filter(Files::isRegularFile).forEach(path -> {
                 try {
@@ -220,7 +217,7 @@ public final class BestEffortPcesFileCopy {
         } else if (allFiles.size() == 1) {
             logger.info(STATE_TO_DISK.getMarker(), """
                             Found 1 preconsensus file on disk.
-                                File: {}""", allFiles.get(0).getPath());
+                                File: {}""", allFiles.getFirst().getPath());
         } else {
             logger.info(
                     STATE_TO_DISK.getMarker(),
@@ -229,8 +226,8 @@ public final class BestEffortPcesFileCopy {
                                 First file: {}
                                 Last file: {}""",
                     allFiles.size(),
-                    allFiles.get(0).getPath(),
-                    allFiles.get(allFiles.size() - 1).getPath());
+                    allFiles.getFirst().getPath(),
+                    allFiles.getLast().getPath());
         }
 
         return allFiles;

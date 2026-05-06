@@ -125,6 +125,7 @@ public class ConsensusNoOpModules {
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RecycleBin recycleBin = new SimpleRecycleBin();
+        final FileSystemManager fileSystemManager = new FileSystemManager();
         final long startingRound = 0L;
         final Runnable flushIntake = () -> {};
         final Runnable flushTransactionHandling = () -> {};
@@ -143,6 +144,7 @@ public class ConsensusNoOpModules {
                 time,
                 selfId,
                 recycleBin,
+                fileSystemManager,
                 startingRound,
                 flushIntake,
                 flushTransactionHandling,
