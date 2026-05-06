@@ -1,3 +1,0 @@
-------------- Configuration Overrides -------------
-
-paths.tmpDir, SignedStateFileReadWriteTest

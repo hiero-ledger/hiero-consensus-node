@@ -1,4 +1,0 @@
-------------- Configuration Overrides -------------
-
-state.savedStateDirectory, /Users/kellygreco/repos/hiero-consensus-node/platform-sdk/swirlds-platform-core/SignedStateFileReadWriteTest
-state.signedStateDisk, 3
