@@ -54,14 +54,14 @@ public record BlockRecordStreamConfig(
         @ConfigProperty(defaultValue = "concurrent") @NetworkProperty
         String streamFileProducer,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean writeWrappedRecordFileBlockHashesToDisk,
 
         @ConfigProperty(defaultValue = "/opt/hgcapp/wrappedRecordHashes") @NodeProperty
         String wrappedRecordHashesDir,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean computeHashesFromWrappedRecordBlocks,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean liveWritePrevWrappedRecordHashes) {}
