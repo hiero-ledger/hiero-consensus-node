@@ -64,6 +64,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -89,6 +90,8 @@ import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 @Singleton
 public final class BlockRecordManagerImpl implements BlockRecordManager {
     private static final Logger logger = LogManager.getLogger(BlockRecordManagerImpl.class);
+
+    private static final long NO_BLOCK_SIGNING_REQUESTED = -1L;
 
     private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
@@ -150,6 +153,20 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     @Nullable
     private CompletableFuture<Void> noOpenWrbWritersFuture = null;
+    /**
+     * Guards the latest WRB signing submission future.
+     */
+    private final Object latestBlockSigningFutureLock = new Object();
+    /**
+     * The latest WRB block number for which this node has requested signing.
+     */
+    private long latestBlockSigningBlockNumber = NO_BLOCK_SIGNING_REQUESTED;
+    /**
+     * A future that completes to the latest requested WRB block number when this node submits its partial signature.
+     */
+    @NonNull
+    private CompletableFuture<Long> latestBlockSigningFuture =
+            CompletableFuture.completedFuture(NO_BLOCK_SIGNING_REQUESTED);
     /**
      * Futures for the legacy record file hashes signed by {@code BlockRecordWriter} close. Keyed by block number.
      * WRB RSA signing waits on these futures so its signature list covers exactly the legacy record file hash.
@@ -312,6 +329,25 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     openWrbWriters.keySet(),
                     noOpenWrbWritersFuture.isDone());
             return noOpenWrbWritersFuture;
+        }
+    }
+
+    @Override
+    public boolean allBlocksSigned() {
+        if (!streamWrbEnabled) {
+            return true;
+        }
+        final long latestBlockNumber;
+        final CompletableFuture<Long> latestSigningFuture;
+        synchronized (latestBlockSigningFutureLock) {
+            latestBlockNumber = latestBlockSigningBlockNumber;
+            latestSigningFuture = latestBlockSigningFuture;
+        }
+        try {
+            return latestSigningFuture.isDone()
+                    && latestSigningFuture.getNow(NO_BLOCK_SIGNING_REQUESTED) == latestBlockNumber;
+        } catch (final CancellationException | CompletionException e) {
+            return false;
         }
     }
 
@@ -843,9 +879,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         requireNonNull(allPrevBlocksRootHash);
         final var recordFileHashFuture =
                 recordFileHashFutures.computeIfAbsent(blockNumber, ignore -> new CompletableFuture<>());
-        recordFileHashFuture
+        final var signingAttemptFuture = recordFileHashFuture
                 .whenComplete((ignore, t) -> recordFileHashFutures.remove(blockNumber, recordFileHashFuture))
-                .thenCompose(recordFileHash -> requestRecordFileSignatureList(blockNumber, recordFileHash))
+                .thenApply(recordFileHash -> requestRecordFileSignatureList(blockNumber, recordFileHash));
+        trackLatestBlockSigningFuture(
+                blockNumber, signingAttemptFuture.thenCompose(BlockHashSigner.Attempt::submissionFuture));
+        signingAttemptFuture
+                .thenCompose(BlockHashSigner.Attempt::signatureFuture)
                 .thenAcceptAsync(serializedRosterSignatures -> finishWrappedRecordBlockWithSignatureList(
                         blockNumber,
                         blockRootHash,
@@ -859,19 +899,29 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 });
     }
 
-    private CompletableFuture<Bytes> requestRecordFileSignatureList(
+    private void trackLatestBlockSigningFuture(
+            final long blockNumber, @NonNull final CompletableFuture<Void> submissionFuture) {
+        requireNonNull(submissionFuture);
+        synchronized (latestBlockSigningFutureLock) {
+            latestBlockSigningBlockNumber = blockNumber;
+            latestBlockSigningFuture = submissionFuture.thenApply(ignore -> blockNumber);
+        }
+    }
+
+    private BlockHashSigner.Attempt requestRecordFileSignatureList(
             final long blockNumber, @NonNull final Bytes recordFileHash) {
         requireNonNull(recordFileHash);
         try {
-            final var attempt = blockHashSigner.sign(recordFileHash, LIST_OF_PARTIAL_SIGNATURES);
-            return attempt.signatureFuture();
+            return blockHashSigner.sign(recordFileHash, LIST_OF_PARTIAL_SIGNATURES);
         } catch (final RuntimeException e) {
             logger.warn(
                     "Failed to request RSA signature list for WRB block #{} with record file hash {}",
                     blockNumber,
                     recordFileHash,
                     e);
-            return CompletableFuture.failedFuture(e);
+            final CompletableFuture<Bytes> signatureFuture = CompletableFuture.failedFuture(e);
+            final CompletableFuture<Void> submissionFuture = CompletableFuture.failedFuture(e);
+            return new BlockHashSigner.Attempt(null, null, signatureFuture, submissionFuture);
         }
     }
 

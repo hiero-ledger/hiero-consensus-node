@@ -88,6 +88,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -115,6 +116,8 @@ import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 @Singleton
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
+
+    private static final long NO_BLOCK_SIGNING_REQUESTED = -1L;
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
@@ -193,6 +196,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Whether the current pending block proofs future has been requested by a caller.
      */
     private boolean pendingBlockProofsFutureRequested = false;
+    /**
+     * Guards the latest block signing submission future.
+     */
+    private final Object latestBlockSigningFutureLock = new Object();
+    /**
+     * The latest block number for which this node has requested signing.
+     */
+    private long latestBlockSigningBlockNumber = NO_BLOCK_SIGNING_REQUESTED;
+    /**
+     * A future that completes to the latest requested block number when this node submits its partial signature.
+     */
+    @NonNull
+    private CompletableFuture<Long> latestBlockSigningFuture =
+            CompletableFuture.completedFuture(NO_BLOCK_SIGNING_REQUESTED);
     /**
      * Futures that resolve when the end-of-round state hash is available for a given round number.
      */
@@ -705,13 +722,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             previousBlockHashes.addNodeByHash(lastBlockHash.toByteArray());
             writer = null;
 
+            final var signedBlockNumber = blockNumber;
             final var attempt = blockHashSigner.sign(finalBlockRootHash, SUCCINCT_SIGNATURE);
+            trackLatestBlockSigningFuture(signedBlockNumber, attempt.submissionFuture());
             attempt.signatureFuture()
                     .thenAcceptAsync(signature -> {
                         if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
                             log.debug(
                                     "Signature future completed with empty signature for block num {}, final block hash {}",
-                                    blockNumber,
+                                    signedBlockNumber,
                                     finalBlockRootHash);
                         } else {
                             finishProofWithSignature(
@@ -747,7 +766,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     illegalStateException.getMessage())) {
                                 log.error(
                                         "Invalid signature detected on block #{} ({})",
-                                        blockNumber,
+                                        signedBlockNumber,
                                         finalBlockRootHash,
                                         t);
                                 return null;
@@ -762,12 +781,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         if (alreadyClosed) {
                             log.info(
                                     "Block #{} with hash {} already closed, skipping direct proof",
-                                    blockNumber,
+                                    signedBlockNumber,
                                     finalBlockRootHash);
                         } else {
                             log.warn(
                                     "Unhandled exception while signing block #{} with hash {}",
-                                    blockNumber,
+                                    signedBlockNumber,
                                     finalBlockRootHash,
                                     t);
                         }
@@ -1291,6 +1310,31 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 pendingBlockProofsFutureRequested = true;
             }
             return pendingBlockProofsFuture;
+        }
+    }
+
+    private void trackLatestBlockSigningFuture(
+            final long blockNumber, @NonNull final CompletableFuture<Void> submissionFuture) {
+        requireNonNull(submissionFuture);
+        synchronized (latestBlockSigningFutureLock) {
+            latestBlockSigningBlockNumber = blockNumber;
+            latestBlockSigningFuture = submissionFuture.thenApply(ignore -> blockNumber);
+        }
+    }
+
+    @Override
+    public boolean allBlocksSigned() {
+        final long latestBlockNumber;
+        final CompletableFuture<Long> latestSigningFuture;
+        synchronized (latestBlockSigningFutureLock) {
+            latestBlockNumber = latestBlockSigningBlockNumber;
+            latestSigningFuture = latestBlockSigningFuture;
+        }
+        try {
+            return latestSigningFuture.isDone()
+                    && latestSigningFuture.getNow(NO_BLOCK_SIGNING_REQUESTED) == latestBlockNumber;
+        } catch (final CancellationException | CompletionException e) {
+            return false;
         }
     }
 

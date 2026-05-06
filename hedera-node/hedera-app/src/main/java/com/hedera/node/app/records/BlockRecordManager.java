@@ -145,6 +145,15 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     }
 
     /**
+     * Returns whether this node has submitted its partial signatures for all blocks requested so far.
+     *
+     * @return true if all requested block signatures have been submitted
+     */
+    default boolean allBlocksSigned() {
+        return true;
+    }
+
+    /**
      * Get the consensus time of the latest handled transaction, or EPOCH if no transactions have been handled yet
      */
     @NonNull

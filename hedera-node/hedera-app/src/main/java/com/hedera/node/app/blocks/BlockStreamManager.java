@@ -203,6 +203,15 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     CompletableFuture<Void> pendingBlockProofsFuture();
 
     /**
+     * Returns whether this node has submitted its partial signatures for all blocks requested so far.
+     *
+     * @return true if all requested block signatures have been submitted
+     */
+    default boolean allBlocksSigned() {
+        return true;
+    }
+
+    /**
      * Tracks that the given event hash has appeared in the current block.
      * @param eventHash the event hash to track
      */

@@ -1878,6 +1878,55 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     }
 
     @Test
+    void reportsAllBlocksSignedWhenWrappedRecordBlockStreamingDisabled() {
+        final var app = appBuilder()
+                .withService(new BlockRecordService())
+                .withService(new PlatformStateService())
+                .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
+                .withConfigValue("blockStream.streamWrappedRecordBlocks", false)
+                .build();
+
+        seedRequiredState(app);
+
+        final var state = requireNonNullState(app.workingStateAccessor().getState());
+        final var producer = new FakeStreamProducer();
+        final var controller = new QuiescenceController(
+                new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
+        final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
+        final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
+        final var blockHashSigner = mock(BlockHashSigner.class);
+        @SuppressWarnings("unchecked")
+        final Supplier<BlockItemWriter> wrbWriterSupplier = mock(Supplier.class);
+
+        try (final var mgr = new BlockRecordManagerImpl(
+                app.configProvider(),
+                state,
+                producer,
+                controller,
+                heartbeat,
+                app.platform(),
+                diskWriter,
+                wrbWriterSupplier,
+                blockHashSigner,
+                InitTrigger.RECONNECT)) {
+            assertTrue(mgr.noOpenWrbWritersFuture().isDone());
+            assertTrue(mgr.allBlocksSigned());
+
+            final var t0 = InstantUtils.instant(10, 1);
+            mgr.startUserTransaction(t0, state);
+            mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
+
+            final var t1 = InstantUtils.instant(13, 1);
+            mgr.startUserTransaction(t1, state);
+
+            assertTrue(mgr.noOpenWrbWritersFuture().isDone());
+            assertTrue(mgr.allBlocksSigned());
+            verify(wrbWriterSupplier, never()).get();
+            verify(blockHashSigner, never()).sign(any(), any());
+        }
+    }
+
+    @Test
     void closesWrappedRecordBlockWithRsaProofWhenSignatureListCompletes() {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
@@ -1897,8 +1946,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         final var blockHashSigner = mock(BlockHashSigner.class);
         final var signatureListFuture = new CompletableFuture<Bytes>();
+        final var submissionFuture = new CompletableFuture<Void>();
         when(blockHashSigner.sign(any(), eq(LIST_OF_PARTIAL_SIGNATURES)))
-                .thenReturn(new BlockHashSigner.Attempt(null, null, signatureListFuture));
+                .thenReturn(new BlockHashSigner.Attempt(null, null, signatureListFuture, submissionFuture));
 
         final List<BlockItemWriter> handedOutWriters = new ArrayList<>();
         final Supplier<BlockItemWriter> capturingSupplier = () -> {
@@ -1920,6 +1970,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 InitTrigger.RECONNECT);
 
         assertTrue(mgr.noOpenWrbWritersFuture().isDone());
+        assertTrue(mgr.allBlocksSigned());
         final var t0 = InstantUtils.instant(10, 1);
         mgr.startUserTransaction(t0, state);
         mgr.endUserTransaction(Stream.of(sampleTxnRecord(t0, List.of())), state);
@@ -1929,9 +1980,16 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         assertEquals(1, handedOutWriters.size(), "one writer should have been handed out");
         final var noOpenWrbWritersFuture = mgr.noOpenWrbWritersFuture();
         assertFalse(noOpenWrbWritersFuture.isDone());
+        assertFalse(mgr.allBlocksSigned());
         verify(blockHashSigner, never()).sign(any(), eq(LIST_OF_PARTIAL_SIGNATURES));
         recordFileHashFuture.complete(LEGACY_RECORD_FILE_HASH);
         verify(blockHashSigner, timeout(1_000)).sign(eq(LEGACY_RECORD_FILE_HASH), eq(LIST_OF_PARTIAL_SIGNATURES));
+        assertFalse(noOpenWrbWritersFuture.isDone());
+        assertFalse(mgr.allBlocksSigned());
+
+        submissionFuture.complete(null);
+
+        assertTrue(mgr.allBlocksSigned());
         assertFalse(noOpenWrbWritersFuture.isDone());
 
         final var signatureBytes = Bytes.wrap("node-3-signature");
