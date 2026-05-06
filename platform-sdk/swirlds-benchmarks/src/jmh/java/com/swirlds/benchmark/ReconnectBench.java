@@ -216,9 +216,12 @@ public class ReconnectBench extends VirtualMapBaseBench {
     }
 
     static void main() throws Exception {
+        // This entry point is intended for local IDE profiling.
+        // Run in-process so the IntelliJ profiler attaches to the benchmark workload instead of a JMH fork.
+        // If a larger heap is needed, set it in the IDE run configuration VM options.
         new Runner(new OptionsBuilder()
                         .include(ReconnectBench.class.getSimpleName())
-                        .jvmArgs("-Xmx16g")
+                        .forks(0)
                         .build())
                 .run();
     }
