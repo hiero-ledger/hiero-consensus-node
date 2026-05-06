@@ -21,6 +21,7 @@ open module com.swirlds.common.test.fixtures {
     requires com.swirlds.config.extensions.test.fixtures;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
+    requires org.hiero.base.utility.test.fixtures;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires org.junit.jupiter.api;
