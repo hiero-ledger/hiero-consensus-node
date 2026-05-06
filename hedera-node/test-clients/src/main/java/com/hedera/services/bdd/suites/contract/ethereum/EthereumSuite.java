@@ -1371,8 +1371,8 @@ public class EthereumSuite {
         final byte[] v = new byte[] {0x01};
         final byte[] r = Hex.decode("f9fbff985d374be4a55f296915002eec11ac96f1ce2df183adf992baa9390b2f");
         final byte[] s = Hex.decode("0c1e867cc960d9c74ec2e6a662b7908ec4c8cc9f3091e886bcefbeb2290fb792");
-        final ByteString rawTx = ByteString.copyFrom(
-                RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s)));
+        final ByteString rawTx =
+                ByteString.copyFrom(RLPEncoder.list(List.of(nonce, gasPrice, gasLimit, to, value, callData, v, r, s)));
 
         return hapiTest(
                 cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),

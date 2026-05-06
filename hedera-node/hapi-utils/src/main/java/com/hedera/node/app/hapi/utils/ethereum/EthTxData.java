@@ -571,7 +571,8 @@ public record EthTxData(
             // top bit is set — see https://github.com/hashgraph/hedera-services/issues/15953
             return BigIntegers.asUnsignedByteArray(BigInteger.valueOf((v - 35) >> 1));
         }
-        return BigIntegers.asUnsignedByteArray(vBI.subtract(BigInteger.valueOf(35)).shiftRight(1));
+        return BigIntegers.asUnsignedByteArray(
+                vBI.subtract(BigInteger.valueOf(35)).shiftRight(1));
     }
 
     // `asByte` and `asLong` always return positive values by replacing out of range values with
