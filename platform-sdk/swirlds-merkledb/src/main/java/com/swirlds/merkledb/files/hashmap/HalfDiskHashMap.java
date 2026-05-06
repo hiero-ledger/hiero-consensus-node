@@ -35,7 +35,6 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.collections.api.tuple.primitive.IntObjectPair;
@@ -118,9 +117,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * same thread
      */
     private Thread writingThread;
-
-    /** A holder for the first exception occurred during endWriting() tasks */
-    private final AtomicReference<Throwable> exceptionOccurred = new AtomicReference<>();
 
     /** Fork-join pool for HDHM.endWriting() */
     private static volatile ForkJoinPool flushingPool = null;
@@ -352,7 +348,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                             if (recordBytes == null) {
                                 throw new IOException("Record not found in pathToKeyValue store, path=" + path);
                             }
-                            final VirtualLeafBytes record = VirtualLeafBytes.parseFrom(recordBytes);
+                            final VirtualLeafBytes<?> record = VirtualLeafBytes.parseFrom(recordBytes);
                             if (!record.keyBytes().equals(keyBytes)) {
                                 logger.warn(
                                         MERKLE_DB.getMarker(),
@@ -539,15 +535,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         try {
             if (size > 0) {
                 fileCollection.startWriting();
-                exceptionOccurred.set(null);
                 final ForkJoinPool pool = getFlushingPool(config);
                 final AbstractTask notifyTask = new NotifyTask(pool, size);
                 final SubmitBucketTask submitTask = new SubmitBucketTask(pool, notifyTask);
                 submitTask.send();
                 notifyTask.join();
-                if (exceptionOccurred.get() != null) {
-                    throw new IOException(exceptionOccurred.get());
-                }
                 // close files session
                 dataFileReader = fileCollection.endWriting();
                 logger.info(
@@ -684,7 +676,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     // update bucketIndexToBucketLocation
                     bucketIndexToBucketLocation.put(bucketIndex, bucketLocation);
                 }
-            } finally {
                 notifyTask.send();
             }
             return true;
@@ -703,7 +694,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * All individual bucket tasks notify this task, so when all buckets are processed,
      * this task is run, and {@link #endWriting()} is unblocked.
      */
-    private class NotifyTask extends AbstractTask {
+    private static class NotifyTask extends AbstractTask {
 
         NotifyTask(final ForkJoinPool pool, final int bucketCount) {
             super(pool, bucketCount);
@@ -712,11 +703,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         @Override
         protected boolean onExecute() {
             return true;
-        }
-
-        @Override
-        protected void onException(final Throwable t) {
-            exceptionOccurred.compareAndSet(null, t);
         }
     }
 

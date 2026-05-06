@@ -340,6 +340,11 @@ public final class DataFileWriter {
         }
 
         final int sizeToWrite = Math.toIntExact(dataItemWithTag.remaining());
+        if (sizeToWrite > dataBufferSize) {
+            throw new IOException(
+                    ERROR_DATA_ITEM_TOO_LARGE + " dataSize=" + sizeToWrite + ", bufferSize=" + dataBufferSize);
+        }
+
         final long fileOffset = currentWriteOffset.getAndAdd(sizeToWrite);
         final int writingWindowIndex = Math.toIntExact(fileOffset / dataBufferSize);
         final WritingWindow writingWindow = getWritingWindow(writingWindowIndex);
