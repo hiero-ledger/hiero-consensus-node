@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform;
+package org.hiero.consensus.model.hashgraph;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
@@ -13,8 +13,6 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
