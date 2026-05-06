@@ -90,10 +90,9 @@ class MerkleDbDataSourceTest {
     }
 
     @BeforeEach
-    void setupDatabaseDir() throws IOException {
+    void setupDatabaseDir() {
         fileSystemManager = new TestFileSystemManager(tempDir);
         testDirectory = fileSystemManager.resolveNewTemp("MerkleDbDataSourceTest");
-        Files.createDirectories(testDirectory);
     }
 
     @AfterEach
@@ -905,7 +904,6 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(15, 30, Stream.empty(), dirtyLeaves.stream(), Stream.empty(), false);
             assertEquals(1L, sourceCounter.get());
             final Path copyPath = fileSystemManager.resolveNewTemp("copyStatisticsTest");
-            Files.createFile(copyPath);
             dataSource.snapshot(copyPath);
             final MerkleDbDataSource copy =
                     testType.dataType().getDataSource(fileSystemManager, copyPath, dataSource.getTableName(), true);
