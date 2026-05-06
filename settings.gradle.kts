@@ -59,8 +59,8 @@ gradle.lifecycle.afterProject {
     tasks.withType<Test>().configureEach {
         reports.junitXml.mergeReruns = true
 
+        // CI: configure rerun to accept and track flakiness
         if (EnvAccess.isCiServer(providers)) {
-            // CI: configure rerun to accept and track flakiness
             develocity.testRetry {
                 maxRetries = 2
                 maxFailures = 10
@@ -72,19 +72,19 @@ gradle.lifecycle.afterProject {
                 markerFile.parentFile.mkdirs()
                 markerFile.writeText(java.time.Instant.now().toString())
             }
-        } else {
-            // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is
-            // (likely) not flaky
-            val runUntilFailure = providers.gradleProperty("runUntilFailure").map { it.toInt() }
-            if (runUntilFailure.isPresent) {
-                // no up-to-date or caching in 'runUntilFailure' mode
-                doNotTrackState("Run until failure mode")
-                // re-execute task action (executeTests()) until failure or max rerun reached
-                doLast {
-                    for (rerunIndex in 1..runUntilFailure.get()) {
-                        logger.lifecycle("Test Rerun $rerunIndex/${runUntilFailure.get()}")
-                        executeTests()
-                    }
+        }
+
+        // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
+        // not flaky
+        val runUntilFailure = providers.gradleProperty("runUntilFailure").map { it.toInt() }
+        if (runUntilFailure.isPresent) {
+            // no up-to-date or caching in 'runUntilFailure' mode
+            doNotTrackState("Run until failure mode")
+            // re-execute task action (executeTests()) until failure or max rerun reached
+            doLast {
+                for (rerunIndex in 1..runUntilFailure.get()) {
+                    logger.lifecycle("Test Rerun $rerunIndex/${runUntilFailure.get()}")
+                    executeTests()
                 }
             }
         }
