@@ -60,18 +60,16 @@ gradle.lifecycle.afterProject {
         reports.junitXml.mergeReruns = true
 
         // CI: configure rerun to accept and track flakiness
-        if (EnvAccess.isCiServer(providers)) {
-            develocity.testRetry {
-                maxRetries = 2
-                maxFailures = 10
-                failOnPassedAfterRetry = false
-            }
-            // Write a marker when tests actually execute (not on cache restore).
-            val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
-            doLast {
-                markerFile.parentFile.mkdirs()
-                markerFile.writeText(java.time.Instant.now().toString())
-            }
+        develocity.testRetry {
+            maxRetries = if (EnvAccess.isCiServer(providers)) 2 else 0
+            maxFailures = 10
+            failOnPassedAfterRetry = false
+        }
+        // Write a marker when tests actually execute (not on cache restore).
+        val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
+        doLast {
+            markerFile.parentFile.mkdirs()
+            markerFile.writeText(java.time.Instant.now().toString())
         }
 
         // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
