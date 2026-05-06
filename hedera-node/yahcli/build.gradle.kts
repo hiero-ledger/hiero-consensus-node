@@ -32,7 +32,14 @@ val yahCliJar =
         archiveClassifier = "shadow"
         configurations = listOf(project.configurations["runtimeClasspath"])
 
-        manifest { attributes("Main-Class" to "com.hedera.services.yahcli.Yahcli") }
+        manifest {
+            attributes(
+                "Main-Class" to "com.hedera.services.yahcli.Yahcli",
+                // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+                // restricted-method warning for callers in the unnamed module of this JAR.
+                "Enable-Native-Access" to "ALL-UNNAMED",
+            )
+        }
 
         // Include all classes and resources from the main source set
         from(sourceSets["main"].output)

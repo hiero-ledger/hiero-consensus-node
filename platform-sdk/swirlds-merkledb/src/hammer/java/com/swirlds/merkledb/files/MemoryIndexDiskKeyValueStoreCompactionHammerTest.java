@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.swirlds.common.utility.StopWatch;
+import com.swirlds.base.time.StopWatch;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
@@ -459,8 +459,7 @@ class MemoryIndexDiskKeyValueStoreCompactionHammerTest {
         private final DataFileCompactor compactor;
 
         Compactor(final MemoryIndexDiskKeyValueStore coll, LongListSegment storeIndex) {
-            compactor = new DataFileCompactor(
-                    "megaMergeHammerTest", coll.getFileCollection(), storeIndex, null, null, null, null);
+            compactor = new DataFileCompactor(coll.getFileCollection(), storeIndex, null, null, null, null);
         }
 
         @Override

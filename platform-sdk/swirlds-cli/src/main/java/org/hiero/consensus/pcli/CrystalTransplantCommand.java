@@ -12,8 +12,6 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -37,6 +35,9 @@ import java.util.Objects;
 import java.util.Scanner;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.config.PathsConfig;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.PcesConfig;
@@ -166,12 +167,12 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 .autoDiscoverExtensions()
                 .build();
 
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+
         this.platformContext = PlatformContext.create(
-                configuration,
-                Time.getCurrent(),
-                new NoOpMetrics(),
-                FileSystemManager.create(configuration),
-                new SimpleRecycleBin());
+                configuration, Time.getCurrent(), new NoOpMetrics(), fileSystemManager, new SimpleRecycleBin());
 
         final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
 

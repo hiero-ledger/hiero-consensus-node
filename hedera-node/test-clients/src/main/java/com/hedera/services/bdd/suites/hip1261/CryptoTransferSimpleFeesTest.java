@@ -47,8 +47,8 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHBARAndNFTFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferHbarFullFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNFTFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoTransferTokenWithCustomFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkOnlyFeeUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
@@ -2881,7 +2881,7 @@ public class CryptoTransferSimpleFeesTest {
                             getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 3L, PROCESSING_BYTES, (long) txnSize)),
                                     0.1),
                             validateChargedAccount(INNER_ID, "0.0.4")));
@@ -2920,7 +2920,7 @@ public class CryptoTransferSimpleFeesTest {
                             getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.1),
                             validateChargedAccount(INNER_ID, "0.0.4")));
@@ -2958,7 +2958,7 @@ public class CryptoTransferSimpleFeesTest {
                             getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.1),
                             validateChargedAccount(INNER_ID, "0.0.4")));
@@ -3000,7 +3000,7 @@ public class CryptoTransferSimpleFeesTest {
                             getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
                                     0.1),
                             validateChargedAccount(INNER_ID, "0.0.4")));
@@ -3045,7 +3045,7 @@ public class CryptoTransferSimpleFeesTest {
                             getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.1),
                             validateChargedAccount(INNER_ID, "0.0.4")));
@@ -3090,7 +3090,7 @@ public class CryptoTransferSimpleFeesTest {
                             getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.1),
                             validateChargedAccount(INNER_ID, "0.0.4")));
@@ -3133,7 +3133,7 @@ public class CryptoTransferSimpleFeesTest {
                             getTxnRecord(INNER_ID).assertingNothingAboutHashes().logged(),
                             validateChargedUsdFromRecordWithTxnSize(
                                     INNER_ID,
-                                    txnSize -> expectedCryptoTransferNetworkFeeOnlyUsd(
+                                    txnSize -> expectedNetworkOnlyFeeUsd(
                                             Map.of(SIGNATURES, 2L, PROCESSING_BYTES, (long) txnSize)),
                                     0.1),
                             validateChargedAccount(INNER_ID, "0.0.4")));
