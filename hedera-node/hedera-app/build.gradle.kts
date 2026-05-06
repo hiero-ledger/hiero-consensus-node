@@ -80,7 +80,15 @@ jmhModuleInfo {
 // Add all the libs dependencies into the jar manifest!
 tasks.jar {
     inputs.files(configurations.runtimeClasspath)
-    manifest { attributes("Main-Class" to "com.hedera.node.app.ServicesMain") }
+    manifest {
+        attributes(
+            "Main-Class" to "com.hedera.node.app.ServicesMain",
+            // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+            // restricted-method warning for callers in the unnamed module of this JAR
+            // when launched via `java -jar`.
+            "Enable-Native-Access" to "ALL-UNNAMED",
+        )
+    }
     doFirst {
         manifest.attributes(
             "Class-Path" to

@@ -148,6 +148,12 @@ fi
 # Pass banner flag to Java program (disabled by default, enabled with --banner/-B)
 JVM_ARGS+=("-Dpcli.showBanner=${SHOW_BANNER}")
 
+# Silence JDK 25 warnings: netty's System::loadLibrary restricted-method warning
+# (--enable-native-access) and protobuf's sun.misc.Unsafe::arrayBaseOffset deprecation
+# (--sun-misc-unsafe-memory-access). Required because pcli launches via -cp, not -jar,
+# so manifest-based mitigations do not apply.
+JVM_ARGS+=("--enable-native-access=ALL-UNNAMED" "--sun-misc-unsafe-memory-access=allow")
+
 # Run the CLI
 java "${JVM_ARGS[@]}" -cp "${JVM_CLASSPATH}" $MAIN_CLASS_NAME "${PROGRAM_ARGS[@]}"
 EXIT_CODE=$?
