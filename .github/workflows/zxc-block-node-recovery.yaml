@@ -75,10 +75,8 @@ jobs:
       - name: Get Latest Stable CN Tag
         run: |
           RAW_VERSION=$(cat version.txt)
-          CN_VERSION="${RAW_VERSION%-SNAPSHOT}"
-          CN_LATEST_TAG="v${CN_VERSION}"
-          echo "CN version from version.txt: ${RAW_VERSION}. Setting CN_LATEST_TAG=${CN_LATEST_TAG}"
-          echo "CN_LATEST_TAG=${CN_LATEST_TAG}" >> "$GITHUB_ENV"
+          echo "CN version from version.txt: ${RAW_VERSION}. Setting value to CN_LATEST_TAG env var"
+          echo "CN_LATEST_TAG=${RAW_VERSION}" >> "$GITHUB_ENV"
 
       - name: Install jq
         run: |
