@@ -40,6 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.io.TempDir;
@@ -1390,6 +1392,27 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> {
             } finally {
                 // Clean up the temporary file after the test
                 Files.deleteIfExists(longListFile);
+            }
+        }
+    }
+
+    @RepeatedTest(100)
+    void concurrentPutTest() {
+        final int CHUNK_SIZE = 1000;
+        final int LIST_SIZE = CHUNK_SIZE * 128;
+        try (final LongList list = createLongList(CHUNK_SIZE, LIST_SIZE, 0)) {
+            final int THREADS = 8;
+            final int UPDATES = 1000;
+            final int size = THREADS * UPDATES;
+            list.updateValidRange(0, size - 1);
+            IntStream.range(0, THREADS).parallel().forEach(t -> {
+                for (int i = 0; i < UPDATES; i++) {
+                    final long v = t + i * THREADS;
+                    list.put(v, v + 1);
+                }
+            });
+            for (long v = 0; v < size; v++) {
+                assertEquals(v + 1, list.get(v));
             }
         }
     }

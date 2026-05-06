@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.hiero.base.file.FileSystemManager;
@@ -69,6 +70,12 @@ public class LongListDisk extends AbstractLongList<Long> {
     private final Deque<Long> freeChunks = new ConcurrentLinkedDeque<>();
 
     /**
+     * The number of chunks in the temp file. Increased when a new chunk is created and
+     * appended to the file.
+     */
+    private final AtomicInteger numAllocatedChunks;
+
+    /**
      * Protects readers and writers from observing a chunk file-offset
      * that has been recycled by a concurrent
      * {@link #updateValidRange} → {@link #closeChunk} → {@link #createChunk}
@@ -116,6 +123,7 @@ public class LongListDisk extends AbstractLongList<Long> {
         super(capacity, configuration);
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
+        numAllocatedChunks = new AtomicInteger(0);
     }
 
     /**
@@ -138,6 +146,7 @@ public class LongListDisk extends AbstractLongList<Long> {
         super(longsPerChunk, capacity, reservedBufferSize);
         initFileChannel(configuration);
         fillBufferWithZeroes(initOrGetTransferBuffer());
+        numAllocatedChunks = new AtomicInteger(0);
     }
 
     /**
@@ -161,6 +170,9 @@ public class LongListDisk extends AbstractLongList<Long> {
             @NonNull final FileSystemManager fileSystemManager)
             throws IOException {
         this.fileSystemManager = fileSystemManager;
+        // Initialize numAllocatedChunks before super(), since it's used in readBodyFromFileChannelOnInit(),
+        // which is called from super()
+        numAllocatedChunks = new AtomicInteger(0);
         super(file, capacity, configuration);
         if (tempFile == null) {
             throw new IllegalStateException("The temp file is not initialized");
@@ -192,6 +204,9 @@ public class LongListDisk extends AbstractLongList<Long> {
             final @NonNull FileSystemManager fileSystemManager)
             throws IOException {
         this.fileSystemManager = fileSystemManager;
+        // Initialize numAllocatedChunks before super(), since it's used in readBodyFromFileChannelOnInit(),
+        // which is called from super()
+        numAllocatedChunks = new AtomicInteger(0);
         super(path, longsPerChunk, capacity, reservedBufferSize, configuration);
         // IDE complains that the tempFile is not initialized, but it's initialized in readBodyFromFileChannelOnInit
         // which is called from the constructor of the parent class
@@ -245,6 +260,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             final long chunk = ((long) (chunkIndex - firstChunkIndex) * memoryChunkSize);
             setChunk(chunkIndex, chunk);
         }
+
+        numAllocatedChunks.set(lastChunkIndex - firstChunkIndex + 1);
     }
 
     /** {@inheritDoc} */
@@ -577,14 +594,9 @@ public class LongListDisk extends AbstractLongList<Long> {
     /** {@inheritDoc} */
     @Override
     protected Long createChunk() {
-        Long chunkOffset = freeChunks.poll();
-        if (chunkOffset == null) {
-            long maxOffset = -1;
-            for (int i = 0; i < chunkList.length(); i++) {
-                Long currentOffset = chunkList.get(i);
-                maxOffset = Math.max(maxOffset, currentOffset == null ? -1 : currentOffset);
-            }
-            final long chunk = maxOffset == -1 ? 0 : maxOffset + memoryChunkSize;
+        Long chunk = freeChunks.poll();
+        if (chunk == null) {
+            chunk = (long) numAllocatedChunks.getAndIncrement() * memoryChunkSize;
             try {
                 // Append the full chunk to the end of the backing file
                 final ByteBuffer tmp = initOrGetTransferBuffer();
@@ -593,10 +605,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);
             }
-            return chunk;
-        } else {
-            return chunkOffset;
         }
+        return chunk;
     }
 
     // exposed for test purposes only - DO NOT USE IN PROD CODE
