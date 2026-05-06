@@ -53,6 +53,9 @@ on:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDLT outputs notifications"
+      perf_ghp:
+        required: true
+        description: "Algorithmic analysis GHP"
     outputs:
       result:
         description: "Result of the SDLT Run"
@@ -420,7 +423,7 @@ jobs:
 
       - name: Build NLG test
         env:
-          GITHUB_PAGES_URL: ${{ secrets.GH_ACCESS_TOKEN }}
+          GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
         run: |
           set +x
           set +e
