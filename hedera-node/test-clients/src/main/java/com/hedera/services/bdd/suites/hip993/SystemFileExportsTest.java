@@ -411,6 +411,7 @@ public class SystemFileExportsTest {
     final Stream<DynamicTest> syntheticFileCreationsMatchQueriesAndNodeStakeUpdate() {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
+                getSystemFiles(preGenesisContents::set),
                 eventuallyAssertingExplicitPassWithReplay(
                         selectedItems(
                                 validatorFor(preGenesisContents),
@@ -418,7 +419,6 @@ public class SystemFileExportsTest {
                                 (ignore, item) -> item.getRecord().getReceipt().hasFileID()
                                         || item.getRecord().getMemo().equals(END_OF_PERIOD_MEMO)),
                         Duration.ofSeconds(10)),
-                getSystemFiles(preGenesisContents::set),
                 cryptoCreate("firstUser").via("genesisTxn"),
                 // Assert the first created entity still has the expected number
                 withOpContext((spec, opLog) -> assertEquals(

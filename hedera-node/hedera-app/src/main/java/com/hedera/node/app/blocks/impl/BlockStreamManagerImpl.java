@@ -526,6 +526,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
+    public boolean willCloseBlock(@NonNull final State state, final long roundNum) {
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
+        final long freezeRoundNumber = platformStateStore.getLatestFreezeRound();
+        return shouldCloseBlock(roundNum, freezeRoundNumber);
+    }
+
+    @Override
     public boolean endRound(@NonNull final State state, final long roundNum) {
         final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var platformStateStore = storeFactory.readableStore(ReadablePlatformStateStore.class);
