@@ -242,7 +242,7 @@ public class DiskStartupNetworks implements StartupNetworks {
     public static Optional<Network> loadNetworkFrom(@NonNull final Path path) {
         if (Files.exists(path)) {
             try (final var fin = Files.newInputStream(path)) {
-                return Optional.of(Network.JSON.parse(new ReadableStreamingData(fin)));
+                return Optional.of(Network.JSON.parseStrict(new ReadableStreamingData(fin)));
             } catch (Exception e) {
                 log.warn("Failed to load {} network info from {}", path.toAbsolutePath(), e);
             }

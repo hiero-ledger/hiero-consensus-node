@@ -5,10 +5,10 @@ import static com.swirlds.platform.test.fixtures.PlatformTestUtils.createDefault
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.io.ResourceLoader;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;

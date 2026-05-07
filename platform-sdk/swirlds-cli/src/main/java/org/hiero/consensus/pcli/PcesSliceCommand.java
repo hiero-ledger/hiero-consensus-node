@@ -370,7 +370,7 @@ public class PcesSliceCommand extends AbstractCommand {
             return null;
         }
         try (final FileInputStream fis = new FileInputStream(snapshotPath.toFile())) {
-            return ConsensusSnapshot.JSON.parse(new ReadableStreamingData(fis));
+            return ConsensusSnapshot.JSON.parseStrict(new ReadableStreamingData(fis));
         }
     }
 
